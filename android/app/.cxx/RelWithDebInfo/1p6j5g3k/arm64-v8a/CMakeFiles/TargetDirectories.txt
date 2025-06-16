@@ -1,0 +1,2 @@
+/Users/macbookpro/Documents/projects/mobileappecl/android/app/.cxx/RelWithDebInfo/1p6j5g3k/arm64-v8a/CMakeFiles/edit_cache.dir
+/Users/macbookpro/Documents/projects/mobileappecl/android/app/.cxx/RelWithDebInfo/1p6j5g3k/arm64-v8a/CMakeFiles/rebuild_cache.dir
