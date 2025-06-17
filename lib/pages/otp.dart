@@ -1,11 +1,17 @@
+// pages/otp.dart
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
 import 'auth_service.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final String email;
+  final String phoneNumber;
 
-  const OtpVerificationScreen({super.key, required this.email});
+  const OtpVerificationScreen({
+    super.key,
+    required this.email,
+    required this.phoneNumber,
+  });
 
   @override
   _OtpVerificationScreenState createState() => _OtpVerificationScreenState();
@@ -18,7 +24,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   Future<void> _verifyOtp() async {
     setState(() => isLoading = true);
 
-    bool isVerified = await AuthService.verifyOTP(widget.email, otpController.text.trim());
+    bool isVerified =
+        await AuthService.verifyOTP(widget.email, otpController.text.trim());
 
     setState(() => isLoading = false);
 
@@ -47,7 +54,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            Text("Enter the OTP sent to ${widget.email}", style: TextStyle(fontSize: 16)),
+            Text("Enter the OTP sent to ${widget.phoneNumber}",
+                style: TextStyle(fontSize: 16)),
             SizedBox(height: 20),
             TextField(
               controller: otpController,
@@ -58,9 +66,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             isLoading
                 ? CircularProgressIndicator()
                 : ElevatedButton(
-              onPressed: _verifyOtp,
-              child: Text("Verify OTP"),
-            ),
+                    onPressed: _verifyOtp,
+                    child: Text(
+                      "Verify OTP",
+                      style: TextStyle(color: Colors.green),
+                    ),
+                  ),
           ],
         ),
       ),

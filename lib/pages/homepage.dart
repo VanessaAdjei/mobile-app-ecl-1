@@ -336,6 +336,7 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _fetchPopularProducts() async {
+    if (!mounted) return;
     setState(() {
       _isLoadingPopular = true;
       _popularError = null;
@@ -351,6 +352,7 @@ class _HomePageState extends State<HomePage>
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         final List<dynamic> productsData = data['data'] ?? [];
+        if (!mounted) return;
         setState(() {
           popularProducts = productsData.map<Product>((item) {
             final productData = item['product'] as Map<String, dynamic>;
@@ -373,24 +375,31 @@ class _HomePageState extends State<HomePage>
               accessories: productData['accessories'],
             );
           }).toList();
+          _isLoadingPopular = false;
         });
       } else {
-        throw Exception('Server error');
+        if (!mounted) return;
+        setState(() {
+          _popularError = 'Server error';
+          _isLoadingPopular = false;
+        });
       }
     } on TimeoutException {
+      if (!mounted) return;
       setState(() {
         _popularError = 'Connection timed out';
+        _isLoadingPopular = false;
       });
     } on http.ClientException {
+      if (!mounted) return;
       setState(() {
         _popularError = 'No internet connection';
+        _isLoadingPopular = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _popularError = 'Something went wrong';
-      });
-    } finally {
-      setState(() {
         _isLoadingPopular = false;
       });
     }

@@ -223,8 +223,8 @@ class _ProfileState extends State<Profile> {
                 ),
               ),
               onPressed: () async {
-                Navigator.of(context, rootNavigator: true)
-                    .pop(); // Ensure dialog closes
+                // Close the dialog first
+                Navigator.of(context, rootNavigator: true).pop();
 
                 try {
                   // First logout from the service
@@ -251,14 +251,17 @@ class _ProfileState extends State<Profile> {
                   }
                 } catch (e) {
                   print('Error during logout: $e');
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error during logout: ${e.toString()}'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
+                  // Show error in the new screen instead of current context
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error during logout: ${e.toString()}'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  });
                 }
               },
               child: Text(

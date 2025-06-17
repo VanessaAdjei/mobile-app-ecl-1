@@ -58,7 +58,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => OtpVerificationScreen(email: email),
+          builder: (context) => OtpVerificationScreen(
+            email: email,
+            phoneNumber: phoneNumber,
+          ),
         ),
       );
     } else {

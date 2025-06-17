@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' show min;
+import 'dart:io' show SocketException;
 import 'package:eclapp/pages/paymentwebview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -183,11 +184,31 @@ class _PaymentPageState extends State<PaymentPage> {
     try {
       print('Starting payment process...');
 
+      // Validate cart
+      if (cart.cartItems.isEmpty) {
+        throw Exception(
+            'Your cart is empty. Please add items before proceeding with payment.');
+      }
+
       // Calculate total
       final subtotal = cart.calculateSubtotal();
+      if (subtotal <= 0) {
+        throw Exception('Invalid order amount. Please check your cart items.');
+      }
+
       final deliveryFee = 0.00;
       final total = subtotal + deliveryFee;
       print('Cart total: $total');
+
+      // Validate user data
+      if (_userEmail.isEmpty || _userEmail == "No email available") {
+        throw Exception(
+            'Please update your email address in your profile before making a payment.');
+      }
+
+      if (widget.contactNumber?.isEmpty ?? true) {
+        throw Exception('Please provide a valid contact number for delivery.');
+      }
 
       // Create order description
       String orderDesc = cart.cartItems
@@ -224,7 +245,6 @@ class _PaymentPageState extends State<PaymentPage> {
 
       if (selectedPaymentMethod == 'Cash on Delivery') {
         print('Processing Cash on Delivery order...');
-        await _clearCartItems(cart);
         isSuccess = true;
         isVerified = true;
 
@@ -249,87 +269,126 @@ class _PaymentPageState extends State<PaymentPage> {
 
       // Online Payment Flow
       final authToken = await AuthService.getToken();
+      if (authToken == null) {
+        throw Exception('Authentication required. Please log in again.');
+      }
 
-      final response = await http.post(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/expresspayment'),
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $authToken',
-        },
-        body: jsonEncode(params),
-      );
+      try {
+        final response = await http
+            .post(
+          Uri.parse(
+              'https://eclcommerce.ernestchemists.com.gh/api/expresspayment'),
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $authToken',
+          },
+          body: jsonEncode(params),
+        )
+            .timeout(
+          const Duration(seconds: 30),
+          onTimeout: () {
+            throw TimeoutException(
+                'Payment request timed out. Please try again.');
+          },
+        );
 
-      print('Payment API response: ${response.statusCode}');
-      print('Response body: ${response.body}');
+        print('Payment API response: ${response.statusCode}');
+        print('Response body: ${response.body}');
 
-      if (response.statusCode == 200) {
-        // The response is a direct URL string, not JSON
-        final redirectUrl = response.body.trim();
+        if (response.statusCode == 200) {
+          final redirectUrl = response.body.trim();
+          print('Payment redirect URL: $redirectUrl');
 
-        // Launch payment WebView
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PaymentWebView(
+          if (redirectUrl.isEmpty) {
+            throw Exception('Received empty payment URL from server.');
+          }
+
+          // Launch payment WebView
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PaymentWebView(
                 url: redirectUrl,
                 paymentParams: params,
                 purchasedItems: purchasedItems,
                 paymentMethod: selectedPaymentMethod,
                 onPaymentComplete: (success, token) async {
                   if (success && token != null) {
-                    final result = await _verifyPayment(token, transactionId!);
-                    final statusText =
-                        result['status']?.toString().toLowerCase() ?? '';
+                    try {
+                      final result =
+                          await _verifyPayment(token, transactionId!);
+                      final statusText =
+                          result['status']?.toString().toLowerCase() ?? '';
 
-                    final isDeclined = statusText.contains('declined');
-                    final isCompleted = statusText.contains('completed');
+                      final isDeclined = statusText.contains('declined');
+                      final isCompleted = statusText.contains('completed');
 
-                    if (result['verified'] == true &&
-                        isCompleted &&
-                        !isDeclined) {
-                      await _clearCartItems(cart);
-                      print('Payment verified and completed. Cart cleared.');
-                    } else {
-                      print(
-                          'Payment not completed or declined. Cart not cleared.');
+                      if (result['verified'] == true &&
+                          isCompleted &&
+                          !isDeclined) {
+                        print('Payment verified and completed.');
+                      } else {
+                        print('Payment not completed or declined.');
+                      }
+                    } catch (e) {
+                      print('Error verifying payment: $e');
+                      throw Exception(
+                          'Failed to verify payment status. Please contact support.');
                     }
                   } else {
-                    print('Payment not successful. Cart not cleared.');
+                    print('Payment not successful.');
                   }
-                }),
-          ),
-        );
-
-        // If WebView was closed without completing payment
-        if (result == null) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => OrderConfirmationPage(
-                paymentParams: params,
-                purchasedItems: purchasedItems,
-                initialStatus: 'error',
-                initialTransactionId: params['order_id'],
-                paymentSuccess: false,
-                paymentVerified: false,
-                paymentToken: null,
-                paymentMethod: selectedPaymentMethod,
+                },
               ),
             ),
           );
+
+          // If WebView was closed without completing payment
+          if (result == null) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OrderConfirmationPage(
+                  paymentParams: params,
+                  purchasedItems: purchasedItems,
+                  initialStatus: 'error',
+                  initialTransactionId: params['order_id'],
+                  paymentSuccess: false,
+                  paymentVerified: false,
+                  paymentToken: null,
+                  paymentMethod: selectedPaymentMethod,
+                ),
+              ),
+            );
+          }
+          return;
+        } else if (response.statusCode == 401) {
+          throw Exception('Your session has expired. Please log in again.');
+        } else if (response.statusCode == 403) {
+          throw Exception('You do not have permission to make this payment.');
+        } else if (response.statusCode == 404) {
+          throw Exception('Payment service is currently unavailable.');
+        } else if (response.statusCode >= 500) {
+          throw Exception('Server error. Please try again later.');
+        } else {
+          throw Exception(
+              'Payment request failed with status ${response.statusCode}');
         }
-        return;
-      } else {
+      } on TimeoutException {
         throw Exception(
-            'Backend payment request failed with status ${response.statusCode}');
+            'Payment request timed out. Please check your internet connection and try again.');
+      } on SocketException {
+        throw Exception(
+            'No internet connection. Please check your network and try again.');
+      } on FormatException {
+        throw Exception('Invalid response from server. Please try again.');
       }
     } catch (e, stack) {
       print('Error during payment process: $e');
       print('Stack trace: $stack');
       setState(() {
-        _paymentError = 'Payment Error: ${e.toString()}';
+        _paymentError = e.toString();
       });
       _showPaymentFailureDialog(e.toString());
     } finally {
@@ -337,22 +396,6 @@ class _PaymentPageState extends State<PaymentPage> {
         _isProcessingPayment = false;
       });
     }
-  }
-
-  Future<void> _clearCartItems(CartProvider cart) async {
-    print('_clearCartItems called');
-    print('Current cart items before clearing: ${cart.cartItems.length}');
-
-    // Create a copy of the items to avoid concurrent modification
-    final itemsToRemove = List<CartItem>.from(cart.cartItems);
-
-    // Remove each item from both local and server cart
-    for (var item in itemsToRemove) {
-      print('Removing item from cart: ${item.name} (ID: ${item.id})');
-      await cart.removeFromCart(item.id);
-    }
-
-    print('Cart cleared. Current cart items: ${cart.cartItems.length}');
   }
 
   @override
@@ -852,8 +895,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     // Check status immediately
     _checkPaymentStatus();
 
-    // Set up periodic checking every second
-    _statusCheckTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+    // Set up periodic checking every 5 seconds instead of every second
+    _statusCheckTimer = Timer.periodic(Duration(seconds: 5), (timer) {
       print('Automatic status check triggered');
       if (mounted) {
         _checkPaymentStatus();
@@ -890,6 +933,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           _isLoading = false;
 
           print('Payment status updated: $_status');
+          print('Status message: $_statusMessage');
 
           // Handle different payment states
           if (_status?.toLowerCase() == 'success') {
@@ -1365,12 +1409,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                             children: [
                               ElevatedButton.icon(
                                 onPressed: () {
-                                  Navigator.pushAndRemoveUntil(
+                                  Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => const HomePage(),
                                     ),
-                                    (route) => false,
                                   );
                                 },
                                 icon: const Icon(Icons.shopping_cart, size: 18),
@@ -1571,74 +1614,155 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
       print('Using bearer token: $tokenRaw');
       final userId = await AuthService.getCurrentUserID();
-      print('User ID: $userId');
+      if (userId == null) {
+        throw Exception('User ID not found. Please log in again.');
+      }
+      print('User ID:$userId');
 
-      final response = await http.post(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/check-payment'),
-        headers: {
-          'Authorization': 'Bearer $tokenRaw',
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'user_id': userId,
-        }),
-      );
+      // Create request body
+      final requestBody = {
+        'user_id': userId,
+      };
+      print('Request body: $requestBody');
 
-      print('\nResponse Status Code: ${response.statusCode}');
-      print('Raw Response Body: ${response.body}');
-      print('Response Headers: ${response.headers}');
+      try {
+        // Make the request with timeout
+        final response = await http
+            .post(
+          Uri.parse(
+              'https://eclcommerce.ernestchemists.com.gh/api/check-payment'),
+          headers: {
+            'Authorization': 'Bearer $tokenRaw',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode(requestBody),
+        )
+            .timeout(
+          const Duration(seconds: 15),
+          onTimeout: () {
+            throw TimeoutException(
+                'Payment status check timed out. Please try again.');
+          },
+        );
 
-      if (response.statusCode == 200) {
-        // Handle empty response
-        if (response.body.isEmpty) {
-          print('Received empty response body');
-          return {
-            'status': 'pending',
-            'message': 'Payment status is being processed',
-          };
-        }
+        print('\nResponse Status Code: ${response.statusCode}');
+        print('Response Headers: ${response.headers}');
+        print('Raw Response Body: ${response.body}');
 
-        try {
-          final data = json.decode(response.body);
-          print('Parsed response data: $data');
+        if (response.statusCode == 200) {
+          // Handle empty response
+          if (response.body.isEmpty) {
+            print(
+                'Received empty response body - this might indicate a server issue');
+            // Try to make another request after a short delay
+            await Future.delayed(Duration(seconds: 2));
+            final retryResponse = await http
+                .post(
+              Uri.parse(
+                  'https://eclcommerce.ernestchemists.com.gh/api/check-payment'),
+              headers: {
+                'Authorization': 'Bearer $tokenRaw',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode(requestBody),
+            )
+                .timeout(
+              const Duration(seconds: 15),
+              onTimeout: () {
+                throw TimeoutException(
+                    'Payment status check timed out on retry. Please try again.');
+              },
+            );
 
-          if (data['status']?.toLowerCase().contains('completed') == true) {
-            return {
-              'status': 'success',
-              'message': data['status'] ?? 'Payment completed successfully',
-              'transaction_id': data['transaction_id'],
-            };
-          } else if (data['status']?.toLowerCase().contains('declined') ==
-              true) {
-            return {
-              'status': 'failed',
-              'message': data['status'] ??
-                  'Payment was declined. Please try another method.',
-              'transaction_id': data['transaction_id'],
-            };
-          } else {
+            print('Retry Response Status Code: ${retryResponse.statusCode}');
+            print('Retry Response Body: ${retryResponse.body}');
+
+            if (retryResponse.body.isNotEmpty) {
+              try {
+                final data = json.decode(retryResponse.body);
+                return _processPaymentStatus(data);
+              } catch (e) {
+                print('Error parsing retry response: $e');
+                throw Exception(
+                    'Invalid response format from server. Please try again.');
+              }
+            }
+
             return {
               'status': 'pending',
-              'message': data['status'] ?? 'Payment is being processed',
+              'message': 'Waiting for payment confirmation...',
             };
           }
-        } catch (e) {
-          print('Error parsing response: $e');
-          return {
-            'status': 'pending',
-            'message': 'Payment status is being processed',
-          };
+
+          try {
+            final data = json.decode(response.body);
+            return _processPaymentStatus(data);
+          } catch (e) {
+            print('Error parsing response: $e');
+            throw Exception(
+                'Invalid response format from server. Please try again.');
+          }
+        } else if (response.statusCode == 401) {
+          throw Exception('Session expired. Please log in again.');
+        } else if (response.statusCode == 403) {
+          throw Exception(
+              'You do not have permission to check payment status.');
+        } else if (response.statusCode == 404) {
+          throw Exception('Payment record not found. Please contact support.');
+        } else if (response.statusCode >= 500) {
+          throw Exception('Server error. Please try again later.');
+        } else {
+          throw Exception('Failed to verify payment: ${response.statusCode}');
         }
-      } else {
-        throw Exception('Failed to verify payment: ${response.statusCode}');
+      } on TimeoutException {
+        throw Exception(
+            'Payment status check timed out. Please check your internet connection and try again.');
+      } on SocketException {
+        throw Exception(
+            'No internet connection. Please check your network and try again.');
+      } on FormatException {
+        throw Exception(
+            'Invalid response format from server. Please try again.');
       }
     } catch (e) {
       print('Error checking payment status: $e');
       return {
+        'status': 'error',
+        'message': e.toString(),
+      };
+    }
+  }
+
+  Map<String, dynamic> _processPaymentStatus(Map<String, dynamic> data) {
+    print('Processing payment status data: $data');
+
+    // Check for specific status strings
+    final status = data['status']?.toString().toLowerCase() ?? '';
+    print('Payment status from response: $status');
+
+    if (status.contains('completed') || status.contains('success')) {
+      return {
+        'status': 'success',
+        'message': 'Payment completed successfully',
+        'transaction_id': data['transaction_id'],
+      };
+    } else if (status.contains('declined') || status.contains('failed')) {
+      return {
+        'status': 'failed',
+        'message': 'Payment was declined. Please try another method.',
+        'transaction_id': data['transaction_id'],
+      };
+    } else if (status.contains('pending') || status.contains('processing')) {
+      return {
         'status': 'pending',
-        'message': 'Unable to verify payment status. Please try again.',
+        'message': 'Payment is being processed. Please wait...',
+      };
+    } else {
+      // If status is not recognized, keep as pending
+      return {
+        'status': 'pending',
+        'message': 'Payment status is being processed',
       };
     }
   }
@@ -1660,38 +1784,80 @@ class WebViewPage extends StatefulWidget {
 
 class _WebViewPageState extends State<WebViewPage> {
   late WebViewController _webViewController;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _initWebView();
+  }
+
+  void _initWebView() {
     _webViewController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.transparent)
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (url) {
-            // Handle page load start
+            print('WebView page started loading: $url');
+            setState(() {
+              _isLoading = true;
+            });
           },
           onPageFinished: (url) {
-            // Handle page load completion
+            print('WebView page finished loading: $url');
+            setState(() {
+              _isLoading = false;
+            });
+
+            // Check for payment completion URLs
             if (url.contains('payment-success')) {
               widget.onPaymentComplete(true);
+              Navigator.pop(context, true);
             } else if (url.contains('payment-failed')) {
               widget.onPaymentComplete(false);
+              Navigator.pop(context, false);
             }
           },
           onWebResourceError: (error) {
             print('WebView error: ${error.description}');
+            print('Error code: ${error.errorCode}');
+            print('Error type: ${error.errorType}');
           },
         ),
-      )
-      ..loadRequest(Uri.parse(widget.url));
+      );
+
+    // Load the URL
+    try {
+      print('Loading URL in WebView: ${widget.url}');
+      _webViewController.loadRequest(Uri.parse(widget.url));
+    } catch (e) {
+      print('Error loading URL in WebView: $e');
+      // Handle the error appropriately
+      widget.onPaymentComplete(false);
+      Navigator.pop(context, false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: WebViewWidget(controller: _webViewController),
+      appBar: AppBar(
+        title: const Text('Payment'),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context, false),
+        ),
+      ),
+      body: Stack(
+        children: [
+          WebViewWidget(controller: _webViewController),
+          if (_isLoading)
+            const Center(
+              child: CircularProgressIndicator(),
+            ),
+        ],
+      ),
     );
   }
 }

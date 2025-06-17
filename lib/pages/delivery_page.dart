@@ -955,7 +955,25 @@ class _DeliveryPageState extends State<DeliveryPage> {
           const SizedBox(height: 12),
           TextField(
             controller: _phoneController,
-            keyboardType: TextInputType.phone,
+            keyboardType: TextInputType.number,
+            maxLength: 10,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(10),
+            ],
+            buildCounter: (BuildContext context,
+                {required int currentLength,
+                required bool isFocused,
+                required int? maxLength}) {
+              return Text(
+                '${currentLength}/$maxLength',
+                style: TextStyle(
+                  color:
+                      currentLength == maxLength ? Colors.green : Colors.grey,
+                  fontSize: 12,
+                ),
+              );
+            },
             onChanged: (value) {
               setState(() {
                 _highlightPhoneField = false;
@@ -992,14 +1010,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   _highlightPhoneField ? TextStyle(color: Colors.red) : null,
             ),
           ),
-          // if (!isPhoneValid && _phoneController.text.isNotEmpty)
-          //   const Padding(
-          //     padding: EdgeInsets.only(top: 4.0),
-          //     child: Text(
-          //       '34',
-          //       style: TextStyle(color: Colors.red, fontSize: 12),
-          //     ),
-          //   ),
         ],
       ),
     );

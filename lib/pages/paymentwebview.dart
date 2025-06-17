@@ -92,25 +92,95 @@ class _PaymentWebViewState extends State<PaymentWebView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Payment'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            widget.onPaymentComplete?.call(false, null);
-            _navigateToConfirmation(false);
-          },
+    return WillPopScope(
+      onWillPop: () async {
+        print('WillPopScope triggered');
+        // Show confirmation dialog
+        final shouldPop = await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: Text('Cancel Payment'),
+                content: Text('Are you sure you want to cancel this payment?'),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      print('Dialog: No pressed');
+                      Navigator.pop(context, false);
+                    },
+                    child: Text('No'),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      print('Dialog: Yes pressed');
+                      Navigator.pop(context, true);
+                    },
+                    child: Text('Yes'),
+                  ),
+                ],
+              ),
+            ) ??
+            false;
+
+        print('Dialog result: $shouldPop');
+        if (shouldPop) {
+          print('Attempting to navigate to PaymentPage');
+          // Return false to indicate the payment was cancelled
+          Navigator.pop(context, false);
+        }
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Payment'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () async {
+              print('AppBar back button pressed');
+              // Show confirmation dialog
+              final shouldPop = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: Text('Cancel Payment'),
+                      content:
+                          Text('Are you sure you want to cancel this payment?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            print('Dialog: No pressed');
+                            Navigator.pop(context, false);
+                          },
+                          child: Text('No'),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            print('Dialog: Yes pressed');
+                            Navigator.pop(context, true);
+                          },
+                          child: Text('Yes'),
+                        ),
+                      ],
+                    ),
+                  ) ??
+                  false;
+
+              print('Dialog result: $shouldPop');
+              if (shouldPop) {
+                print('Attempting to navigate to PaymentPage');
+                // Return false to indicate the payment was cancelled
+                Navigator.pop(context, false);
+              }
+            },
+          ),
         ),
-      ),
-      body: Stack(
-        children: [
-          WebViewWidget(controller: _controller),
-          if (_isLoading)
-            const Center(
-              child: CircularProgressIndicator(),
-            ),
-        ],
+        body: Stack(
+          children: [
+            WebViewWidget(controller: _controller),
+            if (_isLoading)
+              const Center(
+                child: CircularProgressIndicator(),
+              ),
+          ],
+        ),
       ),
     );
   }
