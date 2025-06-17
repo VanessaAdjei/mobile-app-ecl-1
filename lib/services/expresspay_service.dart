@@ -1,3 +1,5 @@
+// services/expresspay_service.dart
+// services/expresspay_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
@@ -10,7 +12,7 @@ class ExpressPayApi {
 
   Function(bool paymentCompleted, String message)? _paymentCompletionListener;
   Function(bool paymentSuccessful, dynamic jsonObject, String message)?
-  _queryCompletionListener;
+      _queryCompletionListener;
 
   ExpressPayApi(BuildContext context, String serverUrl) {
     _serverUrl = serverUrl;
@@ -37,6 +39,7 @@ class ExpressPayApi {
       if (_debugMode) {
         _token = 'DEBUG_${DateTime.now().millisecondsSinceEpoch}';
         debugPrint('Debug mode: Generated token $_token');
+
         await checkout();
         return;
       }
@@ -46,43 +49,24 @@ class ExpressPayApi {
         body: params,
       );
 
-      // Print the raw response body here
-      debugPrint('ExpressPay API raw response: ${response.body}');
+      debugPrint('ExpressPay API response: ${response.body}');
 
-      // You can print this response directly without decoding
-      // If you want to inspect the raw data, just print it.
-      debugPrint('Raw response: ${response.body}');
-
-      // Optionally, you can check for errors or other information here
-      // but for now we are just logging it
+      final responseData = json.decode(response.body);
+      if (responseData['status'] == '1') {
+        _token = responseData['token'];
+        debugPrint('Received token: $_token');
+        await checkout();
+      } else {
+        final errorMsg = responseData['message'] ?? 'Payment failed';
+        debugPrint('Payment failed: $errorMsg');
+        if (_paymentCompletionListener != null) {
+          _paymentCompletionListener!(false, errorMsg);
+        }
+      }
     } catch (e) {
       debugPrint('Payment exception: $e');
       if (_paymentCompletionListener != null) {
         _paymentCompletionListener!(false, 'Error: $e');
-      }
-    }
-  }
-
-  Future<void> query(String token) async {
-    try {
-      debugPrint('Querying payment with token: $token');
-
-      final response = await http.post(
-        Uri.parse('$_serverUrl?action=query'),
-        body: {'token': token},
-      );
-
-      // Print the raw response body for query
-      debugPrint('Query API raw response: ${response.body}');
-
-      // You can print this response directly
-      debugPrint('Query response: ${response.body}');
-
-      // Here, you can handle the query results if needed
-    } catch (e) {
-      debugPrint('Query error: $e');
-      if (_queryCompletionListener != null) {
-        _queryCompletionListener!(false, null, 'Query error: $e');
       }
     }
   }
@@ -106,7 +90,8 @@ class ExpressPayApi {
       } catch (e) {
         debugPrint('Checkout error: $e');
         if (_paymentCompletionListener != null) {
-          _paymentCompletionListener!(false, 'Could not launch payment page: $e');
+          _paymentCompletionListener!(
+              false, 'Could not launch payment page: $e');
         }
       }
     } else {
@@ -118,8 +103,33 @@ class ExpressPayApi {
 
   String? getCheckoutUrl() {
     return _token != null
-        ? 'https://eclcommerce.ernestchemists.com.gh/api/expresspayment/checkout?token=$_token'
+        ? 'https://sandbox.expresspaygh.com/checkout?token=$_token'
         : null;
+  }
+
+  Future<void> query(String token) async {
+    try {
+      debugPrint('Querying payment with token: $token');
+      final response = await http.post(
+        Uri.parse('$_serverUrl?action=query'),
+        body: {'token': token},
+      );
+
+      debugPrint('Query response: ${response.body}');
+      final responseData = json.decode(response.body);
+      final success = responseData['status'] == '1';
+      debugPrint('Query success: $success');
+
+      if (_queryCompletionListener != null) {
+        _queryCompletionListener!(
+            success, responseData, responseData['message'] ?? '');
+      }
+    } catch (e) {
+      debugPrint('Query error: $e');
+      if (_queryCompletionListener != null) {
+        _queryCompletionListener!(false, null, 'Query error: $e');
+      }
+    }
   }
 
   String? getToken() => _token;
@@ -141,7 +151,7 @@ class _MainActivityState extends State<MainActivity> {
 
     expressPayApi = ExpressPayApi(
       context,
-      "https://eclcommerce.ernestchemists.com.gh/api/expresspayment",
+      "https://sandbox.expresspaygh.com/api/sdk/php/server.php",
     );
 
     expressPayApi.setDebugMode(true);

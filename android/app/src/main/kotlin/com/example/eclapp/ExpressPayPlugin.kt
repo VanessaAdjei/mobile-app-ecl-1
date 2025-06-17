@@ -20,6 +20,17 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import java.io.IOException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import android.util.Log
+import okhttp3.MediaType
+import okhttp3.RequestBody
+import okhttp3.ResponseBody
+import java.util.concurrent.TimeUnit
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 
 class ExpressPayPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegistry.ActivityResultListener {
     private lateinit var channel: MethodChannel
@@ -39,77 +50,59 @@ class ExpressPayPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, PluginR
         channel.setMethodCallHandler(this)
     }
 
-    override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: Result) {
-        when (call.method) {
-            "startExpressPay" -> {
-                handleSubmitAndCheckout(call, result)
+    override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: MethodChannel.Result) {
+        if (call.method == "startExpressPay") {
+            val params = call.arguments as? Map<String, String>
+            if (params == null) {
+                result.error("INVALID_ARGUMENTS", "Arguments are required", null)
+                return
             }
-            else -> {
-                result.notImplemented()
-            }
-        }
-    }
 
-    private fun handleSubmitAndCheckout(call: MethodCall, result: Result) {
-        if (expressPayApi == null) {
-            result.error("NOT_INITIALIZED", "ExpressPay API not initialized", null)
-            return
-        }
+            // Create a coroutine scope for the API call
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val client = OkHttpClient.Builder()
+                        .connectTimeout(30, TimeUnit.SECONDS)
+                        .readTimeout(30, TimeUnit.SECONDS)
+                        .writeTimeout(30, TimeUnit.SECONDS)
+                        .build()
 
-        val params = createParamsMap(call)
-        pendingResult = result
-        currentRequestCode = REQUEST_CODE_SUBMIT_AND_CHECKOUT
+                    val jsonBody = JSONObject(params).toString()
+                    val requestBody = jsonBody.toRequestBody("application/json".toMediaType())
 
-        expressPayApi?.submit(params, activity!!, object : ExpressPayApi.ExpressPaySubmitCompletionListener {
-            override fun onExpressPaySubmitFinished(response: org.json.JSONObject?, errorMessage: String?) {
-                println("ExpressPay SUBMIT server response: " + response?.toString())
-                println("ExpressPay SUBMIT error message: $errorMessage")
-                
-                // Create a result map with all the response data
-                val resultMap = HashMap<String, Any?>()
-                
-                if (response != null) {
-                    // Copy all fields from the response
-                    val iterator = response.keys()
-                    while (iterator.hasNext()) {
-                        val key = iterator.next()
-                        resultMap[key] = response.get(key)
+                    val request = Request.Builder()
+                        .url("https://eclcommerce.ernestchemists.com.gh/api/expresspayment")
+                        .post(requestBody)
+                        .header("Accept", "application/json")
+                        .build()
+
+                    val response = client.newCall(request).execute()
+                    val responseBody = response.body?.string()
+
+                    withContext(Dispatchers.Main) {
+                        if (response.isSuccessful && responseBody != null) {
+                            try {
+                                val jsonResponse = JSONObject(responseBody)
+                                result.success(jsonResponse.toString())
+                            } catch (e: Exception) {
+                                Log.e("ExpressPayPlugin", "Error parsing response: ${e.message}")
+                                result.error("PARSE_ERROR", "Error parsing response", e.message)
+                            }
+                        } else {
+                            Log.e("ExpressPayPlugin", "API call failed: ${response.code}")
+                            result.error("API_ERROR", "API call failed", "Status code: ${response.code}")
+                        }
                     }
-                    
-                    // Ensure success is set based on status
-                    resultMap["success"] = response.optInt("status", 0) == 1
-                    
-                    println("ExpressPay SUBMIT processed response: $resultMap")
-                } else {
-                    resultMap["success"] = false
-                    resultMap["message"] = errorMessage ?: "No response from server"
-                }
-                
-                // Pass through the result map
-                if (pendingResult != null) {
-                    pendingResult?.success(resultMap)
-                    pendingResult = null
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        Log.e("ExpressPayPlugin", "Error making API call: ${e.message}")
+                        result.error("API_ERROR", "Error making API call", e.message)
+                    }
                 }
             }
-        })
-    }
-
-    private fun createParamsMap(call: MethodCall): HashMap<String, String> {
-        val params = HashMap<String, String>()
-
-        call.argument<String>("currency")?.let { params["currency"] = it }
-        call.argument<String>("amount")?.let { params["amount"] = it }
-        call.argument<String>("order_id")?.let { params["order_id"] = it }
-        call.argument<String>("order_desc")?.let { params["order_desc"] = it }
-        call.argument<String>("account_number")?.let { params["account_number"] = it }
-        call.argument<String>("email")?.let { params["email"] = it }
-        call.argument<String>("redirect_url")?.let { params["redirect_url"] = it }
-        call.argument<String>("order_img_url")?.let { params["order_img_url"] = it }
-        call.argument<String>("first_name")?.let { params["first_name"] = it }
-        call.argument<String>("last_name")?.let { params["last_name"] = it }
-        call.argument<String>("phone_number")?.let { params["phone_number"] = it }
-
-        return params
+        } else {
+            result.notImplemented()
+        }
     }
 
     override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {

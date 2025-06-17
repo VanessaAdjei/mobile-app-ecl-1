@@ -1,8 +1,10 @@
 // pages/payment_page.dart
 // pages/payment_page.dart
+// pages/payment_page.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' show min;
+import 'package:eclapp/pages/paymentwebview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -21,6 +23,7 @@ import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'order_tracking_page.dart';
 import 'package:intl/intl.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 class ExpressPayChannel {
   static const MethodChannel _channel =
@@ -140,71 +143,35 @@ class _PaymentPageState extends State<PaymentPage> {
 
     print('Using auth token: $authToken');
 
-    try {
-      final response = await http.post(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/check-payment'),
-        headers: {
-          'Authorization': 'Bearer $authToken',
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'user_id': await AuthService.getCurrentUserID(),
-          'token': token,
-          'transaction_id': transactionId,
-        }),
-      );
+    final response = await http.post(
+      Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/check-payment'),
+      headers: {
+        'Authorization': 'Bearer $authToken',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({
+        'user_id': await AuthService.getCurrentUserID(),
+      }),
+    );
 
-      print('Payment verification response: ${response.statusCode}');
-      print('Response body: ${response.body}');
+    print('Payment verification response: ${response.statusCode}');
+    print('Response body: ${response.body}');
 
-      if (response.statusCode == 200) {
-        if (response.body.isEmpty) {
-          return {
-            'verified': false,
-            'status': 'error',
-            'message': 'Empty response from server',
-          };
-        }
-
-        try {
-          final data = jsonDecode(response.body);
-          final status = data['status']?.toString().toLowerCase() ?? '';
-          final isDeclined =
-              status.contains('declined') || status.contains('failed');
-
-          return {
-            'verified': !isDeclined,
-            'status': data['status'] ?? 'unknown',
-            'message': data['message'] ??
-                (isDeclined
-                    ? 'Payment was declined'
-                    : 'Payment verified successfully'),
-          };
-        } catch (e) {
-          print('Error parsing response: $e');
-          return {
-            'verified': false,
-            'status': 'error',
-            'message': 'Error parsing server response',
-          };
-        }
-      }
-
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      print('Payment verified successfully');
       return {
-        'verified': false,
-        'status': 'error',
-        'message': 'Payment verification failed: ${response.statusCode}',
-      };
-    } catch (e) {
-      print('Error verifying payment: $e');
-      return {
-        'verified': false,
-        'status': 'error',
-        'message': e.toString(),
+        'verified': true,
+        'status': data['status'] ?? 'success',
+        'message': data['message'] ?? 'Payment verified successfully',
       };
     }
+
+    return {
+      'verified': false,
+      'status': 'error',
+      'message': 'Payment verification failed',
+    };
   }
 
   Future<void> processPayment(CartProvider cart) async {
@@ -216,17 +183,16 @@ class _PaymentPageState extends State<PaymentPage> {
     try {
       print('Starting payment process...');
 
-      // Calculate cart total
+      // Calculate total
       final subtotal = cart.calculateSubtotal();
       final deliveryFee = 0.00;
       final total = subtotal + deliveryFee;
-
       print('Cart total: $total');
 
+      // Create order description
       String orderDesc = cart.cartItems
           .map((item) => '${item.quantity}x ${item.name}')
           .join(', ');
-
       if (orderDesc.length > 100) {
         orderDesc = '${orderDesc.substring(0, 97)}...';
       }
@@ -234,7 +200,7 @@ class _PaymentPageState extends State<PaymentPage> {
       final nameParts = _userName.trim().split(' ');
       final firstName = nameParts.isNotEmpty ? nameParts.first : '';
       final lastName =
-          nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+          nameParts.length > 1 ? nameParts.sublist(1).join(' ') : 'Customer';
 
       final params = {
         'request': 'submit',
@@ -244,154 +210,118 @@ class _PaymentPageState extends State<PaymentPage> {
         'order_desc': orderDesc,
         'user_name': _userEmail,
         'first_name': firstName,
-        'last_name': lastName.isEmpty ? 'Customer' : lastName,
+        'last_name': lastName,
         'email': _userEmail,
         'phone_number': widget.contactNumber ?? _phoneNumber,
         'account_number': widget.contactNumber ?? _phoneNumber,
-        'redirect_url':
-            'https://eclcommerce.ernestchemists.com.gh/api/expresspayment',
-        'payment_method':
-            selectedPaymentMethod == 'Cash on Delivery' ? 'cod' : 'momo',
-        'delivery_address': widget.deliveryAddress ?? 'No address provided',
-        'delivery_option': widget.deliveryOption,
+        'redirect_url': 'http://eclcommerce.test/complete'
       };
 
-      print('\n=== EXPRESSPAYMENT API REQUEST ===');
-      print('Request Parameters:');
-      print(const JsonEncoder.withIndent('  ').convert(params));
-      print('\nSending request to ExpressPay...');
-
-      Map? result;
       final purchasedItems = List<CartItem>.from(cart.cartItems);
-      String? paymentToken;
-      String? transactionId;
+      final transactionId = params['order_id'];
       bool isVerified = false;
+      bool isSuccess = false;
 
-      // For COD orders, skip the platform channel call
       if (selectedPaymentMethod == 'Cash on Delivery') {
-        print('\n=== PROCESSING COD ORDER ===');
-        print('Skipping payment gateway for COD order');
-        result = {
-          'success': true,
-          'message': 'Cash on Delivery order placed successfully',
-          'transaction_id': params['order_id'],
-          'verified': true,
-          'verification_status': 'pending'
-        };
-        transactionId = params['order_id'];
+        print('Processing Cash on Delivery order...');
+        await _clearCartItems(cart);
+        isSuccess = true;
         isVerified = true;
 
-        // Clear cart for COD order immediately
-        print('Clearing cart for COD order');
-        await _clearCartItems(cart);
-      } else {
-        print('DEBUG: About to call platform channel');
-        final rawResponse = await ExpressPayChannel.startExpressPay(params);
-        print('\n=== EXPRESSPAY API RESPONSE DETAILS ===');
-        print('Raw Response Type: ${rawResponse.runtimeType}');
-        print('Raw Response: $rawResponse');
-        if (rawResponse is Map) {
-          print('Response Keys: ${rawResponse.keys.toList()}');
-          rawResponse.forEach((key, value) {
-            print('$key: $value');
-          });
-        }
-        result = rawResponse;
-
-        // Extract token and transaction ID from response
-        if (rawResponse != null && rawResponse is Map) {
-          try {
-            if (rawResponse.containsKey('token')) {
-              paymentToken = rawResponse['token'].toString();
-              print('Extracted payment token: $paymentToken');
-
-              // Store the ExpressPay token
-              final secureStorage = FlutterSecureStorage();
-              await secureStorage.write(
-                  key: 'expresspay_token', value: paymentToken);
-              print('Stored ExpressPay token');
-            }
-            // Use order-id as transaction ID if available
-            if (rawResponse.containsKey('order-id')) {
-              transactionId = rawResponse['order-id'].toString();
-              print('Using order-id as transaction ID: $transactionId');
-            }
-
-            // Check if we need to handle redirect
-            if (rawResponse.containsKey('redirect-url')) {
-              final redirectUrl = rawResponse['redirect-url'].toString();
-              print('Redirect URL: $redirectUrl');
-
-              // Launch the redirect URL
-              if (await canLaunchUrl(Uri.parse(redirectUrl))) {
-                await launchUrl(
-                  Uri.parse(redirectUrl),
-                  mode: LaunchMode.externalApplication,
-                );
-              }
-            }
-          } catch (e) {
-            print('Error extracting payment details: $e');
-          }
-        }
-
-        // If we have a token, store it for later verification
-        if (paymentToken != null && transactionId != null) {
-          try {
-            print('Storing payment details for later verification');
-            final secureStorage = FlutterSecureStorage();
-            await secureStorage.write(
-                key: 'expresspay_token', value: paymentToken);
-            await secureStorage.write(
-                key: 'expresspay_transaction_id', value: transactionId);
-            print('Stored payment details for verification');
-          } catch (e) {
-            print('Error storing payment details: $e');
-          }
-        }
-      }
-
-      // Handle success states
-      bool isSuccess = false;
-      if (result != null) {
-        isSuccess = result['status'] == 1 ||
-            result['status'] == "1" ||
-            result['status'] == true;
-      }
-
-      // Don't clear the cart - wait for manual verification
-      if (isSuccess && selectedPaymentMethod != 'Cash on Delivery') {
-        print(
-            'Payment initiated successfully, waiting for manual verification');
-      }
-
-      // Always navigate to confirmation page with items
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (context) => OrderConfirmationPage(
-            paymentParams: params,
-            purchasedItems: purchasedItems,
-            initialStatus: 'pending',
-            initialTransactionId: transactionId,
-            paymentSuccess: false,
-            paymentVerified: false,
-            paymentToken: paymentToken,
-            paymentMethod: selectedPaymentMethod,
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OrderConfirmationPage(
+              paymentParams: params,
+              purchasedItems: purchasedItems,
+              initialStatus: 'pending',
+              initialTransactionId: transactionId,
+              paymentSuccess: true,
+              paymentVerified: true,
+              paymentToken: null,
+              paymentMethod: selectedPaymentMethod,
+            ),
           ),
-        ),
-        (route) => false,
+          (route) => false,
+        );
+        return;
+      }
+
+      // Online Payment Flow
+      final authToken = await AuthService.getToken();
+
+      final response = await http.post(
+        Uri.parse(
+            'https://eclcommerce.ernestchemists.com.gh/api/expresspayment'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+        body: jsonEncode(params),
       );
+
+      print('Payment API response: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        // The response is a direct URL string, not JSON
+        final redirectUrl = response.body.trim();
+
+        // Launch payment WebView
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PaymentWebView(
+              url: redirectUrl,
+              paymentParams: params,
+              purchasedItems: purchasedItems,
+              paymentMethod: selectedPaymentMethod,
+              onPaymentComplete: (success, token) async {
+                // Clear cart if payment was successful
+                if (success) {
+                  await _clearCartItems(cart);
+                }
+              },
+            ),
+          ),
+        );
+
+        // If WebView was closed without completing payment
+        if (result == null) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OrderConfirmationPage(
+                paymentParams: params,
+                purchasedItems: purchasedItems,
+                initialStatus: 'error',
+                initialTransactionId: params['order_id'],
+                paymentSuccess: false,
+                paymentVerified: false,
+                paymentToken: null,
+                paymentMethod: selectedPaymentMethod,
+              ),
+            ),
+            (route) => false,
+          );
+        }
+        return;
+      } else {
+        throw Exception(
+            'Backend payment request failed with status ${response.statusCode}');
+      }
     } catch (e, stack) {
-      print('\nERROR in ExpressPay API call:');
-      print('Error: $e');
+      print('Error during payment process: $e');
       print('Stack trace: $stack');
       setState(() {
         _paymentError = 'Payment Error: ${e.toString()}';
       });
       _showPaymentFailureDialog(e.toString());
     } finally {
-      setState(() => _isProcessingPayment = false);
+      setState(() {
+        _isProcessingPayment = false;
+      });
     }
   }
 
@@ -864,26 +794,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   String? _status;
   String? _statusMessage;
   String? _transactionId;
-  bool _isLoading = false;
+  bool _isLoading = true;
   bool _paymentSuccess = false;
   bool _hasFetchedStatus = false;
-  String? _paymentToken;
-
-  Future<void> _clearCartItems(CartProvider cart) async {
-    print('_clearCartItems called');
-    print('Current cart items before clearing: ${cart.cartItems.length}');
-
-    // Create a copy of the items to avoid concurrent modification
-    final itemsToRemove = List<CartItem>.from(cart.cartItems);
-
-    // Remove each item from both local and server cart
-    for (var item in itemsToRemove) {
-      print('Removing item from cart: ${item.name} (ID: ${item.id})');
-      await cart.removeFromCart(item.id);
-    }
-
-    print('Cart cleared. Current cart items: ${cart.cartItems.length}');
-  }
 
   @override
   void initState() {
@@ -895,13 +808,10 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       _paymentSuccess = true;
       _statusMessage = "Order successfully placed! You will pay on delivery.";
     } else {
-      _status = "pending";
-      _paymentSuccess = false;
-      _statusMessage =
-          "Payment initiated. Please check status to verify payment.";
+      _status = widget.paymentSuccess ? "success" : "pending";
+      _paymentSuccess = widget.paymentSuccess;
     }
     _transactionId = widget.initialTransactionId;
-    _paymentToken = widget.paymentToken;
     _isLoading = false;
     print('Initial status: $_status');
     print('Initial transaction ID: $_transactionId');
@@ -1508,62 +1418,51 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         headers: {
           'Authorization': 'Bearer $tokenRaw',
           'Accept': 'application/json',
-          'Content-Type': 'application/json',
         },
         body: jsonEncode({
           'user_id': userId,
-          'token': _paymentToken,
-          'transaction_id': _transactionId,
         }),
       );
 
       print('\nResponse Status Code: ${response.statusCode}');
       print('Raw Response Body: ${response.body}');
 
-      if (response.statusCode == 200) {
-        if (response.body.isEmpty) {
+      // Handle redirect response
+      if (response.statusCode == 302) {
+        final location = response.headers['location'];
+        print('Redirect location: $location');
+
+        if (location?.contains('payment-failed') == true) {
+          print('Payment failed based on redirect');
           return {
             'verified': false,
-            'status': 'error',
-            'message': 'Empty response from server',
+            'status': 'failed',
+            'message': 'Payment has failed',
           };
-        }
-
-        try {
-          final data = jsonDecode(response.body);
-          final status = data['status']?.toString().toLowerCase() ?? '';
-          final isDeclined =
-              status.contains('declined') || status.contains('failed');
-
-          if (!isDeclined) {
-            // If payment is successful, clear the cart
-            final cart = Provider.of<CartProvider>(context, listen: false);
-            await _clearCartItems(cart);
-          }
-
+        } else if (location?.contains('payment-success') == true) {
+          print('Payment successful based on redirect');
           return {
-            'verified': !isDeclined,
-            'status': data['status'] ?? 'unknown',
-            'message': data['message'] ??
-                (isDeclined
-                    ? 'Payment was declined'
-                    : 'Payment verified successfully'),
-          };
-        } catch (e) {
-          print('Error parsing response: $e');
-          return {
-            'verified': false,
-            'status': 'error',
-            'message': 'Error parsing server response',
+            'verified': true,
+            'status': 'success',
+            'message': 'Payment successful',
           };
         }
       }
 
-      return {
-        'verified': false,
-        'status': 'error',
-        'message': 'Payment verification failed: ${response.statusCode}',
-      };
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          return {
+            'verified': true,
+            'status': 'success',
+            'message': data['message'] ?? 'Payment successful',
+          };
+        } else {
+          throw Exception(data['message'] ?? 'Payment verification failed');
+        }
+      } else {
+        throw Exception('Failed to verify payment: ${response.statusCode}');
+      }
     } catch (e) {
       print('Error checking payment status: $e');
       return {
@@ -1572,5 +1471,57 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         'message': e.toString(),
       };
     }
+  }
+}
+
+class WebViewPage extends StatefulWidget {
+  final String url;
+  final Function(bool) onPaymentComplete;
+
+  const WebViewPage({
+    super.key,
+    required this.url,
+    required this.onPaymentComplete,
+  });
+
+  @override
+  _WebViewPageState createState() => _WebViewPageState();
+}
+
+class _WebViewPageState extends State<WebViewPage> {
+  late WebViewController _webViewController;
+
+  @override
+  void initState() {
+    super.initState();
+    _webViewController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.transparent)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (url) {
+            // Handle page load start
+          },
+          onPageFinished: (url) {
+            // Handle page load completion
+            if (url.contains('payment-success')) {
+              widget.onPaymentComplete(true);
+            } else if (url.contains('payment-failed')) {
+              widget.onPaymentComplete(false);
+            }
+          },
+          onWebResourceError: (error) {
+            print('WebView error: ${error.description}');
+          },
+        ),
+      )
+      ..loadRequest(Uri.parse(widget.url));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: WebViewWidget(controller: _webViewController),
+    );
   }
 }
