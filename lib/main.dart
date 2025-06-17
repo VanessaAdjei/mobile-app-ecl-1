@@ -2,6 +2,7 @@
 import 'package:eclapp/pages/auth_service.dart';
 import 'package:eclapp/pages/categories.dart';
 import 'package:eclapp/pages/createaccount.dart';
+import 'package:eclapp/pages/payment_page.dart';
 import 'package:eclapp/pages/profile.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
@@ -179,7 +180,6 @@ class MyApp extends StatelessWidget {
             routes: {
               '/': (context) => SplashScreen(),
               '/home': (context) => HomePage(),
-    
               '/cart': (context) => ProtectedRoute(child: Cart()),
               '/categories': (context) => CategoryPage(),
               '/profile': (context) => Profile(),
@@ -193,6 +193,7 @@ class MyApp extends StatelessWidget {
               '/privacypolicy': (context) => PrivacyPolicyScreen(),
               '/termsandconditions': (context) => TermsAndConditionsScreen(),
               '/settings': (context) => Profile(),
+              '/payment': (context) => PaymentPage(),
               '/profile_settings': (context) => Profile(),
             },
           );

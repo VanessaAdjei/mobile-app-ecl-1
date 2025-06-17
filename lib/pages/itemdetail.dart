@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 import 'dart:convert';
+import 'dart:async';
+import 'dart:io';
 import 'Cart.dart';
 import 'CartItem.dart';
 import 'package:eclapp/pages/ProductModel.dart';
@@ -63,9 +65,16 @@ class _ItemPageState extends State<ItemPage> {
 
     try {
       // Verify the product exists first
-      final verifyResponse = await http.get(
+      final verifyResponse = await http
+          .get(
         Uri.parse(
             'https://eclcommerce.ernestchemists.com.gh/api/product-details/${product.urlName}'),
+      )
+          .timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('The request timed out. Please try again.');
+        },
       );
 
       print('\n=== Product Verification Response ===');
@@ -73,94 +82,94 @@ class _ItemPageState extends State<ItemPage> {
       print('Response Body: ${verifyResponse.body}');
 
       if (verifyResponse.statusCode != 200) {
-        print('\nProduct verification failed:');
-        print('Status code: ${verifyResponse.statusCode}');
-        print('Response: ${verifyResponse.body}');
-        showTopSnackBar(context, 'Product not found. Please try again.');
-        return;
+        throw Exception(
+            'Product verification failed: ${verifyResponse.statusCode}');
       }
 
-      final verifyData = json.decode(verifyResponse.body);
-      print('\nParsed verification data:');
-      print(json.encode(verifyData));
+      try {
+        final verifyData = json.decode(verifyResponse.body);
+        print('\nParsed verification data:');
+        print(json.encode(verifyData));
 
-      // Check if we have the required data structure
-      if (!verifyData.containsKey('data') ||
-          !verifyData['data'].containsKey('product') ||
-          !verifyData['data'].containsKey('inventory')) {
-        print('\nInvalid product data structure:');
-        print('Response: ${verifyResponse.body}');
-        showTopSnackBar(context, 'Invalid product data. Please try again.');
-        return;
-      }
-
-      final productData = verifyData['data']['product'] ?? {};
-      final inventoryData = verifyData['data']['inventory'] ?? {};
-
-      print('\nProduct Data:');
-      print(json.encode(productData));
-      print('\nInventory Data:');
-      print(json.encode(inventoryData));
-
-      // Get the ID from inventory data since product data doesn't have an ID
-      final productId = inventoryData['id'] ?? 0;
-
-      print('\nVerified Product ID: $productId');
-      print('Using inventory ID: ${inventoryData['id']}');
-      print('Product data keys: ${productData.keys.toList()}');
-      print('Inventory data keys: ${inventoryData.keys.toList()}');
-
-      if (productId == 0) {
-        print('\nInvalid product ID');
-        showTopSnackBar(context, 'Invalid product. Please try again.');
-        return;
-      }
-
-      print('\n=== Calling Add to Cart API ===');
-      print('Product ID: $productId');
-      print('Quantity: $quantity');
-      print('Batch No: ${product.batch_no}');
-
-      final response = await AuthService.addToCartCheckAuth(
-        productID: productId,
-        quantity: quantity,
-        batchNo: product.batch_no,
-      );
-
-      print('\n=== Cart API Response ===');
-      print('Full Response: ${json.encode(response)}');
-      print('Status: ${response['status']}');
-      print('Message: ${response['added'] ?? response['message']}');
-      if (response['items'] != null) {
-        print('Number of items: ${(response['items'] as List).length}');
-      }
-      if (response['totalPrice'] != null) {
-        print('Total Price: ${response['totalPrice']}');
-      }
-      if (response['cartQty'] != null) {
-        print('Cart Quantity: ${response['cartQty']}');
-      }
-
-      if (response['status'] == 'success') {
-        // Update local cart with the server response
-        if (response['items'] != null && response['items'] is List) {
-          final items = (response['items'] as List)
-              .map((item) => CartItem.fromServerJson(item))
-              .toList();
-
-          print('\nUpdating cart with ${items.length} items');
-          cartProvider.setCartItems(items);
-
-          // Show success message with total items
-          final totalItems =
-              items.fold<int>(0, (sum, item) => sum + item.quantity);
-          showTopSnackBar(context, '${product.name} has been added to cart ');
+        // Check if we have the required data structure
+        if (!verifyData.containsKey('data') ||
+            !verifyData['data'].containsKey('product') ||
+            !verifyData['data'].containsKey('inventory')) {
+          throw Exception('Invalid product data structure');
         }
-      } else {
-        final errorMessage = response['message'] ?? 'Unknown error';
-        print('\nError adding to cart: $errorMessage');
-        showTopSnackBar(context, 'Failed to add item to cart: $errorMessage');
+
+        final productData = verifyData['data']['product'] ?? {};
+        final inventoryData = verifyData['data']['inventory'] ?? {};
+
+        print('\nProduct Data:');
+        print(json.encode(productData));
+        print('\nInventory Data:');
+        print(json.encode(inventoryData));
+
+        // Get the ID from inventory data since product data doesn't have an ID
+        final productId = inventoryData['id'] ?? 0;
+
+        print('\nVerified Product ID: $productId');
+        print('Using inventory ID: ${inventoryData['id']}');
+        print('Product data keys: ${productData.keys.toList()}');
+        print('Inventory data keys: ${inventoryData.keys.toList()}');
+
+        if (productId == 0) {
+          throw Exception('Invalid product ID');
+        }
+
+        print('\n=== Calling Add to Cart API ===');
+        print('Product ID: $productId');
+        print('Quantity: $quantity');
+        print('Batch No: ${product.batch_no}');
+
+        final response = await AuthService.addToCartCheckAuth(
+          productID: productId,
+          quantity: quantity,
+          batchNo: product.batch_no,
+        );
+
+        print('\n=== Cart API Response ===');
+        print('Full Response: ${json.encode(response)}');
+        print('Status: ${response['status']}');
+        print('Message: ${response['added'] ?? response['message']}');
+        if (response['items'] != null) {
+          print('Number of items: ${(response['items'] as List).length}');
+        }
+        if (response['totalPrice'] != null) {
+          print('Total Price: ${response['totalPrice']}');
+        }
+        if (response['cartQty'] != null) {
+          print('Cart Quantity: ${response['cartQty']}');
+        }
+
+        if (response['status'] == 'success') {
+          // Update local cart with the server response
+          if (response['items'] != null && response['items'] is List) {
+            final items = (response['items'] as List)
+                .map((item) => CartItem.fromServerJson(item))
+                .toList();
+
+            print('\nUpdating cart with ${items.length} items');
+            cartProvider.setCartItems(items);
+
+            // Show success message with total items
+            final totalItems =
+                items.fold<int>(0, (sum, item) => sum + item.quantity);
+            showTopSnackBar(context, '${product.name} has been added to cart ');
+          }
+        } else {
+          final errorMessage = response['message'] ?? 'Unknown error';
+          throw Exception('Failed to add item to cart: $errorMessage');
+        }
+      } catch (e) {
+        throw Exception('Error processing product data: $e');
       }
+    } on TimeoutException {
+      showTopSnackBar(context, 'Request timed out. Please try again.');
+    } on SocketException {
+      showTopSnackBar(context,
+          'No internet connection. Please check your network settings.');
     } catch (e) {
       print('\nException adding to cart: $e');
       showTopSnackBar(context, 'Error adding item to cart: $e');
@@ -172,100 +181,134 @@ class _ItemPageState extends State<ItemPage> {
       print('\n=== Fetching Product Details ===');
       print('URL Name: $urlName');
 
-      final response = await http.get(
+      final response = await http
+          .get(
         Uri.parse(
             'https://eclcommerce.ernestchemists.com.gh/api/product-details/$urlName'),
+      )
+          .timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException('The request timed out. Please try again.');
+        },
       );
 
       print('Response Status Code: ${response.statusCode}');
       print('Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        print('\n=== Product Details API Response ===');
-        print('Full response: ${json.encode(data)}');
+        try {
+          final Map<String, dynamic> data = json.decode(response.body);
+          print('\n=== Product Details API Response ===');
+          print('Full response: ${json.encode(data)}');
 
-        if (data.containsKey('data')) {
-          final productData = data['data']['product'] ?? {};
-          final inventoryData = data['data']['inventory'] ?? {};
+          if (data.containsKey('data')) {
+            final productData = data['data']['product'] ?? {};
+            final inventoryData = data['data']['inventory'] ?? {};
 
-          print('\nProduct Data:');
-          print(json.encode(productData));
-          print('\nInventory Data:');
-          print(json.encode(inventoryData));
+            if (productData.isEmpty || inventoryData.isEmpty) {
+              throw Exception('Product data is incomplete or missing');
+            }
 
-          // Print all possible ID fields
-          print('\nProduct ID fields:');
-          print('- productData[id]: ${productData['id']}');
-          print('- productData[product_id]: ${productData['product_id']}');
-          print('- inventoryData[id]: ${inventoryData['id']}');
-          print('- inventoryData[product_id]: ${inventoryData['product_id']}');
-          print(
-              '- inventoryData[inventory_id]: ${inventoryData['inventory_id']}');
+            print('\nProduct Data:');
+            print(json.encode(productData));
+            print('\nInventory Data:');
+            print(json.encode(inventoryData));
 
-          // Get the product ID from the correct location
-          final productId = productData['product_id'] ??
-              productData['id'] ??
-              inventoryData['product_id'] ??
-              inventoryData['id'] ??
-              inventoryData['inventory_id'] ??
-              0;
-          print('\nUsing product ID: $productId');
+            // Print all possible ID fields
+            print('\nProduct ID fields:');
+            print('- productData[id]: ${productData['id']}');
+            print('- productData[product_id]: ${productData['product_id']}');
+            print('- inventoryData[id]: ${inventoryData['id']}');
+            print(
+                '- inventoryData[product_id]: ${inventoryData['product_id']}');
+            print(
+                '- inventoryData[inventory_id]: ${inventoryData['inventory_id']}');
 
-          // Check all possible locations for otcpom
-          final otcpom = productData['otcpom'] ??
-              inventoryData['otcpom'] ??
-              productData['route'] ??
-              inventoryData['route'] ??
-              '';
-          print('\nFound otcpom: $otcpom');
+            // Get the product ID from the correct location
+            final productId = productData['product_id'] ??
+                productData['id'] ??
+                inventoryData['product_id'] ??
+                inventoryData['id'] ??
+                inventoryData['inventory_id'] ??
+                0;
+            print('\nUsing product ID: $productId');
 
-          List<String> tags = [];
-          if (productData['tags'] != null && productData['tags'] is List) {
-            tags = List<String>.from(
-                productData['tags'].map((tag) => tag.toString()));
-            print('\nProduct Tags: $tags');
+            if (productId == 0) {
+              throw Exception('Invalid product ID');
+            }
+
+            // Check all possible locations for otcpom
+            final otcpom = productData['otcpom'] ??
+                inventoryData['otcpom'] ??
+                productData['route'] ??
+                inventoryData['route'] ??
+                '';
+            print('\nFound otcpom: $otcpom');
+
+            List<String> tags = [];
+            if (productData['tags'] != null && productData['tags'] is List) {
+              tags = List<String>.from(
+                  productData['tags'].map((tag) => tag.toString()));
+              print('\nProduct Tags: $tags');
+            }
+
+            final product = Product.fromJson({
+              'id': productId,
+              'name': inventoryData['url_name']
+                      ?.toString()
+                      .replaceAll('-', ' ')
+                      .split(' ')
+                      .map((word) => word.isNotEmpty
+                          ? word[0].toUpperCase() + word.substring(1)
+                          : '')
+                      .join(' ') ??
+                  'Unknown Product',
+              'description': productData['description'] ?? '',
+              'url_name': inventoryData['url_name'] ?? '',
+              'status': inventoryData['status'] ?? '',
+              'price': inventoryData['price']?.toString() ?? '0.00',
+              'thumbnail': (productData['images'] != null &&
+                      productData['images'].isNotEmpty)
+                  ? productData['images'][0]['url'] ?? ''
+                  : '',
+              'tags': tags,
+              'quantity': inventoryData['quantity']?.toString() ?? '',
+              'category': (productData['categories'] != null &&
+                      productData['categories'].isNotEmpty)
+                  ? productData['categories'][0]['description'] ?? ''
+                  : '',
+              'otcpom': otcpom,
+              'route': productData['route'] ?? '',
+              'batch_no': inventoryData['batch_no'] ?? '',
+            });
+
+            print('\nCreated Product:');
+            print('- ID: ${product.id}');
+            print('- Name: ${product.name}');
+            print('- Price: ${product.price}');
+            print('- Batch No: ${product.batch_no}');
+            return product;
+          } else {
+            throw Exception('Invalid response format: missing data field');
           }
-
-          final product = Product.fromJson({
-            'id': productId,
-            'name': inventoryData['url_name']
-                    ?.toString()
-                    .replaceAll('-', ' ')
-                    .split(' ')
-                    .map((word) => word.isNotEmpty
-                        ? word[0].toUpperCase() + word.substring(1)
-                        : '')
-                    .join(' ') ??
-                'Unknown Product',
-            'description': productData['description'] ?? '',
-            'url_name': inventoryData['url_name'] ?? '',
-            'status': inventoryData['status'] ?? '',
-            'price': inventoryData['price']?.toString() ?? '0.00',
-            'thumbnail': (productData['images'] != null &&
-                    productData['images'].isNotEmpty)
-                ? productData['images'][0]['url'] ?? ''
-                : '',
-            'tags': tags,
-            'quantity': inventoryData['quantity']?.toString() ?? '',
-            'category': (productData['categories'] != null &&
-                    productData['categories'].isNotEmpty)
-                ? productData['categories'][0]['description'] ?? ''
-                : '',
-            'otcpom': otcpom,
-            'route': productData['route'] ?? '',
-            'batch_no': inventoryData['batch_no'] ?? '',
-          });
-
-          print('\nCreated Product:');
-          print('- ID: ${product.id}');
-          print('- Name: ${product.name}');
-          print('- Price: ${product.price}');
-          print('- Batch No: ${product.batch_no}');
-          return product;
+        } catch (e) {
+          throw Exception('Failed to parse product data: $e');
         }
+      } else if (response.statusCode == 404) {
+        throw Exception('Product not found');
+      } else if (response.statusCode >= 500) {
+        throw Exception('Server error occurred. Please try again later.');
+      } else {
+        throw Exception(
+            'Failed to load product details: ${response.statusCode}');
       }
-      throw Exception('Failed to load product details: ${response.body}');
+    } on TimeoutException {
+      throw Exception(
+          'Request timed out. Please check your internet connection and try again.');
+    } on SocketException {
+      throw Exception(
+          'No internet connection. Please check your network settings.');
     } catch (e) {
       print('Error fetching product details: $e');
       throw Exception('Could not load product: $e');
@@ -274,53 +317,86 @@ class _ItemPageState extends State<ItemPage> {
 
   Future<List<Product>> fetchRelatedProducts(String urlName) async {
     try {
-      final response = await http.get(
+      final response = await http
+          .get(
         Uri.parse(
             'https://eclcommerce.ernestchemists.com.gh/api/related-products/$urlName'),
+      )
+          .timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('The request timed out. Please try again.');
+        },
       );
-      print('Related products API response: \\${response.body}');
+
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        if (data.containsKey('data') && data['data'] is List) {
-          return (data['data'] as List).map((item) {
-            print('Related product item: ' + jsonEncode(item));
-            return Product(
-              id: item['product_id'] ?? item['id'] ?? 0,
-              name: item['name'] ??
-                  item['product_name'] ??
-                  (item['product'] != null
-                      ? item['product']['name'] ?? ''
-                      : ''),
-              description: item['description'] ??
-                  (item['product'] != null
-                      ? item['product']['description'] ?? ''
-                      : ''),
-              urlName: item['url_name'] ??
-                  (item['product'] != null
-                      ? item['product']['url_name'] ?? ''
-                      : ''),
-              status: item['status'] ??
-                  (item['product'] != null
-                      ? item['product']['status'] ?? ''
-                      : ''),
-              batch_no: item['batch_no'] ?? '',
-              price: item['price']?.toString() ?? '0.00',
-              thumbnail: item['thumbnail'] ??
-                  item['product_img'] ??
-                  (item['product'] != null
-                      ? item['product']['thumbnail'] ??
-                          item['product']['product_img'] ??
-                          ''
-                      : ''),
-              quantity: item['qty_in_stock']?.toString() ??
-                  item['quantity']?.toString() ??
-                  '',
-              category: item['category'] ?? '',
-              route: '',
-            );
-          }).toList();
+        try {
+          final Map<String, dynamic> data = json.decode(response.body);
+          if (data.containsKey('data') && data['data'] is List) {
+            return (data['data'] as List)
+                .map((item) {
+                  try {
+                    print('Related product item: ' + jsonEncode(item));
+                    return Product(
+                      id: item['product_id'] ?? item['id'] ?? 0,
+                      name: item['name'] ??
+                          item['product_name'] ??
+                          (item['product'] != null
+                              ? item['product']['name'] ?? ''
+                              : ''),
+                      description: item['description'] ??
+                          (item['product'] != null
+                              ? item['product']['description'] ?? ''
+                              : ''),
+                      urlName: item['url_name'] ??
+                          (item['product'] != null
+                              ? item['product']['url_name'] ?? ''
+                              : ''),
+                      status: item['status'] ??
+                          (item['product'] != null
+                              ? item['product']['status'] ?? ''
+                              : ''),
+                      batch_no: item['batch_no'] ?? '',
+                      price: item['price']?.toString() ?? '0.00',
+                      thumbnail: item['thumbnail'] ??
+                          item['product_img'] ??
+                          (item['product'] != null
+                              ? item['product']['thumbnail'] ??
+                                  item['product']['product_img'] ??
+                                  ''
+                              : ''),
+                      quantity: item['qty_in_stock']?.toString() ??
+                          item['quantity']?.toString() ??
+                          '',
+                      category: item['category'] ?? '',
+                      route: '',
+                    );
+                  } catch (e) {
+                    print('Error parsing related product item: $e');
+                    return null;
+                  }
+                })
+                .where((product) => product != null)
+                .cast<Product>()
+                .toList();
+          }
+          return [];
+        } catch (e) {
+          print('Error parsing related products response: $e');
+          return [];
         }
+      } else if (response.statusCode == 404) {
+        print('Related products not found');
+        return [];
+      } else {
+        print('Failed to load related products: ${response.statusCode}');
+        return [];
       }
+    } on TimeoutException {
+      print('Related products request timed out');
+      return [];
+    } on SocketException {
+      print('No internet connection while fetching related products');
       return [];
     } catch (e) {
       print('Error fetching related products: $e');
@@ -445,32 +521,39 @@ class _ItemPageState extends State<ItemPage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error_outline,
-                        color: Colors.red, size: 48),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Failed to load product details.',
-                      style: TextStyle(fontSize: 16, color: Colors.black54),
+                    Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: Colors.grey[400],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 16),
                     Text(
-                      snapshot.error.toString(),
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Retry'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.primaryColor,
-                        foregroundColor: Colors.white,
+                      'Product details not available',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
                       ),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
                       onPressed: () {
                         setState(() {
                           _productFuture = fetchProductDetails(widget.urlName);
                         });
                       },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text('Try Again'),
                     ),
                   ],
                 ),
@@ -1084,6 +1167,28 @@ class _ItemPageState extends State<ItemPage> {
         ),
       ),
     );
+  }
+
+  IconData _getErrorIcon(String error) {
+    if (error.contains('timed out') || error.contains('SocketException')) {
+      return Icons.wifi_off;
+    } else if (error.contains('404')) {
+      return Icons.search_off;
+    } else if (error.contains('500')) {
+      return Icons.error_outline;
+    }
+    return Icons.error_outline;
+  }
+
+  Color _getErrorColor(String error) {
+    if (error.contains('timed out') || error.contains('SocketException')) {
+      return Colors.orange;
+    } else if (error.contains('404')) {
+      return Colors.blue;
+    } else if (error.contains('500')) {
+      return Colors.red;
+    }
+    return Colors.red;
   }
 }
 

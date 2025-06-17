@@ -1214,14 +1214,13 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                           width: isSelected ? 1.5 : 1,
                         ),
                       ),
-                      padding:
-                          EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      padding: EdgeInsets.symmetric(vertical: 6, horizontal: 3),
                       child: Row(
                         children: [
                           if (isSelected)
                             Container(
-                              width: 3,
-                              height: 3,
+                              width: 2,
+                              height: 2,
                               margin: EdgeInsets.only(right: 8),
                               decoration: BoxDecoration(
                                 color: Colors.green.shade700,

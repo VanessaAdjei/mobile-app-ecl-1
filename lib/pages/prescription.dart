@@ -224,13 +224,8 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
       try {
         // Verify token is valid
         if (widget.token.isEmpty) {
-          throw Exception('Invalid authentication token');
+          throw Exception('Please log in to upload a prescription');
         }
-
-        // Get stored cookies first
-        final storage = const FlutterSecureStorage();
-        final xsrfToken = await storage.read(key: 'XSRF-TOKEN');
-        final sessionToken = await storage.read(key: 'ecl_store_session');
 
         var request = http.MultipartRequest(
           'POST',
@@ -238,15 +233,9 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
               'https://eclcommerce.ernestchemists.com.gh/api/create-precription'),
         );
 
+        // Add headers
         request.headers['Authorization'] = 'Bearer ${widget.token}';
         request.headers['Accept'] = 'application/json';
-        request.headers['Content-Type'] = 'multipart/form-data';
-        request.headers['X-Requested-With'] = 'XMLHttpRequest';
-        request.headers['X-CSRF-TOKEN'] = xsrfToken ?? '';
-
-        if (sessionToken != null) {
-          request.headers['Cookie'] = 'ecl_store_session=$sessionToken';
-        }
 
         // Add file to request
         request.files.add(
@@ -257,22 +246,26 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
         );
 
         // Add batch number if available
-        if (widget.item!['batch_no'] != null) {
+        if (widget.item != null && widget.item!['batch_no'] != null) {
           request.fields['batch_no'] = widget.item!['batch_no'];
         }
 
-        print('\n=== PRESCRIPTION UPLOAD REQUEST ===');
-        print('URL: ${request.url}');
-        print('Method: ${request.method}');
-        print('Headers: ${request.headers}');
-        print('Request Fields: ${request.fields}');
-        print('File Path: ${_selectedImage!.path}');
-        print('File Name: ${_selectedImage!.path.split('/').last}');
-        print('File Size: ${_selectedImage!.lengthSync()} bytes');
-        print('================================\n');
+        // Add product ID if available
+        if (widget.item != null &&
+            widget.item!['product'] != null &&
+            widget.item!['product']['id'] != null) {
+          request.fields['product_id'] =
+              widget.item!['product']['id'].toString();
+        }
 
-        // Send request
-        final streamedResponse = await request.send();
+        // Send request with timeout
+        final streamedResponse = await request.send().timeout(
+          Duration(seconds: 30),
+          onTimeout: () {
+            throw Exception('Request timed out. Please try again.');
+          },
+        );
+
         final response = await http.Response.fromStream(streamedResponse);
 
         print('\n=== PRESCRIPTION UPLOAD RESPONSE ===');
@@ -282,19 +275,21 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
 
         if (response.statusCode == 200 || response.statusCode == 201) {
           final data = json.decode(response.body);
-          if (data['success'] == true) {
-            // Show success message
+          if (data['status'] == 'success') {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Prescription uploaded successfully'),
                 backgroundColor: Colors.green,
               ),
             );
-            // Navigate back
             Navigator.pop(context);
           } else {
             throw Exception(data['message'] ?? 'Failed to upload prescription');
           }
+        } else if (response.statusCode == 401) {
+          throw Exception('Your session has expired. Please log in again.');
+        } else if (response.statusCode == 413) {
+          throw Exception('File size too large. Maximum size is 10MB.');
         } else {
           throw Exception(
               'Failed to upload prescription: ${response.statusCode}');

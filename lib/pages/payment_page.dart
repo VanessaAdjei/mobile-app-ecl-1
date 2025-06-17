@@ -273,17 +273,32 @@ class _PaymentPageState extends State<PaymentPage> {
           context,
           MaterialPageRoute(
             builder: (context) => PaymentWebView(
-              url: redirectUrl,
-              paymentParams: params,
-              purchasedItems: purchasedItems,
-              paymentMethod: selectedPaymentMethod,
-              onPaymentComplete: (success, token) async {
-                // Clear cart if payment was successful
-                if (success) {
-                  await _clearCartItems(cart);
-                }
-              },
-            ),
+                url: redirectUrl,
+                paymentParams: params,
+                purchasedItems: purchasedItems,
+                paymentMethod: selectedPaymentMethod,
+                onPaymentComplete: (success, token) async {
+                  if (success && token != null) {
+                    final result = await _verifyPayment(token, transactionId!);
+                    final statusText =
+                        result['status']?.toString().toLowerCase() ?? '';
+
+                    final isDeclined = statusText.contains('declined');
+                    final isCompleted = statusText.contains('completed');
+
+                    if (result['verified'] == true &&
+                        isCompleted &&
+                        !isDeclined) {
+                      await _clearCartItems(cart);
+                      print('Payment verified and completed. Cart cleared.');
+                    } else {
+                      print(
+                          'Payment not completed or declined. Cart not cleared.');
+                    }
+                  } else {
+                    print('Payment not successful. Cart not cleared.');
+                  }
+                }),
           ),
         );
 
@@ -796,6 +811,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   bool _isLoading = true;
   bool _paymentSuccess = false;
   bool _hasFetchedStatus = false;
+  bool _showCheckStatusButton = false;
+  Timer? _statusCheckTimer;
+  Timer? _buttonShowTimer;
 
   @override
   void initState() {
@@ -806,15 +824,97 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       _status = "success";
       _paymentSuccess = true;
       _statusMessage = "Order successfully placed! You will pay on delivery.";
+      _isLoading = false;
     } else {
-      _status = widget.paymentSuccess ? "success" : "pending";
-      _paymentSuccess = widget.paymentSuccess;
+      // For online payments, show loading and check status
+      _status = "pending";
+      _statusMessage = "Please wait while we process your payment...";
+      _isLoading = true;
+
+      // Start periodic status checking
+      _startStatusChecking();
     }
     _transactionId = widget.initialTransactionId;
-    _isLoading = false;
     print('Initial status: $_status');
     print('Initial transaction ID: $_transactionId');
     print('Initial payment success: $_paymentSuccess');
+  }
+
+  @override
+  void dispose() {
+    _statusCheckTimer?.cancel();
+    _buttonShowTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startStatusChecking() {
+    print('Starting status checking...');
+    // Check status immediately
+    _checkPaymentStatus();
+
+    // Set up periodic checking every second
+    _statusCheckTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      print('Automatic status check triggered');
+      if (mounted) {
+        _checkPaymentStatus();
+      } else {
+        print('Component not mounted, cancelling timer');
+        timer.cancel();
+      }
+    });
+
+    // Show check status button after 10 seconds if still pending
+    _buttonShowTimer = Timer(Duration(seconds: 10), () {
+      print('10 second delay completed. Current status: $_status');
+      if (mounted && _status?.toLowerCase() == 'pending') {
+        setState(() {
+          _showCheckStatusButton = true;
+          print('Setting showCheckStatusButton to true');
+        });
+      }
+    });
+  }
+
+  Future<void> _checkPaymentStatus() async {
+    try {
+      print('Checking payment status...');
+      setState(() {
+        _isLoading = true;
+      });
+      final result = await _fetchPaymentStatus();
+      if (mounted) {
+        setState(() {
+          _status = result['status'];
+          _statusMessage = result['message'];
+          _paymentSuccess = _status?.toLowerCase() == 'success';
+          _isLoading = false;
+
+          print('Payment status updated: $_status');
+
+          // Handle different payment states
+          if (_status?.toLowerCase() == 'success') {
+            print('Payment successful, hiding check status button');
+            _statusCheckTimer?.cancel();
+            _buttonShowTimer?.cancel();
+            _showCheckStatusButton = false;
+          } else if (_status?.toLowerCase() == 'failed') {
+            print('Payment failed, hiding check status button');
+            _statusCheckTimer?.cancel(); // Stop automatic checks
+            _buttonShowTimer?.cancel(); // Cancel the button show timer
+            _showCheckStatusButton = false; // Hide the button
+          }
+        });
+      }
+    } catch (e) {
+      print('Error checking payment status: $e');
+      if (mounted) {
+        setState(() {
+          _status = 'pending';
+          _statusMessage = 'Unable to verify payment status. Please try again.';
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   String getImageUrl(String? url) {
@@ -843,10 +943,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             // Navigate back to home page
-            Navigator.pushNamedAndRemoveUntil(
+            Navigator.pushReplacementNamed(
               context,
               '/home',
-              (route) => false,
             );
           },
         ),
@@ -976,7 +1075,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                               ],
                             ),
                           ),
-                          if (_status?.toLowerCase() != 'success') ...[
+                          if (_showCheckStatusButton) ...[
                             SizedBox(width: 12),
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -993,21 +1092,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                 ],
                               ),
                               child: InkWell(
-                                onTap: () async {
-                                  setState(() => _isLoading = true);
-                                  try {
-                                    final result = await _fetchPaymentStatus();
-                                    setState(() {
-                                      _status = result['status'];
-                                      _statusMessage = result['message'];
-                                      _hasFetchedStatus = true;
-                                    });
-                                  } catch (e) {
-                                    print('Error fetching status: $e');
-                                  } finally {
-                                    setState(() => _isLoading = false);
-                                  }
-                                },
+                                onTap: _checkPaymentStatus,
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -1224,78 +1309,140 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushNamedAndRemoveUntil(
-                              context,
-                              '/home',
-                              (route) => false,
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 12),
-                          ),
-                          child: Text(
-                            'Continue Shopping',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 16),
-                        // Only show Track Order button for successful payments or COD
-                        if (_paymentSuccess ||
-                            widget.paymentMethod.toLowerCase() ==
-                                'cash on delivery')
-                          ElevatedButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => OrderTrackingPage(
-                                    orderDetails: {
-                                      'order_id': _transactionId,
-                                      'status': _status,
-                                      'created_at':
-                                          DateTime.now().toIso8601String(),
-                                      'product_name': widget.purchasedItems
-                                          .map((item) => item.name)
-                                          .join(', '),
-                                      'product_img': widget
-                                              .purchasedItems.isNotEmpty
-                                          ? widget.purchasedItems.first.image
-                                          : '',
-                                      'qty': widget.purchasedItems.fold(0,
-                                          (sum, item) => sum + item.quantity),
-                                      'price': widget.purchasedItems.isNotEmpty
-                                          ? widget.purchasedItems.first.price
-                                          : 0,
-                                      'total_price': widget.purchasedItems.fold(
-                                          0.0,
-                                          (sum, item) =>
-                                              sum +
-                                              (item.price * item.quantity)),
-                                    },
+                        if (_status?.toLowerCase() == 'failed') ...[
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  Navigator.pushReplacementNamed(
+                                    context,
+                                    '/home',
+                                  );
+                                },
+                                icon: const Icon(Icons.shopping_cart, size: 18),
+                                label: const Text('Continue Shopping',
+                                    style: TextStyle(fontSize: 13)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green.shade700,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
                                   ),
                                 ),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange,
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 12),
-                            ),
-                            child: Text(
-                              'Track Order',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
                               ),
-                            ),
+                              const SizedBox(width: 8),
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  Navigator.pushReplacementNamed(
+                                    context,
+                                    '/cart',
+                                  );
+                                },
+                                icon: const Icon(Icons.refresh, size: 18),
+                                label: const Text('Try Again',
+                                    style: TextStyle(fontSize: 13)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange.shade700,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
+                        ],
+
+                        // Only show Track Order button for successful payments
+                        if (_paymentSuccess) ...[
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const HomePage(),
+                                    ),
+                                    (route) => false,
+                                  );
+                                },
+                                icon: const Icon(Icons.shopping_cart, size: 18),
+                                label: const Text('Continue Shopping',
+                                    style: TextStyle(fontSize: 13)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green.shade700,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => OrderTrackingPage(
+                                        orderDetails: {
+                                          'order_id': _transactionId,
+                                          'status': _status,
+                                          'created_at':
+                                              DateTime.now().toIso8601String(),
+                                          'product_name': widget.purchasedItems
+                                              .map((item) => item.name)
+                                              .join(', '),
+                                          'product_img':
+                                              widget.purchasedItems.isNotEmpty
+                                                  ? widget.purchasedItems.first
+                                                      .image
+                                                  : '',
+                                          'qty': widget.purchasedItems.fold(
+                                              0,
+                                              (sum, item) =>
+                                                  sum + item.quantity),
+                                          'price':
+                                              widget.purchasedItems.isNotEmpty
+                                                  ? widget.purchasedItems.first
+                                                      .price
+                                                  : 0,
+                                          'total_price':
+                                              widget.purchasedItems
+                                                  .fold(
+                                                      0.0,
+                                                      (sum, item) =>
+                                                          sum +
+                                                          (item.price *
+                                                              item.quantity)),
+                                        },
+                                      ),
+                                    ),
+                                  );
+                                },
+                                icon:
+                                    const Icon(Icons.local_shipping, size: 18),
+                                label: const Text('Track Order',
+                                    style: TextStyle(fontSize: 13)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue.shade700,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -1364,7 +1511,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   Color _getStatusColor(String? status) {
-    if (status?.toLowerCase() == 'success' ||
+    if (status?.toLowerCase() == 'loading') {
+      return Colors.blue;
+    } else if (status?.toLowerCase() == 'success' ||
         widget.paymentMethod.toLowerCase() == 'cash on delivery') {
       return Colors.green;
     } else if (status?.toLowerCase() == 'failed') {
@@ -1374,7 +1523,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   IconData _getStatusIcon(String? status) {
-    if (status?.toLowerCase() == 'success' ||
+    if (status?.toLowerCase() == 'loading') {
+      return Icons.hourglass_empty;
+    } else if (status?.toLowerCase() == 'success' ||
         widget.paymentMethod.toLowerCase() == 'cash on delivery') {
       return Icons.check_circle;
     } else if (status?.toLowerCase() == 'failed') {
@@ -1384,7 +1535,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   String _getStatusLabel(String? status) {
-    if (status?.toLowerCase() == 'success' ||
+    if (status?.toLowerCase() == 'loading') {
+      return 'Processing Payment';
+    } else if (status?.toLowerCase() == 'success' ||
         widget.paymentMethod.toLowerCase() == 'cash on delivery') {
       return 'Order Successfully Placed';
     } else if (status?.toLowerCase() == 'failed') {
@@ -1394,12 +1547,14 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   String _getStatusMessage(String? status) {
-    if (widget.paymentMethod.toLowerCase() == 'cash on delivery') {
+    if (status?.toLowerCase() == 'loading') {
+      return 'Please wait while we process your payment...';
+    } else if (widget.paymentMethod.toLowerCase() == 'cash on delivery') {
       return 'Your order has been placed successfully. You will pay when the items are delivered.';
     } else if (status?.toLowerCase() == 'success') {
       return 'Your payment was successful and your order has been placed.';
     } else if (status?.toLowerCase() == 'failed') {
-      return 'Your payment was not successful. Please try again or choose a different payment method.';
+      return 'Your payment was declined. Please try another payment method.';
     }
     return 'Your payment is being processed. Please wait while we confirm your payment.';
   }
@@ -1416,7 +1571,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
       print('Using bearer token: $tokenRaw');
       final userId = await AuthService.getCurrentUserID();
-      print('User ID_1: $userId');
+      print('User ID: $userId');
 
       final response = await http.post(
         Uri.parse(
@@ -1436,36 +1591,44 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       print('Response Headers: ${response.headers}');
 
       if (response.statusCode == 200) {
-        print('\nRaw response before parsing:');
-        print(response.body);
-        print('\nResponse type: ${response.body.runtimeType}');
-
-        final data = json.decode(response.body);
-        print('Parsed response data: $data');
-
-        if (data['status']?.toLowerCase().contains('completed') == true) {
-          setState(() {
-            _status = 'success';
-            _paymentSuccess = true;
-            _transactionId = data['transaction_id'];
-            _statusMessage = data['status'];
-          });
+        // Handle empty response
+        if (response.body.isEmpty) {
+          print('Received empty response body');
           return {
-            'verified': true,
-            'status': 'success',
-            'message': data['status'],
-            'transaction_id': data['transaction_id'],
-          };
-        } else {
-          setState(() {
-            _status = 'pending';
-            _paymentSuccess = false;
-            _statusMessage = data['status'] ?? 'Payment is being processed';
-          });
-          return {
-            'verified': false,
             'status': 'pending',
-            'message': data['status'] ?? 'Payment is being processed',
+            'message': 'Payment status is being processed',
+          };
+        }
+
+        try {
+          final data = json.decode(response.body);
+          print('Parsed response data: $data');
+
+          if (data['status']?.toLowerCase().contains('completed') == true) {
+            return {
+              'status': 'success',
+              'message': data['status'] ?? 'Payment completed successfully',
+              'transaction_id': data['transaction_id'],
+            };
+          } else if (data['status']?.toLowerCase().contains('declined') ==
+              true) {
+            return {
+              'status': 'failed',
+              'message': data['status'] ??
+                  'Payment was declined. Please try another method.',
+              'transaction_id': data['transaction_id'],
+            };
+          } else {
+            return {
+              'status': 'pending',
+              'message': data['status'] ?? 'Payment is being processed',
+            };
+          }
+        } catch (e) {
+          print('Error parsing response: $e');
+          return {
+            'status': 'pending',
+            'message': 'Payment status is being processed',
           };
         }
       } else {
@@ -1474,9 +1637,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     } catch (e) {
       print('Error checking payment status: $e');
       return {
-        'verified': false,
-        'status': 'error',
-        'message': e.toString(),
+        'status': 'pending',
+        'message': 'Unable to verify payment status. Please try again.',
       };
     }
   }

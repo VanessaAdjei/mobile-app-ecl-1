@@ -81,33 +81,39 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
         throw Exception('Please sign in to view your prescriptions');
       }
 
-      final response = await http.get(
+      final response = await http.post(
         Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/prescriptions'),
+            'https://eclcommerce.ernestchemists.com.gh/api/view-prescription'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
         },
       );
 
+      print('\n=== PRESCRIPTION HISTORY RESPONSE ===');
+      print('Status Code: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+      print('================================\n');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['success'] == true) {
+        if (data['data'] != null) {
           setState(() {
-            _prescriptions = data['data'] ?? [];
+            _prescriptions = List<Map<String, dynamic>>.from(data['data']);
             _isLoading = false;
           });
         } else {
-          throw Exception('Unable to load prescriptions at this time');
+          throw Exception('No prescription data found');
         }
+      } else if (response.statusCode == 401) {
+        throw Exception('Your session has expired. Please log in again.');
       } else {
         throw Exception('Unable to connect to the server');
       }
     } catch (e) {
       print('Error fetching prescriptions: $e');
       setState(() {
-        _error =
-            'Unable to load prescriptions. Please check your internet connection and try again.';
+        _error = e.toString();
         _isLoading = false;
       });
     }
