@@ -289,7 +289,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
         // If WebView was closed without completing payment
         if (result == null) {
-          Navigator.pushAndRemoveUntil(
+          Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => OrderConfirmationPage(
@@ -303,7 +303,6 @@ class _PaymentPageState extends State<PaymentPage> {
                 paymentMethod: selectedPaymentMethod,
               ),
             ),
-            (route) => false,
           );
         }
         return;
@@ -840,6 +839,17 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         title: const Text('Order Confirmation'),
         backgroundColor: Colors.green.shade700,
         foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            // Navigate back to home page
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              '/home',
+              (route) => false,
+            );
+          },
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -966,68 +976,70 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                               ],
                             ),
                           ),
-                          SizedBox(width: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: InkWell(
-                              onTap: () async {
-                                setState(() => _isLoading = true);
-                                try {
-                                  final result = await _fetchPaymentStatus();
-                                  setState(() {
-                                    _status = result['status'];
-                                    _statusMessage = result['message'];
-                                    _hasFetchedStatus = true;
-                                  });
-                                } catch (e) {
-                                  print('Error fetching status: $e');
-                                } finally {
-                                  setState(() => _isLoading = false);
-                                }
-                              },
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  _isLoading
-                                      ? SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                    _getStatusColor(_status)),
-                                          ),
-                                        )
-                                      : Icon(
-                                          Icons.refresh,
-                                          size: 18,
-                                          color: _getStatusColor(_status),
-                                        ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Check Status',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                      color: _getStatusColor(_status),
-                                    ),
+                          if (_status?.toLowerCase() != 'success') ...[
+                            SizedBox(width: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
                                   ),
                                 ],
                               ),
+                              child: InkWell(
+                                onTap: () async {
+                                  setState(() => _isLoading = true);
+                                  try {
+                                    final result = await _fetchPaymentStatus();
+                                    setState(() {
+                                      _status = result['status'];
+                                      _statusMessage = result['message'];
+                                      _hasFetchedStatus = true;
+                                    });
+                                  } catch (e) {
+                                    print('Error fetching status: $e');
+                                  } finally {
+                                    setState(() => _isLoading = false);
+                                  }
+                                },
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _isLoading
+                                        ? SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                      _getStatusColor(_status)),
+                                            ),
+                                          )
+                                        : Icon(
+                                            Icons.refresh,
+                                            size: 18,
+                                            color: _getStatusColor(_status),
+                                          ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Check Status',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        color: _getStatusColor(_status),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ],
@@ -1040,12 +1052,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Status Card
-                    if (widget.paymentMethod != 'Cash on Delivery') ...[
-                      _buildStatusCard(),
-                      const SizedBox(height: 12),
-                    ],
-
                     // Order Items
                     Card(
                       elevation: 2,
@@ -1220,10 +1226,10 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       children: [
                         ElevatedButton(
                           onPressed: () {
-                            Navigator.pushReplacement(
+                            Navigator.pushNamedAndRemoveUntil(
                               context,
-                              MaterialPageRoute(
-                                  builder: (context) => HomePage()),
+                              '/home',
+                              (route) => false,
                             );
                           },
                           style: ElevatedButton.styleFrom(
@@ -1410,7 +1416,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
       print('Using bearer token: $tokenRaw');
       final userId = await AuthService.getCurrentUserID();
-      print('User ID: $userId');
+      print('User ID_1: $userId');
 
       final response = await http.post(
         Uri.parse(
@@ -1418,6 +1424,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         headers: {
           'Authorization': 'Bearer $tokenRaw',
           'Accept': 'application/json',
+          'Content-Type': 'application/json',
         },
         body: jsonEncode({
           'user_id': userId,
@@ -1426,39 +1433,40 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
       print('\nResponse Status Code: ${response.statusCode}');
       print('Raw Response Body: ${response.body}');
-
-      // Handle redirect response
-      if (response.statusCode == 302) {
-        final location = response.headers['location'];
-        print('Redirect location: $location');
-
-        if (location?.contains('payment-failed') == true) {
-          print('Payment failed based on redirect');
-          return {
-            'verified': false,
-            'status': 'failed',
-            'message': 'Payment has failed',
-          };
-        } else if (location?.contains('payment-success') == true) {
-          print('Payment successful based on redirect');
-          return {
-            'verified': true,
-            'status': 'success',
-            'message': 'Payment successful',
-          };
-        }
-      }
+      print('Response Headers: ${response.headers}');
 
       if (response.statusCode == 200) {
+        print('\nRaw response before parsing:');
+        print(response.body);
+        print('\nResponse type: ${response.body.runtimeType}');
+
         final data = json.decode(response.body);
-        if (data['success'] == true) {
+        print('Parsed response data: $data');
+
+        if (data['status']?.toLowerCase().contains('completed') == true) {
+          setState(() {
+            _status = 'success';
+            _paymentSuccess = true;
+            _transactionId = data['transaction_id'];
+            _statusMessage = data['status'];
+          });
           return {
             'verified': true,
             'status': 'success',
-            'message': data['message'] ?? 'Payment successful',
+            'message': data['status'],
+            'transaction_id': data['transaction_id'],
           };
         } else {
-          throw Exception(data['message'] ?? 'Payment verification failed');
+          setState(() {
+            _status = 'pending';
+            _paymentSuccess = false;
+            _statusMessage = data['status'] ?? 'Payment is being processed';
+          });
+          return {
+            'verified': false,
+            'status': 'pending',
+            'message': data['status'] ?? 'Payment is being processed',
+          };
         }
       } else {
         throw Exception('Failed to verify payment: ${response.statusCode}');

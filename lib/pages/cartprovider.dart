@@ -235,7 +235,7 @@ class CartProvider with ChangeNotifier {
       print('- Price: ${item.price}');
 
       final requestBody = {
-        'product_id': int.parse(item.productId),
+        'productID': int.parse(item.productId),
         'quantity': item.quantity,
         'batch_no': item.batchNo,
       };
@@ -355,14 +355,19 @@ class CartProvider with ChangeNotifier {
   void updateQuantity(int index, int newQuantity) async {
     if (_currentUserId == null) return;
 
-    if (newQuantity > 0) {
-      // Update local cart first
+    final item = _cartItems[index];
+    final currentQuantity = item.quantity;
+
+    if (newQuantity > currentQuantity) {
+      // Increment: Update local state
       _cartItems[index].updateQuantity(newQuantity);
       await _saveUserCarts();
       notifyListeners();
-
-      // Then sync with server
-      await syncWithApi();
+    } else if (newQuantity < currentQuantity) {
+      // Decrement: Update local state
+      _cartItems[index].updateQuantity(newQuantity);
+      await _saveUserCarts();
+      notifyListeners();
     }
   }
 

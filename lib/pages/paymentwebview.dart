@@ -29,7 +29,11 @@ class _PaymentWebViewState extends State<PaymentWebView> {
   bool _isLoading = true;
 
   void _navigateToConfirmation(bool success) {
-    Navigator.pushAndRemoveUntil(
+    // First pop the WebView
+    Navigator.pop(context);
+
+    // Then push the confirmation page
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => OrderConfirmationPage(
@@ -43,7 +47,6 @@ class _PaymentWebViewState extends State<PaymentWebView> {
           paymentMethod: widget.paymentMethod,
         ),
       ),
-      (route) => false,
     );
   }
 

@@ -905,7 +905,7 @@ class _HomePageState extends State<HomePage>
     double imageHeight = 120,
   }) {
     final screenWidth = MediaQuery.of(context).size.width;
-    double cardWidth = screenWidth * (screenWidth < 600 ? 0.45 : 0.60);
+    double cardWidth = screenWidth * (screenWidth < 600 ? 0.38 : 0.42);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -913,21 +913,22 @@ class _HomePageState extends State<HomePage>
         // Card is only the image (square)
         Container(
           width: cardWidth,
-          margin: EdgeInsets.all(screenWidth * 0.019),
+          margin: EdgeInsets.symmetric(
+              horizontal: screenWidth * 0.01, vertical: screenWidth * 0.002),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(6),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 10,
-                offset: Offset(0, 5),
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 3,
+                offset: Offset(0, 1),
               ),
             ],
           ),
           child: Stack(
             children: [
               InkWell(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(6),
                 onTap: () {
                   Navigator.push(
                     context,
@@ -940,7 +941,7 @@ class _HomePageState extends State<HomePage>
                   );
                 },
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(6),
                   child: AspectRatio(
                     aspectRatio: 1,
                     child: Container(
@@ -949,12 +950,12 @@ class _HomePageState extends State<HomePage>
                         imageUrl: getProductImageUrl(product.thumbnail),
                         fit: BoxFit.cover,
                         placeholder: (context, url) => Center(
-                          child: CircularProgressIndicator(),
+                          child: CircularProgressIndicator(strokeWidth: 1),
                         ),
                         errorWidget: (_, __, ___) => Container(
                           color: Colors.grey[200],
                           child: Center(
-                            child: Icon(Icons.broken_image, size: 30),
+                            child: Icon(Icons.broken_image, size: 16),
                           ),
                         ),
                       ),
@@ -964,19 +965,19 @@ class _HomePageState extends State<HomePage>
               ),
               if (product.otcpom?.toLowerCase() == 'pom')
                 Positioned(
-                  top: 8,
-                  left: 8,
+                  top: 3,
+                  left: 3,
                   child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.red[700],
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       'Prescribed',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
+                        fontSize: 9,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -985,7 +986,6 @@ class _HomePageState extends State<HomePage>
             ],
           ),
         ),
-        const SizedBox(height: 8),
         // Name and price beneath the card
         SizedBox(
           width: cardWidth,
@@ -993,21 +993,20 @@ class _HomePageState extends State<HomePage>
             children: [
               Text(
                 product.name,
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: fontSize,
+                  fontSize: fontSize * 1.0,
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
                 ),
               ),
-              const SizedBox(height: 4),
               Text(
                 'GHS ${product.price}',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: fontSize,
+                  fontSize: fontSize * 1.0,
                   fontWeight: FontWeight.bold,
                   color: Colors.green[800],
                 ),
@@ -1058,20 +1057,20 @@ class _HomePageState extends State<HomePage>
         GridView.builder(
           shrinkWrap: true,
           physics: NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.symmetric(horizontal: 8),
+          padding: EdgeInsets.symmetric(horizontal: 4),
           itemCount: products.length > 6 ? 6 : products.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
-            childAspectRatio: 0.7,
+            childAspectRatio: 1.0,
             mainAxisSpacing: 0,
-            crossAxisSpacing: 0,
+            crossAxisSpacing: 4,
           ),
           itemBuilder: (context, index) {
             return _buildProductCard(
               products[index],
-              fontSize: fontSize,
-              padding: padding,
-              imageHeight: imageHeight,
+              fontSize: fontSize * 1.0,
+              padding: padding * 0.8,
+              imageHeight: imageHeight * 0.9,
             );
           },
         ),
@@ -1181,7 +1180,7 @@ class _HomePageState extends State<HomePage>
                   // Bulk Purchase Card
                   SliverToBoxAdapter(
                     child: Container(
-                      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       child: InkWell(
                         onTap: () async {
                           final shouldProceed = await showDialog<bool>(
@@ -1230,8 +1229,8 @@ class _HomePageState extends State<HomePage>
                           }
                         },
                         child: Container(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
@@ -1241,12 +1240,12 @@ class _HomePageState extends State<HomePage>
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(6),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.blue.withOpacity(0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
+                                color: Colors.blue.withOpacity(0.2),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
                               ),
                             ],
                           ),
@@ -1258,12 +1257,13 @@ class _HomePageState extends State<HomePage>
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 16,
+                                  fontSize: 14,
                                 ),
                               ),
                               Icon(
                                 Icons.shopping_cart,
                                 color: Colors.white,
+                                size: 20,
                               ),
                             ],
                           ),
