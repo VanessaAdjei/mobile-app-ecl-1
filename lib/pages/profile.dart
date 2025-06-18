@@ -12,9 +12,6 @@ import 'package:eclapp/pages/theme_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eclapp/pages/cart.dart';
@@ -39,12 +36,8 @@ class Profile extends StatefulWidget {
 }
 
 class _ProfileState extends State<Profile> {
-  File? _profileImage;
-  final ImagePicker _picker = ImagePicker();
-
   String _userName = "User";
   String _userEmail = "No email available";
-  String? _profileImagePath;
   bool _userLoggedIn = false;
 
   @override
@@ -69,9 +62,6 @@ class _ProfileState extends State<Profile> {
       if (loggedIn) {
         await _loadUserData();
       }
-
-      // Load profile image regardless of login status
-      await _loadProfileImage();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -107,57 +97,11 @@ class _ProfileState extends State<Profile> {
     }
   }
 
-  Future<void> _loadProfileImage() async {
-    try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String? savedImagePath = prefs.getString('profile_image_path');
-
-      if (savedImagePath != null) {
-        final file = File(savedImagePath);
-        if (await file.exists()) {
-          if (mounted) {
-            setState(() {
-              _profileImage = file;
-              _profileImagePath = savedImagePath;
-            });
-          }
-        }
-      }
-    } catch (e) {
-      // Silently handle image loading errors
-    }
-  }
-
   void _navigateTo(Widget screen) {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => screen),
     );
-  }
-
-  Future<void> _pickImage() async {
-    var status = await Permission.storage.request();
-    if (status.isGranted) {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-      if (image != null) {
-        File savedImage = await _saveImageToLocalStorage(File(image.path));
-        setState(() {
-          _profileImage = savedImage;
-          _profileImagePath = savedImage.path;
-        });
-      }
-    } else if (status.isPermanentlyDenied) {
-      openAppSettings();
-    }
-  }
-
-  Future<File> _saveImageToLocalStorage(File imageFile) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final savedImagePath = "${directory.path}/profile_image.png";
-    final File savedImage = await imageFile.copy(savedImagePath);
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setString('profile_image_path', savedImagePath);
-    return savedImage;
   }
 
   void _showLogoutDialog() {
@@ -418,72 +362,27 @@ class _ProfileState extends State<Profile> {
               child: Column(
                 children: [
                   const SizedBox(height: 20),
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // Profile Image
-                      GestureDetector(
-                        onTap: _userLoggedIn ? _pickImage : null,
-                        child: Container(
-                          height: 130,
-                          width: 130,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 4),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
-                                blurRadius: 10,
-                                offset: Offset(0, 5),
-                              ),
-                            ],
-                            color: Colors.grey[300],
-                            image: _userLoggedIn && _profileImage != null
-                                ? DecorationImage(
-                                    image: FileImage(_profileImage!),
-                                    fit: BoxFit.cover,
-                                  )
-                                : (_userLoggedIn &&
-                                        _profileImagePath != null &&
-                                        File(_profileImagePath!).existsSync()
-                                    ? DecorationImage(
-                                        image:
-                                            FileImage(File(_profileImagePath!)),
-                                        fit: BoxFit.cover,
-                                      )
-                                    : const DecorationImage(
-                                        image: AssetImage(
-                                            "assets/images/default_avatar.png"),
-                                        fit: BoxFit.cover,
-                                      )),
-                          ),
+                  // Profile Avatar
+                  Container(
+                    height: 130,
+                    width: 130,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 4),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 10,
+                          offset: Offset(0, 5),
                         ),
-                      ),
-                      if (_userLoggedIn)
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            padding: EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 8,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Icon(
-                              Icons.camera_alt,
-                              color: primaryColor,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                    ],
+                      ],
+                      color: Colors.grey[300],
+                    ),
+                    child: Icon(
+                      Icons.person,
+                      size: 80,
+                      color: Colors.grey[600],
+                    ),
                   ),
                   const SizedBox(height: 20),
                   Text(

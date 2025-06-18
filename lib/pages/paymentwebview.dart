@@ -133,8 +133,6 @@ class _PaymentWebViewState extends State<PaymentWebView> {
     return WillPopScope(
       onWillPop: () async {
         print('WillPopScope triggered');
-        // Check auth state before showing dialog
-        await _checkAndRefreshAuth();
 
         if (!mounted) return false;
 
@@ -166,8 +164,8 @@ class _PaymentWebViewState extends State<PaymentWebView> {
 
         print('Dialog result: $shouldPop');
         if (shouldPop) {
-          print('Attempting to navigate to PaymentPage');
-          // Return false to indicate the payment was cancelled
+          print('Attempting to navigate back to PaymentPage');
+          // Simply pop back to the previous screen (payment page)
           Navigator.pop(context, false);
         }
         return false;
@@ -179,8 +177,6 @@ class _PaymentWebViewState extends State<PaymentWebView> {
             icon: const Icon(Icons.arrow_back),
             onPressed: () async {
               print('AppBar back button pressed');
-              // Check auth state before showing dialog
-              await _checkAndRefreshAuth();
 
               if (!mounted) return;
 
@@ -213,8 +209,8 @@ class _PaymentWebViewState extends State<PaymentWebView> {
 
               print('Dialog result: $shouldPop');
               if (shouldPop) {
-                print('Attempting to navigate to PaymentPage');
-                // Return false to indicate the payment was cancelled
+                print('Attempting to navigate back to PaymentPage');
+                // Simply pop back to the previous screen (payment page)
                 Navigator.pop(context, false);
               }
             },

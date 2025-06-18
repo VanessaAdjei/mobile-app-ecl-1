@@ -3,12 +3,7 @@ import 'package:eclapp/pages/theme_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:io';
-import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'Cart.dart';
 import 'auth_service.dart';
 import 'bottomnav.dart';
@@ -30,9 +25,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _userEmail = "No email available";
   String _phoneNumber = "";
 
-  File? _profileImage;
-  final ImagePicker _picker = ImagePicker();
-
   late TextEditingController _userNameController;
   late TextEditingController _userEmailController;
   late TextEditingController _phoneNumberController;
@@ -44,7 +36,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _userEmailController = TextEditingController(text: _userEmail);
     _phoneNumberController = TextEditingController(text: _phoneNumber);
     _loadUserData();
-    _loadProfileImage();
   }
 
   @override
@@ -53,20 +44,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _userEmailController.dispose();
     _phoneNumberController.dispose();
     super.dispose();
-  }
-
-  Future<bool> _checkAndRequestGalleryPermission() async {
-    if (Platform.isAndroid) {
-      if (await Permission.photos.isGranted) {
-        return true;
-      }
-
-      final status = await Permission.photos.request();
-      return status.isGranted;
-    } else if (Platform.isIOS) {
-      return true;
-    }
-    return false;
   }
 
   void _showLogoutDialog() {
@@ -136,98 +113,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       },
     );
-  }
-
-  Future<void> _pickImage() async {
-    final hasPermission = await _checkAndRequestGalleryPermission();
-
-    if (!hasPermission) {
-      if (await Permission.photos.isPermanentlyDenied) {
-        // Show dialog explaining why permission is needed
-        await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text("Permission Required"),
-            content: Text(
-                "We need gallery access to let you choose profile pictures"),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text("Cancel"),
-              ),
-              TextButton(
-                onPressed: () => openAppSettings(),
-                child: Text("Open Settings"),
-              ),
-            ],
-          ),
-        );
-      }
-      return;
-    }
-
-    showModalBottomSheet(
-      context: context,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Wrap(
-            children: <Widget>[
-              ListTile(
-                leading: const Icon(Icons.photo_library),
-                title: const Text('Gallery'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final XFile? image =
-                      await _picker.pickImage(source: ImageSource.gallery);
-                  if (image != null) {
-                    File savedImage =
-                        await _saveImageToLocalStorage(File(image.path));
-                    setState(() {
-                      _profileImage = savedImage;
-                    });
-                  }
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_alt),
-                title: const Text('Camera'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final XFile? image =
-                      await _picker.pickImage(source: ImageSource.camera);
-                  if (image != null) {
-                    File savedImage =
-                        await _saveImageToLocalStorage(File(image.path));
-                    setState(() {
-                      _profileImage = savedImage;
-                    });
-                  }
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Future<File> _saveImageToLocalStorage(File imageFile) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final savedImagePath = "${directory.path}/profile_image.png";
-    final File savedImage = await imageFile.copy(savedImagePath);
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setString('profile_image_path', savedImagePath);
-    return savedImage;
-  }
-
-  Future<void> _loadProfileImage() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? savedImagePath = prefs.getString('profile_image_path');
-    if (savedImagePath != null && await File(savedImagePath).exists()) {
-      setState(() {
-        _profileImage = File(savedImagePath);
-      });
-    }
   }
 
   Future<void> _loadUserData() async {
@@ -339,53 +224,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Center(
         child: Column(
           children: [
-            Stack(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 4),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 10,
-                        spreadRadius: 2,
-                      ),
-                    ],
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 4),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 10,
+                    spreadRadius: 2,
                   ),
-                  child: CircleAvatar(
-                    radius: 60,
-                    backgroundColor: Colors.grey[300],
-                    backgroundImage: _profileImage != null
-                        ? FileImage(_profileImage!)
-                        : const AssetImage("assets/images/default_avatar.png")
-                            as ImageProvider,
-                  ),
+                ],
+                color: Colors.grey[300],
+              ),
+              child: CircleAvatar(
+                radius: 60,
+                backgroundColor: Colors.grey[300],
+                child: Icon(
+                  Icons.person,
+                  size: 80,
+                  color: Colors.grey[600],
                 ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: GestureDetector(
-                    onTap: _pickImage,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 5,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(Icons.camera_alt,
-                          size: 20, color: Colors.green),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
             const SizedBox(height: 15),
             Text(

@@ -331,24 +331,9 @@ class _PaymentPageState extends State<PaymentPage> {
           ),
         );
 
-        // If WebView was closed without completing payment
-        if (!mounted) return;
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OrderConfirmationPage(
-              paymentParams: params,
-              purchasedItems: purchasedItems,
-              initialStatus: 'error',
-              initialTransactionId: params['order_id'],
-              paymentSuccess: false,
-              paymentVerified: false,
-              paymentToken: null,
-              paymentMethod: selectedPaymentMethod,
-            ),
-          ),
-        );
+        // WebView was closed - user either completed payment or cancelled
+        // Don't automatically navigate to confirmation page
+        // Let the WebView handle the navigation based on payment completion
       } else if (response.statusCode == 401) {
         throw Exception('Your session has expired. Please log in again.');
       } else if (response.statusCode == 403) {
