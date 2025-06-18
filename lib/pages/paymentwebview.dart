@@ -171,82 +171,118 @@ class _PaymentWebViewState extends State<PaymentWebView> {
         return false;
       },
       child: Scaffold(
+        backgroundColor: Colors.grey[50],
         body: Stack(
           children: [
             Column(
               children: [
-                // Custom header (modernized, same as PaymentPage)
+                // Enhanced header with better design
                 Builder(
                   builder: (context) {
                     final topPadding = MediaQuery.of(context).padding.top;
                     return Container(
                       padding: EdgeInsets.only(top: topPadding),
-                      color: Theme.of(context).appBarTheme.backgroundColor ??
-                          Colors.green.shade700,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.green.shade600,
+                            Colors.green.shade700,
+                            Colors.green.shade800,
+                          ],
+                          stops: [0.0, 0.5, 1.0],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.15),
+                            blurRadius: 12,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
                       child: Column(
                         children: [
-                          Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.arrow_back,
-                                    color: Colors.white),
-                                onPressed: () async {
-                                  final shouldPop = await showDialog<bool>(
-                                        context: context,
-                                        builder: (context) => AlertDialog(
-                                          title: Text('Cancel Payment'),
-                                          content: Text(
-                                              'Are you sure you want to cancel this payment?'),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(context, false),
-                                              child: Text('No'),
-                                            ),
-                                            TextButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(context, true),
-                                              child: Text('Yes'),
-                                            ),
-                                          ],
-                                        ),
-                                      ) ??
-                                      false;
-                                  if (shouldPop) {
-                                    Navigator.pop(context, false);
-                                  }
-                                },
-                              ),
-                              Expanded(
-                                child: Container(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 12),
-                                  child: Row(
-                                    children: [
-                                      _buildProgressStep("Cart",
-                                          isActive: false,
-                                          isCompleted: true,
-                                          step: 1),
-                                      _buildProgressLine(isActive: false),
-                                      _buildProgressStep("Delivery",
-                                          isActive: false,
-                                          isCompleted: true,
-                                          step: 2),
-                                      _buildProgressLine(isActive: false),
-                                      _buildProgressStep("Payment",
-                                          isActive: true,
-                                          isCompleted: false,
-                                          step: 3),
-                                      _buildProgressLine(isActive: false),
-                                      _buildProgressStep("Confirmation",
-                                          isActive: false,
-                                          isCompleted: false,
-                                          step: 4),
-                                    ],
+                          // Header with back button and title
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.arrow_back,
+                                      color: Colors.white),
+                                  onPressed: () async {
+                                    final shouldPop = await showDialog<bool>(
+                                          context: context,
+                                          builder: (context) => AlertDialog(
+                                            title: Text('Cancel Payment'),
+                                            content: Text(
+                                                'Are you sure you want to cancel this payment?'),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(
+                                                    context, false),
+                                                child: Text('No'),
+                                              ),
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(
+                                                    context, true),
+                                                child: Text('Yes'),
+                                              ),
+                                            ],
+                                          ),
+                                        ) ??
+                                        false;
+                                    if (shouldPop) {
+                                      Navigator.pop(context, false);
+                                    }
+                                  },
+                                ),
+                                Expanded(
+                                  child: Center(
+                                    child: Text(
+                                      'Payment Gateway',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(
+                                    width: 48), // Balance the back button
+                              ],
+                            ),
+                          ),
+                          // Enhanced progress indicator
+                          Container(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            child: Row(
+                              children: [
+                                _buildProgressStep("Cart",
+                                    isActive: false,
+                                    isCompleted: true,
+                                    step: 1),
+                                _buildProgressLine(isActive: false),
+                                _buildProgressStep("Delivery",
+                                    isActive: false,
+                                    isCompleted: true,
+                                    step: 2),
+                                _buildProgressLine(isActive: false),
+                                _buildProgressStep("Payment",
+                                    isActive: true,
+                                    isCompleted: false,
+                                    step: 3),
+                                _buildProgressLine(isActive: false),
+                                _buildProgressStep("Confirmation",
+                                    isActive: false,
+                                    isCompleted: false,
+                                    step: 4),
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -293,8 +329,8 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 24,
-          height: 24,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
             color: isCompleted || isActive
                 ? Colors.white.withOpacity(0.2)
@@ -304,28 +340,38 @@ class _PaymentWebViewState extends State<PaymentWebView> {
               width: 2,
             ),
             shape: BoxShape.circle,
+            boxShadow: isCompleted || isActive
+                ? [
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.3),
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
           child: Center(
             child: isCompleted
-                ? Icon(Icons.check, size: 14, color: Colors.white)
+                ? Icon(Icons.check, size: 16, color: Colors.white)
                 : Text(
                     step.toString(),
                     style: TextStyle(
                       color: color,
                       fontWeight: FontWeight.bold,
-                      fontSize: 11,
+                      fontSize: 12,
                     ),
                   ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
           text,
           style: TextStyle(
             color: color,
-            fontSize: 11,
+            fontSize: 12,
             fontWeight:
-                isActive || isCompleted ? FontWeight.bold : FontWeight.normal,
+                isActive || isCompleted ? FontWeight.w600 : FontWeight.w500,
+            letterSpacing: 0.3,
           ),
         ),
       ],

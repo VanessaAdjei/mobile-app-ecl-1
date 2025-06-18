@@ -1,6 +1,4 @@
 // pages/payment_page.dart
-// pages/payment_page.dart
-// pages/payment_page.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' show min;
@@ -75,6 +73,13 @@ class _PaymentPageState extends State<PaymentPage> {
   String expressPaymentForm =
       'https://eclcommerce.ernestchemists.com.gh/api/expresspayment';
   bool _paymentSuccess = false;
+
+  // Promo code variables
+  final TextEditingController _promoCodeController = TextEditingController();
+  String? _appliedPromoCode;
+  double _discountAmount = 0.0;
+  bool _isApplyingPromo = false;
+  String? _promoError;
 
   final List<Map<String, dynamic>> paymentMethods = const [
     {
@@ -196,7 +201,7 @@ class _PaymentPageState extends State<PaymentPage> {
       }
 
       final deliveryFee = 0.00;
-      final total = subtotal + deliveryFee;
+      final total = subtotal + deliveryFee - _discountAmount;
 
       // Validate user data
       if (_userEmail.isEmpty || _userEmail == "No email available") {
@@ -214,6 +219,11 @@ class _PaymentPageState extends State<PaymentPage> {
           .join(', ');
       if (orderDesc.length > 100) {
         orderDesc = '${orderDesc.substring(0, 97)}...';
+      }
+
+      // Add promo code info to order description if applied
+      if (_appliedPromoCode != null) {
+        orderDesc += ' (Promo: $_appliedPromoCode)';
       }
 
       final nameParts = _userName.trim().split(' ');
@@ -366,11 +376,12 @@ class _PaymentPageState extends State<PaymentPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       body: Stack(
         children: [
           Column(
             children: [
-              // Custom header (modernized)
+              // Enhanced header with better design
               Animate(
                 effects: [
                   FadeEffect(duration: 400.ms),
@@ -381,47 +392,75 @@ class _PaymentPageState extends State<PaymentPage> {
                 ],
                 child: Container(
                   padding: EdgeInsets.only(top: topPadding),
-                  color: theme.appBarTheme.backgroundColor ??
-                      Colors.green.shade700,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.green.shade600,
+                        Colors.green.shade700,
+                        Colors.green.shade800,
+                      ],
+                      stops: [0.0, 0.5, 1.0],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 12,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
                   child: Column(
                     children: [
-                      Row(
-                        children: [
-                          AppBackButton(
-                            backgroundColor: theme.primaryColor,
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                            },
-                          ),
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              child: Row(
-                                children: [
-                                  _buildProgressStep("Cart",
-                                      isActive: false,
-                                      isCompleted: true,
-                                      step: 1),
-                                  _buildProgressLine(isActive: false),
-                                  _buildProgressStep("Delivery",
-                                      isActive: false,
-                                      isCompleted: true,
-                                      step: 2),
-                                  _buildProgressLine(isActive: false),
-                                  _buildProgressStep("Payment",
-                                      isActive: true,
-                                      isCompleted: false,
-                                      step: 3),
-                                  _buildProgressLine(isActive: false),
-                                  _buildProgressStep("Confirmation",
-                                      isActive: false,
-                                      isCompleted: false,
-                                      step: 4),
-                                ],
+                      // Header with back button and title
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        child: Row(
+                          children: [
+                            AppBackButton(
+                              backgroundColor: Colors.white.withOpacity(0.2),
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                              },
+                            ),
+                            Expanded(
+                              child: Center(
+                                child: Text(
+                                  'Payment Information',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(
+                                width: 48), // Balance the back button
+                          ],
+                        ),
+                      ),
+                      // Enhanced progress indicator
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          children: [
+                            _buildProgressStep("Cart",
+                                isActive: false, isCompleted: true, step: 1),
+                            _buildProgressLine(isActive: false),
+                            _buildProgressStep("Delivery",
+                                isActive: false, isCompleted: true, step: 2),
+                            _buildProgressLine(isActive: false),
+                            _buildProgressStep("Payment",
+                                isActive: true, isCompleted: false, step: 3),
+                            _buildProgressLine(isActive: false),
+                            _buildProgressStep("Confirmation",
+                                isActive: false, isCompleted: false, step: 4),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -431,9 +470,11 @@ class _PaymentPageState extends State<PaymentPage> {
                 child: Consumer<CartProvider>(
                   builder: (context, cart, child) {
                     return SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Order Items Section (First)
                           Animate(
                             effects: [
                               FadeEffect(duration: 400.ms),
@@ -442,9 +483,11 @@ class _PaymentPageState extends State<PaymentPage> {
                                   begin: Offset(0, 0.1),
                                   end: Offset(0, 0))
                             ],
-                            child: _buildPaymentMethods(),
+                            child: _buildOrderItems(cart),
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 8),
+
+                          // Order Summary Section (Second)
                           Animate(
                             effects: [
                               FadeEffect(duration: 400.ms),
@@ -455,76 +498,213 @@ class _PaymentPageState extends State<PaymentPage> {
                             ],
                             child: _buildOrderSummary(cart),
                           ),
-                          const SizedBox(height: 20),
-                          Animate(
-                            effects: [
-                              FadeEffect(duration: 400.ms),
-                              SlideEffect(
-                                  duration: 400.ms,
-                                  begin: Offset(0, 0.1),
-                                  end: Offset(0, 0))
-                            ],
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor:
-                                      Theme.of(context).primaryColor,
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 14),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  disabledBackgroundColor:
-                                      Colors.green.withOpacity(0.5),
-                                  disabledForegroundColor:
-                                      Colors.white.withOpacity(0.7),
+                          const SizedBox(height: 8),
+
+                          // Error Display
+                          if (_paymentError != null) ...[
+                            const SizedBox(height: 8),
+                            Animate(
+                              effects: [
+                                FadeEffect(duration: 400.ms),
+                                SlideEffect(
+                                    duration: 400.ms,
+                                    begin: Offset(0, 0.1),
+                                    end: Offset(0, 0))
+                              ],
+                              child: Container(
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 16),
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade50,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border:
+                                      Border.all(color: Colors.red.shade200),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.red.withOpacity(0.1),
+                                      blurRadius: 4,
+                                      offset: Offset(0, 1),
+                                    ),
+                                  ],
                                 ),
-                                onPressed: _isProcessingPayment
-                                    ? null
-                                    : () => processPayment(cart),
-                                child: _isProcessingPayment
-                                    ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Text(
-                                        'CONTINUE TO PAYMENT',
-                                        style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.shade100,
+                                        borderRadius: BorderRadius.circular(4),
                                       ),
-                              ),
-                            ),
-                          ),
-                          if (_paymentError != null)
-                            Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Animate(
-                                effects: [
-                                  FadeEffect(duration: 400.ms),
-                                  SlideEffect(
-                                      duration: 400.ms,
-                                      begin: Offset(0, 0.1),
-                                      end: Offset(0, 0))
-                                ],
-                                child: Text(
-                                  _paymentError!,
-                                  style: TextStyle(
-                                      color: Colors.red,
-                                      fontWeight: FontWeight.bold),
+                                      child: Icon(
+                                        Icons.error_outline,
+                                        color: Colors.red.shade700,
+                                        size: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Payment Error',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 12,
+                                              color: Colors.red.shade700,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 1),
+                                          Text(
+                                            _paymentError!,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.red.shade600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
+                          ],
+
+                          // Bottom spacing for fixed payment section
+                          const SizedBox(height: 120),
                         ],
                       ),
                     );
                   },
+                ),
+              ),
+              // Fixed Payment Methods and Button at Bottom
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 6,
+                      offset: Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Payment Methods Section
+                    Animate(
+                      effects: [
+                        FadeEffect(duration: 400.ms),
+                        SlideEffect(
+                            duration: 400.ms,
+                            begin: Offset(0, 0.1),
+                            end: Offset(0, 0))
+                      ],
+                      child: _buildPaymentMethods(),
+                    ),
+
+                    // Payment Button
+                    Animate(
+                      effects: [
+                        FadeEffect(duration: 400.ms),
+                        SlideEffect(
+                            duration: 400.ms,
+                            begin: Offset(0, 0.1),
+                            end: Offset(0, 0))
+                      ],
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        child: Consumer<CartProvider>(
+                          builder: (context, cart, child) {
+                            return Container(
+                              width: double.infinity,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.green.shade600,
+                                    Colors.green.shade700,
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.green.withOpacity(0.3),
+                                    blurRadius: 6,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(10),
+                                  onTap: _isProcessingPayment
+                                      ? null
+                                      : () => processPayment(cart),
+                                  child: Center(
+                                    child: _isProcessingPayment
+                                        ? Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              SizedBox(
+                                                height: 16,
+                                                width: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  color: Colors.white,
+                                                  strokeWidth: 2,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                'Processing...',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            ],
+                                          )
+                                        : Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.payment,
+                                                color: Colors.white,
+                                                size: 16,
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                'CONTINUE TO PAYMENT',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                  letterSpacing: 0.2,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -587,37 +767,37 @@ class _PaymentPageState extends State<PaymentPage> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 24,
-          height: 24,
+          width: 20,
+          height: 20,
           decoration: BoxDecoration(
             color: isCompleted || isActive
                 ? Colors.white.withOpacity(0.2)
                 : Colors.transparent,
             border: Border.all(
               color: color,
-              width: 2,
+              width: 1.5,
             ),
             shape: BoxShape.circle,
           ),
           child: Center(
             child: isCompleted
-                ? Icon(Icons.check, size: 14, color: Colors.white)
+                ? Icon(Icons.check, size: 12, color: Colors.white)
                 : Text(
                     step.toString(),
                     style: TextStyle(
                       color: color,
                       fontWeight: FontWeight.bold,
-                      fontSize: 11,
+                      fontSize: 10,
                     ),
                   ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         Text(
           text,
           style: TextStyle(
             color: color,
-            fontSize: 11,
+            fontSize: 10,
             fontWeight:
                 isActive || isCompleted ? FontWeight.bold : FontWeight.normal,
           ),
@@ -626,105 +806,959 @@ class _PaymentPageState extends State<PaymentPage> {
     );
   }
 
+  String getImageUrl(String? url) {
+    if (url == null || url.isEmpty) return '';
+    if (url.startsWith('http')) return url;
+    if (url.startsWith('/uploads/')) {
+      return 'https://adm-ecommerce.ernestchemists.com.gh$url';
+    }
+    if (url.startsWith('/storage/')) {
+      return 'https://eclcommerce.ernestchemists.com.gh$url';
+    }
+    // Otherwise, treat as filename
+    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
+  }
+
   Widget _buildPaymentMethods() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 12),
-        ...paymentMethods.map((method) {
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: RadioListTile<String>(
-              title: Row(
-                children: [
-                  Icon(method['icon'], color: Colors.green),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        method['name'],
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(6),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 3,
+                  offset: Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Icon(
+                    Icons.payment,
+                    color: Colors.green[700],
+                    size: 14,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'PAYMENT METHOD',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    color: Colors.grey[800],
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          // Payment Method Cards
+          ...paymentMethods.map((method) {
+            final isSelected = selectedPaymentMethod == method['name'];
+            return Container(
+              margin: const EdgeInsets.only(bottom: 4),
+              child: AnimatedContainer(
+                duration: Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  color: isSelected ? Colors.green.shade50 : Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: isSelected
+                        ? Colors.green.shade300
+                        : Colors.grey.shade300,
+                    width: isSelected ? 2 : 1,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: Colors.green.withOpacity(0.1),
+                            blurRadius: 3,
+                            offset: Offset(0, 1),
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 2,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: () {
+                      setState(() {
+                        selectedPaymentMethod = method['name'];
+                        _paymentError = null;
+                      });
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Row(
+                        children: [
+                          // Radio Button
+                          Container(
+                            width: 14,
+                            height: 14,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected
+                                    ? Colors.green.shade600
+                                    : Colors.grey.shade400,
+                                width: 2,
+                              ),
+                              color: isSelected
+                                  ? Colors.green.shade600
+                                  : Colors.transparent,
+                            ),
+                            child: isSelected
+                                ? Icon(
+                                    Icons.check,
+                                    size: 7,
+                                    color: Colors.white,
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 8),
+                          // Method Icon
+                          Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.green.shade100
+                                  : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: Icon(
+                              method['icon'],
+                              color: isSelected
+                                  ? Colors.green.shade700
+                                  : Colors.grey.shade600,
+                              size: 14,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Method Details
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  method['name'],
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                    color: isSelected
+                                        ? Colors.green.shade700
+                                        : Colors.grey.shade800,
+                                  ),
+                                ),
+                                Text(
+                                  method['description'],
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: isSelected
+                                        ? Colors.green.shade600
+                                        : Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderItems(CartProvider cart) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 6,
+              offset: Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Icon(
+                    Icons.shopping_bag,
+                    color: Colors.green[700],
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'YOUR ORDER',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: Colors.grey[800],
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Order Items
+            if (cart.cartItems.isNotEmpty) ...[
+              Text(
+                'Items in your order (${cart.cartItems.length})',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                  color: Colors.grey[700],
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...cart.cartItems
+                  .take(3)
+                  .map((item) => Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.grey[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[200],
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: Image.network(
+                                  getImageUrl(item.image),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Icon(
+                                    Icons.image_not_supported,
+                                    color: Colors.grey[400],
+                                    size: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.name,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    '${item.quantity}x GHS ${item.price.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                                color: Colors.green[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ))
+                  .toList(),
+              if (cart.cartItems.length > 3) ...[
+                const SizedBox(height: 4),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: Colors.blue.shade600,
+                        size: 12,
+                      ),
+                      const SizedBox(width: 4),
                       Text(
-                        method['description'],
+                        '... and ${cart.cartItems.length - 3} more items',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
+                          color: Colors.blue.shade700,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
-              value: method['name'],
-              groupValue: selectedPaymentMethod,
-              onChanged: (value) {
-                setState(() {
-                  selectedPaymentMethod = value!;
-                  // Clear error when payment method changes
-                  _paymentError = null;
-                });
-              },
-              activeColor: Colors.green,
-            ),
-          );
-        }),
-      ],
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildOrderSummary(CartProvider cart) {
     final subtotal = cart.calculateSubtotal();
     final deliveryFee = 0.00;
-    final total = subtotal + deliveryFee;
+    final total = subtotal + deliveryFee - _discountAmount;
 
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'ORDER SUMMARY',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          const SizedBox(height: 12),
-          _buildSummaryRow('Subtotal', subtotal),
-          _buildSummaryRow('Delivery Fee', deliveryFee),
-          const Divider(),
-          _buildSummaryRow('TOTAL', total, isHighlighted: true),
-        ],
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 6,
+              offset: Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Icon(
+                    Icons.receipt_long,
+                    color: Colors.green[700],
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'ORDER SUMMARY',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: Colors.grey[800],
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Promo Code Section
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Promo Code Header
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.local_offer,
+                        color: Colors.blue[700],
+                        size: 14,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'PROMO CODE',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          color: Colors.blue[700],
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Promo Code Input
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            // color: Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                            // border: Border.all(color: Colors.blue.shade300),
+                          ),
+                          child: TextField(
+                            controller: _promoCodeController,
+                            decoration: InputDecoration(
+                              hintText: 'Enter promo code',
+                              hintStyle: TextStyle(
+                                color: Colors.grey[500],
+                                fontSize: 11,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 6,
+                              ),
+                              suffixIcon: _appliedPromoCode != null
+                                  ? Icon(
+                                      Icons.check_circle,
+                                      color: Colors.green[600],
+                                      size: 16,
+                                    )
+                                  : null,
+                            ),
+                            style: TextStyle(fontSize: 11),
+                            enabled: _appliedPromoCode == null,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      if (_appliedPromoCode == null)
+                        Container(
+                          height: 32,
+                          child: ElevatedButton(
+                            onPressed:
+                                _isApplyingPromo ? null : _applyPromoCode,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue[600],
+                              foregroundColor: Colors.white,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            child: _isApplyingPromo
+                                ? SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Text(
+                                    'Apply',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                          ),
+                        )
+                      else
+                        Container(
+                          height: 32,
+                          child: ElevatedButton(
+                            onPressed: _removePromoCode,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red[600],
+                              foregroundColor: Colors.white,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            child: Text(
+                              'Remove',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+
+                  // Promo Code Status
+                  if (_promoError != null) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            color: Colors.red[600],
+                            size: 12,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              _promoError!,
+                              style: TextStyle(
+                                color: Colors.red[600],
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  if (_appliedPromoCode != null) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle_outline,
+                            // color: Colors.green[600],
+                            size: 12,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Promo code "$_appliedPromoCode" applied! You saved GHS ${_discountAmount.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                color: Colors.green[600],
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Price Breakdown
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Column(
+                children: [
+                  _buildSummaryRow('Subtotal', subtotal,
+                      icon: Icons.shopping_cart_outlined),
+                  const SizedBox(height: 6),
+                  if (_discountAmount > 0) ...[
+                    _buildSummaryRow('Discount', -_discountAmount,
+                        icon: Icons.local_offer, isDiscount: true),
+                    const SizedBox(height: 6),
+                  ],
+                  _buildSummaryRow('Delivery Fee', deliveryFee,
+                      icon: Icons.local_shipping_outlined),
+                  Divider(height: 12, thickness: 1, color: Colors.grey[300]),
+                  _buildSummaryRow('TOTAL', total,
+                      isHighlighted: true, icon: Icons.payment),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildSummaryRow(String label, double value,
-      {bool isHighlighted = false}) {
+      {bool isHighlighted = false, IconData? icon, bool isDiscount = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: isHighlighted ? FontWeight.bold : FontWeight.normal,
+          if (icon != null) ...[
+            Icon(
+              icon,
+              size: 18,
+              color: isDiscount
+                  ? Colors.green[600]
+                  : isHighlighted
+                      ? Colors.green[700]
+                      : Colors.grey[600],
+            ),
+            const SizedBox(width: 10),
+          ],
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w500,
+                fontSize: isHighlighted ? 16 : 14,
+                color: isDiscount
+                    ? Colors.green[600]
+                    : isHighlighted
+                        ? Colors.grey[800]
+                        : Colors.grey[700],
+              ),
             ),
           ),
           Text(
-            'GHS ${value.toStringAsFixed(2)}',
+            isDiscount
+                ? '-GHS ${value.abs().toStringAsFixed(2)}'
+                : 'GHS ${value.toStringAsFixed(2)}',
             style: TextStyle(
-              fontWeight: isHighlighted ? FontWeight.bold : FontWeight.normal,
-              color: isHighlighted ? Colors.green : null,
+              fontWeight: isHighlighted ? FontWeight.w800 : FontWeight.w600,
+              fontSize: isHighlighted ? 18 : 14,
+              color: isDiscount
+                  ? Colors.green[600]
+                  : isHighlighted
+                      ? Colors.green[700]
+                      : Colors.grey[800],
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildPromoCodeSection() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 6,
+              offset: Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Icon(
+                    Icons.local_offer,
+                    color: Colors.blue[700],
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'PROMO CODE',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: Colors.grey[800],
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Promo Code Input
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: TextField(
+                      controller: _promoCodeController,
+                      decoration: InputDecoration(
+                        hintText: 'Enter promo code',
+                        hintStyle: TextStyle(
+                          color: Colors.grey[500],
+                          fontSize: 12,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        suffixIcon: _appliedPromoCode != null
+                            ? Icon(
+                                Icons.check_circle,
+                                color: Colors.green[600],
+                                size: 18,
+                              )
+                            : null,
+                      ),
+                      style: TextStyle(fontSize: 12),
+                      enabled: _appliedPromoCode == null,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (_appliedPromoCode == null)
+                  Container(
+                    height: 38,
+                    child: ElevatedButton(
+                      onPressed: _isApplyingPromo ? null : _applyPromoCode,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[600],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      child: _isApplyingPromo
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              'Apply',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                    ),
+                  )
+                else
+                  Container(
+                    height: 38,
+                    child: ElevatedButton(
+                      onPressed: _removePromoCode,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red[600],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      child: Text(
+                        'Remove',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+
+            // Promo Code Status
+            if (_promoError != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: Colors.red[600],
+                      size: 14,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _promoError!,
+                        style: TextStyle(
+                          color: Colors.red[600],
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            if (_appliedPromoCode != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline,
+                      color: Colors.green[600],
+                      size: 14,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Promo code "$_appliedPromoCode" applied! You saved GHS ${_discountAmount.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          color: Colors.green[600],
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _applyPromoCode() async {
+    final promoCode = _promoCodeController.text.trim();
+    if (promoCode.isEmpty) {
+      setState(() {
+        _promoError = 'Please enter a promo code';
+      });
+      return;
+    }
+
+    setState(() {
+      _isApplyingPromo = true;
+      _promoError = null;
+    });
+
+    try {
+      // Simulate API call for promo code validation
+      await Future.delayed(Duration(seconds: 1));
+
+      // Mock promo code validation - replace with actual API call
+      if (promoCode.toLowerCase() == 'save10' ||
+          promoCode.toLowerCase() == 'discount20') {
+        final discountPercentage =
+            promoCode.toLowerCase() == 'save10' ? 0.10 : 0.20;
+        final cart = Provider.of<CartProvider>(context, listen: false);
+        final subtotal = cart.calculateSubtotal();
+        final discountAmount = subtotal * discountPercentage;
+
+        setState(() {
+          _appliedPromoCode = promoCode;
+          _discountAmount = discountAmount;
+          _promoError = null;
+        });
+      } else {
+        setState(() {
+          _promoError = 'Invalid promo code. Please try again.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _promoError = 'Failed to apply promo code. Please try again.';
+      });
+    } finally {
+      setState(() {
+        _isApplyingPromo = false;
+      });
+    }
+  }
+
+  void _removePromoCode() {
+    setState(() {
+      _appliedPromoCode = null;
+      _discountAmount = 0.0;
+      _promoCodeController.clear();
+      _promoError = null;
+    });
   }
 
   void _showPaymentFailureDialog(String error) {
@@ -859,6 +1893,19 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     super.dispose();
   }
 
+  String getImageUrl(String? url) {
+    if (url == null || url.isEmpty) return '';
+    if (url.startsWith('http')) return url;
+    if (url.startsWith('/uploads/')) {
+      return 'https://adm-ecommerce.ernestchemists.com.gh$url';
+    }
+    if (url.startsWith('/storage/')) {
+      return 'https://eclcommerce.ernestchemists.com.gh$url';
+    }
+    // Otherwise, treat as filename
+    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
+  }
+
   void _startStatusChecking() {
     print('Starting status checking...');
     // Check status immediately
@@ -938,18 +1985,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     }
   }
 
-  String getImageUrl(String? url) {
-    if (url == null || url.isEmpty) return '';
-    if (url.startsWith('http')) return url;
-    if (url.startsWith('/uploads/')) {
-      return 'https://adm-ecommerce.ernestchemists.com.gh$url';
-    }
-    if (url.startsWith('/storage/')) {
-      return 'https://eclcommerce.ernestchemists.com.gh$url';
-    }
-    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
-  }
-
   @override
   Widget build(BuildContext context) {
     final total = widget.purchasedItems
@@ -958,11 +1993,12 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       body: Stack(
         children: [
           Column(
             children: [
-              // Custom header (modernized)
+              // Enhanced header with better design
               Animate(
                 effects: [
                   FadeEffect(duration: 400.ms),
@@ -978,65 +2014,77 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
+                        Colors.green.shade600,
                         Colors.green.shade700,
                         Colors.green.shade800,
                       ],
+                      stops: [0.0, 0.5, 1.0],
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 12,
+                        offset: Offset(0, 4),
                       ),
                     ],
                   ),
                   child: Column(
                     children: [
-                      Row(
-                        children: [
-                          AppBackButton(
-                            backgroundColor: Colors.white.withOpacity(0.2),
-                            onPressed: () {
-                              // Navigate back to home page using a more direct approach
-                              Navigator.pushAndRemoveUntil(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const HomePage(),
+                      // Header with back button and title
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        child: Row(
+                          children: [
+                            AppBackButton(
+                              backgroundColor: Colors.white.withOpacity(0.2),
+                              onPressed: () {
+                                // Navigate back to home page using a more direct approach
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const HomePage(),
+                                  ),
+                                  (route) => false,
+                                );
+                              },
+                            ),
+                            Expanded(
+                              child: Center(
+                                child: Text(
+                                  'Order Confirmation',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.5,
+                                  ),
                                 ),
-                                (route) => false,
-                              );
-                            },
-                          ),
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              child: Row(
-                                children: [
-                                  _buildProgressStep("Cart",
-                                      isActive: false,
-                                      isCompleted: true,
-                                      step: 1),
-                                  _buildProgressLine(isActive: false),
-                                  _buildProgressStep("Delivery",
-                                      isActive: false,
-                                      isCompleted: true,
-                                      step: 2),
-                                  _buildProgressLine(isActive: false),
-                                  _buildProgressStep("Payment",
-                                      isActive: false,
-                                      isCompleted: true,
-                                      step: 3),
-                                  _buildProgressLine(isActive: false),
-                                  _buildProgressStep("Confirmation",
-                                      isActive: true,
-                                      isCompleted: false,
-                                      step: 4),
-                                ],
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                        ],
+                            const SizedBox(
+                                width: 48), // Balance the back button
+                          ],
+                        ),
+                      ),
+                      // Enhanced progress indicator
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          children: [
+                            _buildProgressStep("Cart",
+                                isActive: false, isCompleted: true, step: 1),
+                            _buildProgressLine(isActive: false),
+                            _buildProgressStep("Delivery",
+                                isActive: false, isCompleted: true, step: 2),
+                            _buildProgressLine(isActive: false),
+                            _buildProgressStep("Payment",
+                                isActive: true, isCompleted: false, step: 3),
+                            _buildProgressLine(isActive: false),
+                            _buildProgressStep("Confirmation",
+                                isActive: false, isCompleted: false, step: 4),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -1651,7 +2699,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1985,37 +3033,37 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 24,
-          height: 24,
+          width: 20,
+          height: 20,
           decoration: BoxDecoration(
             color: isCompleted || isActive
                 ? Colors.white.withOpacity(0.2)
                 : Colors.transparent,
             border: Border.all(
               color: color,
-              width: 2,
+              width: 1.5,
             ),
             shape: BoxShape.circle,
           ),
           child: Center(
             child: isCompleted
-                ? Icon(Icons.check, size: 14, color: Colors.white)
+                ? Icon(Icons.check, size: 12, color: Colors.white)
                 : Text(
                     step.toString(),
                     style: TextStyle(
                       color: color,
                       fontWeight: FontWeight.bold,
-                      fontSize: 11,
+                      fontSize: 10,
                     ),
                   ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         Text(
           text,
           style: TextStyle(
             color: color,
-            fontSize: 11,
+            fontSize: 10,
             fontWeight:
                 isActive || isCompleted ? FontWeight.bold : FontWeight.normal,
           ),
