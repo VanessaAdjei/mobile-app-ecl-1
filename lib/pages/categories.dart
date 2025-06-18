@@ -164,9 +164,9 @@ class CategoryPage extends StatefulWidget {
   final bool isBulkPurchase;
 
   const CategoryPage({
-    Key? key,
+    super.key,
     this.isBulkPurchase = false,
-  }) : super(key: key);
+  });
 
   @override
   _CategoryPageState createState() => _CategoryPageState();
@@ -188,6 +188,7 @@ class _CategoryPageState extends State<CategoryPage> {
 
   @override
   void dispose() {
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -198,19 +199,23 @@ class _CategoryPageState extends State<CategoryPage> {
         _errorMessage = '';
       });
 
-      final response = await http.get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/top-categories'),
-      );
+      final response = await http
+          .get(
+            Uri.parse(
+                'https://eclcommerce.ernestchemists.com.gh/api/top-categories'),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true) {
-          setState(() {
-            _categories = data['data'];
-            _filteredCategories = data['data'];
-            _isLoading = false;
-          });
+          if (mounted) {
+            setState(() {
+              _categories = data['data'];
+              _filteredCategories = data['data'];
+              _isLoading = false;
+            });
+          }
         } else {
           throw Exception('Unable to load categories at this time');
         }
@@ -219,11 +224,13 @@ class _CategoryPageState extends State<CategoryPage> {
       }
     } catch (e) {
       print('Error fetching top categories: $e');
-      setState(() {
-        _errorMessage =
-            'Unable to load categories. Please check your internet connection and try again.';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage =
+              'Unable to load categories. Please check your internet connection and try again.';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -235,9 +242,10 @@ class _CategoryPageState extends State<CategoryPage> {
       return;
     }
 
+    final lowercaseQuery = query.toLowerCase();
     setState(() {
       _filteredCategories = _categories.where((category) {
-        return category['name'].toLowerCase().contains(query.toLowerCase());
+        return category['name'].toLowerCase().contains(lowercaseQuery);
       }).toList();
     });
   }
@@ -560,97 +568,88 @@ class CategoryGridItem extends StatefulWidget {
 }
 
 class _CategoryGridItemState extends State<CategoryGridItem> {
-  bool _isPressed = false;
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: widget.onTap,
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AnimatedScale(
-            scale: _isPressed ? 0.96 : 1.0,
-            duration: Duration(milliseconds: 100),
-            curve: Curves.easeOut,
-            child: Container(
-              width: double.infinity,
-              height: 140,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(widget.imageRadius),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 12,
-                    offset: Offset(0, 4),
+          Container(
+            width: double.infinity,
+            height: 140,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(widget.imageRadius),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(widget.imageRadius),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  CachedNetworkImage(
+                    imageUrl: widget.imageUrl,
+                    fit: BoxFit.contain,
+                    width: double.infinity,
+                    height: double.infinity,
+                    memCacheWidth: 200,
+                    memCacheHeight: 200,
+                    maxWidthDiskCache: 200,
+                    maxHeightDiskCache: 200,
+                    fadeInDuration: const Duration(milliseconds: 150),
+                    placeholderFadeInDuration:
+                        const Duration(milliseconds: 150),
+                    imageBuilder: (context, imageProvider) => Image(
+                      image: imageProvider,
+                      fit: BoxFit.contain,
+                    ),
+                    placeholder: (context, url) => Container(
+                      color: Colors.grey.shade200,
+                      child: const Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.green),
+                          ),
+                        ),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      color: Colors.grey.shade100,
+                      child: const Center(
+                        child: Icon(
+                          Icons.image_not_supported_outlined,
+                          color: Colors.grey,
+                          size: 32,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Gradient overlay
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.2),
+                        ],
+                        stops: const [0.7, 1.0],
+                      ),
+                    ),
                   ),
                 ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(widget.imageRadius),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CachedNetworkImage(
-                      imageUrl: widget.imageUrl,
-                      fit: BoxFit.contain,
-                      width: double.infinity,
-                      height: double.infinity,
-                      memCacheWidth: 300,
-                      memCacheHeight: 300,
-                      maxWidthDiskCache: 300,
-                      maxHeightDiskCache: 300,
-                      fadeInDuration: Duration(milliseconds: 200),
-                      placeholderFadeInDuration: Duration(milliseconds: 200),
-                      imageBuilder: (context, imageProvider) => Image(
-                        image: imageProvider,
-                        fit: BoxFit.contain,
-                      ),
-                      placeholder: (context, url) => Container(
-                        color: Colors.grey.shade200,
-                        child: Center(
-                          child: SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.green),
-                            ),
-                          ),
-                        ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        color: Colors.grey.shade100,
-                        child: Center(
-                          child: Icon(
-                            Icons.image_not_supported_outlined,
-                            color: Colors.grey,
-                            size: 36,
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Gradient overlay
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withOpacity(0.2),
-                          ],
-                          stops: [0.7, 1.0],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ),
           ),
@@ -717,10 +716,12 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     try {
       print(
           'Fetching subcategories for main category ID: ${widget.categoryId}');
-      final response = await http.get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/categories/${widget.categoryId}'),
-      );
+      final response = await http
+          .get(
+            Uri.parse(
+                'https://eclcommerce.ernestchemists.com.gh/api/categories/${widget.categoryId}'),
+          )
+          .timeout(const Duration(seconds: 15));
 
       print('Subcategories API Response Status Code: ${response.statusCode}');
       print('Subcategories API Response Body: ${response.body}');
@@ -740,18 +741,35 @@ class SubcategoryPageState extends State<SubcategoryPage> {
             subcategoriesData.forEach((sub) {
               print('Subcategory: ${sub['name']}, ID: ${sub['id']}');
             });
+
+            if (mounted) {
+              setState(() {
+                subcategories = subcategoriesData;
+                isLoading = false;
+              });
+            }
+          } else {
+            if (mounted) {
+              setState(() {
+                errorMessage = 'No subcategories found for this category.';
+                isLoading = false;
+              });
+            }
           }
-          handleSubcategoriesSuccess(data);
         } else {
-          handleSubcategoriesError('Failed to load subcategories');
+          throw Exception('Failed to load subcategories');
         }
       } else {
-        handleSubcategoriesError(
-            'Failed to load subcategories: ${response.statusCode}');
+        throw Exception('Server error: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error in fetchSubcategories: $e');
-      handleSubcategoriesError('Error: ${e.toString()}');
+      print('Error fetching subcategories: $e');
+      if (mounted) {
+        setState(() {
+          errorMessage = 'Failed to load subcategories. Please try again.';
+          isLoading = false;
+        });
+      }
     }
   }
 

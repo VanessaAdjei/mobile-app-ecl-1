@@ -30,10 +30,10 @@ class ItemPage extends StatefulWidget {
   final bool isPrescribed;
 
   const ItemPage({
-    Key? key,
+    super.key,
     required this.urlName,
     this.isPrescribed = false,
-  }) : super(key: key);
+  });
 
   @override
   State<ItemPage> createState() => _ItemPageState();
@@ -156,7 +156,10 @@ class _ItemPageState extends State<ItemPage> {
             // Show success message with total items
             final totalItems =
                 items.fold<int>(0, (sum, item) => sum + item.quantity);
-            showTopSnackBar(context, '${product.name} has been added to cart ');
+            if (mounted) {
+              showTopSnackBar(
+                  context, '${product.name} has been added to cart ');
+            }
           }
         } else {
           final errorMessage = response['message'] ?? 'Unknown error';
@@ -166,21 +169,24 @@ class _ItemPageState extends State<ItemPage> {
         throw Exception('Error processing product data: $e');
       }
     } on TimeoutException {
-      showTopSnackBar(context, 'Request timed out. Please try again.');
+      if (mounted) {
+        showTopSnackBar(context, 'Request timed out. Please try again.');
+      }
     } on SocketException {
-      showTopSnackBar(context,
-          'No internet connection. Please check your network settings.');
+      if (mounted) {
+        showTopSnackBar(context,
+            'No internet connection. Please check your network settings.');
+      }
     } catch (e) {
       print('\nException adding to cart: $e');
-      showTopSnackBar(context, 'Error adding item to cart: $e');
+      if (mounted) {
+        showTopSnackBar(context, 'Error adding item to cart: $e');
+      }
     }
   }
 
   Future<Product> fetchProductDetails(String urlName) async {
     try {
-      print('\n=== Fetching Product Details ===');
-      print('URL Name: $urlName');
-
       final response = await http
           .get(
         Uri.parse(
@@ -193,14 +199,9 @@ class _ItemPageState extends State<ItemPage> {
         },
       );
 
-      print('Response Status Code: ${response.statusCode}');
-      print('Response Body: ${response.body}');
-
       if (response.statusCode == 200) {
         try {
           final Map<String, dynamic> data = json.decode(response.body);
-          print('\n=== Product Details API Response ===');
-          print('Full response: ${json.encode(data)}');
 
           if (data.containsKey('data')) {
             final productData = data['data']['product'] ?? {};
@@ -210,21 +211,6 @@ class _ItemPageState extends State<ItemPage> {
               throw Exception('Product data is incomplete or missing');
             }
 
-            print('\nProduct Data:');
-            print(json.encode(productData));
-            print('\nInventory Data:');
-            print(json.encode(inventoryData));
-
-            // Print all possible ID fields
-            print('\nProduct ID fields:');
-            print('- productData[id]: ${productData['id']}');
-            print('- productData[product_id]: ${productData['product_id']}');
-            print('- inventoryData[id]: ${inventoryData['id']}');
-            print(
-                '- inventoryData[product_id]: ${inventoryData['product_id']}');
-            print(
-                '- inventoryData[inventory_id]: ${inventoryData['inventory_id']}');
-
             // Get the product ID from the correct location
             final productId = productData['product_id'] ??
                 productData['id'] ??
@@ -232,7 +218,6 @@ class _ItemPageState extends State<ItemPage> {
                 inventoryData['id'] ??
                 inventoryData['inventory_id'] ??
                 0;
-            print('\nUsing product ID: $productId');
 
             if (productId == 0) {
               throw Exception('Invalid product ID');
@@ -244,13 +229,11 @@ class _ItemPageState extends State<ItemPage> {
                 productData['route'] ??
                 inventoryData['route'] ??
                 '';
-            print('\nFound otcpom: $otcpom');
 
             List<String> tags = [];
             if (productData['tags'] != null && productData['tags'] is List) {
               tags = List<String>.from(
                   productData['tags'].map((tag) => tag.toString()));
-              print('\nProduct Tags: $tags');
             }
 
             final product = Product.fromJson({
@@ -283,11 +266,6 @@ class _ItemPageState extends State<ItemPage> {
               'batch_no': inventoryData['batch_no'] ?? '',
             });
 
-            print('\nCreated Product:');
-            print('- ID: ${product.id}');
-            print('- Name: ${product.name}');
-            print('- Price: ${product.price}');
-            print('- Batch No: ${product.batch_no}');
             return product;
           } else {
             throw Exception('Invalid response format: missing data field');
@@ -336,7 +314,6 @@ class _ItemPageState extends State<ItemPage> {
             return (data['data'] as List)
                 .map((item) {
                   try {
-                    print('Related product item: ' + jsonEncode(item));
                     return Product(
                       id: item['product_id'] ?? item['id'] ?? 0,
                       name: item['name'] ??
@@ -372,7 +349,6 @@ class _ItemPageState extends State<ItemPage> {
                       route: '',
                     );
                   } catch (e) {
-                    print('Error parsing related product item: $e');
                     return null;
                   }
                 })
@@ -382,24 +358,18 @@ class _ItemPageState extends State<ItemPage> {
           }
           return [];
         } catch (e) {
-          print('Error parsing related products response: $e');
           return [];
         }
       } else if (response.statusCode == 404) {
-        print('Related products not found');
         return [];
       } else {
-        print('Failed to load related products: ${response.statusCode}');
         return [];
       }
     } on TimeoutException {
-      print('Related products request timed out');
       return [];
     } on SocketException {
-      print('No internet connection while fetching related products');
       return [];
     } catch (e) {
-      print('Error fetching related products: $e');
       return [];
     }
   }

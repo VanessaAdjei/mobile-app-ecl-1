@@ -25,6 +25,7 @@ import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'order_tracking_page.dart';
 import 'package:intl/intl.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'cart.dart';
 
 class ExpressPayChannel {
   static const MethodChannel _channel =
@@ -70,12 +71,12 @@ class _PaymentPageState extends State<PaymentPage> {
   String _userEmail = "No email available";
   String _phoneNumber = "No phone number available";
   String? _paymentError;
-  String? _lastPaymentToken; // Store the token from expresspayment
+  String? _lastPaymentToken;
   String expressPaymentForm =
       'https://eclcommerce.ernestchemists.com.gh/api/expresspayment';
   bool _paymentSuccess = false;
 
-  final List<Map<String, dynamic>> paymentMethods = [
+  final List<Map<String, dynamic>> paymentMethods = const [
     {
       'name': 'Online Payment',
       'icon': Icons.phone_android,
@@ -92,13 +93,7 @@ class _PaymentPageState extends State<PaymentPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      print("Starting user data loading...");
       await _loadUserData();
-      print("User data loading complete");
-      print("Final values:");
-      print("Name: $_userName");
-      print("Email: $_userEmail");
-      print("Phone: $_phoneNumber");
     });
   }
 
@@ -106,18 +101,21 @@ class _PaymentPageState extends State<PaymentPage> {
     try {
       final userData = await AuthService.getCurrentUser();
 
-      setState(() {
-        _userName = userData?['name'] ?? "User";
-        _userEmail = userData?['email'] ?? "No email available";
-        _phoneNumber = userData?['phone'] ?? "";
-      });
+      if (mounted) {
+        setState(() {
+          _userName = userData?['name'] ?? "User";
+          _userEmail = userData?['email'] ?? "No email available";
+          _phoneNumber = userData?['phone'] ?? "";
+        });
+      }
     } catch (e) {
-      print("Error loading user data: $e");
-      setState(() {
-        _userName = "User";
-        _userEmail = "No email available";
-        _phoneNumber = "";
-      });
+      if (mounted) {
+        setState(() {
+          _userName = "User";
+          _userEmail = "No email available";
+          _phoneNumber = "";
+        });
+      }
     }
   }
 
@@ -129,12 +127,8 @@ class _PaymentPageState extends State<PaymentPage> {
 
   Future<Map<String, dynamic>> _verifyPayment(
       String token, String transactionId) async {
-    print('\n=== PAYMENT VERIFICATION START ===');
-    print('Transaction ID: $transactionId');
-
     final authToken = await AuthService.getToken();
     if (authToken == null) {
-      print('No auth token found');
       return {
         'verified': false,
         'status': 'error',
@@ -142,48 +136,53 @@ class _PaymentPageState extends State<PaymentPage> {
       };
     }
 
-    print('Using auth token: $authToken');
+    try {
+      final response = await http
+          .post(
+            Uri.parse(
+                'https://eclcommerce.ernestchemists.com.gh/api/check-payment'),
+            headers: {
+              'Authorization': 'Bearer $authToken',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({
+              'user_id': await AuthService.getCurrentUserID(),
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
 
-    final response = await http.post(
-      Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/check-payment'),
-      headers: {
-        'Authorization': 'Bearer $authToken',
-        'Accept': 'application/json',
-      },
-      body: jsonEncode({
-        'user_id': await AuthService.getCurrentUserID(),
-      }),
-    );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'verified': true,
+          'status': data['status'] ?? 'success',
+          'message': data['message'] ?? 'Payment verified successfully',
+        };
+      }
 
-    print('Payment verification response: ${response.statusCode}');
-    print('Response body: ${response.body}');
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      print('Payment verified successfully');
       return {
-        'verified': true,
-        'status': data['status'] ?? 'success',
-        'message': data['message'] ?? 'Payment verified successfully',
+        'verified': false,
+        'status': 'error',
+        'message': 'Payment verification failed',
+      };
+    } catch (e) {
+      return {
+        'verified': false,
+        'status': 'error',
+        'message': 'Payment verification error: $e',
       };
     }
-
-    return {
-      'verified': false,
-      'status': 'error',
-      'message': 'Payment verification failed',
-    };
   }
 
   Future<void> processPayment(CartProvider cart) async {
+    if (!mounted) return;
+
     setState(() {
       _paymentError = null;
       _isProcessingPayment = true;
     });
 
     try {
-      print('Starting payment process...');
-
       // Validate cart
       if (cart.cartItems.isEmpty) {
         throw Exception(
@@ -198,7 +197,6 @@ class _PaymentPageState extends State<PaymentPage> {
 
       final deliveryFee = 0.00;
       final total = subtotal + deliveryFee;
-      print('Cart total: $total');
 
       // Validate user data
       if (_userEmail.isEmpty || _userEmail == "No email available") {
@@ -240,13 +238,9 @@ class _PaymentPageState extends State<PaymentPage> {
 
       final purchasedItems = List<CartItem>.from(cart.cartItems);
       final transactionId = params['order_id'];
-      bool isVerified = false;
-      bool isSuccess = false;
 
       if (selectedPaymentMethod == 'Cash on Delivery') {
-        print('Processing Cash on Delivery order...');
-        isSuccess = true;
-        isVerified = true;
+        if (!mounted) return;
 
         Navigator.pushAndRemoveUntil(
           context,
@@ -273,116 +267,99 @@ class _PaymentPageState extends State<PaymentPage> {
         throw Exception('Authentication required. Please log in again.');
       }
 
-      try {
-        final response = await http
-            .post(
-          Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/expresspayment'),
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $authToken',
-          },
-          body: jsonEncode(params),
-        )
-            .timeout(
-          const Duration(seconds: 30),
-          onTimeout: () {
-            throw TimeoutException(
-                'Payment request timed out. Please try again.');
-          },
+      final response = await http
+          .post(
+        Uri.parse(
+            'https://eclcommerce.ernestchemists.com.gh/api/expresspayment'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+        body: jsonEncode(params),
+      )
+          .timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw TimeoutException(
+              'Payment request timed out. Please try again.');
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final redirectUrl = response.body.trim();
+
+        if (redirectUrl.isEmpty) {
+          throw Exception('Received empty payment URL from server.');
+        }
+
+        if (!mounted) return;
+
+        // Launch payment WebView
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PaymentWebView(
+              url: redirectUrl,
+              paymentParams: params,
+              purchasedItems: purchasedItems,
+              paymentMethod: selectedPaymentMethod,
+              onPaymentComplete: (success, token) async {
+                if (success && token != null) {
+                  try {
+                    final result = await _verifyPayment(token, transactionId!);
+                    final statusText =
+                        result['status']?.toString().toLowerCase() ?? '';
+
+                    final isDeclined = statusText.contains('declined');
+                    final isCompleted = statusText.contains('completed');
+
+                    if (result['verified'] == true &&
+                        isCompleted &&
+                        !isDeclined) {
+                      // Payment verified and completed
+                    } else {
+                      // Payment not completed or declined
+                    }
+                  } catch (e) {
+                    throw Exception(
+                        'Failed to verify payment status. Please contact support.');
+                  }
+                }
+              },
+            ),
+          ),
         );
 
-        print('Payment API response: ${response.statusCode}');
-        print('Response body: ${response.body}');
+        // If WebView was closed without completing payment
+        if (!mounted) return;
 
-        if (response.statusCode == 200) {
-          final redirectUrl = response.body.trim();
-          print('Payment redirect URL: $redirectUrl');
-
-          if (redirectUrl.isEmpty) {
-            throw Exception('Received empty payment URL from server.');
-          }
-
-          // Launch payment WebView
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => PaymentWebView(
-                url: redirectUrl,
-                paymentParams: params,
-                purchasedItems: purchasedItems,
-                paymentMethod: selectedPaymentMethod,
-                onPaymentComplete: (success, token) async {
-                  if (success && token != null) {
-                    try {
-                      final result =
-                          await _verifyPayment(token, transactionId!);
-                      final statusText =
-                          result['status']?.toString().toLowerCase() ?? '';
-
-                      final isDeclined = statusText.contains('declined');
-                      final isCompleted = statusText.contains('completed');
-
-                      if (result['verified'] == true &&
-                          isCompleted &&
-                          !isDeclined) {
-                        print('Payment verified and completed.');
-                      } else {
-                        print('Payment not completed or declined.');
-                      }
-                    } catch (e) {
-                      print('Error verifying payment: $e');
-                      throw Exception(
-                          'Failed to verify payment status. Please contact support.');
-                    }
-                  } else {
-                    print('Payment not successful.');
-                  }
-                },
-              ),
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OrderConfirmationPage(
+              paymentParams: params,
+              purchasedItems: purchasedItems,
+              initialStatus: 'error',
+              initialTransactionId: params['order_id'],
+              paymentSuccess: false,
+              paymentVerified: false,
+              paymentToken: null,
+              paymentMethod: selectedPaymentMethod,
             ),
-          );
-
-          // If WebView was closed without completing payment
-          if (result == null) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => OrderConfirmationPage(
-                  paymentParams: params,
-                  purchasedItems: purchasedItems,
-                  initialStatus: 'error',
-                  initialTransactionId: params['order_id'],
-                  paymentSuccess: false,
-                  paymentVerified: false,
-                  paymentToken: null,
-                  paymentMethod: selectedPaymentMethod,
-                ),
-              ),
-            );
-          }
-          return;
-        } else if (response.statusCode == 401) {
-          throw Exception('Your session has expired. Please log in again.');
-        } else if (response.statusCode == 403) {
-          throw Exception('You do not have permission to make this payment.');
-        } else if (response.statusCode == 404) {
-          throw Exception('Payment service is currently unavailable.');
-        } else if (response.statusCode >= 500) {
-          throw Exception('Server error. Please try again later.');
-        } else {
-          throw Exception(
-              'Payment request failed with status ${response.statusCode}');
-        }
-      } on TimeoutException {
+          ),
+        );
+      } else if (response.statusCode == 401) {
+        throw Exception('Your session has expired. Please log in again.');
+      } else if (response.statusCode == 403) {
+        throw Exception('You do not have permission to make this payment.');
+      } else if (response.statusCode == 404) {
+        throw Exception('Payment service is currently unavailable.');
+      } else if (response.statusCode >= 500) {
+        throw Exception('Server error. Please try again later.');
+      } else {
         throw Exception(
-            'Payment request timed out. Please check your internet connection and try again.');
-      } on SocketException {
-        throw Exception(
-            'No internet connection. Please check your network and try again.');
-      } on FormatException {
-        throw Exception('Invalid response from server. Please try again.');
+            'Payment request failed with status ${response.statusCode}');
       }
     } catch (e, stack) {
       print('Error during payment process: $e');
@@ -857,6 +834,12 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   bool _showCheckStatusButton = false;
   Timer? _statusCheckTimer;
   Timer? _buttonShowTimer;
+  Timer? _emptyResponseTimer;
+  DateTime? _firstEmptyResponseTime;
+  int _emptyResponseCount = 0;
+  static const int _maxEmptyResponseTimeMinutes = 3;
+  static const int _maxEmptyResponseCount =
+      36; // 3 minutes / 5 seconds = 36 checks
 
   @override
   void initState() {
@@ -887,6 +870,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   void dispose() {
     _statusCheckTimer?.cancel();
     _buttonShowTimer?.cancel();
+    _emptyResponseTimer?.cancel();
     super.dispose();
   }
 
@@ -940,12 +924,20 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             print('Payment successful, hiding check status button');
             _statusCheckTimer?.cancel();
             _buttonShowTimer?.cancel();
+            _emptyResponseTimer?.cancel();
             _showCheckStatusButton = false;
+            // Reset empty response tracking
+            _firstEmptyResponseTime = null;
+            _emptyResponseCount = 0;
           } else if (_status?.toLowerCase() == 'failed') {
             print('Payment failed, hiding check status button');
             _statusCheckTimer?.cancel(); // Stop automatic checks
             _buttonShowTimer?.cancel(); // Cancel the button show timer
+            _emptyResponseTimer?.cancel();
             _showCheckStatusButton = false; // Hide the button
+            // Reset empty response tracking
+            _firstEmptyResponseTime = null;
+            _emptyResponseCount = 0;
           }
         });
       }
@@ -986,10 +978,13 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            // Navigate back to home page
-            Navigator.pushReplacementNamed(
+            // Navigate back to home page using a more direct approach
+            Navigator.pushAndRemoveUntil(
               context,
-              '/home',
+              MaterialPageRoute(
+                builder: (context) => const HomePage(),
+              ),
+              (route) => false,
             );
           },
         ),
@@ -1360,9 +1355,12 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                             children: [
                               ElevatedButton.icon(
                                 onPressed: () {
-                                  Navigator.pushReplacementNamed(
+                                  Navigator.pushAndRemoveUntil(
                                     context,
-                                    '/home',
+                                    MaterialPageRoute(
+                                      builder: (context) => const HomePage(),
+                                    ),
+                                    (route) => false,
                                   );
                                 },
                                 icon: const Icon(Icons.shopping_cart, size: 18),
@@ -1380,9 +1378,12 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                               const SizedBox(width: 8),
                               ElevatedButton.icon(
                                 onPressed: () {
-                                  Navigator.pushReplacementNamed(
+                                  Navigator.pushAndRemoveUntil(
                                     context,
-                                    '/cart',
+                                    MaterialPageRoute(
+                                      builder: (context) => const Cart(),
+                                    ),
+                                    (route) => false,
                                   );
                                 },
                                 icon: const Icon(Icons.refresh, size: 18),
@@ -1409,11 +1410,12 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                             children: [
                               ElevatedButton.icon(
                                 onPressed: () {
-                                  Navigator.push(
+                                  Navigator.pushAndRemoveUntil(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => const HomePage(),
                                     ),
+                                    (route) => false,
                                   );
                                 },
                                 icon: const Icon(Icons.shopping_cart, size: 18),
@@ -1654,6 +1656,44 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           if (response.body.isEmpty) {
             print(
                 'Received empty response body - this might indicate a server issue');
+
+            // Track empty response time
+            if (_firstEmptyResponseTime == null) {
+              _firstEmptyResponseTime = DateTime.now();
+              _emptyResponseCount = 1;
+              print(
+                  'First empty response received at: $_firstEmptyResponseTime');
+            } else {
+              _emptyResponseCount++;
+              print('Empty response count: $_emptyResponseCount');
+            }
+
+            // Check if we've been receiving empty responses for 3 minutes
+            if (_firstEmptyResponseTime != null) {
+              final timeSinceFirstEmpty =
+                  DateTime.now().difference(_firstEmptyResponseTime!);
+              final minutesSinceFirstEmpty = timeSinceFirstEmpty.inMinutes;
+
+              print(
+                  'Time since first empty response: $minutesSinceFirstEmpty minutes');
+              print('Empty response count: $_emptyResponseCount');
+
+              if (minutesSinceFirstEmpty >= _maxEmptyResponseTimeMinutes ||
+                  _emptyResponseCount >= _maxEmptyResponseCount) {
+                print(
+                    'Marking payment as failed due to 3 minutes of empty responses');
+                _statusCheckTimer?.cancel();
+                _buttonShowTimer?.cancel();
+                _emptyResponseTimer?.cancel();
+
+                return {
+                  'status': 'failed',
+                  'message':
+                      'Payment verification failed due to server timeout. Please try again or contact support.',
+                };
+              }
+            }
+
             // Try to make another request after a short delay
             await Future.delayed(Duration(seconds: 2));
             final retryResponse = await http
@@ -1679,6 +1719,10 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             print('Retry Response Body: ${retryResponse.body}');
 
             if (retryResponse.body.isNotEmpty) {
+              // Reset empty response tracking if we get a valid response
+              _firstEmptyResponseTime = null;
+              _emptyResponseCount = 0;
+
               try {
                 final data = json.decode(retryResponse.body);
                 return _processPaymentStatus(data);
@@ -1687,12 +1731,21 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                 throw Exception(
                     'Invalid response format from server. Please try again.');
               }
+            } else {
+              // Retry also returned empty response, increment count
+              _emptyResponseCount++;
+              print(
+                  'Retry also returned empty response. Total empty responses: $_emptyResponseCount');
             }
 
             return {
               'status': 'pending',
               'message': 'Waiting for payment confirmation...',
             };
+          } else {
+            // Reset empty response tracking if we get a valid response
+            _firstEmptyResponseTime = null;
+            _emptyResponseCount = 0;
           }
 
           try {

@@ -38,7 +38,7 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
     return 'https://eclcommerce.ernestchemists.com.gh/storage/$imagePath';
   }
 
-  final List<Map<String, dynamic>> categories = [
+  final List<Map<String, dynamic>> categories = const [
     {
       'id': 'all',
       'name': 'All',
@@ -69,45 +69,58 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
   @override
   void initState() {
     super.initState();
-    loadProducts();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      loadProducts();
+    });
   }
 
   Future<void> loadProducts() async {
     try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+          _error = null;
+        });
+      }
 
-      final response = await http.get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'),
-      );
+      final response = await http
+          .get(
+            Uri.parse(
+                'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
         final List<dynamic> dataList = responseData['data'];
-        setState(() {
-          products = dataList;
-          filteredProducts = dataList;
-          _isLoading = false;
-        });
-        print('Products loaded: ${products.length}'); // Debug print
+        if (mounted) {
+          setState(() {
+            products = dataList;
+            filteredProducts = dataList;
+            _isLoading = false;
+          });
+        }
       } else {
+        if (mounted) {
+          setState(() {
+            _error = 'Failed to load products';
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         setState(() {
-          _error = 'Failed to load products';
+          _error = 'Error loading products: $e';
           _isLoading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _error = 'Error loading products: $e';
-        _isLoading = false;
-      });
     }
   }
 
   void _filterProducts() {
+    if (!mounted) return;
+
     setState(() {
       if (_searchController.text.isEmpty && selectedCategory == null) {
         filteredProducts = products;
@@ -156,7 +169,6 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
   void _addToCart(dynamic product) {
     try {
       final cartProvider = Provider.of<CartProvider>(context, listen: false);
-      print('Adding to cart: ${product['product']['name']}'); // Debug print
 
       final cartItem = CartItem(
         id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
@@ -177,16 +189,15 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${product['product']['name']} added to cart'),
-          duration: Duration(seconds: 2),
+          duration: const Duration(seconds: 2),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
-      print('Error adding to cart: $e'); // Debug print
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error adding to cart: $e'),
-          duration: Duration(seconds: 2),
+          duration: const Duration(seconds: 2),
           backgroundColor: Colors.red,
         ),
       );
@@ -368,8 +379,6 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
                               itemCount: filteredProducts.length,
                               itemBuilder: (context, index) {
                                 final product = filteredProducts[index];
-                                print(
-                                    'Building product: ${product['product']['name']}'); // Debug print
                                 return InkWell(
                                   onTap: () {
                                     Navigator.push(
@@ -378,7 +387,6 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
                                         builder: (context) => ItemPage(
                                           urlName: product['product']
                                               ['url_name'],
-                                        
                                           isPrescribed: product['product']
                                                       ['otcpom']
                                                   ?.toString()

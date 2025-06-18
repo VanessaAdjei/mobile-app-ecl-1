@@ -59,7 +59,9 @@ class _DeliveryPageState extends State<DeliveryPage> {
   @override
   void initState() {
     super.initState();
-    loadSavedAddresses();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      loadSavedAddresses();
+    });
   }
 
   double _calculateDeliveryFee(LatLng location) {
@@ -73,6 +75,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
   }
 
   void _resetHighlights() {
+    if (!mounted) return;
     setState(() {
       _highlightPhoneField = false;
       _highlightAddressField = false;
@@ -81,7 +84,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
   }
 
   Future<void> _searchAddress(String address) async {
-    if (!mounted) return;
+    if (!mounted || address.trim().isEmpty) return;
 
     setState(() => isLoadingLocation = true);
     try {

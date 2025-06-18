@@ -32,39 +32,50 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchOrders();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchOrders();
+    });
   }
 
   Future<void> _fetchOrders() async {
     try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+          _error = null;
+        });
+      }
+
       final result = await AuthService.getOrders();
       if (result['status'] == 'success' && result['data'] is List) {
-        setState(() {
-          _orders = result['data'];
-          _orders.sort((a, b) {
-            final dateA =
-                DateTime.tryParse(a['created_at'] ?? '') ?? DateTime(1970);
-            final dateB =
-                DateTime.tryParse(b['created_at'] ?? '') ?? DateTime(1970);
-            return dateB.compareTo(dateA); // Descending: latest first
+        if (mounted) {
+          setState(() {
+            _orders = result['data'];
+            _orders.sort((a, b) {
+              final dateA =
+                  DateTime.tryParse(a['created_at'] ?? '') ?? DateTime(1970);
+              final dateB =
+                  DateTime.tryParse(b['created_at'] ?? '') ?? DateTime(1970);
+              return dateB.compareTo(dateA); // Descending: latest first
+            });
+            _isLoading = false;
           });
-          _isLoading = false;
-        });
+        }
       } else {
+        if (mounted) {
+          setState(() {
+            _error = result['message'] ?? 'Failed to load orders';
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         setState(() {
-          _error = result['message'] ?? 'Failed to load orders';
+          _error = 'An error occurred while loading orders';
           _isLoading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _error = 'An error occurred while loading orders';
-        _isLoading = false;
-      });
     }
   }
 

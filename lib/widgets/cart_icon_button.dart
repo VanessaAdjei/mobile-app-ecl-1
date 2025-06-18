@@ -12,12 +12,12 @@ class CartIconButton extends StatefulWidget {
   final Color? backgroundColor;
 
   const CartIconButton({
-    Key? key,
+    super.key,
     this.iconColor = Colors.white,
     this.iconSize,
     this.padding,
     this.backgroundColor,
-  }) : super(key: key);
+  });
 
   @override
   State<CartIconButton> createState() => _CartIconButtonState();

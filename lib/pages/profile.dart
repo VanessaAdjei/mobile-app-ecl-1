@@ -45,43 +45,34 @@ class _ProfileState extends State<Profile> {
   String _userName = "User";
   String _userEmail = "No email available";
   String? _profileImagePath;
-  bool _userLoggedIn =
-      false; // This will be updated based on actual login status
+  bool _userLoggedIn = false;
 
   @override
   void initState() {
     super.initState();
-    _initializeUserData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeUserData();
+    });
   }
 
-  // Combined initialization method
   Future<void> _initializeUserData() async {
     try {
-      print('Initializing profile data...');
-
       // First check login status
       final loggedIn = await AuthService.isLoggedIn();
-      print('Login status: $loggedIn');
 
-      setState(() {
-        _userLoggedIn = loggedIn;
-      });
+      if (mounted) {
+        setState(() {
+          _userLoggedIn = loggedIn;
+        });
+      }
 
       if (loggedIn) {
-        print('User is logged in, loading user data...');
         await _loadUserData();
-      } else {
-        print('User is not logged in');
       }
 
       // Load profile image regardless of login status
-      print('Loading profile image...');
       await _loadProfileImage();
-
-      print('Profile initialization complete');
     } catch (e) {
-      print('Error initializing profile: $e');
-      // Show error to user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -95,13 +86,10 @@ class _ProfileState extends State<Profile> {
 
   Future<void> _loadUserData() async {
     try {
-      print('Loading user data...');
       final secureStorage = FlutterSecureStorage();
 
       final name = await secureStorage.read(key: 'userName');
       final email = await secureStorage.read(key: 'userEmail');
-
-      print('Loaded user data - Name: $name, Email: $email');
 
       if (mounted) {
         setState(() {
@@ -110,7 +98,6 @@ class _ProfileState extends State<Profile> {
         });
       }
     } catch (e) {
-      print('Error loading user data: $e');
       if (mounted) {
         setState(() {
           _userName = "User";
@@ -122,29 +109,22 @@ class _ProfileState extends State<Profile> {
 
   Future<void> _loadProfileImage() async {
     try {
-      print('Loading profile image...');
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? savedImagePath = prefs.getString('profile_image_path');
 
       if (savedImagePath != null) {
-        print('Found saved image path: $savedImagePath');
         final file = File(savedImagePath);
         if (await file.exists()) {
-          print('Image file exists, loading...');
           if (mounted) {
             setState(() {
               _profileImage = file;
               _profileImagePath = savedImagePath;
             });
           }
-        } else {
-          print('Image file does not exist');
         }
-      } else {
-        print('No saved image path found');
       }
     } catch (e) {
-      print('Error loading profile image: $e');
+      // Silently handle image loading errors
     }
   }
 

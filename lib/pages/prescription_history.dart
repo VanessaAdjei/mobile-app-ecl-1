@@ -32,7 +32,9 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchPrescriptions();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchPrescriptions();
+    });
   }
 
   Future<void> _fetchProductDetails(int productId) async {
@@ -42,9 +44,6 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
         throw Exception('Not authenticated');
       }
 
-      print('\n=== FETCHING PRODUCT DETAILS ===');
-      print('Product ID: $productId');
-
       final response = await http.get(
         Uri.parse(
             'https://eclcommerce.ernestchemists.com.gh/api/products/$productId'),
@@ -52,29 +51,29 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
         },
-      );
-
-      print('Product Response Status: ${response.statusCode}');
-      print('Product Response Body: ${response.body}');
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('Product Data: ${data['data']}');
-        setState(() {
-          _productDetails[productId] = data['data'];
-        });
+        if (mounted) {
+          setState(() {
+            _productDetails[productId] = data['data'];
+          });
+        }
       }
     } catch (e) {
-      print('Error fetching product details: $e');
+      // Silently handle product detail errors
     }
   }
 
   Future<void> _fetchPrescriptions() async {
     try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+          _error = null;
+        });
+      }
 
       final token = await AuthService.getToken();
       if (token == null) {
@@ -88,20 +87,17 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
         },
-      );
-
-      print('\n=== PRESCRIPTION HISTORY RESPONSE ===');
-      print('Status Code: ${response.statusCode}');
-      print('Response Body: ${response.body}');
-      print('================================\n');
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['data'] != null) {
-          setState(() {
-            _prescriptions = List<Map<String, dynamic>>.from(data['data']);
-            _isLoading = false;
-          });
+          if (mounted) {
+            setState(() {
+              _prescriptions = List<Map<String, dynamic>>.from(data['data']);
+              _isLoading = false;
+            });
+          }
         } else {
           throw Exception('No prescription data found');
         }
@@ -111,11 +107,12 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
         throw Exception('Unable to connect to the server');
       }
     } catch (e) {
-      print('Error fetching prescriptions: $e');
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -134,13 +131,8 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                     fileUrl,
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) {
-                      print('\n=== IMAGE LOAD ERROR ===');
-                      print('Error: $error');
-                      print('Stack Trace: $stackTrace');
-                      print('URL: $fileUrl');
-                      print('========================\n');
                       return Container(
-                        padding: EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
@@ -148,14 +140,14 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.error_outline,
+                            const Icon(Icons.error_outline,
                                 size: 48, color: Colors.red),
-                            SizedBox(height: 16),
-                            Text(
+                            const SizedBox(height: 16),
+                            const Text(
                               'Failed to load prescription image',
                               style: TextStyle(color: Colors.red),
                             ),
-                            SizedBox(height: 8),
+                            const SizedBox(height: 8),
                             Text(
                               'URL: $fileUrl',
                               style: TextStyle(
@@ -175,7 +167,7 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                 top: 8,
                 right: 8,
                 child: IconButton(
-                  icon: Icon(Icons.close, color: Colors.white),
+                  icon: const Icon(Icons.close, color: Colors.white),
                   onPressed: () => Navigator.pop(context),
                 ),
               ),

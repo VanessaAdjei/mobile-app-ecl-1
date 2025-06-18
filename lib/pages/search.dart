@@ -8,13 +8,16 @@ class CategorySearchDelegate extends SearchDelegate {
   final List<dynamic> categories;
   final Map<int, List<dynamic>> subcategoriesMap;
 
+  // Cache for search results
+  Map<String, List<dynamic>> _searchCache = {};
+
   CategorySearchDelegate(this.categories, this.subcategoriesMap);
 
   @override
   List<Widget> buildActions(BuildContext context) {
     return [
       IconButton(
-        icon: Icon(Icons.clear),
+        icon: const Icon(Icons.clear),
         onPressed: () {
           query = '';
         },
@@ -25,7 +28,7 @@ class CategorySearchDelegate extends SearchDelegate {
   @override
   Widget buildLeading(BuildContext context) {
     return IconButton(
-      icon: Icon(Icons.arrow_back),
+      icon: const Icon(Icons.arrow_back),
       onPressed: () {
         close(context, null);
       },
@@ -44,7 +47,7 @@ class CategorySearchDelegate extends SearchDelegate {
 
   Widget _buildSearchResults() {
     if (query.isEmpty) {
-      return Center(
+      return const Center(
         child: Text(
           'Start typing to search categories',
           style: TextStyle(color: Colors.grey),
@@ -52,25 +55,43 @@ class CategorySearchDelegate extends SearchDelegate {
       );
     }
 
-    final filteredCategories = categories.where((category) {
+    // Check cache first
+    if (_searchCache.containsKey(query)) {
+      return _buildResultsList(_searchCache[query]!);
+    }
+
+    // Perform search
+    final filteredCategories = _performSearch();
+
+    // Cache the result
+    _searchCache[query] = filteredCategories;
+
+    return _buildResultsList(filteredCategories);
+  }
+
+  List<dynamic> _performSearch() {
+    final queryLower = query.toLowerCase();
+
+    return categories.where((category) {
       final categoryName = category['name'].toString().toLowerCase();
       final subcategories = subcategoriesMap[category['id']] ?? [];
       final hasMatchingSubcategory = subcategories.any((subcategory) {
         final subcategoryName = subcategory['name'].toString().toLowerCase();
-        return subcategoryName.contains(query.toLowerCase());
+        return subcategoryName.contains(queryLower);
       });
 
-      return categoryName.contains(query.toLowerCase()) ||
-          hasMatchingSubcategory;
+      return categoryName.contains(queryLower) || hasMatchingSubcategory;
     }).toList();
+  }
 
+  Widget _buildResultsList(List<dynamic> filteredCategories) {
     if (filteredCategories.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.search_off, size: 48, color: Colors.grey),
-            SizedBox(height: 16),
+            const Icon(Icons.search_off, size: 48, color: Colors.grey),
+            const SizedBox(height: 16),
             Text(
               "No categories found matching '$query'",
               style: TextStyle(color: Colors.grey.shade700),
@@ -86,19 +107,20 @@ class CategorySearchDelegate extends SearchDelegate {
       itemBuilder: (context, index) {
         final category = filteredCategories[index];
         final subcategories = subcategoriesMap[category['id']] ?? [];
+        final queryLower = query.toLowerCase();
         final matchingSubcategories = subcategories.where((subcategory) {
           final subcategoryName = subcategory['name'].toString().toLowerCase();
-          return subcategoryName.contains(query.toLowerCase());
+          return subcategoryName.contains(queryLower);
         }).toList();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (index > 0) Divider(height: 1),
+            if (index > 0) const Divider(height: 1),
             ListTile(
               title: Text(
                 category['name'],
-                style: TextStyle(
+                style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   color: Colors.black87,
                 ),
@@ -109,7 +131,7 @@ class CategorySearchDelegate extends SearchDelegate {
                       style: TextStyle(color: Colors.grey.shade600),
                     )
                   : null,
-              trailing: Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right),
               onTap: () {
                 if (category['has_subcategories']) {
                   Navigator.push(
@@ -137,7 +159,7 @@ class CategorySearchDelegate extends SearchDelegate {
             if (matchingSubcategories.isNotEmpty)
               ...matchingSubcategories.map((subcategory) {
                 return ListTile(
-                  leading: SizedBox(width: 16),
+                  leading: const SizedBox(width: 16),
                   title: Text(
                     subcategory['name'],
                     style: TextStyle(

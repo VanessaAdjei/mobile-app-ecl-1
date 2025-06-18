@@ -22,18 +22,22 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   final Map<String, List<Map<String, dynamic>>> groupedNotifications = {};
-  bool isLoading = true; // Add loading state
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _checkLoginStatus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkLoginStatus();
+    });
   }
 
   Future<void> _checkLoginStatus() async {
     final loggedIn = await AuthService.isLoggedIn();
     if (!loggedIn) {
-      Navigator.pushReplacementNamed(context, '/login');
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/login');
+      }
       return;
     }
     _loadNotifications();
@@ -68,24 +72,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               String dateKey = key.replaceFirst('notification_', '');
               groupedNotifications[dateKey] = notifications;
             } catch (e) {
-              print('Error decoding notifications for key $key: $e');
+              // Silently handle decoding errors
             }
           }
         }
       } else {
-        print('No notification keys found. Adding sample notifications.');
         // Add sample notifications for multiple days
         _addDailyNotifications();
       }
     } catch (e) {
-      print('Error loading notifications: $e');
       // If there's an error loading, add sample notifications anyway
       _addDailyNotifications();
     } finally {
       // Update UI regardless of success or failure
-      setState(() {
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -119,11 +123,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             notifications.map((notif) => jsonEncode(notif)).toList();
         await prefs.setStringList('notification_$date', notificationStrings);
       });
-
-      print(
-          'Notifications saved successfully. Count: ${groupedNotifications.length}');
     } catch (e) {
-      print('Error saving notifications: $e');
+      // Silently handle saving errors
     }
   }
 

@@ -206,16 +206,17 @@ class _HomePageState extends State<HomePage>
 
     setState(() => _allContentLoaded = false);
     try {
-      await Future.wait([
-        loadProducts(),
-        Future.delayed(Duration(milliseconds: 500)),
-      ]);
+      // Load products first, then popular products
+      await loadProducts();
+      // Load popular products in background
+      _fetchPopularProducts();
     } catch (e) {
       final cachedProducts = _cache.getCachedData(_productsCacheKey);
       if (cachedProducts != null) {
         setState(() {
           _products = cachedProducts;
           filteredProducts = cachedProducts;
+          _allContentLoaded = true;
         });
       }
     } finally {
@@ -264,40 +265,45 @@ class _HomePageState extends State<HomePage>
           );
         }).toList();
 
-        // Shuffle the products list
-        allProducts.shuffle();
+        // Optimize filtering by doing it once
+        final List<Product> otcDrugProducts = [];
+        final List<Product> wellnessList = [];
+        final List<Product> selfcareList = [];
+        final List<Product> accessoriesList = [];
+
+        for (final product in allProducts) {
+          if ((product.otcpom != null &&
+                  product.otcpom!.trim().toLowerCase() == 'otc') ||
+              (product.drug != null &&
+                  product.drug!.trim().toLowerCase() == 'drug')) {
+            otcDrugProducts.add(product);
+          }
+          if (product.wellness != null && product.wellness!.trim().isNotEmpty) {
+            wellnessList.add(product);
+          }
+          if (product.selfcare != null && product.selfcare!.trim().isNotEmpty) {
+            selfcareList.add(product);
+          }
+          if (product.accessories != null &&
+              product.accessories!.trim().isNotEmpty) {
+            accessoriesList.add(product);
+          }
+        }
+
+        // Shuffle lists efficiently
+        otcDrugProducts.shuffle();
+        wellnessList.shuffle();
+        selfcareList.shuffle();
+        accessoriesList.shuffle();
 
         if (mounted) {
           setState(() {
             _products = allProducts;
             filteredProducts = allProducts;
-            // Combine otcpom and drug products into one section and shuffle
-            drugsSectionProducts = allProducts
-                .where((p) =>
-                    (p.otcpom != null &&
-                        p.otcpom!.trim().toLowerCase() == 'otc') ||
-                    (p.drug != null && p.drug!.trim().toLowerCase() == 'drug'))
-                .toList()
-              ..shuffle();
-
-            // Shuffle each section's products
-            wellnessProducts = allProducts
-                .where(
-                    (p) => p.wellness != null && p.wellness!.trim().isNotEmpty)
-                .toList()
-              ..shuffle();
-
-            selfcareProducts = allProducts
-                .where(
-                    (p) => p.selfcare != null && p.selfcare!.trim().isNotEmpty)
-                .toList()
-              ..shuffle();
-
-            accessoriesProducts = allProducts
-                .where((p) =>
-                    p.accessories != null && p.accessories!.trim().isNotEmpty)
-                .toList()
-              ..shuffle();
+            drugsSectionProducts = otcDrugProducts;
+            wellnessProducts = wellnessList;
+            selfcareProducts = selfcareList;
+            accessoriesProducts = accessoriesList;
             _isLoading = false;
           });
         }
@@ -460,7 +466,6 @@ class _HomePageState extends State<HomePage>
   void initState() {
     super.initState();
     _loadAllContent();
-    _fetchPopularProducts();
     _scrollController.addListener(() {
       if (_scrollController.offset > 100 && !_isScrolled) {
         setState(() {
@@ -843,6 +848,11 @@ class _HomePageState extends State<HomePage>
         ),
       );
     }
+
+    // Limit popular products for better performance
+    final limitedPopularProducts =
+        _getLimitedProducts(popularProducts, limit: 10);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -851,7 +861,7 @@ class _HomePageState extends State<HomePage>
           scrollDirection: Axis.horizontal,
           padding: EdgeInsets.symmetric(horizontal: 8),
           child: Row(
-            children: popularProducts.map((product) {
+            children: limitedPopularProducts.map((product) {
               return GestureDetector(
                 onTap: () {
                   Navigator.push(
@@ -1025,6 +1035,11 @@ class _HomePageState extends State<HomePage>
         ),
       ],
     );
+  }
+
+  // Limit products for better performance
+  List<Product> _getLimitedProducts(List<Product> products, {int limit = 8}) {
+    return products.take(limit).toList();
   }
 
   Widget _buildProductSection(
@@ -1281,7 +1296,7 @@ class _HomePageState extends State<HomePage>
                     child: _buildProductSection(
                       'Drugs',
                       Colors.green[700]!,
-                      drugsSectionProducts,
+                      _getLimitedProducts(drugsSectionProducts),
                       'drugs',
                       fontSize: cardFontSize,
                       padding: cardPadding,
@@ -1293,7 +1308,7 @@ class _HomePageState extends State<HomePage>
                     child: _buildProductSection(
                       'Wellness',
                       Colors.purple[700]!,
-                      wellnessProducts,
+                      _getLimitedProducts(wellnessProducts),
                       'wellness',
                       fontSize: cardFontSize,
                       padding: cardPadding,
@@ -1309,7 +1324,7 @@ class _HomePageState extends State<HomePage>
                     child: _buildProductSection(
                       'Selfcare',
                       Colors.orange[700]!,
-                      selfcareProducts,
+                      _getLimitedProducts(selfcareProducts),
                       'selfcare',
                       fontSize: cardFontSize,
                       padding: cardPadding,
@@ -1321,7 +1336,7 @@ class _HomePageState extends State<HomePage>
                     child: _buildProductSection(
                       'Accessories',
                       Colors.teal[700]!,
-                      accessoriesProducts,
+                      _getLimitedProducts(accessoriesProducts),
                       'accessories',
                       fontSize: cardFontSize,
                       padding: cardPadding,

@@ -4,7 +4,7 @@ import 'ProductModel.dart';
 import 'itemdetail.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-class SearchResultsPage extends StatelessWidget {
+class SearchResultsPage extends StatefulWidget {
   final String query;
   final List<Product> products;
 
@@ -15,57 +15,88 @@ class SearchResultsPage extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final filtered = products.where((product) {
-      final q = query.toLowerCase();
-      return product.name.toLowerCase().contains(q) ||
-          (product.description.toLowerCase().contains(q));
+  State<SearchResultsPage> createState() => _SearchResultsPageState();
+}
+
+class _SearchResultsPageState extends State<SearchResultsPage> {
+  List<Product>? _filteredProducts;
+  String? _lastQuery;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _performSearch();
+    });
+  }
+
+  void _performSearch() {
+    if (_lastQuery == widget.query && _filteredProducts != null) {
+      return; // Use cached result
+    }
+
+    final query = widget.query.toLowerCase();
+    final filtered = widget.products.where((product) {
+      return product.name.toLowerCase().contains(query) ||
+          product.description.toLowerCase().contains(query);
     }).toList();
+
+    setState(() {
+      _filteredProducts = filtered;
+      _lastQuery = widget.query;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _performSearch(); // Ensure search is performed on build
 
     return Scaffold(
       appBar: AppBar(
         title: Text('Search Results'),
         backgroundColor: Colors.green.shade700,
-        iconTheme: IconThemeData(color: Colors.white),
-        titleTextStyle: TextStyle(
+        iconTheme: const IconThemeData(color: Colors.white),
+        titleTextStyle: const TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.bold,
           fontSize: 20,
         ),
       ),
-      body: filtered.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.search_off, size: 60, color: Colors.grey[400]),
-                  SizedBox(height: 12),
-                  Text('No products found',
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      )),
-                  SizedBox(height: 6),
-                  Text('Try a different keyword.',
-                      style: TextStyle(color: Colors.grey[500])),
-                ],
-              ),
-            )
-          : GridView.builder(
-              padding: const EdgeInsets.all(12),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 0,
-                mainAxisSpacing: 0,
-                childAspectRatio: 1.2,
-              ),
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
-                final product = filtered[index];
-                return _ProductCard(product: product);
-              },
-            ),
+      body: _filteredProducts == null
+          ? const Center(child: CircularProgressIndicator())
+          : _filteredProducts!.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.search_off, size: 60, color: Colors.grey[400]),
+                      const SizedBox(height: 12),
+                      const Text('No products found',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          )),
+                      const SizedBox(height: 6),
+                      const Text('Try a different keyword.',
+                          style: TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                )
+              : GridView.builder(
+                  padding: const EdgeInsets.all(12),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 0,
+                    mainAxisSpacing: 0,
+                    childAspectRatio: 1.2,
+                  ),
+                  itemCount: _filteredProducts!.length,
+                  itemBuilder: (context, index) {
+                    final product = _filteredProducts![index];
+                    return _ProductCard(product: product);
+                  },
+                ),
     );
   }
 }
@@ -78,11 +109,11 @@ class _ProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
-    double cardWidth = screenWidth * (screenWidth < 600 ? 0.45 : 0.60);
-    double cardHeight = screenHeight * (screenHeight < 800 ? 0.15 : 0.20);
-    double imageHeight = cardHeight * (cardHeight < 800 ? 0.5 : 1);
-    double fontSize = screenWidth * 0.032;
-    double paddingValue = screenWidth * 0.02;
+    final cardWidth = screenWidth * (screenWidth < 600 ? 0.45 : 0.60);
+    final cardHeight = screenHeight * (screenHeight < 800 ? 0.15 : 0.20);
+    final imageHeight = cardHeight * (cardHeight < 800 ? 0.5 : 1);
+    final fontSize = screenWidth * 0.032;
+    final paddingValue = screenWidth * 0.02;
 
     return Container(
       width: cardWidth,
@@ -96,7 +127,7 @@ class _ProductCard extends StatelessWidget {
             color: Colors.grey.withOpacity(0.1),
             spreadRadius: 1,
             blurRadius: 3,
-            offset: Offset(0, 1),
+            offset: const Offset(0, 1),
           ),
         ],
       ),
@@ -121,16 +152,17 @@ class _ProductCard extends StatelessWidget {
                 maxHeight: imageHeight,
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(12)),
                 child: CachedNetworkImage(
                   imageUrl: product.thumbnail,
                   fit: BoxFit.contain,
-                  placeholder: (context, url) => Center(
+                  placeholder: (context, url) => const Center(
                     child: CircularProgressIndicator(),
                   ),
                   errorWidget: (_, __, ___) => Container(
                     color: Colors.grey[200],
-                    child: Center(
+                    child: const Center(
                       child: Icon(Icons.broken_image, size: 30),
                     ),
                   ),
