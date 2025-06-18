@@ -41,6 +41,10 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     setState(() {
       _userLoggedIn = loggedIn;
     });
+
+    // Also refresh the cart provider's login status
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    await cartProvider.refreshLoginStatus();
   }
 
   void _onItemTapped(int index) async {
@@ -149,7 +153,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
                 clipBehavior: Clip.none,
                 children: [
                   const Icon(Icons.shopping_cart),
-                  if (cart.totalItems > 0)
+                  if (_userLoggedIn && cart.totalItems > 0)
                     Positioned(
                       right: -6,
                       top: -3,

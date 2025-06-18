@@ -5,7 +5,7 @@ import '../pages/cart.dart';
 import '../pages/cartprovider.dart';
 import '../pages/auth_service.dart';
 
-class CartIconButton extends StatelessWidget {
+class CartIconButton extends StatefulWidget {
   final Color? iconColor;
   final double? iconSize;
   final EdgeInsets? padding;
@@ -20,6 +20,28 @@ class CartIconButton extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<CartIconButton> createState() => _CartIconButtonState();
+}
+
+class _CartIconButtonState extends State<CartIconButton> {
+  bool _userLoggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLoginStatus();
+  }
+
+  Future<void> _checkLoginStatus() async {
+    final loggedIn = await AuthService.isLoggedIn();
+    if (mounted) {
+      setState(() {
+        _userLoggedIn = loggedIn;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cart = Provider.of<CartProvider>(context);
 
@@ -27,18 +49,20 @@ class CartIconButton extends StatelessWidget {
       margin: const EdgeInsets.only(right: 8.0),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: backgroundColor,
+        color: widget.backgroundColor,
       ),
       child: IconButton(
         icon: Stack(
           clipBehavior: Clip.none,
           children: [
+            // Always show the shopping cart icon
             Icon(
               Icons.shopping_cart,
-              color: iconColor,
-              size: iconSize,
+              color: widget.iconColor ?? Colors.white,
+              size: widget.iconSize,
             ),
-            if (cart.totalItems > 0)
+            // Only show the counter if user is logged in and has items
+            if (_userLoggedIn && cart.totalItems > 0)
               Positioned(
                 right: -6,
                 top: -3,
@@ -65,7 +89,7 @@ class CartIconButton extends StatelessWidget {
               ),
           ],
         ),
-        padding: padding,
+        padding: widget.padding,
         onPressed: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const Cart()),

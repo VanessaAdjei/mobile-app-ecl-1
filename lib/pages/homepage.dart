@@ -1144,28 +1144,24 @@ class _HomePageState extends State<HomePage>
                     automaticallyImplyLeading: false,
                     backgroundColor:
                         Theme.of(context).appBarTheme.backgroundColor,
-                    toolbarHeight: 50,
+                    toolbarHeight: 60,
+                    floating: false,
+                    pinned: false,
                     title: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Padding(
-                          padding: EdgeInsets.only(left: 1, top: 10),
+                          padding: EdgeInsets.only(left: 1),
                           child: Image.asset(
                             'assets/images/png.png',
-                            height: 100,
+                            height: 85,
                           ),
                         ),
-                        Padding(
-                          padding: EdgeInsets.only(top: 20),
-                          child: SizedBox(
-                            height: 70,
-                            child: CartIconButton(
-                              iconColor: Colors.white,
-                              iconSize: 24,
-                              backgroundColor: Colors.transparent,
-                            ),
-                          ),
+                        CartIconButton(
+                          iconColor: Colors.white,
+                          iconSize: 24,
+                          backgroundColor: Colors.transparent,
                         ),
                       ],
                     ),

@@ -223,9 +223,6 @@ class _ProfileState extends State<Profile> {
                 ),
               ),
               onPressed: () async {
-                // Close the dialog first
-                Navigator.of(context, rootNavigator: true).pop();
-
                 try {
                   // First logout from the service
                   await AuthService.logout();
@@ -242,6 +239,9 @@ class _ProfileState extends State<Profile> {
                       _userLoggedIn = false;
                     });
 
+                    // Close the dialog
+                    Navigator.of(context, rootNavigator: true).pop();
+
                     // Navigate to logged out screen
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(
@@ -251,17 +251,15 @@ class _ProfileState extends State<Profile> {
                   }
                 } catch (e) {
                   print('Error during logout: $e');
-                  // Show error in the new screen instead of current context
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Error during logout: ${e.toString()}'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  });
+                  // Show error in the current context before closing dialog
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error during logout: ${e.toString()}'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
                 }
               },
               child: Text(

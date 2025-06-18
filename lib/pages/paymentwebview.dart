@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'payment_page.dart';
 import 'CartItem.dart';
+import 'auth_service.dart';
 
 class PaymentWebView extends StatefulWidget {
   final String url;
@@ -28,7 +29,32 @@ class _PaymentWebViewState extends State<PaymentWebView> {
   late final WebViewController _controller;
   bool _isLoading = true;
 
-  void _navigateToConfirmation(bool success) {
+  Future<void> _checkAndRefreshAuth() async {
+    try {
+      final token = await AuthService.getToken();
+      if (token == null) {
+        // If no token, show error and return to payment page
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Session expired. Please log in again.'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+          Navigator.pop(context, false);
+        }
+      }
+    } catch (e) {
+      print('Error checking auth state: $e');
+    }
+  }
+
+  void _navigateToConfirmation(bool success) async {
+    // Check auth state before navigation
+    await _checkAndRefreshAuth();
+
+    if (!mounted) return;
+
     // First pop the WebView
     Navigator.pop(context);
 
@@ -53,6 +79,8 @@ class _PaymentWebViewState extends State<PaymentWebView> {
   @override
   void initState() {
     super.initState();
+    _checkAndRefreshAuth(); // Check auth state when page loads
+
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
@@ -60,8 +88,13 @@ class _PaymentWebViewState extends State<PaymentWebView> {
           onPageStarted: (String url) {
             setState(() => _isLoading = true);
           },
-          onPageFinished: (String url) {
+          onPageFinished: (String url) async {
             setState(() => _isLoading = false);
+            // Check auth state after page loads
+            await _checkAndRefreshAuth();
+
+            if (!mounted) return;
+
             // Check for completion URLs
             if (url.contains('payment-success') || url.contains('complete')) {
               widget.onPaymentComplete?.call(true, null);
@@ -71,7 +104,12 @@ class _PaymentWebViewState extends State<PaymentWebView> {
               _navigateToConfirmation(false);
             }
           },
-          onNavigationRequest: (NavigationRequest request) {
+          onNavigationRequest: (NavigationRequest request) async {
+            // Check auth state before navigation
+            await _checkAndRefreshAuth();
+
+            if (!mounted) return NavigationDecision.prevent;
+
             // Check if the URL indicates payment completion
             if (request.url.contains('payment-success') ||
                 request.url.contains('complete')) {
@@ -95,6 +133,11 @@ class _PaymentWebViewState extends State<PaymentWebView> {
     return WillPopScope(
       onWillPop: () async {
         print('WillPopScope triggered');
+        // Check auth state before showing dialog
+        await _checkAndRefreshAuth();
+
+        if (!mounted) return false;
+
         // Show confirmation dialog
         final shouldPop = await showDialog<bool>(
               context: context,
@@ -136,6 +179,11 @@ class _PaymentWebViewState extends State<PaymentWebView> {
             icon: const Icon(Icons.arrow_back),
             onPressed: () async {
               print('AppBar back button pressed');
+              // Check auth state before showing dialog
+              await _checkAndRefreshAuth();
+
+              if (!mounted) return;
+
               // Show confirmation dialog
               final shouldPop = await showDialog<bool>(
                     context: context,

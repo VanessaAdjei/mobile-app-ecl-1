@@ -451,7 +451,17 @@ class CartProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> refreshLoginStatus() async {
+    await _checkCurrentUser();
+  }
+
   int get totalItems => _cartItems.fold(0, (sum, item) => sum + item.quantity);
+
+  int get displayTotalItems {
+    // Only show cart count if user is logged in
+    if (_currentUserId == null) return 0;
+    return _cartItems.fold(0, (sum, item) => sum + item.quantity);
+  }
 
   Future<void> _pushCartToServer() async {
     if (_currentUserId == null) return;
