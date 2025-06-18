@@ -126,7 +126,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
         ],
       ),
       child: SizedBox(
-        height: 50,
+        height: 78,
         child: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.transparent,

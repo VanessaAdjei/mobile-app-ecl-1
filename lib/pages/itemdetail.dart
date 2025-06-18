@@ -563,6 +563,7 @@ class _ItemPageState extends State<ItemPage> {
             final product = snapshot.data!;
             return SingleChildScrollView(
               physics: AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.only(bottom: 78),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -579,21 +580,21 @@ class _ItemPageState extends State<ItemPage> {
                       ],
                       child: Center(
                         child: Container(
-                          height: 300,
-                          width: 300,
-                          margin: const EdgeInsets.symmetric(vertical: 10),
+                          height: 250,
+                          width: 250,
+                          margin: const EdgeInsets.symmetric(vertical: 8),
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(24),
+                            borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withOpacity(0.08),
-                                blurRadius: 24,
-                                offset: const Offset(0, 8),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
                               ),
                             ],
                           ),
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(24),
+                            borderRadius: BorderRadius.circular(16),
                             child: product.thumbnail.isNotEmpty
                                 ? CachedNetworkImage(
                                     imageUrl: product.thumbnail,
@@ -605,7 +606,7 @@ class _ItemPageState extends State<ItemPage> {
                                       color: Colors.grey[200],
                                       child: const Center(
                                         child: Icon(Icons.medical_services,
-                                            size: 80),
+                                            size: 60),
                                       ),
                                     ),
                                   )
@@ -613,7 +614,7 @@ class _ItemPageState extends State<ItemPage> {
                                     color: Colors.grey[200],
                                     child: const Center(
                                       child: Icon(Icons.medical_services,
-                                          size: 80),
+                                          size: 60),
                                     ),
                                   ),
                           ),
@@ -633,49 +634,49 @@ class _ItemPageState extends State<ItemPage> {
                     ],
                     child: Center(
                       child: Container(
-                        constraints: const BoxConstraints(maxWidth: 340),
+                        constraints: const BoxConstraints(maxWidth: 320),
                         margin: const EdgeInsets.symmetric(
-                            vertical: 4, horizontal: 0),
+                            vertical: 4, horizontal: 8),
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.10),
-                              blurRadius: 18,
-                              offset: const Offset(0, 6),
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(16),
                           child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                             child: Container(
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.75),
-                                borderRadius: BorderRadius.circular(20),
+                                color: Colors.white.withOpacity(0.85),
+                                borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
                                     color: Colors.white.withOpacity(0.3)),
                               ),
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 12),
+                                  horizontal: 16, vertical: 12),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   if (product.category.isNotEmpty)
                                     Padding(
-                                      padding: const EdgeInsets.only(bottom: 4),
+                                      padding: const EdgeInsets.only(bottom: 6),
                                       child: Chip(
                                         label: Text(
                                           product.category,
                                           style: const TextStyle(
                                               color: Colors.white,
                                               fontWeight: FontWeight.w500,
-                                              fontSize: 10),
+                                              fontSize: 11),
                                         ),
                                         backgroundColor: theme.primaryColor,
                                         padding: const EdgeInsets.symmetric(
-                                            horizontal: 5, vertical: 0),
+                                            horizontal: 8, vertical: 2),
                                       ),
                                     ),
                                   Text(
@@ -683,17 +684,17 @@ class _ItemPageState extends State<ItemPage> {
                                     style: theme.textTheme.titleLarge?.copyWith(
                                         fontWeight: FontWeight.bold,
                                         color: Colors.black87,
-                                        fontSize: 17),
+                                        fontSize: 16),
                                   ),
-                                  const SizedBox(height: 5),
+                                  const SizedBox(height: 4),
                                   Text(
                                     'GHS ${double.parse(product.price).toStringAsFixed(2)}',
                                     style: theme.textTheme.titleLarge?.copyWith(
                                         color: Colors.green.shade800,
                                         fontWeight: FontWeight.bold,
-                                        fontSize: 17),
+                                        fontSize: 16),
                                   ),
-                                  const SizedBox(height: 7),
+                                  const SizedBox(height: 8),
                                   ProductDescription(
                                       description: product.description),
                                 ],
@@ -716,20 +717,20 @@ class _ItemPageState extends State<ItemPage> {
                     ],
                     child: Center(
                       child: Material(
-                        elevation: 4,
-                        borderRadius: BorderRadius.circular(8),
+                        elevation: 3,
+                        borderRadius: BorderRadius.circular(6),
                         color: Colors.transparent,
                         child: Container(
                           margin: const EdgeInsets.symmetric(vertical: 4),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 0),
+                              horizontal: 2, vertical: 0),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(6),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.06),
-                                blurRadius: 6,
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 4,
                                 offset: const Offset(0, 2),
                               ),
                             ],
@@ -740,10 +741,10 @@ class _ItemPageState extends State<ItemPage> {
                             children: [
                               IconButton(
                                 icon: const Icon(Icons.remove,
-                                    color: Colors.black, size: 13),
+                                    color: Colors.black, size: 16),
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(
-                                    minWidth: 22, minHeight: 22),
+                                    minWidth: 28, minHeight: 28),
                                 onPressed: () {
                                   setState(() {
                                     if (quantity > 1) {
@@ -759,15 +760,15 @@ class _ItemPageState extends State<ItemPage> {
                                 quantity.toString(),
                                 style: const TextStyle(
                                     color: Colors.black,
-                                    fontSize: 12,
+                                    fontSize: 14,
                                     fontWeight: FontWeight.bold),
                               ),
                               IconButton(
                                 icon: const Icon(Icons.add,
-                                    color: Colors.black, size: 13),
+                                    color: Colors.black, size: 16),
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(
-                                    minWidth: 22, minHeight: 22),
+                                    minWidth: 28, minHeight: 28),
                                 onPressed: () {
                                   setState(() {
                                     quantity++;
@@ -791,10 +792,11 @@ class _ItemPageState extends State<ItemPage> {
                           delay: 300.ms)
                     ],
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8.0, horizontal: 16.0),
                       child: SizedBox(
                         width: double.infinity,
-                        height: 50,
+                        height: 45,
                         child: Container(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
@@ -805,12 +807,12 @@ class _ItemPageState extends State<ItemPage> {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
-                            borderRadius: BorderRadius.circular(30),
+                            borderRadius: BorderRadius.circular(25),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.green.shade200.withOpacity(0.3),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
                               ),
                             ],
                           ),
@@ -889,9 +891,9 @@ class _ItemPageState extends State<ItemPage> {
                             },
                             style: ElevatedButton.styleFrom(
                               padding:
-                                  const EdgeInsets.symmetric(horizontal: 18),
+                                  const EdgeInsets.symmetric(horizontal: 16),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30),
+                                borderRadius: BorderRadius.circular(25),
                               ),
                               elevation: 0,
                               backgroundColor: widget.isPrescribed
@@ -904,8 +906,8 @@ class _ItemPageState extends State<ItemPage> {
                               children: [
                                 if (widget.isPrescribed) ...[
                                   Icon(Icons.medical_services_outlined,
-                                      color: Colors.white),
-                                  SizedBox(width: 8),
+                                      color: Colors.white, size: 20),
+                                  SizedBox(width: 6),
                                 ],
                                 Text(
                                   widget.isPrescribed
@@ -913,7 +915,7 @@ class _ItemPageState extends State<ItemPage> {
                                       : 'Add to Cart  •  GHS ${double.parse(product.price) * quantity}',
                                   style: const TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      fontSize: 16,
+                                      fontSize: 15,
                                       color: Colors.white),
                                 ),
                               ],
@@ -923,7 +925,7 @@ class _ItemPageState extends State<ItemPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 8),
                   // Related Products Carousel
                   Animate(
                     effects: [
@@ -944,31 +946,31 @@ class _ItemPageState extends State<ItemPage> {
                             child: Text(
                               'Related Products',
                               style: TextStyle(
-                                fontSize: 18,
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.green,
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 8),
                         FutureBuilder<List<Product>>(
                           future: fetchRelatedProducts(product.urlName),
                           builder: (context, relatedSnapshot) {
                             if (relatedSnapshot.connectionState ==
                                 ConnectionState.waiting) {
                               return SizedBox(
-                                height: 220,
+                                height: 180,
                                 child: ListView.builder(
                                   scrollDirection: Axis.horizontal,
                                   itemCount: 3,
                                   itemBuilder: (context, index) => Container(
-                                    width: 170,
+                                    width: 140,
                                     margin: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 4),
+                                        horizontal: 6, vertical: 4),
                                     decoration: BoxDecoration(
                                       color: Colors.grey[200],
-                                      borderRadius: BorderRadius.circular(18),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
                                 ),
@@ -988,16 +990,17 @@ class _ItemPageState extends State<ItemPage> {
                                 child: Row(
                                   children: const [
                                     Icon(Icons.info_outline,
-                                        color: Colors.grey, size: 20),
-                                    SizedBox(width: 8),
+                                        color: Colors.grey, size: 18),
+                                    SizedBox(width: 6),
                                     Text('No related products found.',
-                                        style: TextStyle(color: Colors.grey)),
+                                        style: TextStyle(
+                                            color: Colors.grey, fontSize: 13)),
                                   ],
                                 ),
                               );
                             }
                             return SizedBox(
-                              height: 220,
+                              height: 180,
                               child: ListView.builder(
                                 scrollDirection: Axis.horizontal,
                                 itemCount: relatedProducts.length,
@@ -1011,7 +1014,6 @@ class _ItemPageState extends State<ItemPage> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
                 ],
               ),
             );
@@ -1048,10 +1050,10 @@ class _ItemPageState extends State<ItemPage> {
           ),
         ],
         child: SizedBox(
-          height: 260,
-          width: 180,
+          height: 200,
+          width: 140,
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -1061,12 +1063,12 @@ class _ItemPageState extends State<ItemPage> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.10),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
                 ),
               ],
             ),
@@ -1075,12 +1077,12 @@ class _ItemPageState extends State<ItemPage> {
               children: [
                 // Image section
                 SizedBox(
-                  height: 90,
+                  height: 70,
                   child: Stack(
                     children: [
                       ClipRRect(
                         borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(22)),
+                            top: Radius.circular(16)),
                         child: product.thumbnail.isNotEmpty
                             ? CachedNetworkImage(
                                 imageUrl: imageUrl,
@@ -1093,32 +1095,32 @@ class _ItemPageState extends State<ItemPage> {
                                 errorWidget: (context, url, error) => Container(
                                   color: Colors.grey[200],
                                   child: const Icon(Icons.image_not_supported,
-                                      size: 40),
+                                      size: 30),
                                 ),
                               )
                             : Container(
                                 color: Colors.grey[200],
                                 child: const Icon(Icons.medical_services,
-                                    size: 40),
+                                    size: 30),
                               ),
                       ),
                       Positioned(
-                        top: 8,
-                        right: 8,
+                        top: 4,
+                        right: 4,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
+                              horizontal: 6, vertical: 1),
                           decoration: BoxDecoration(
                             color: inStock
                                 ? Colors.green.withOpacity(0.85)
                                 : Colors.red.withOpacity(0.85),
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             inStock ? 'In Stock' : 'Out of Stock',
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 10,
+                              fontSize: 8,
                               fontWeight: FontWeight.w600,
                               letterSpacing: 0.2,
                             ),
@@ -1132,15 +1134,15 @@ class _ItemPageState extends State<ItemPage> {
                 Expanded(
                   child: Padding(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           product.name,
                           style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -1151,7 +1153,7 @@ class _ItemPageState extends State<ItemPage> {
                           style: TextStyle(
                             color: Colors.green.shade800,
                             fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                            fontSize: 10,
                             letterSpacing: 0.1,
                           ),
                           maxLines: 1,

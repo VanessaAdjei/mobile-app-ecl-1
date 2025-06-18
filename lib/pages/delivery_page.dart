@@ -19,7 +19,7 @@ class DeliveryPage extends StatefulWidget {
 }
 
 class _DeliveryPageState extends State<DeliveryPage> {
-  String deliveryOption = 'Delivery';
+  String deliveryOption = 'delivery';
   double deliveryFee = 0.00;
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
@@ -106,6 +106,9 @@ class _DeliveryPageState extends State<DeliveryPage> {
           print('Region: "${deliveryData['region']}"');
           print('City: "${deliveryData['city']}"');
           print('Address: "${deliveryData['address']}"');
+          print('Shipping Type: "${deliveryData['shipping_type']}"');
+          print('Pickup Location: "${deliveryData['pickup_location']}"');
+          print('Delivery Option: "${deliveryData['delivery_option']}"');
 
           setState(() {
             // Pre-fill the form fields with delivery data
@@ -113,11 +116,14 @@ class _DeliveryPageState extends State<DeliveryPage> {
             _emailController.text = deliveryData['email'] ?? '';
             _phoneController.text = deliveryData['phone'] ?? '';
 
-            // Set delivery option
-            deliveryOption = deliveryData['delivery_option'] ?? 'Delivery';
+            // Set delivery option - use shipping_type as fallback
+            deliveryOption = (deliveryData['delivery_option'] ??
+                    deliveryData['shipping_type'] ??
+                    'delivery')
+                .toLowerCase();
 
             // Fill delivery-specific fields
-            if (deliveryOption == 'Delivery') {
+            if (deliveryOption == 'delivery') {
               print(' SETTING DELIVERY FIELDS:');
               print(
                   'Setting region controller to: "${deliveryData['region']}"');
@@ -129,10 +135,12 @@ class _DeliveryPageState extends State<DeliveryPage> {
               _cityController.text = deliveryData['city'] ?? '';
               _addressController.text = deliveryData['address'] ?? '';
               _updateDeliveryFee();
-            } else if (deliveryOption == 'Pickup') {
+            } else if (deliveryOption == 'pickup') {
               selectedRegion = deliveryData['pickup_region'];
               selectedCity = deliveryData['pickup_city'];
-              selectedPickupSite = deliveryData['pickup_site'];
+              // Use pickup_location as fallback for pickup_site
+              selectedPickupSite = deliveryData['pickup_site'] ??
+                  deliveryData['pickup_location'];
             }
 
             // Fill notes
@@ -147,6 +155,10 @@ class _DeliveryPageState extends State<DeliveryPage> {
           print('- Region controller: "${_regionController.text}"');
           print('- City controller: "${_cityController.text}"');
           print('- Address controller: "${_addressController.text}"');
+          print('- Delivery option: "$deliveryOption"');
+          print('- Selected pickup region: "$selectedRegion"');
+          print('- Selected pickup city: "$selectedCity"');
+          print('- Selected pickup site: "$selectedPickupSite"');
         } else {
           print('No delivery data found from API');
           if (deliveryResult['message'] != null) {
@@ -324,7 +336,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
                                 child: _buildDeliveryOptions(),
                               ),
                               const SizedBox(height: 20),
-                              if (deliveryOption == 'Delivery')
+                              if (deliveryOption == 'delivery')
                                 Animate(
                                   effects: [
                                     FadeEffect(duration: 400.ms),
@@ -335,7 +347,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
                                   ],
                                   child: _buildDeliveryInfo(),
                                 ),
-                              if (deliveryOption == 'Pickup')
+                              if (deliveryOption == 'pickup')
                                 Animate(
                                   effects: [
                                     FadeEffect(duration: 400.ms),
@@ -359,7 +371,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
                               ),
                               const SizedBox(height: 20),
                               // Only show delivery notes for delivery option
-                              if (deliveryOption == 'Delivery') ...[
+                              if (deliveryOption == 'delivery') ...[
                                 Animate(
                                   effects: [
                                     FadeEffect(duration: 400.ms),
@@ -413,7 +425,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
 
   Widget _buildProgressLine({required bool isActive}) {
     return Container(
-      width: 51,
+      width: 70,
       height: 1,
       color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
     );
@@ -529,8 +541,8 @@ class _DeliveryPageState extends State<DeliveryPage> {
                         title: 'Home Delivery',
                         subtitle: 'Delivered to your doorstep',
                         icon: Icons.home,
-                        isSelected: deliveryOption == 'Delivery',
-                        onTap: () => _handleDeliveryOptionChange('Delivery'),
+                        isSelected: deliveryOption == 'delivery',
+                        onTap: () => _handleDeliveryOptionChange('delivery'),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -539,8 +551,8 @@ class _DeliveryPageState extends State<DeliveryPage> {
                         title: 'Pickup Station',
                         subtitle: 'Collect from nearest station',
                         icon: Icons.store,
-                        isSelected: deliveryOption == 'Pickup',
-                        onTap: () => _handleDeliveryOptionChange('Pickup'),
+                        isSelected: deliveryOption == 'pickup',
+                        onTap: () => _handleDeliveryOptionChange('pickup'),
                       ),
                     ),
                   ],
@@ -1128,7 +1140,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
             // Phone Field
             _buildPhoneField(isPhoneValid),
             // Only show location fields for delivery option
-            if (deliveryOption == 'Delivery') ...[
+            if (deliveryOption == 'delivery') ...[
               const SizedBox(height: 16),
               // Region Field
               _buildRegionDropdown(),
@@ -1717,7 +1729,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
               }
 
               // Validate region
-              if (deliveryOption == 'Delivery' &&
+              if (deliveryOption == 'delivery' &&
                   _regionController.text.trim().isEmpty) {
                 setState(() {
                   _highlightRegionField = true;
@@ -1734,7 +1746,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
               }
 
               // Validate city
-              if (deliveryOption == 'Delivery' &&
+              if (deliveryOption == 'delivery' &&
                   _cityController.text.trim().isEmpty) {
                 setState(() {
                   _highlightCityField = true;
@@ -1751,7 +1763,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
               }
 
               // Validate address
-              if (deliveryOption == 'Delivery' &&
+              if (deliveryOption == 'delivery' &&
                   _addressController.text.trim().isEmpty) {
                 setState(() {
                   _highlightAddressField = true;
@@ -1797,7 +1809,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
               }
 
               // Validate pickup fields
-              if (deliveryOption == 'Pickup') {
+              if (deliveryOption == 'pickup') {
                 if (selectedRegion == null) {
                   setState(() {
                     _highlightPickupField = true;
@@ -1871,7 +1883,8 @@ class _DeliveryPageState extends State<DeliveryPage> {
                 print('Email: ${_emailController.text.trim()}');
                 print('Phone: ${_phoneController.text}');
                 print('Delivery Option: $deliveryOption');
-                if (deliveryOption == 'Delivery') {
+                print('Shipping Type: $deliveryOption');
+                if (deliveryOption == 'delivery') {
                   print('Region: ${_regionController.text.trim()}');
                   print('City: ${_cityController.text.trim()}');
                   print('Address: ${_addressController.text.trim()}');
@@ -1879,6 +1892,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   print('Pickup Region: ${selectedRegion}');
                   print('Pickup City: ${selectedCity}');
                   print('Pickup Site: ${selectedPickupSite}');
+                  print('Pickup Location: ${selectedPickupSite}');
                 }
                 print('Notes: ${_notesController.text.trim()}');
                 print('========================');
@@ -1888,21 +1902,21 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   email: _emailController.text.trim(),
                   phone: _phoneController.text,
                   deliveryOption: deliveryOption,
-                  region: deliveryOption == 'Delivery'
+                  region: deliveryOption == 'delivery'
                       ? _regionController.text.trim()
                       : null,
-                  city: deliveryOption == 'Delivery'
+                  city: deliveryOption == 'delivery'
                       ? _cityController.text.trim()
                       : null,
-                  address: deliveryOption == 'Delivery'
+                  address: deliveryOption == 'delivery'
                       ? _addressController.text.trim()
                       : null,
                   notes: _notesController.text.trim(),
                   pickupRegion:
-                      deliveryOption == 'Pickup' ? selectedRegion : null,
-                  pickupCity: deliveryOption == 'Pickup' ? selectedCity : null,
+                      deliveryOption == 'pickup' ? selectedRegion : null,
+                  pickupCity: deliveryOption == 'pickup' ? selectedCity : null,
                   pickupSite:
-                      deliveryOption == 'Pickup' ? selectedPickupSite : null,
+                      deliveryOption == 'pickup' ? selectedPickupSite : null,
                 );
 
                 print('=== API SAVE RESULT ===');
@@ -1951,7 +1965,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
 
                 // Create delivery address based on option
                 String deliveryAddress;
-                if (deliveryOption == 'Delivery') {
+                if (deliveryOption == 'delivery') {
                   await prefs.setString(
                       'userRegion', _regionController.text.trim());
                   await prefs.setString(
@@ -1980,7 +1994,8 @@ class _DeliveryPageState extends State<DeliveryPage> {
                 print('Email: ${_emailController.text.trim()}');
                 print('Phone Number: ${_phoneController.text}');
                 print('Delivery Option: $deliveryOption');
-                if (deliveryOption == 'Delivery') {
+                print('Shipping Type: $deliveryOption');
+                if (deliveryOption == 'delivery') {
                   print('Region: ${_regionController.text.trim()}');
                   print('City: ${_cityController.text.trim()}');
                   print('Address: ${_addressController.text.trim()}');
@@ -1988,6 +2003,8 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   print('Pickup Region: ${selectedRegion ?? 'Not selected'}');
                   print('Pickup City: ${selectedCity ?? 'Not selected'}');
                   print('Pickup Site: ${selectedPickupSite ?? 'Not selected'}');
+                  print(
+                      'Pickup Location: ${selectedPickupSite ?? 'Not selected'}');
                 }
                 print('Delivery Address: $deliveryAddress');
                 print('Order Status: Processing');
@@ -2084,7 +2101,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
   void _proceedToPayment() {
     // Create delivery address based on option
     String deliveryAddress;
-    if (deliveryOption == 'Delivery') {
+    if (deliveryOption == 'delivery') {
       deliveryAddress =
           '${_addressController.text.trim()}, ${_cityController.text.trim()}, ${_regionController.text.trim()}';
     } else {

@@ -28,6 +28,7 @@ import 'package:eclapp/pages/profile.dart';
 import 'package:eclapp/pages/splashscreen.dart';
 import 'package:provider/provider.dart';
 import '../widgets/cart_icon_button.dart';
+import '../widgets/product_card.dart';
 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -1085,8 +1086,8 @@ class _HomePageState extends State<HomePage>
             crossAxisSpacing: 8,
           ),
           itemBuilder: (context, index) {
-            return _buildProductCard(
-              products[index],
+            return HomeProductCard(
+              product: products[index],
               fontSize: fontSize * 0.95,
               padding: padding * 0.8,
               imageHeight: imageHeight * 0.85,

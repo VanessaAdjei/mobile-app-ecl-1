@@ -36,9 +36,7 @@ class DeliveryService {
         'fname': name, // Full name
         'email': email, // User email
         'phone': phone, // Phone number
-        'addr_1': address ?? '', // Address
-        'region': region ?? '', // Region
-        'city': city ?? '', // City
+        'shipping_type': deliveryOption, // Delivery method (delivery or pickup)
       };
 
       // Add delivery option and notes if available
@@ -49,15 +47,26 @@ class DeliveryService {
         requestBody['notes'] = notes;
       }
 
-      // Add pickup information if it's a pickup order
-      if (deliveryOption == 'Pickup') {
-        requestBody['pickup_region'] = pickupRegion ?? '';
-        requestBody['pickup_city'] = pickupCity ?? '';
-        requestBody['pickup_site'] = pickupSite ?? '';
+      // Handle delivery-specific fields
+      if (deliveryOption == 'delivery') {
+        // For delivery orders, include address fields
+        requestBody['addr_1'] = address ?? 'Not specified';
+        requestBody['region'] = region ?? 'Not specified';
+        requestBody['city'] = city ?? 'Not specified';
+      } else if (deliveryOption == 'pickup') {
+        // For pickup orders, include pickup fields and minimal address info
+        requestBody['addr_1'] = 'Pickup order';
+        requestBody['region'] = pickupRegion ?? 'Not specified';
+        requestBody['city'] = pickupCity ?? 'Not specified';
+        // Add pickup_location field with the selected pickup site
+        requestBody['pickup_location'] = pickupSite ?? '';
       }
 
       print('Saving delivery info to API...');
       print('Request body: ${json.encode(requestBody)}');
+      print('Delivery option: $deliveryOption');
+      print('Is delivery: ${deliveryOption == 'delivery'}');
+      print('Is pickup: ${deliveryOption == 'pickup'}');
 
       final response = await http
           .post(
@@ -173,6 +182,15 @@ class DeliveryService {
           print('      ├── addr_2: ${billingAddr['addr_2']}');
           print('      ├── region: "${billingAddr['region']}"');
           print('      ├── city: ${billingAddr['city']}');
+          print('      ├── shipping_type: "${billingAddr['shipping_type']}"');
+          print(
+              '      ├── pickup_location: "${billingAddr['pickup_location']}"');
+          print(
+              '      ├── delivery_option: "${billingAddr['delivery_option']}"');
+          print('      ├── pickup_region: "${billingAddr['pickup_region']}"');
+          print('      ├── pickup_city: "${billingAddr['pickup_city']}"');
+          print('      ├── pickup_site: "${billingAddr['pickup_site']}"');
+          print('      ├── notes: "${billingAddr['notes']}"');
           print('      ├── created_at: "${billingAddr['created_at']}"');
           print('      └── updated_at: "${billingAddr['updated_at']}"');
         } else {
@@ -220,14 +238,26 @@ class DeliveryService {
           'name': billingAddr['fname'] ?? '',
           'email': billingAddr['email'] ?? '',
           'phone': billingAddr['phone'] ?? '',
-          'delivery_option': billingAddr['delivery_option'] ?? 'Delivery',
+          'delivery_option': (billingAddr['delivery_option'] ??
+                  billingAddr['shipping_type'] ??
+                  'delivery')
+              .toLowerCase(),
           'region': billingAddr['region'] ?? '',
           'city': billingAddr['city'] ?? '',
           'address': billingAddr['addr_1'] ?? '',
           'notes': billingAddr['notes'] ?? '',
           'pickup_region': billingAddr['pickup_region'] ?? '',
           'pickup_city': billingAddr['pickup_city'] ?? '',
-          'pickup_site': billingAddr['pickup_site'] ?? '',
+          'pickup_site': billingAddr['pickup_site'] ??
+              billingAddr['pickup_location'] ??
+              '',
+          'shipping_type': (billingAddr['shipping_type'] ??
+                  billingAddr['delivery_option'] ??
+                  'delivery')
+              .toLowerCase(),
+          'pickup_location': billingAddr['pickup_location'] ??
+              billingAddr['pickup_site'] ??
+              '',
         };
 
         print('\n📝 MAPPED FIELD DEBUG:');
@@ -237,6 +267,12 @@ class DeliveryService {
         print('deliveryData["name"]: "${deliveryData['name']}"');
         print('deliveryData["email"]: "${deliveryData['email']}"');
         print('deliveryData["phone"]: "${deliveryData['phone']}"');
+        print(
+            'deliveryData["shipping_type"]: "${deliveryData['shipping_type']}"');
+        print(
+            'deliveryData["pickup_location"]: "${deliveryData['pickup_location']}"');
+        print(
+            'deliveryData["delivery_option"]: "${deliveryData['delivery_option']}"');
 
         print('Mapped delivery data: ${json.encode(deliveryData)}');
         print('Field values:');
@@ -246,6 +282,9 @@ class DeliveryService {
         print('- region: "${deliveryData['region']}"');
         print('- city: "${deliveryData['city']}"');
         print('- address: "${deliveryData['address']}"');
+        print('- shipping_type: "${deliveryData['shipping_type']}"');
+        print('- pickup_location: "${deliveryData['pickup_location']}"');
+        print('- delivery_option: "${deliveryData['delivery_option']}"');
         print('=' * 50);
 
         return {
