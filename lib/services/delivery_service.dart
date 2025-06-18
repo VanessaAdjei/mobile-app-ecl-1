@@ -70,7 +70,7 @@ class DeliveryService {
             },
             body: json.encode(requestBody),
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 10));
 
       print('Save delivery info response status: ${response.statusCode}');
       print('Save delivery info response headers: ${response.headers}');
@@ -134,7 +134,7 @@ class DeliveryService {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
         },
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: 10));
 
       print('\n' + '=' * 50);
       print('🔍 API RESPONSE DEBUG');

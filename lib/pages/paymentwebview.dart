@@ -206,12 +206,12 @@ class _PaymentWebViewState extends State<PaymentWebView> {
                           // Header with back button and title
                           Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
+                                horizontal: 16, vertical: 4),
                             child: Row(
                               children: [
                                 IconButton(
                                   icon: const Icon(Icons.arrow_back,
-                                      color: Colors.white),
+                                      color: Colors.white, size: 20),
                                   onPressed: () async {
                                     final shouldPop = await showDialog<bool>(
                                           context: context,
@@ -245,7 +245,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
                                       'Payment Gateway',
                                       style: TextStyle(
                                         color: Colors.white,
-                                        fontSize: 18,
+                                        fontSize: 16,
                                         fontWeight: FontWeight.w600,
                                         letterSpacing: 0.5,
                                       ),
@@ -259,7 +259,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
                           ),
                           // Enhanced progress indicator
                           Container(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
                             child: Row(
                               children: [
                                 _buildProgressStep("Cart",
@@ -329,8 +329,8 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 28,
-          height: 28,
+          width: 24,
+          height: 24,
           decoration: BoxDecoration(
             color: isCompleted || isActive
                 ? Colors.white.withOpacity(0.2)
@@ -352,23 +352,23 @@ class _PaymentWebViewState extends State<PaymentWebView> {
           ),
           child: Center(
             child: isCompleted
-                ? Icon(Icons.check, size: 16, color: Colors.white)
+                ? Icon(Icons.check, size: 14, color: Colors.white)
                 : Text(
                     step.toString(),
                     style: TextStyle(
                       color: color,
                       fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                      fontSize: 10,
                     ),
                   ),
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Text(
           text,
           style: TextStyle(
             color: color,
-            fontSize: 12,
+            fontSize: 10,
             fontWeight:
                 isActive || isCompleted ? FontWeight.w600 : FontWeight.w500,
             letterSpacing: 0.3,

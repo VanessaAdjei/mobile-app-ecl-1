@@ -68,30 +68,29 @@ class _DeliveryPageState extends State<DeliveryPage> {
     try {
       print('=== STARTING LOAD USER DATA ===');
 
+      // First, immediately load basic user data for fast UI response
+      await _loadBasicUserData();
+      print('Basic user data loaded immediately');
+
       // Check if user is logged in
       final isLoggedIn = await AuthService.isLoggedIn();
       print('User logged in: $isLoggedIn');
 
       if (!isLoggedIn) {
-        print('User not logged in, loading basic user data...');
-        // If not logged in, try to load basic user data from AuthService
-        final userData = await AuthService.getCurrentUser();
-        if (userData != null && mounted) {
-          setState(() {
-            _nameController.text = userData['name'] ?? '';
-            _emailController.text = userData['email'] ?? '';
-            _phoneController.text = userData['phone'] ?? '';
-          });
-          print(
-              'Basic user data loaded: ${userData['name']}, ${userData['email']}');
-        }
+        print('User not logged in, skipping API call');
         return;
       }
 
-      // User is logged in, try to load delivery info from API
-      print('User is logged in, fetching delivery info from API...');
+      // User is logged in, try to load delivery info from API in background
+      print(
+          'User is logged in, fetching delivery info from API in background...');
+
+      // Use a shorter timeout and handle the API call asynchronously
       try {
-        final deliveryResult = await DeliveryService.getLastDeliveryInfo();
+        final deliveryResult = await DeliveryService.getLastDeliveryInfo()
+            .timeout(const Duration(
+                seconds: 8)); // 8 second timeout for faster failure
+
         print('API result success: ${deliveryResult['success']}');
         print('API result message: ${deliveryResult['message']}');
         print('API result data: ${deliveryResult['data']}');
@@ -119,7 +118,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
 
             // Fill delivery-specific fields
             if (deliveryOption == 'Delivery') {
-              print('\n🔧 SETTING DELIVERY FIELDS:');
+              print(' SETTING DELIVERY FIELDS:');
               print(
                   'Setting region controller to: "${deliveryData['region']}"');
               print('Setting city controller to: "${deliveryData['city']}"');
@@ -149,10 +148,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
           print('- City controller: "${_cityController.text}"');
           print('- Address controller: "${_addressController.text}"');
         } else {
-          print('No delivery data found, loading basic user data...');
-          // No delivery info found or API error, try to load basic user data
-          _loadBasicUserData();
-
+          print('No delivery data found from API');
           if (deliveryResult['message'] != null) {
             print(
                 'Delivery info loading message: ${deliveryResult['message']}');
@@ -160,8 +156,8 @@ class _DeliveryPageState extends State<DeliveryPage> {
         }
       } catch (apiError) {
         print('API error loading delivery info: $apiError');
-        // Fallback to basic user data if API fails
-        _loadBasicUserData();
+        // API failed, but we already have basic user data loaded
+        print('Continuing with basic user data only');
       }
     } catch (e) {
       print('Error loading user data: $e');
@@ -1868,108 +1864,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
                 return;
               }
 
-              // Show loading indicator
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (BuildContext context) {
-                  return Dialog(
-                    backgroundColor: Colors.transparent,
-                    child: Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 15,
-                            offset: Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Animated container with gradient background
-                          Container(
-                            width: 60,
-                            height: 60,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Colors.green.shade400,
-                                  Colors.green.shade600,
-                                  Colors.green.shade700,
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(15),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.green.withOpacity(0.3),
-                                  blurRadius: 12,
-                                  offset: Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: SizedBox(
-                                width: 30,
-                                height: 30,
-                                child: CircularProgressIndicator(
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white),
-                                  strokeWidth: 2.5,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-
-                          // Title
-                          Text(
-                            'Saving Information',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.grey[800],
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-
-                          // Subtitle
-                          Text(
-                            'Please wait while we save your delivery details...',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[600],
-                              height: 1.3,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Progress dots
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _buildProgressDot(0),
-                              const SizedBox(width: 6),
-                              _buildProgressDot(1),
-                              const SizedBox(width: 6),
-                              _buildProgressDot(2),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              );
-
               try {
                 // Save delivery information to API
                 print('=== STARTING API SAVE ===');
@@ -2010,9 +1904,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   pickupSite:
                       deliveryOption == 'Pickup' ? selectedPickupSite : null,
                 );
-
-                // Close loading dialog
-                Navigator.of(context).pop();
 
                 print('=== API SAVE RESULT ===');
                 print('Success: ${saveResult['success']}');
@@ -2129,9 +2020,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
                 // Navigate to payment page with delivery details
                 _proceedToPayment();
               } catch (e) {
-                // Close loading dialog
-                Navigator.of(context).pop();
-
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Row(
@@ -2216,35 +2104,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
           contactNumber: _phoneController.text,
           deliveryOption: deliveryOption,
         ),
-      ),
-    );
-  }
-
-  Widget _buildProgressDot(int index) {
-    return AnimatedContainer(
-      duration: Duration(milliseconds: 600),
-      width: 6,
-      height: 6,
-      decoration: BoxDecoration(
-        color: Colors.green.shade400,
-        shape: BoxShape.circle,
-      ),
-      child: Animate(
-        onPlay: (controller) => controller.repeat(),
-        effects: [
-          ScaleEffect(
-            duration: Duration(milliseconds: 800),
-            begin: Offset(1, 1),
-            end: Offset(1.2, 1.2),
-            delay: Duration(milliseconds: index * 200),
-          ),
-          FadeEffect(
-            duration: Duration(milliseconds: 800),
-            begin: 0.6,
-            end: 1.0,
-            delay: Duration(milliseconds: index * 200),
-          ),
-        ],
       ),
     );
   }

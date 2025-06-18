@@ -6,7 +6,6 @@ import 'package:eclapp/pages/payment_page.dart';
 import 'package:eclapp/pages/profile.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
-import 'package:eclapp/pages/splashscreen.dart';
 import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/pages/cart.dart';
 import 'package:eclapp/pages/ProductModel.dart';
@@ -178,7 +177,7 @@ class MyApp extends StatelessWidget {
             ),
             initialRoute: '/',
             routes: {
-              '/': (context) => SplashScreen(),
+              '/': (context) => HomePage(),
               '/home': (context) => HomePage(),
               '/cart': (context) => ProtectedRoute(child: Cart()),
               '/categories': (context) => CategoryPage(),

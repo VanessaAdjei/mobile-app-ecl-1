@@ -310,7 +310,7 @@ class _CartState extends State<Cart> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'TOTAL (${cart.cartItems.length} items)',
+                            'Total',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
