@@ -12,6 +12,7 @@ import 'auth_service.dart';
 import 'package:provider/provider.dart';
 import 'cartprovider.dart';
 import '../widgets/cart_icon_button.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -389,12 +390,30 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       child: Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor:
-              theme.appBarTheme.backgroundColor ?? Colors.green[700],
-          elevation: theme.appBarTheme.elevation ?? 0,
-          centerTitle: theme.appBarTheme.centerTitle ?? true,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          centerTitle: true,
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.green.shade700,
+                  Colors.green.shade800,
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+          ),
           leading: AppBackButton(
-            backgroundColor: theme.primaryColor,
+            backgroundColor: Colors.white.withOpacity(0.2),
             onPressed: () {
               if (Navigator.canPop(context)) {
                 Navigator.pop(context);
@@ -408,29 +427,36 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
           title: Text(
             'Notifications',
-            style: theme.appBarTheme.titleTextStyle ??
-                const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+              letterSpacing: 0.5,
+            ),
           ),
           actions: [
             Container(
               margin: const EdgeInsets.only(right: 8.0),
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.transparent,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: IconButton(
                 icon: const Icon(Icons.delete_sweep, color: Colors.white),
                 onPressed: _clearAllNotifications,
               ),
             ),
-            CartIconButton(
-              iconColor: Colors.white,
-              iconSize: 24,
-              backgroundColor: Colors.transparent,
+            Container(
+              margin: EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: CartIconButton(
+                iconColor: Colors.white,
+                iconSize: 24,
+                backgroundColor: Colors.transparent,
+              ),
             ),
           ],
         ),

@@ -261,11 +261,30 @@ class _CategoryPageState extends State<CategoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-        elevation: Theme.of(context).appBarTheme.elevation,
-        centerTitle: Theme.of(context).appBarTheme.centerTitle,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.green.shade700,
+                Colors.green.shade800,
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
         leading: AppBackButton(
-          backgroundColor: Theme.of(context).primaryColor,
+          backgroundColor: Colors.white.withOpacity(0.2),
           onPressed: () {
             if (widget.isBulkPurchase) {
               Navigator.pushReplacement(
@@ -286,12 +305,24 @@ class _CategoryPageState extends State<CategoryPage> {
         ),
         title: Text(
           'Categories',
-          style: Theme.of(context).appBarTheme.titleTextStyle,
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            letterSpacing: 0.5,
+          ),
         ),
         actions: [
-          CartIconButton(
-            iconColor: Colors.white,
-            iconSize: 24,
+          Container(
+            margin: EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: CartIconButton(
+              iconColor: Colors.white,
+              iconSize: 24,
+            ),
           ),
         ],
       ),
@@ -743,10 +774,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
             });
 
             if (mounted) {
-              setState(() {
-                subcategories = subcategoriesData;
-                isLoading = false;
-              });
+              handleSubcategoriesSuccess(data);
             }
           } else {
             if (mounted) {
@@ -857,6 +885,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       print('ID: ${firstSubcategory['id']}');
       print('All fields: ${json.encode(firstSubcategory)}');
 
+      // Automatically select the first subcategory
       onSubcategorySelected(firstSubcategory['id']);
     }
   }
@@ -1110,7 +1139,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     );
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -1124,18 +1153,18 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(6),
+            padding: EdgeInsets.all(4),
             decoration: BoxDecoration(
               color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(4),
             ),
             child: Icon(
               Icons.category_outlined,
               color: Colors.green.shade700,
-              size: 16,
+              size: 14,
             ),
           ),
-          SizedBox(width: 8),
+          SizedBox(width: 6),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1144,7 +1173,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                 Text(
                   selectedSubcategory['name'] ?? 'All Products',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w500,
                     color: Colors.grey.shade800,
                     height: 1.1,
@@ -1154,7 +1183,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                 Text(
                   '${products.length} products available',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     color: Colors.grey.shade500,
                     height: 1.1,
                   ),
@@ -1169,12 +1198,12 @@ class SubcategoryPageState extends State<SubcategoryPage> {
 
   Widget buildSideNavigation() {
     return Container(
-      width: MediaQuery.of(context).size.width * 0.4,
+      width: MediaQuery.of(context).size.width * 0.32,
       color: Colors.white,
       child: Column(
         children: [
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.green.shade50,
               border: Border(
@@ -1189,15 +1218,18 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                 Icon(
                   Icons.category_outlined,
                   color: Colors.green.shade700,
-                  size: 18,
+                  size: 16,
                 ),
-                SizedBox(width: 8),
-                Text(
-                  'Categories',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade900,
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Categories',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade900,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -1205,7 +1237,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           ),
           Expanded(
             child: ListView.builder(
-              padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              padding: EdgeInsets.symmetric(vertical: 6, horizontal: 8),
               itemCount: subcategories.length,
               itemBuilder: (context, index) {
                 final subcategory = subcategories[index];
@@ -1213,9 +1245,9 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                     selectedSubcategoryId == subcategory['id'];
 
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.only(bottom: 4),
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(6),
                     onTap: () => onSubcategorySelected(subcategory['id']),
                     child: AnimatedContainer(
                       duration: Duration(milliseconds: 200),
@@ -1224,7 +1256,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                         color: isSelected
                             ? Colors.green.shade50
                             : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: isSelected
                               ? Colors.green.shade700
@@ -1232,14 +1264,14 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                           width: isSelected ? 1.5 : 1,
                         ),
                       ),
-                      padding: EdgeInsets.symmetric(vertical: 6, horizontal: 3),
+                      padding: EdgeInsets.symmetric(vertical: 4, horizontal: 6),
                       child: Row(
                         children: [
                           if (isSelected)
                             Container(
                               width: 2,
                               height: 2,
-                              margin: EdgeInsets.only(right: 8),
+                              margin: EdgeInsets.only(right: 5),
                               decoration: BoxDecoration(
                                 color: Colors.green.shade700,
                                 shape: BoxShape.circle,
@@ -1249,7 +1281,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                             child: Text(
                               subcategory['name'],
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 12,
                                 fontWeight: isSelected
                                     ? FontWeight.w500
                                     : FontWeight.normal,
@@ -1263,10 +1295,13 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                             ),
                           ),
                           if (isSelected)
-                            Icon(
-                              Icons.check_circle,
-                              size: 14,
-                              color: Colors.green.shade700,
+                            Container(
+                              margin: EdgeInsets.only(left: 3),
+                              child: Icon(
+                                Icons.check_circle,
+                                size: 11,
+                                color: Colors.green.shade700,
+                              ),
                             ),
                         ],
                       ),
@@ -1294,12 +1329,12 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   Widget buildProductsGrid() {
     return GridView.builder(
       controller: scrollController,
-      padding: EdgeInsets.all(16),
+      padding: EdgeInsets.all(12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.55,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
+        childAspectRatio: 0.6,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
       ),
       itemCount: products.length,
       itemBuilder: (context, index) {

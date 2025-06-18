@@ -306,11 +306,30 @@ class _ProfileState extends State<Profile> {
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
-        backgroundColor: primaryColor,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.white),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.green.shade700,
+                Colors.green.shade800,
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
+        leading: AppBackButton(
+          backgroundColor: Colors.white.withOpacity(0.2),
           onPressed: () {
             if (Navigator.canPop(context)) {
               Navigator.pop(context);
@@ -328,13 +347,21 @@ class _ProfileState extends State<Profile> {
             fontSize: 20,
             fontWeight: FontWeight.w600,
             color: Colors.white,
+            letterSpacing: 0.5,
           ),
         ),
         actions: [
-          CartIconButton(
-            iconColor: Colors.white,
-            iconSize: 24,
-            backgroundColor: Colors.transparent,
+          Container(
+            margin: EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: CartIconButton(
+              iconColor: Colors.white,
+              iconSize: 24,
+              backgroundColor: Colors.transparent,
+            ),
           ),
         ],
       ),

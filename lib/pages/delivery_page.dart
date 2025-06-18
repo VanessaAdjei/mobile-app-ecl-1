@@ -327,14 +327,29 @@ class _DeliveryPageState extends State<DeliveryPage> {
                 ],
                 child: Container(
                   padding: EdgeInsets.only(top: topPadding),
-                  color: theme.appBarTheme.backgroundColor ??
-                      Colors.green.shade700,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.green.shade700,
+                        Colors.green.shade800,
+                      ],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
                   child: Column(
                     children: [
                       Row(
                         children: [
                           AppBackButton(
-                            backgroundColor: theme.primaryColor,
+                            backgroundColor: Colors.white.withOpacity(0.2),
                             onPressed: () {
                               Navigator.of(context).pop();
                             },
@@ -367,6 +382,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
                               ),
                             ),
                           ),
+                          const SizedBox(width: 16),
                         ],
                       ),
                     ],
@@ -500,8 +516,8 @@ class _DeliveryPageState extends State<DeliveryPage> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 24,
-          height: 24,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
             color: isCompleted || isActive
                 ? Colors.white.withOpacity(0.2)
@@ -511,28 +527,38 @@ class _DeliveryPageState extends State<DeliveryPage> {
               width: 2,
             ),
             shape: BoxShape.circle,
+            boxShadow: isCompleted || isActive
+                ? [
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.3),
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
           child: Center(
             child: isCompleted
-                ? Icon(Icons.check, size: 14, color: Colors.white)
+                ? Icon(Icons.check, size: 16, color: Colors.white)
                 : Text(
                     step.toString(),
                     style: TextStyle(
                       color: color,
                       fontWeight: FontWeight.bold,
-                      fontSize: 11,
+                      fontSize: 12,
                     ),
                   ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
           text,
           style: TextStyle(
             color: color,
-            fontSize: 11,
+            fontSize: 12,
             fontWeight:
-                isActive || isCompleted ? FontWeight.bold : FontWeight.normal,
+                isActive || isCompleted ? FontWeight.w600 : FontWeight.w500,
+            letterSpacing: 0.3,
           ),
         ),
       ],

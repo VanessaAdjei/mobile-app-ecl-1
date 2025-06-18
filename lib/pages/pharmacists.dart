@@ -74,20 +74,48 @@ class PharmacistsPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: theme.appBarTheme.backgroundColor,
-        elevation: theme.appBarTheme.elevation,
-        centerTitle: theme.appBarTheme.centerTitle,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.green.shade700,
+                Colors.green.shade800,
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
         leading: AppBackButton(
-          backgroundColor: theme.primaryColor,
+          backgroundColor: Colors.white.withOpacity(0.2),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Meet Our Pharmacists',
-          style: theme.appBarTheme.titleTextStyle,
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            letterSpacing: 0.5,
+          ),
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
+          Container(
+            margin: EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: CartIconButton(
               iconColor: Colors.white,
               iconSize: 24,

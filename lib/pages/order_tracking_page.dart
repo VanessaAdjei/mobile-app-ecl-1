@@ -59,35 +59,103 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
     return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
   }
 
+  // Helper method to get order items - handles both single and multiple items
+  List<Map<String, dynamic>> getOrderItems() {
+    final orderDetails = widget.orderDetails;
+
+    // Check if this is a multi-item order
+    if (orderDetails['order_items'] != null &&
+        orderDetails['order_items'] is List) {
+      final items = orderDetails['order_items'] as List;
+      return items.map((item) {
+        if (item is Map) {
+          return Map<String, dynamic>.from(item);
+        }
+        return <String, dynamic>{};
+      }).toList();
+    }
+
+    // Single item order - create a single item map
+    return [
+      {
+        'product_name': orderDetails['product_name'] ?? 'Unknown Product',
+        'product_img': orderDetails['product_img'] ?? '',
+        'qty': orderDetails['qty'] ?? 1,
+        'price': orderDetails['price'] ?? 0.0,
+        'batch_no': orderDetails['batch_no'] ?? '',
+      }
+    ];
+  }
+
+  // Calculate total quantity across all items
+  int getTotalQuantity() {
+    return getOrderItems()
+        .fold(0, (sum, item) => sum + (item['qty'] ?? 1) as int);
+  }
+
+  // Calculate total amount across all items
+  double getTotalAmount() {
+    return getOrderItems().fold(0.0, (sum, item) {
+      final price = (item['price'] ?? 0.0).toDouble();
+      final qty = item['qty'] ?? 1;
+      return sum + (price * qty);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final orderDate =
         DateTime.tryParse(widget.orderDetails['created_at'] ?? '');
-    final productName =
-        widget.orderDetails['product_name'] ?? 'Unknown Product';
-    final productImg = getImageUrl(widget.orderDetails['product_img']);
-    final qty = widget.orderDetails['qty'] ?? 1;
-    final price = (widget.orderDetails['price'] ?? 0).toDouble();
-    final total = (widget.orderDetails['total_price'] ?? 0).toDouble();
     final status = widget.orderDetails['status'] ?? 'Processing';
+    final orderItems = getOrderItems();
+    final totalQuantity = getTotalQuantity();
+    final totalAmount = getTotalAmount();
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: theme.appBarTheme.backgroundColor,
-        elevation: theme.appBarTheme.elevation,
-        centerTitle: theme.appBarTheme.centerTitle,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.green.shade700,
+                Colors.green.shade800,
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
         leading: AppBackButton(
-          backgroundColor: theme.primaryColor,
+          backgroundColor: Colors.white.withOpacity(0.2),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Track Order',
-          style: theme.appBarTheme.titleTextStyle,
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            letterSpacing: 0.5,
+          ),
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
+          Container(
+            margin: EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: CartIconButton(
               iconColor: Colors.white,
               iconSize: 24,
@@ -107,13 +175,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildOrderSummaryCard(
-                      orderDate,
-                      productName,
-                      productImg,
-                      qty,
-                      price,
-                      total,
-                    ),
+                        orderDate, orderItems, totalQuantity, totalAmount),
                     SizedBox(height: 16),
                     _buildStatusCard(status),
                     SizedBox(height: 16),
@@ -127,11 +189,9 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
 
   Widget _buildOrderSummaryCard(
     DateTime? orderDate,
-    String productName,
-    String productImg,
-    int qty,
-    double price,
-    double total,
+    List<Map<String, dynamic>> orderItems,
+    int totalQuantity,
+    double totalAmount,
   ) {
     return Card(
       elevation: 4,
@@ -150,56 +210,8 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
               ),
             ),
             SizedBox(height: 16),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    productImg,
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      width: 80,
-                      height: 80,
-                      color: Colors.grey[200],
-                      child: Icon(Icons.error_outline, color: Colors.red),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        productName,
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Qty: $qty',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'GHS ${price.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          color: Colors.green[700],
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            // Show order items
+            ...orderItems.map((item) => _buildOrderItemRow(item)).toList(),
             Divider(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -221,11 +233,25 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
+                  'Total Items',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+                Text(
+                  '$totalQuantity items',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
                   'Total Amount',
                   style: TextStyle(color: Colors.grey[600]),
                 ),
                 Text(
-                  'GHS ${total.toStringAsFixed(2)}',
+                  'GHS ${totalAmount.toStringAsFixed(2)}',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.green[700],
@@ -235,6 +261,76 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildOrderItemRow(Map<String, dynamic> item) {
+    final productName = item['product_name'] ?? 'Unknown Product';
+    final productImg = getImageUrl(item['product_img']);
+    final qty = item['qty'] ?? 1;
+    final price = (item['price'] ?? 0.0).toDouble();
+    final batchNo = item['batch_no'] ?? '';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.network(
+              productImg,
+              width: 60,
+              height: 60,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(
+                width: 60,
+                height: 60,
+                color: Colors.grey[200],
+                child: Icon(Icons.error_outline, color: Colors.red),
+              ),
+            ),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  productName,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Qty: $qty',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                ),
+                if (batchNo.isNotEmpty) ...[
+                  SizedBox(height: 2),
+                  Text(
+                    'Batch: $batchNo',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  ),
+                ],
+                SizedBox(height: 4),
+                Text(
+                  'GHS ${price.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    color: Colors.green[700],
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,12 +1,12 @@
 // pages/storelocation.dart
 import 'package:flutter/material.dart';
-import 'Cart.dart';
 import 'bottomnav.dart';
 import 'AppBackButton.dart';
 import 'HomePage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/cart_icon_button.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class StoreSelectionPage extends StatefulWidget {
   const StoreSelectionPage({super.key});
@@ -432,7 +432,6 @@ class _StoreSelectionPageState extends State<StoreSelectionPage> {
     City(name: 'Bole Junction', region: 'Savannah'),
     City(name: 'Bole Junction', region: 'Savannah'),
     City(name: 'Bole Junction', region: 'Savannah'),
-    City(name: 'Bole Junction', region: 'Savannah'),
 
     // North East
     City(name: 'Nalerigu', region: 'North East'),
@@ -506,10 +505,30 @@ class _StoreSelectionPageState extends State<StoreSelectionPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.green,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.green.shade700,
+                Colors.green.shade800,
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
         leading: AppBackButton(
+          backgroundColor: Colors.white.withOpacity(0.2),
           onPressed: () {
             if (Navigator.canPop(context)) {
               Navigator.pop(context);
@@ -521,19 +540,27 @@ class _StoreSelectionPageState extends State<StoreSelectionPage> {
             }
           },
         ),
-        title: const Text(
+        title: Text(
           'Store Locations',
-          style: TextStyle(
-            fontSize: 22,
+          style: GoogleFonts.poppins(
+            fontSize: 20,
             fontWeight: FontWeight.w600,
             color: Colors.white,
+            letterSpacing: 0.5,
           ),
         ),
         actions: [
-          CartIconButton(
-            iconColor: Colors.black87,
-            iconSize: 24,
-            backgroundColor: Colors.transparent,
+          Container(
+            margin: EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: CartIconButton(
+              iconColor: Colors.white,
+              iconSize: 24,
+              backgroundColor: Colors.transparent,
+            ),
           ),
         ],
       ),

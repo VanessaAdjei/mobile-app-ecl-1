@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'cart.dart';
 import 'cartprovider.dart';
 import '../widgets/cart_icon_button.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ChangePasswordPage extends StatefulWidget {
   const ChangePasswordPage({super.key});
@@ -188,20 +189,42 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(40.0),
+        preferredSize: const Size.fromHeight(70.0),
         child: AppBar(
-          backgroundColor: Theme.of(context).appBarTheme.backgroundColor ??
-              Colors.green.shade700,
-          elevation: Theme.of(context).appBarTheme.elevation ?? 0,
-          centerTitle: Theme.of(context).appBarTheme.centerTitle ?? true,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          centerTitle: true,
           titleSpacing: 0,
-          title: const Text(
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.green.shade700,
+                  Colors.green.shade800,
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+          ),
+          title: Text(
             'Change Password',
-            style: TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+              letterSpacing: 0.5,
+            ),
           ),
           leading: AppBackButton(
-            backgroundColor: Theme.of(context).primaryColor,
+            backgroundColor: Colors.white.withOpacity(0.2),
             iconColor: Colors.white,
             onPressed: () {
               if (Navigator.canPop(context)) {
@@ -215,10 +238,17 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             },
           ),
           actions: [
-            CartIconButton(
-              iconColor: Colors.white,
-              iconSize: 24,
-              backgroundColor: Colors.transparent,
+            Container(
+              margin: EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: CartIconButton(
+                iconColor: Colors.white,
+                iconSize: 24,
+                backgroundColor: Colors.transparent,
+              ),
             ),
           ],
         ),

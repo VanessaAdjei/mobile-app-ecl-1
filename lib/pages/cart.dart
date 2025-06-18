@@ -179,13 +179,29 @@ class _CartState extends State<Cart> {
                 children: [
                   Container(
                     padding: EdgeInsets.only(top: topPadding),
-                    color: Colors.green.shade700,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.green.shade700,
+                          Colors.green.shade800,
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
                     child: Column(
                       children: [
                         Row(
                           children: [
                             AppBackButton(
-                              backgroundColor: Colors.green.shade700,
+                              backgroundColor: Colors.white.withOpacity(0.2),
                               onPressed: () {
                                 debugPrint("Back tapped");
                                 if (Navigator.canPop(context)) {
@@ -202,7 +218,7 @@ class _CartState extends State<Cart> {
                             Expanded(
                               child: Container(
                                 padding:
-                                    const EdgeInsets.symmetric(vertical: 20),
+                                    const EdgeInsets.symmetric(vertical: 12),
                                 child: Row(
                                   children: [
                                     _buildProgressStep("Cart",
@@ -228,7 +244,7 @@ class _CartState extends State<Cart> {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 48),
+                            const SizedBox(width: 16),
                           ],
                         ),
                         Padding(
@@ -283,8 +299,8 @@ class _CartState extends State<Cart> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 24,
-          height: 24,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
             color: isCompleted || isActive
                 ? Colors.white.withOpacity(0.2)
@@ -294,28 +310,38 @@ class _CartState extends State<Cart> {
               width: 2,
             ),
             shape: BoxShape.circle,
+            boxShadow: isCompleted || isActive
+                ? [
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.3),
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
           child: Center(
             child: isCompleted
-                ? Icon(Icons.check, size: 14, color: Colors.white)
+                ? Icon(Icons.check, size: 16, color: Colors.white)
                 : Text(
                     step.toString(),
                     style: TextStyle(
                       color: color,
                       fontWeight: FontWeight.bold,
-                      fontSize: 11,
+                      fontSize: 12,
                     ),
                   ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
           text,
           style: TextStyle(
             color: color,
-            fontSize: 11,
+            fontSize: 12,
             fontWeight:
-                isActive || isCompleted ? FontWeight.bold : FontWeight.normal,
+                isActive || isCompleted ? FontWeight.w600 : FontWeight.w500,
+            letterSpacing: 0.3,
           ),
         ),
       ],
@@ -324,40 +350,74 @@ class _CartState extends State<Cart> {
 
   Widget _buildEmptyCart() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.shopping_cart_outlined,
-              size: 60, color: Colors.grey),
-          const SizedBox(height: 16),
-          const Text(
-            'Your cart is empty',
-            style: TextStyle(fontSize: 18, color: Colors.grey),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.shopping_cart_outlined,
+                size: 80,
+                color: Colors.grey.shade400,
               ),
             ),
-            onPressed: () {
-              // Navigate to sign-in screen
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => HomePage(),
-                ),
-              );
-            },
-            child: const Text(
-              'Continue Shopping',
-              style: TextStyle(color: Colors.white),
+            const SizedBox(height: 24),
+            Text(
+              'Your cart is empty',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade700,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Text(
+              'Looks like you haven\'t added any items to your cart yet.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade600,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green.shade600,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => HomePage(),
+                    ),
+                  );
+                },
+                child: const Text(
+                  'Start Shopping',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -365,111 +425,161 @@ class _CartState extends State<Cart> {
   Widget _buildCartItem(CartProvider cart, int index) {
     final item = cart.cartItems[index];
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[200]!),
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: Container(
-              width: 80,
-              height: 80,
-              margin: const EdgeInsets.all(8),
-              child: CachedNetworkImage(
-                imageUrl: getImageUrl(item.image),
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
-                  color: Colors.grey[200],
-                  child: const Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          children: [
+            // Product Image - smaller size
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                width: 50,
+                height: 50,
+                child: CachedNetworkImage(
+                  imageUrl: getImageUrl(item.image),
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(
+                    color: Colors.grey.shade100,
+                    child: Center(
+                      child: SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.green.shade600),
+                        ),
                       ),
                     ),
                   ),
+                  errorWidget: (context, url, error) => Container(
+                    color: Colors.grey.shade100,
+                    child: Icon(Icons.error_outline,
+                        color: Colors.red.shade400, size: 18),
+                  ),
                 ),
-                errorWidget: (context, url, error) => Container(
-                  color: Colors.grey[200],
-                  child: const Icon(Icons.error_outline, color: Colors.red),
-                ),
-                memCacheWidth: 160, // 2x display size for high DPI screens
-                memCacheHeight: 160,
-                maxWidthDiskCache: 320, // Larger size for disk cache
-                maxHeightDiskCache: 320,
               ),
             ),
-          ),
 
-          // Product Details
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+            const SizedBox(width: 10),
+
+            // Product Details
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     item.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (item.batchNo.isNotEmpty)
-                    Text(
-                      'Batch: ${item.batchNo}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(
-                    'GH${item.price.toStringAsFixed(2)}',
-                    style: TextStyle(color: Colors.green[700]),
+                    'GHS ${item.price.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.green.shade700,
+                    ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
+
+                  // Quantity Controls - more compact
                   Row(
                     children: [
-                      // Quantity controls
                       Container(
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey[300]!),
-                          borderRadius: BorderRadius.circular(4),
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(5),
                         ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.remove, size: 18),
                               onPressed: () {
                                 if (item.quantity > 1) {
                                   cart.updateQuantity(index, item.quantity - 1);
+                                } else {
+                                  cart.removeFromCart(item.id);
                                 }
                               },
+                              icon: Icon(
+                                item.quantity > 1
+                                    ? Icons.remove
+                                    : Icons.delete_outline,
+                                size: 14,
+                                color: item.quantity > 1
+                                    ? Colors.grey.shade700
+                                    : Colors.red.shade400,
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 24,
+                                minHeight: 24,
+                              ),
+                              padding: EdgeInsets.zero,
                             ),
-                            Text(item.quantity.toString()),
+                            Container(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 6),
+                              child: Text(
+                                '${item.quantity}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
                             IconButton(
-                              icon: const Icon(Icons.add, size: 18),
-                              onPressed: () =>
-                                  cart.updateQuantity(index, item.quantity + 1),
+                              onPressed: () {
+                                cart.updateQuantity(index, item.quantity + 1);
+                              },
+                              icon: Icon(
+                                Icons.add,
+                                size: 14,
+                                color: Colors.green.shade600,
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 24,
+                                minHeight: 24,
+                              ),
+                              padding: EdgeInsets.zero,
                             ),
                           ],
                         ),
                       ),
                       const Spacer(),
-                      IconButton(
-                        icon:
-                            const Icon(Icons.delete_outline, color: Colors.red),
-                        onPressed: () => cart.removeFromCart(item.id),
+                      Text(
+                        'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

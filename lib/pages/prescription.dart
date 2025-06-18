@@ -1,16 +1,14 @@
 // pages/prescription.dart
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
 import 'homepage.dart';
 import 'package:dotted_border/dotted_border.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'AppBackButton.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
+import 'package:google_fonts/google_fonts.dart';
 
 class PrescriptionUploadPage extends StatefulWidget {
   final Map<String, dynamic>? item;
@@ -324,12 +322,30 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        backgroundColor:
-            theme.appBarTheme.backgroundColor ?? Colors.green.shade700,
-        elevation: theme.appBarTheme.elevation ?? 0,
-        centerTitle: theme.appBarTheme.centerTitle ?? true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.green.shade700,
+                Colors.green.shade800,
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
         leading: AppBackButton(
-          backgroundColor: theme.primaryColor,
+          backgroundColor: Colors.white.withOpacity(0.2),
           onPressed: () {
             if (Navigator.canPop(context)) {
               Navigator.pop(context);
@@ -345,17 +361,17 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
           children: [
             Text(
               'Upload Prescription',
-              style: theme.appBarTheme.titleTextStyle ??
-                  TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+                letterSpacing: 0.5,
+              ),
             ),
             Text(
               'Get your medicines delivered',
-              style: TextStyle(
-                fontSize: 12,
+              style: GoogleFonts.poppins(
+                fontSize: 11,
                 color: Colors.white70,
                 fontWeight: FontWeight.w400,
               ),

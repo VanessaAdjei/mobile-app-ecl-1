@@ -954,533 +954,692 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   Widget build(BuildContext context) {
     final total = widget.purchasedItems
         .fold<double>(0, (sum, item) => sum + (item.price * item.quantity));
+    final topPadding = MediaQuery.of(context).padding.top;
+    final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Order Confirmation'),
-        backgroundColor: Colors.green.shade700,
-        foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // Navigate back to home page using a more direct approach
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const HomePage(),
-              ),
-              (route) => false,
-            );
-          },
-        ),
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          setState(() => _isLoading = true);
-          try {
-            final result = await _fetchPaymentStatus();
-            setState(() {
-              _status = result['status'];
-              _statusMessage = result['message'];
-              _hasFetchedStatus = true;
-            });
-          } catch (e) {
-            print('Error fetching status: $e');
-          } finally {
-            setState(() => _isLoading = false);
-          }
-        },
-        child: SingleChildScrollView(
-          physics: AlwaysScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      body: Stack(
+        children: [
+          Column(
             children: [
-              // Status Banner
-              Container(
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: _status?.toLowerCase() == 'success'
-                        ? [Colors.green.shade50, Colors.green.shade100]
-                        : _status?.toLowerCase() == 'failed'
-                            ? [Colors.red.shade50, Colors.red.shade100]
-                            : [Colors.orange.shade50, Colors.orange.shade100],
+              // Custom header (modernized)
+              Animate(
+                effects: [
+                  FadeEffect(duration: 400.ms),
+                  SlideEffect(
+                      duration: 400.ms,
+                      begin: Offset(0, 0.1),
+                      end: Offset(0, 0))
+                ],
+                child: Container(
+                  padding: EdgeInsets.only(top: topPadding),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.green.shade700,
+                        Colors.green.shade800,
+                      ],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        _status?.toLowerCase() == 'success'
-                            ? Icons.check_circle
-                            : _status?.toLowerCase() == 'failed'
-                                ? Icons.error
-                                : Icons.pending,
-                        color: _getStatusColor(_status),
-                        size: 40,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _getStatusLabel(_status),
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: _getStatusColor(_status),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _getStatusMessage(_status),
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: _getStatusColor(_status).withOpacity(0.8),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    if (widget.paymentMethod != 'Cash on Delivery') ...[
-                      const SizedBox(height: 12),
+                  child: Column(
+                    children: [
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
+                          AppBackButton(
+                            backgroundColor: Colors.white.withOpacity(0.2),
+                            onPressed: () {
+                              // Navigate back to home page using a more direct approach
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const HomePage(),
                                 ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.payment,
-                                  size: 18,
-                                  color: _getStatusColor(_status),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  widget.paymentMethod,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                    color: _getStatusColor(_status),
-                                  ),
-                                ),
-                              ],
-                            ),
+                                (route) => false,
+                              );
+                            },
                           ),
-                          if (_showCheckStatusButton) ...[
-                            SizedBox(width: 12),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              child: Row(
+                                children: [
+                                  _buildProgressStep("Cart",
+                                      isActive: false,
+                                      isCompleted: true,
+                                      step: 1),
+                                  _buildProgressLine(isActive: false),
+                                  _buildProgressStep("Delivery",
+                                      isActive: false,
+                                      isCompleted: true,
+                                      step: 2),
+                                  _buildProgressLine(isActive: false),
+                                  _buildProgressStep("Payment",
+                                      isActive: false,
+                                      isCompleted: true,
+                                      step: 3),
+                                  _buildProgressLine(isActive: false),
+                                  _buildProgressStep("Confirmation",
+                                      isActive: true,
+                                      isCompleted: false,
+                                      step: 4),
                                 ],
                               ),
-                              child: InkWell(
-                                onTap: _checkPaymentStatus,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _isLoading
-                                        ? SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              valueColor:
-                                                  AlwaysStoppedAnimation<Color>(
-                                                      _getStatusColor(_status)),
-                                            ),
-                                          )
-                                        : Icon(
-                                            Icons.refresh,
-                                            size: 18,
-                                            color: _getStatusColor(_status),
-                                          ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'Check Status',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                        color: _getStatusColor(_status),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
                             ),
-                          ],
+                          ),
+                          const SizedBox(width: 16),
                         ],
                       ),
                     ],
-                  ],
+                  ),
                 ),
               ),
-
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Order Items
-                    Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Order Items',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () async {
+                    setState(() => _isLoading = true);
+                    try {
+                      final result = await _fetchPaymentStatus();
+                      setState(() {
+                        _status = result['status'];
+                        _statusMessage = result['message'];
+                        _hasFetchedStatus = true;
+                      });
+                    } catch (e) {
+                      print('Error fetching status: $e');
+                    } finally {
+                      setState(() => _isLoading = false);
+                    }
+                  },
+                  child: SingleChildScrollView(
+                    physics: AlwaysScrollableScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Status Banner
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 16, horizontal: 16),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: _status?.toLowerCase() == 'success'
+                                  ? [
+                                      Colors.green.shade50,
+                                      Colors.green.shade100
+                                    ]
+                                  : _status?.toLowerCase() == 'failed'
+                                      ? [
+                                          Colors.red.shade50,
+                                          Colors.red.shade100
+                                        ]
+                                      : [
+                                          Colors.orange.shade50,
+                                          Colors.orange.shade100
+                                        ],
                             ),
-                            const SizedBox(height: 12),
-                            ...widget.purchasedItems
-                                .map((item) => Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.1),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  _status?.toLowerCase() == 'success'
+                                      ? Icons.check_circle
+                                      : _status?.toLowerCase() == 'failed'
+                                          ? Icons.error
+                                          : Icons.pending,
+                                  color: _getStatusColor(_status),
+                                  size: 40,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                _getStatusLabel(_status),
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: _getStatusColor(_status),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _getStatusMessage(_status),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color:
+                                      _getStatusColor(_status).withOpacity(0.8),
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              if (widget.paymentMethod !=
+                                  'Cash on Delivery') ...[
+                                const SizedBox(height: 12),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(20),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color:
+                                                Colors.black.withOpacity(0.05),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
                                       child: Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          // Product Image
-                                          ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                            child: Image.network(
-                                              getImageUrl(item.image),
-                                              width: 60,
-                                              height: 60,
-                                              fit: BoxFit.cover,
-                                              loadingBuilder: (context, child,
-                                                  loadingProgress) {
-                                                if (loadingProgress == null)
-                                                  return child;
-                                                return Container(
-                                                  width: 60,
-                                                  height: 60,
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.grey[200],
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            8),
-                                                  ),
-                                                  child: Center(
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                      value: loadingProgress
-                                                                  .expectedTotalBytes !=
-                                                              null
-                                                          ? loadingProgress
-                                                                  .cumulativeBytesLoaded /
-                                                              loadingProgress
-                                                                  .expectedTotalBytes!
-                                                          : null,
-                                                      strokeWidth: 2,
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                              errorBuilder:
-                                                  (context, error, stackTrace) {
-                                                print(
-                                                    'Error loading image: $error');
-                                                return Container(
-                                                  width: 60,
-                                                  height: 60,
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.grey[200],
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            8),
-                                                  ),
-                                                  child: Column(
-                                                    mainAxisAlignment:
-                                                        MainAxisAlignment
-                                                            .center,
-                                                    children: [
-                                                      Icon(
-                                                          Icons
-                                                              .image_not_supported,
-                                                          color:
-                                                              Colors.grey[400],
-                                                          size: 20),
-                                                      Text(
-                                                        'No Image',
-                                                        style: TextStyle(
-                                                          color:
-                                                              Colors.grey[400],
-                                                          fontSize: 10,
-                                                        ),
-                                                        textAlign:
-                                                            TextAlign.center,
-                                                      ),
-                                                    ],
-                                                  ),
-                                                );
-                                              },
-                                            ),
+                                          Icon(
+                                            Icons.payment,
+                                            size: 18,
+                                            color: _getStatusColor(_status),
                                           ),
-                                          const SizedBox(width: 12),
-                                          // Product Details
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  item.name,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  'GHS ${item.price.toStringAsFixed(2)} x ${item.quantity}',
-                                                  style: TextStyle(
-                                                    color: Colors.grey[600],
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          // Item Total
+                                          const SizedBox(width: 6),
                                           Text(
-                                            'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
+                                            widget.paymentMethod,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w500,
+                                              color: _getStatusColor(_status),
                                             ),
                                           ),
                                         ],
                                       ),
-                                    ))
-                                .toList(),
-                            const Divider(height: 24),
-                            // Total
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'Total Amount',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                Text(
-                                  'GHS ${total.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    color: Colors.green.shade700,
-                                  ),
+                                    ),
+                                    if (_showCheckStatusButton) ...[
+                                      SizedBox(width: 12),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black
+                                                  .withOpacity(0.05),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: InkWell(
+                                          onTap: _checkPaymentStatus,
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              _isLoading
+                                                  ? SizedBox(
+                                                      width: 18,
+                                                      height: 18,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        valueColor:
+                                                            AlwaysStoppedAnimation<
+                                                                    Color>(
+                                                                _getStatusColor(
+                                                                    _status)),
+                                                      ),
+                                                    )
+                                                  : Icon(
+                                                      Icons.refresh,
+                                                      size: 18,
+                                                      color: _getStatusColor(
+                                                          _status),
+                                                    ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                'Check Status',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w500,
+                                                  color:
+                                                      _getStatusColor(_status),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ],
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
 
-                    // Action Buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (_status?.toLowerCase() == 'failed') ...[
-                          const SizedBox(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              ElevatedButton.icon(
-                                onPressed: () {
-                                  Navigator.pushAndRemoveUntil(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const HomePage(),
-                                    ),
-                                    (route) => false,
-                                  );
-                                },
-                                icon: const Icon(Icons.shopping_cart, size: 18),
-                                label: const Text('Continue Shopping',
-                                    style: TextStyle(fontSize: 13)),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green.shade700,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
+                              // Order Items
+                              Card(
+                                elevation: 2,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              ElevatedButton.icon(
-                                onPressed: () {
-                                  Navigator.pushAndRemoveUntil(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const Cart(),
-                                    ),
-                                    (route) => false,
-                                  );
-                                },
-                                icon: const Icon(Icons.refresh, size: 18),
-                                label: const Text('Try Again',
-                                    style: TextStyle(fontSize: 13)),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.orange.shade700,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-
-                        // Only show Track Order button for successful payments
-                        if (_paymentSuccess) ...[
-                          const SizedBox(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              ElevatedButton.icon(
-                                onPressed: () {
-                                  Navigator.pushAndRemoveUntil(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const HomePage(),
-                                    ),
-                                    (route) => false,
-                                  );
-                                },
-                                icon: const Icon(Icons.shopping_cart, size: 18),
-                                label: const Text('Continue Shopping',
-                                    style: TextStyle(fontSize: 13)),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green.shade700,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              ElevatedButton.icon(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => OrderTrackingPage(
-                                        orderDetails: {
-                                          'order_id': _transactionId,
-                                          'status': _status,
-                                          'created_at':
-                                              DateTime.now().toIso8601String(),
-                                          'product_name': widget.purchasedItems
-                                              .map((item) => item.name)
-                                              .join(', '),
-                                          'product_img':
-                                              widget.purchasedItems.isNotEmpty
-                                                  ? widget.purchasedItems.first
-                                                      .image
-                                                  : '',
-                                          'qty': widget.purchasedItems.fold(
-                                              0,
-                                              (sum, item) =>
-                                                  sum + item.quantity),
-                                          'price':
-                                              widget.purchasedItems.isNotEmpty
-                                                  ? widget.purchasedItems.first
-                                                      .price
-                                                  : 0,
-                                          'total_price':
-                                              widget.purchasedItems
-                                                  .fold(
-                                                      0.0,
-                                                      (sum, item) =>
-                                                          sum +
-                                                          (item.price *
-                                                              item.quantity)),
-                                        },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Order Items',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
-                                icon:
-                                    const Icon(Icons.local_shipping, size: 18),
-                                label: const Text('Track Order',
-                                    style: TextStyle(fontSize: 13)),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blue.shade700,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
+                                      const SizedBox(height: 12),
+                                      ...widget.purchasedItems
+                                          .map((item) => Padding(
+                                                padding: const EdgeInsets.only(
+                                                    bottom: 12),
+                                                child: Row(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    // Product Image
+                                                    ClipRRect(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              8),
+                                                      child: Image.network(
+                                                        getImageUrl(item.image),
+                                                        width: 60,
+                                                        height: 60,
+                                                        fit: BoxFit.cover,
+                                                        loadingBuilder: (context,
+                                                            child,
+                                                            loadingProgress) {
+                                                          if (loadingProgress ==
+                                                              null)
+                                                            return child;
+                                                          return Container(
+                                                            width: 60,
+                                                            height: 60,
+                                                            decoration:
+                                                                BoxDecoration(
+                                                              color: Colors
+                                                                  .grey[200],
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          8),
+                                                            ),
+                                                            child: Center(
+                                                              child:
+                                                                  CircularProgressIndicator(
+                                                                value: loadingProgress
+                                                                            .expectedTotalBytes !=
+                                                                        null
+                                                                    ? loadingProgress
+                                                                            .cumulativeBytesLoaded /
+                                                                        loadingProgress
+                                                                            .expectedTotalBytes!
+                                                                    : null,
+                                                                strokeWidth: 2,
+                                                              ),
+                                                            ),
+                                                          );
+                                                        },
+                                                        errorBuilder: (context,
+                                                            error, stackTrace) {
+                                                          print(
+                                                              'Error loading image: $error');
+                                                          return Container(
+                                                            width: 60,
+                                                            height: 60,
+                                                            decoration:
+                                                                BoxDecoration(
+                                                              color: Colors
+                                                                  .grey[200],
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          8),
+                                                            ),
+                                                            child: Column(
+                                                              mainAxisAlignment:
+                                                                  MainAxisAlignment
+                                                                      .center,
+                                                              children: [
+                                                                Icon(
+                                                                    Icons
+                                                                        .image_not_supported,
+                                                                    color: Colors
+                                                                            .grey[
+                                                                        400],
+                                                                    size: 20),
+                                                                Text(
+                                                                  'No Image',
+                                                                  style:
+                                                                      TextStyle(
+                                                                    color: Colors
+                                                                            .grey[
+                                                                        400],
+                                                                    fontSize:
+                                                                        10,
+                                                                  ),
+                                                                  textAlign:
+                                                                      TextAlign
+                                                                          .center,
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          );
+                                                        },
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 12),
+                                                    // Product Details
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(
+                                                            item.name,
+                                                            style:
+                                                                const TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w500,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                              height: 4),
+                                                          Text(
+                                                            'GHS ${item.price.toStringAsFixed(2)} x ${item.quantity}',
+                                                            style: TextStyle(
+                                                              color: Colors
+                                                                  .grey[600],
+                                                              fontSize: 12,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    // Item Total
+                                                    Text(
+                                                      'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ))
+                                          .toList(),
+                                      const Divider(height: 24),
+                                      // Total
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          const Text(
+                                            'Total Amount',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          Text(
+                                            'GHS ${total.toStringAsFixed(2)}',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: Colors.green.shade700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
+                              const SizedBox(height: 24),
+
+                              // Action Buttons
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  if (_status?.toLowerCase() == 'failed') ...[
+                                    const SizedBox(height: 16),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        ElevatedButton.icon(
+                                          onPressed: () {
+                                            Navigator.pushAndRemoveUntil(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    const HomePage(),
+                                              ),
+                                              (route) => false,
+                                            );
+                                          },
+                                          icon: const Icon(Icons.shopping_cart,
+                                              size: 18),
+                                          label: const Text('Continue Shopping',
+                                              style: TextStyle(fontSize: 13)),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                Colors.green.shade700,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 8,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        ElevatedButton.icon(
+                                          onPressed: () {
+                                            Navigator.pushAndRemoveUntil(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    const Cart(),
+                                              ),
+                                              (route) => false,
+                                            );
+                                          },
+                                          icon: const Icon(Icons.refresh,
+                                              size: 18),
+                                          label: const Text('Try Again',
+                                              style: TextStyle(fontSize: 13)),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                Colors.orange.shade700,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 8,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+
+                                  // Only show Track Order button for successful payments
+                                  if (_paymentSuccess) ...[
+                                    const SizedBox(height: 16),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        ElevatedButton.icon(
+                                          onPressed: () {
+                                            Navigator.pushAndRemoveUntil(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    const HomePage(),
+                                              ),
+                                              (route) => false,
+                                            );
+                                          },
+                                          icon: const Icon(Icons.shopping_cart,
+                                              size: 18),
+                                          label: const Text('Continue Shopping',
+                                              style: TextStyle(fontSize: 13)),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                Colors.green.shade700,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 8,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        ElevatedButton.icon(
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    OrderTrackingPage(
+                                                  orderDetails: {
+                                                    'order_id': _transactionId,
+                                                    'transaction_id':
+                                                        _transactionId,
+                                                    'status': _status,
+                                                    'created_at': DateTime.now()
+                                                        .toIso8601String(),
+                                                    'product_name': widget
+                                                            .purchasedItems
+                                                            .isNotEmpty
+                                                        ? widget.purchasedItems
+                                                            .first.name
+                                                        : 'Unknown Product',
+                                                    'product_img': widget
+                                                            .purchasedItems
+                                                            .isNotEmpty
+                                                        ? widget.purchasedItems
+                                                            .first.image
+                                                        : '',
+                                                    'qty': widget.purchasedItems
+                                                        .fold(
+                                                            0,
+                                                            (sum, item) =>
+                                                                sum +
+                                                                item.quantity),
+                                                    'price': widget
+                                                            .purchasedItems
+                                                            .isNotEmpty
+                                                        ? widget.purchasedItems
+                                                            .first.price
+                                                        : 0,
+                                                    'total_price': widget
+                                                        .purchasedItems
+                                                        .fold(
+                                                            0.0,
+                                                            (sum, item) =>
+                                                                sum +
+                                                                (item.price *
+                                                                    item.quantity)),
+                                                    'order_items': widget
+                                                        .purchasedItems
+                                                        .map((item) => {
+                                                              'product_name':
+                                                                  item.name,
+                                                              'product_img':
+                                                                  item.image,
+                                                              'qty':
+                                                                  item.quantity,
+                                                              'price':
+                                                                  item.price,
+                                                              'batch_no':
+                                                                  item.batchNo,
+                                                            })
+                                                        .toList(),
+                                                    'is_multi_item': widget
+                                                            .purchasedItems
+                                                            .length >
+                                                        1,
+                                                    'item_count': widget
+                                                        .purchasedItems.length,
+                                                  },
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          icon: const Icon(Icons.local_shipping,
+                                              size: 18),
+                                          label: const Text('Track Order',
+                                              style: TextStyle(fontSize: 13)),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                Colors.blue.shade700,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 8,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ],
                           ),
-                        ],
+                        ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }
@@ -1803,6 +1962,66 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         'message': 'Payment status is being processed',
       };
     }
+  }
+
+  Widget _buildProgressLine({required bool isActive}) {
+    return Expanded(
+      child: Container(
+        height: 1,
+        color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
+      ),
+    );
+  }
+
+  Widget _buildProgressStep(String text,
+      {required bool isActive, required bool isCompleted, required int step}) {
+    final color = isCompleted
+        ? Colors.white
+        : isActive
+            ? Colors.white
+            : Colors.white.withOpacity(0.6);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: isCompleted || isActive
+                ? Colors.white.withOpacity(0.2)
+                : Colors.transparent,
+            border: Border.all(
+              color: color,
+              width: 2,
+            ),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: isCompleted
+                ? Icon(Icons.check, size: 14, color: Colors.white)
+                : Text(
+                    step.toString(),
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          text,
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight:
+                isActive || isCompleted ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ],
+    );
   }
 }
 

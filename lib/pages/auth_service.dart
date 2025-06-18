@@ -49,9 +49,11 @@ class AuthService {
       // If not in memory, check storage
       _authToken = await _secureStorage.read(key: authTokenKey);
       if (_authToken != null) {
-        _isLoggedIn = await _verifyToken();
+        _isLoggedIn = await _checkTokenValidity();
         if (!_isLoggedIn) {
-          await clearToken();
+          // Don't clear token automatically on startup, just set login state to false
+          print(
+              'Token validation failed on startup, but keeping token for user to decide');
         } else {
           _startTokenRefreshTimer();
         }
@@ -445,9 +447,10 @@ class AuthService {
       if (_lastTokenVerification == null ||
           DateTime.now().difference(_lastTokenVerification!) >
               _tokenVerificationInterval) {
-        final isValid = await _verifyToken();
+        final isValid = await _checkTokenValidity();
         if (!isValid) {
-          await clearToken();
+          // Don't clear token automatically, just return false
+          _isLoggedIn = false;
           return false;
         }
       }
@@ -465,9 +468,10 @@ class AuthService {
     if (_lastTokenVerification == null ||
         DateTime.now().difference(_lastTokenVerification!) >
             _tokenVerificationInterval) {
-      final isValid = await _verifyToken();
+      final isValid = await _checkTokenValidity();
       if (!isValid) {
-        await clearToken();
+        // Don't clear token automatically, just return false
+        _isLoggedIn = false;
         return false;
       }
     }
@@ -477,11 +481,12 @@ class AuthService {
     return true;
   }
 
-  static Future<bool> _verifyToken() async {
+  // New method to check token validity without clearing it
+  static Future<bool> _checkTokenValidity() async {
     if (_authToken == null) return false;
 
     try {
-      print('Verifying token...');
+      print('Checking token validity...');
       final response = await http.get(
         Uri.parse('$baseUrl/verify-token'),
         headers: {
@@ -491,12 +496,18 @@ class AuthService {
       );
 
       _lastTokenVerification = DateTime.now();
-      print('Token verification response: ${response.statusCode}');
+      print('Token validity check response: ${response.statusCode}');
       return response.statusCode == 200;
     } catch (e) {
-      print('Error verifying token: $e');
+      print('Error checking token validity: $e');
+      // Don't clear token on network errors, just return false
       return false;
     }
+  }
+
+  // Keep the original _verifyToken method for backward compatibility
+  static Future<bool> _verifyToken() async {
+    return await _checkTokenValidity();
   }
 
   //  logout
@@ -526,7 +537,7 @@ class AuthService {
         if (_lastTokenVerification == null ||
             DateTime.now().difference(_lastTokenVerification!) >
                 _tokenVerificationInterval) {
-          await _verifyToken();
+          await _checkTokenValidity();
         }
       }
     });

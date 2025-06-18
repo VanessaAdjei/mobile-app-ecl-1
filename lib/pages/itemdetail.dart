@@ -24,6 +24,7 @@ import 'dart:ui';
 import 'package:eclapp/pages/cart.dart' as cart;
 import 'package:eclapp/pages/upload_prescription.dart';
 import '../widgets/cart_icon_button.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ItemPage extends StatefulWidget {
   final String urlName;
@@ -433,11 +434,30 @@ class _ItemPageState extends State<ItemPage> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: theme.appBarTheme.backgroundColor,
-        elevation: theme.appBarTheme.elevation,
-        centerTitle: theme.appBarTheme.centerTitle,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.green.shade700,
+                Colors.green.shade800,
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
         leading: AppBackButton(
-          backgroundColor: theme.primaryColor,
+          backgroundColor: Colors.white.withOpacity(0.2),
           onPressed: () => Navigator.pop(context),
         ),
         title: FutureBuilder<Product>(
@@ -446,8 +466,11 @@ class _ItemPageState extends State<ItemPage> {
             if (snapshot.hasData) {
               return Text(
                 snapshot.data!.name,
-                style: theme.appBarTheme.titleTextStyle?.copyWith(
+                style: GoogleFonts.poppins(
                   fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  letterSpacing: 0.3,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -455,15 +478,22 @@ class _ItemPageState extends State<ItemPage> {
             }
             return Text(
               'Product Details',
-              style: theme.appBarTheme.titleTextStyle?.copyWith(
+              style: GoogleFonts.poppins(
                 fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+                letterSpacing: 0.3,
               ),
             );
           },
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
+          Container(
+            margin: EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: CartIconButton(
               iconColor: Colors.white,
               iconSize: 24,

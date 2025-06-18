@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'Cart.dart';
 import 'CartItem.dart';
@@ -49,8 +50,74 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
       final result = await AuthService.getOrders();
       if (result['status'] == 'success' && result['data'] is List) {
         if (mounted) {
+          // Group orders by transaction ID to combine items purchased together
+          final rawOrders = result['data'] as List;
+          final Map<String, List<dynamic>> groupedOrders = {};
+
+          print('Raw orders count: ${rawOrders.length}');
+
+          for (final order in rawOrders) {
+            final transactionId = order['transaction_id'] ??
+                order['order_id'] ??
+                'unknown_${DateTime.now().millisecondsSinceEpoch}';
+
+            if (!groupedOrders.containsKey(transactionId)) {
+              groupedOrders[transactionId] = [];
+            }
+            groupedOrders[transactionId]!.add(order);
+          }
+
+          print('Grouped orders count: ${groupedOrders.length}');
+          print('Grouped orders: ${groupedOrders.keys.toList()}');
+
+          // Convert grouped orders to a list of combined orders
+          final combinedOrders = groupedOrders.entries.map((entry) {
+            final orders = entry.value;
+            print(
+                'Processing transaction ${entry.key} with ${orders.length} items');
+
+            if (orders.length == 1) {
+              // Single item order - return as is
+              return orders.first;
+            } else {
+              // Multi-item order - combine into one order
+              final firstOrder = orders.first;
+              final orderItems = orders
+                  .map((order) => {
+                        'product_name':
+                            order['product_name'] ?? 'Unknown Product',
+                        'product_img': order['product_img'] ?? '',
+                        'qty': order['qty'] ?? 1,
+                        'price': order['price'] ?? 0.0,
+                        'batch_no': order['batch_no'] ?? '',
+                      })
+                  .toList();
+
+              // Calculate totals
+              final totalQuantity = orders.fold<int>(
+                  0, (sum, order) => sum + (order['qty'] ?? 1) as int);
+              final totalAmount = orders.fold<double>(0.0, (sum, order) {
+                final price = (order['price'] ?? 0.0).toDouble();
+                final qty = order['qty'] ?? 1;
+                return sum + (price * qty);
+              });
+
+              print(
+                  'Combined ${orders.length} items into single order with total quantity: $totalQuantity, total amount: $totalAmount');
+
+              return {
+                ...firstOrder,
+                'order_items': orderItems,
+                'qty': totalQuantity,
+                'total_price': totalAmount,
+                'is_multi_item': true,
+                'item_count': orders.length,
+              };
+            }
+          }).toList();
+
           setState(() {
-            _orders = result['data'];
+            _orders = combinedOrders;
             _orders.sort((a, b) {
               final dateA =
                   DateTime.tryParse(a['created_at'] ?? '') ?? DateTime(1970);
@@ -147,7 +214,13 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
 
   Widget _buildOrderCard(dynamic order) {
     final orderDate = DateTime.tryParse(order['created_at'] ?? '');
-    final productName = order['product_name'] ?? 'Unknown Product';
+    final isMultiItem = order['is_multi_item'] == true;
+    final itemCount = order['item_count'] ?? 1;
+
+    // For multi-item orders, show first item as representative
+    final productName = isMultiItem
+        ? '${order['product_name'] ?? 'Unknown Product'} + ${itemCount - 1} more items'
+        : order['product_name'] ?? 'Unknown Product';
     final productImg = getImageUrl(order['product_img']);
     final qty = order['qty'] ?? 1;
     final price = order['price'] ?? 0.0;
@@ -185,6 +258,23 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                     style: TextStyle(color: Colors.grey[600], fontSize: 13),
                   ),
                   const Spacer(),
+                  if (isMultiItem) ...[
+                    Container(
+                      margin: EdgeInsets.only(right: 8),
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[100],
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$itemCount items',
+                        style: TextStyle(
+                            color: Colors.blue[700],
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -237,41 +327,30 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                       children: [
                         Text(
                           productName,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 15),
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 4),
+                        SizedBox(height: 4),
                         Text(
                           'Qty: $qty',
                           style:
                               TextStyle(color: Colors.grey[600], fontSize: 13),
                         ),
+                        SizedBox(height: 4),
+                        Text(
+                          'GHS ${total.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            color: Colors.green[700],
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
                       ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'GHS ${price.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                  ),
-                ],
-              ),
-              const Divider(height: 28, thickness: 1.1),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    'Total: GHS ${total.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.green,
                     ),
                   ),
                 ],
@@ -429,12 +508,30 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        backgroundColor:
-            theme.appBarTheme.backgroundColor ?? Colors.green.shade700,
-        elevation: theme.appBarTheme.elevation ?? 0,
-        centerTitle: theme.appBarTheme.centerTitle ?? true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.green.shade700,
+                Colors.green.shade800,
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
         leading: AppBackButton(
-          backgroundColor: theme.primaryColor,
+          backgroundColor: Colors.white.withOpacity(0.2),
           onPressed: () {
             Navigator.pushReplacement(
               context,
@@ -446,23 +543,37 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
         ),
         title: Text(
           'Your Orders',
-          style: theme.appBarTheme.titleTextStyle ??
-              const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            letterSpacing: 0.5,
+          ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _fetchOrders,
-            tooltip: 'Refresh',
+          Container(
+            margin: EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              onPressed: _fetchOrders,
+              tooltip: 'Refresh',
+            ),
           ),
-          CartIconButton(
-            iconColor: Colors.white,
-            iconSize: 24,
-            backgroundColor: Colors.transparent,
+          Container(
+            margin: EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: CartIconButton(
+              iconColor: Colors.white,
+              iconSize: 24,
+              backgroundColor: Colors.transparent,
+            ),
           ),
         ],
       ),

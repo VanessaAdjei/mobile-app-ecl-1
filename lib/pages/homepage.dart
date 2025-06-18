@@ -14,7 +14,6 @@ import 'package:eclapp/pages/cart.dart';
 import 'ProductModel.dart';
 import 'auth_service.dart';
 import 'bottomnav.dart';
-import 'cache.dart';
 import 'clickableimage.dart';
 import 'itemdetail.dart';
 import 'package:shimmer/shimmer.dart';
@@ -133,8 +132,6 @@ class _HomePageState extends State<HomePage>
   List<Product> popularProducts = [];
   final RefreshController _refreshController = RefreshController();
   bool _allContentLoaded = false;
-  final CacheService _cache = CacheService();
-  static const String _productsCacheKey = 'home_products';
   TextEditingController searchController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
 
@@ -202,8 +199,6 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _loadAllContent() async {
-    if (_allContentLoaded && !_cache.shouldRefreshCache()) return;
-
     setState(() => _allContentLoaded = false);
     try {
       // Load products first, then popular products
@@ -211,14 +206,8 @@ class _HomePageState extends State<HomePage>
       // Load popular products in background
       _fetchPopularProducts();
     } catch (e) {
-      final cachedProducts = _cache.getCachedData(_productsCacheKey);
-      if (cachedProducts != null) {
-        setState(() {
-          _products = cachedProducts;
-          filteredProducts = cachedProducts;
-          _allContentLoaded = true;
-        });
-      }
+      // Handle error without cache fallback
+      print('Error loading content: $e');
     } finally {
       if (mounted) {
         setState(() => _allContentLoaded = true);
@@ -924,30 +913,31 @@ class _HomePageState extends State<HomePage>
     double imageHeight = 120,
   }) {
     final screenWidth = MediaQuery.of(context).size.width;
-    double cardWidth = screenWidth * (screenWidth < 600 ? 0.38 : 0.42);
+    // Reduce card width for more compact layout
+    double cardWidth = screenWidth * (screenWidth < 600 ? 0.35 : 0.38);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Card is only the image (square)
+        // Card is only the image (square) - more compact
         Container(
           width: cardWidth,
           margin: EdgeInsets.symmetric(
-              horizontal: screenWidth * 0.01, vertical: screenWidth * 0.002),
+              horizontal: screenWidth * 0.008, vertical: 0),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 3,
-                offset: Offset(0, 1),
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 4,
+                offset: Offset(0, 2),
               ),
             ],
           ),
           child: Stack(
             children: [
               InkWell(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(8),
                 onTap: () {
                   Navigator.push(
                     context,
@@ -960,7 +950,7 @@ class _HomePageState extends State<HomePage>
                   );
                 },
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(8),
                   child: AspectRatio(
                     aspectRatio: 1,
                     child: Container(
@@ -984,19 +974,19 @@ class _HomePageState extends State<HomePage>
               ),
               if (product.otcpom?.toLowerCase() == 'pom')
                 Positioned(
-                  top: 3,
-                  left: 3,
+                  bottom: 8,
+                  left: 2,
                   child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    padding: EdgeInsets.symmetric(horizontal: 3, vertical: 1),
                     decoration: BoxDecoration(
                       color: Colors.red[700],
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(3),
                     ),
                     child: Text(
                       'Prescribed',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 9,
+                        fontSize: 8,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1005,29 +995,30 @@ class _HomePageState extends State<HomePage>
             ],
           ),
         ),
-        // Name and price beneath the card
+        // Name and price beneath the card - minimal spacing
         SizedBox(
           width: cardWidth,
           child: Column(
             children: [
+              const SizedBox(height: 1),
               Text(
                 product.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: fontSize * 1.0,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
+                  fontSize: fontSize * 0.95,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
                 ),
               ),
               Text(
                 'GHS ${product.price}',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: fontSize * 1.0,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green[800],
+                  fontSize: fontSize * 0.95,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.green[700],
                 ),
               ),
             ],
@@ -1050,12 +1041,15 @@ class _HomePageState extends State<HomePage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Section header with See More button on same row
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              buildSectionHeading(title, color),
+              Expanded(
+                child: buildSectionHeading(title, color),
+              ),
               TextButton(
                 onPressed: () {
                   Navigator.push(
@@ -1072,6 +1066,7 @@ class _HomePageState extends State<HomePage>
                   style: TextStyle(
                     color: color,
                     fontWeight: FontWeight.w600,
+                    fontSize: 13,
                   ),
                 ),
               ),
@@ -1081,20 +1076,20 @@ class _HomePageState extends State<HomePage>
         GridView.builder(
           shrinkWrap: true,
           physics: NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.symmetric(horizontal: 4),
+          padding: EdgeInsets.symmetric(horizontal: 8),
           itemCount: products.length > 6 ? 6 : products.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
-            childAspectRatio: 1.0,
-            mainAxisSpacing: 0,
-            crossAxisSpacing: 4,
+            childAspectRatio: 1.1,
+            mainAxisSpacing: 2,
+            crossAxisSpacing: 8,
           ),
           itemBuilder: (context, index) {
             return _buildProductCard(
               products[index],
-              fontSize: fontSize * 1.0,
+              fontSize: fontSize * 0.95,
               padding: padding * 0.8,
-              imageHeight: imageHeight * 0.9,
+              imageHeight: imageHeight * 0.85,
             );
           },
         ),
@@ -1141,11 +1136,11 @@ class _HomePageState extends State<HomePage>
           aspectRatio = 1.15;
         }
         double cardFontSize =
-            screenWidth < 400 ? 12 : (screenWidth < 600 ? 14 : 16);
+            screenWidth < 400 ? 11 : (screenWidth < 600 ? 13 : 15);
         double cardPadding =
-            screenWidth < 400 ? 8 : (screenWidth < 600 ? 12 : 16);
+            screenWidth < 400 ? 6 : (screenWidth < 600 ? 8 : 12);
         double cardImageHeight =
-            screenWidth < 400 ? 60 : (screenWidth < 600 ? 90 : 120);
+            screenWidth < 400 ? 55 : (screenWidth < 600 ? 75 : 95);
 
         return Stack(
           children: [
@@ -1950,62 +1945,150 @@ class BannerModel {
   }
 }
 
-// Helper to build a simple section heading with a subtle colored line
+// Helper to build a modern section heading with enhanced design
 Widget buildSectionHeading(String title, Color color) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          width: 4,
-          height: 22,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        SizedBox(width: 10),
-        Text(
-          title,
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-            letterSpacing: 0.5,
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-// Helper to build a sleeker capsule heading (for Popular Products)
-Widget buildCapsuleHeading(String title, Color color) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 10),
-    child: Center(
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 22, vertical: 5),
+  return Row(
+    children: [
+      // Decorative line with gradient
+      Container(
+        width: 3,
+        height: 16,
         decoration: BoxDecoration(
-          color: color.withOpacity(0.10),
-          borderRadius: BorderRadius.circular(22),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              color,
+              color.withOpacity(0.7),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(2),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.06),
-              blurRadius: 6,
-              offset: Offset(0, 2),
+              color: color.withOpacity(0.2),
+              blurRadius: 2,
+              offset: const Offset(0, 1),
             ),
           ],
         ),
-        child: Text(
-          title,
-          style: GoogleFonts.poppins(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: color,
-            letterSpacing: 0.8,
+      ),
+      const SizedBox(width: 8),
+      // Icon beside the title
+      Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Icon(
+          _getIconForSection(title),
+          color: color,
+          size: 14,
+        ),
+      ),
+      const SizedBox(width: 8),
+      // Title with enhanced styling
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+                letterSpacing: 0.2,
+              ),
+            ),
+            Container(
+              width: 25,
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    color,
+                    color.withOpacity(0.5),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+// Helper to get appropriate icon for each section
+IconData _getIconForSection(String title) {
+  switch (title.toLowerCase()) {
+    case 'drugs':
+      return Icons.medication;
+    case 'popular products':
+      return Icons.trending_up;
+    case 'otc/pom':
+      return Icons.local_pharmacy;
+    case 'wellness':
+      return Icons.favorite;
+    case 'self care':
+      return Icons.self_improvement;
+    case 'accessories':
+      return Icons.medical_services;
+    default:
+      return Icons.category;
+  }
+}
+
+// Helper to build a modern capsule heading with enhanced design
+Widget buildCapsuleHeading(String title, Color color) {
+  return Container(
+    margin: const EdgeInsets.symmetric(vertical: 4),
+    child: Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              color.withOpacity(0.12),
+              color.withOpacity(0.06),
+            ],
           ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: color.withOpacity(0.15),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.08),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _getIconForSection(title),
+              color: color,
+              size: 14,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: color,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
         ),
       ),
     ),

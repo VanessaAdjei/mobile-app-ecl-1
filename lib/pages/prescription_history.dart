@@ -13,6 +13,7 @@ import 'profile.dart';
 import 'AppBackButton.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:eclapp/widgets/error_display.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class PrescriptionHistoryScreen extends StatefulWidget {
   const PrescriptionHistoryScreen({Key? key}) : super(key: key);
@@ -212,16 +213,40 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-        elevation: Theme.of(context).appBarTheme.elevation,
-        centerTitle: Theme.of(context).appBarTheme.centerTitle,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.green.shade700,
+                Colors.green.shade800,
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
         leading: AppBackButton(
-          backgroundColor: Theme.of(context).primaryColor,
+          backgroundColor: Colors.white.withOpacity(0.2),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Uploaded Prescriptions',
-          style: Theme.of(context).appBarTheme.titleTextStyle,
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            letterSpacing: 0.5,
+          ),
         ),
       ),
       body: _isLoading

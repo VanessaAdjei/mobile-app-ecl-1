@@ -171,61 +171,164 @@ class _PaymentWebViewState extends State<PaymentWebView> {
         return false;
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Payment'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () async {
-              print('AppBar back button pressed');
-
-              if (!mounted) return;
-
-              // Show confirmation dialog
-              final shouldPop = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: Text('Cancel Payment'),
-                      content:
-                          Text('Are you sure you want to cancel this payment?'),
-                      actions: [
-                        TextButton(
-                          onPressed: () {
-                            print('Dialog: No pressed');
-                            Navigator.pop(context, false);
-                          },
-                          child: Text('No'),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            print('Dialog: Yes pressed');
-                            Navigator.pop(context, true);
-                          },
-                          child: Text('Yes'),
-                        ),
-                      ],
-                    ),
-                  ) ??
-                  false;
-
-              print('Dialog result: $shouldPop');
-              if (shouldPop) {
-                print('Attempting to navigate back to PaymentPage');
-                // Simply pop back to the previous screen (payment page)
-                Navigator.pop(context, false);
-              }
-            },
-          ),
-        ),
         body: Stack(
           children: [
-            WebViewWidget(controller: _controller),
-            if (_isLoading)
-              const Center(
-                child: CircularProgressIndicator(),
-              ),
+            Column(
+              children: [
+                // Custom header (modernized, same as PaymentPage)
+                Builder(
+                  builder: (context) {
+                    final topPadding = MediaQuery.of(context).padding.top;
+                    return Container(
+                      padding: EdgeInsets.only(top: topPadding),
+                      color: Theme.of(context).appBarTheme.backgroundColor ??
+                          Colors.green.shade700,
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.arrow_back,
+                                    color: Colors.white),
+                                onPressed: () async {
+                                  final shouldPop = await showDialog<bool>(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          title: Text('Cancel Payment'),
+                                          content: Text(
+                                              'Are you sure you want to cancel this payment?'),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context, false),
+                                              child: Text('No'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context, true),
+                                              child: Text('Yes'),
+                                            ),
+                                          ],
+                                        ),
+                                      ) ??
+                                      false;
+                                  if (shouldPop) {
+                                    Navigator.pop(context, false);
+                                  }
+                                },
+                              ),
+                              Expanded(
+                                child: Container(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                  child: Row(
+                                    children: [
+                                      _buildProgressStep("Cart",
+                                          isActive: false,
+                                          isCompleted: true,
+                                          step: 1),
+                                      _buildProgressLine(isActive: false),
+                                      _buildProgressStep("Delivery",
+                                          isActive: false,
+                                          isCompleted: true,
+                                          step: 2),
+                                      _buildProgressLine(isActive: false),
+                                      _buildProgressStep("Payment",
+                                          isActive: true,
+                                          isCompleted: false,
+                                          step: 3),
+                                      _buildProgressLine(isActive: false),
+                                      _buildProgressStep("Confirmation",
+                                          isActive: false,
+                                          isCompleted: false,
+                                          step: 4),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      WebViewWidget(controller: _controller),
+                      if (_isLoading)
+                        const Center(
+                          child: CircularProgressIndicator(),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildProgressLine({required bool isActive}) {
+    return Expanded(
+      child: Container(
+        height: 1,
+        color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
+      ),
+    );
+  }
+
+  Widget _buildProgressStep(String text,
+      {required bool isActive, required bool isCompleted, required int step}) {
+    final color = isCompleted
+        ? Colors.white
+        : isActive
+            ? Colors.white
+            : Colors.white.withOpacity(0.6);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: isCompleted || isActive
+                ? Colors.white.withOpacity(0.2)
+                : Colors.transparent,
+            border: Border.all(
+              color: color,
+              width: 2,
+            ),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: isCompleted
+                ? Icon(Icons.check, size: 14, color: Colors.white)
+                : Text(
+                    step.toString(),
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          text,
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight:
+                isActive || isCompleted ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ],
     );
   }
 }

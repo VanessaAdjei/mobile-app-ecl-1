@@ -6,12 +6,7 @@ import 'cartprovider.dart';
 import 'homepage.dart' as home;
 import 'categories.dart';
 import 'cart.dart';
-import 'purchases.dart';
 import 'profile.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'prescription_history.dart';
-import 'signinpage.dart';
-import '../widgets/cart_icon_button.dart';
 
 class CustomBottomNav extends StatefulWidget {
   final int initialIndex;
