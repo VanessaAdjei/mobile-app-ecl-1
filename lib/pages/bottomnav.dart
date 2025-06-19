@@ -109,6 +109,18 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
   @override
   Widget build(BuildContext context) {
     final cart = Provider.of<CartProvider>(context);
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // Calculate responsive dimensions
+    final navHeight = screenHeight * 0.09; // 9% of screen height
+    final iconSize = screenWidth * 0.05; // 5% of screen width
+    final fontSize = screenWidth * 0.025; // 2.5% of screen width
+
+    // Ensure minimum and maximum values
+    final finalNavHeight = navHeight.clamp(60.0, 85.0);
+    final finalIconSize = iconSize.clamp(18.0, 24.0);
+    final finalFontSize = fontSize.clamp(8.0, 12.0);
 
     return Container(
       decoration: BoxDecoration(
@@ -126,7 +138,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
         ],
       ),
       child: SizedBox(
-        height: 78,
+        height: finalNavHeight,
         child: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.transparent,
@@ -135,9 +147,9 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
           elevation: 0,
           currentIndex: _selectedIndex,
           onTap: _onItemTapped,
-          selectedFontSize: 10,
-          unselectedFontSize: 10,
-          iconSize: 20,
+          selectedFontSize: finalFontSize,
+          unselectedFontSize: finalFontSize,
+          iconSize: finalIconSize,
           items: [
             const BottomNavigationBarItem(
               icon: Icon(Icons.home),

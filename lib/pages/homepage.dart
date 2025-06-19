@@ -1039,6 +1039,21 @@ class _HomePageState extends State<HomePage>
       {required double fontSize,
       required double padding,
       required double imageHeight}) {
+    // Get screen dimensions for responsive spacing
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // Calculate responsive spacing
+    final responsiveMainAxisSpacing =
+        screenHeight * 0.005; // 0.5% of screen height
+    final responsiveCrossAxisSpacing = screenWidth * 0.02; // 2% of screen width
+    final responsivePadding = screenWidth * 0.02; // 2% of screen width
+
+    // Ensure minimum and maximum values
+    final finalMainAxisSpacing = responsiveMainAxisSpacing.clamp(2.0, 6.0);
+    final finalCrossAxisSpacing = responsiveCrossAxisSpacing.clamp(6.0, 16.0);
+    final finalPadding = responsivePadding.clamp(6.0, 16.0);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1077,13 +1092,13 @@ class _HomePageState extends State<HomePage>
         GridView.builder(
           shrinkWrap: true,
           physics: NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.symmetric(horizontal: 8),
+          padding: EdgeInsets.symmetric(horizontal: finalPadding),
           itemCount: products.length > 6 ? 6 : products.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
-            childAspectRatio: 1.1,
-            mainAxisSpacing: 2,
-            crossAxisSpacing: 8,
+            childAspectRatio: 0.9,
+            mainAxisSpacing: finalMainAxisSpacing,
+            crossAxisSpacing: finalCrossAxisSpacing,
           ),
           itemBuilder: (context, index) {
             return HomeProductCard(
@@ -1349,6 +1364,21 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildOptimizedSkeleton() {
+    // Get screen dimensions for responsive spacing
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // Calculate responsive spacing
+    final responsiveMainAxisSpacing =
+        screenHeight * 0.005; // 0.5% of screen height
+    final responsiveCrossAxisSpacing = screenWidth * 0.02; // 2% of screen width
+    final responsivePadding = screenWidth * 0.02; // 2% of screen width
+
+    // Ensure minimum and maximum values
+    final finalMainAxisSpacing = responsiveMainAxisSpacing.clamp(2.0, 6.0);
+    final finalCrossAxisSpacing = responsiveCrossAxisSpacing.clamp(6.0, 16.0);
+    final finalPadding = responsivePadding.clamp(6.0, 16.0);
+
     return Shimmer.fromColors(
       baseColor: Colors.grey[300]!,
       highlightColor: Colors.grey[100]!,
@@ -1397,13 +1427,13 @@ class _HomePageState extends State<HomePage>
             GridView.builder(
               physics: NeverScrollableScrollPhysics(),
               shrinkWrap: true,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: EdgeInsets.symmetric(horizontal: finalPadding),
               itemCount: 4,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.7,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
+                childAspectRatio: 0.9,
+                mainAxisSpacing: finalMainAxisSpacing,
+                crossAxisSpacing: finalCrossAxisSpacing,
               ),
               itemBuilder: (context, index) => _buildProductSkeleton(),
             ),
@@ -1415,13 +1445,13 @@ class _HomePageState extends State<HomePage>
             GridView.builder(
               physics: NeverScrollableScrollPhysics(),
               shrinkWrap: true,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: EdgeInsets.symmetric(horizontal: finalPadding),
               itemCount: 4,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.7,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
+                childAspectRatio: 0.9,
+                mainAxisSpacing: finalMainAxisSpacing,
+                crossAxisSpacing: finalCrossAxisSpacing,
               ),
               itemBuilder: (context, index) => _buildProductSkeleton(),
             ),
@@ -1454,13 +1484,13 @@ class _HomePageState extends State<HomePage>
             GridView.builder(
               physics: NeverScrollableScrollPhysics(),
               shrinkWrap: true,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: EdgeInsets.symmetric(horizontal: finalPadding),
               itemCount: 4,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.7,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
+                childAspectRatio: 0.9,
+                mainAxisSpacing: finalMainAxisSpacing,
+                crossAxisSpacing: finalCrossAxisSpacing,
               ),
               itemBuilder: (context, index) => _buildProductSkeleton(),
             ),
@@ -1597,7 +1627,7 @@ class HomePageSkeleton extends StatelessWidget {
               ),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.7,
+                childAspectRatio: 0.9,
               ),
             ),
             SliverToBoxAdapter(
@@ -1617,7 +1647,7 @@ class HomePageSkeleton extends StatelessWidget {
               ),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.7,
+                childAspectRatio: 0.9,
               ),
             ),
             SliverToBoxAdapter(
@@ -1641,7 +1671,7 @@ class HomePageSkeleton extends StatelessWidget {
                     padding: EdgeInsets.only(right: 16),
                     child: Container(
                       width: 80,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
                       ),
@@ -1657,7 +1687,7 @@ class HomePageSkeleton extends StatelessWidget {
               ),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.7,
+                childAspectRatio: 0.9,
               ),
             ),
           ],

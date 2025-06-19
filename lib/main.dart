@@ -175,7 +175,7 @@ class MyApp extends StatelessWidget {
                 brightness: Brightness.dark,
               ).copyWith(background: Colors.grey.shade900),
             ),
-            initialRoute: '/',
+            initialRoute: '/home',
             routes: {
               '/': (context) => HomePage(),
               '/home': (context) => HomePage(),

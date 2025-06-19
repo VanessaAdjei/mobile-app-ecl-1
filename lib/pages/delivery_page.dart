@@ -294,21 +294,26 @@ class _DeliveryPageState extends State<DeliveryPage> {
                       ),
                       // Enhanced progress indicator
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: Row(
-                          children: [
-                            _buildProgressStep("Cart",
-                                isActive: false, isCompleted: true, step: 1),
-                            _buildProgressLine(isActive: false),
-                            _buildProgressStep("Delivery",
-                                isActive: true, isCompleted: false, step: 2),
-                            _buildProgressLine(isActive: false),
-                            _buildProgressStep("Payment",
-                                isActive: false, isCompleted: false, step: 3),
-                            _buildProgressLine(isActive: false),
-                            _buildProgressStep("Confirmation",
-                                isActive: false, isCompleted: false, step: 4),
-                          ],
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 16, horizontal: 8),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildProgressStep("Cart",
+                                  isActive: false, isCompleted: true, step: 1),
+                              _buildProgressLine(isActive: false),
+                              _buildProgressStep("Delivery",
+                                  isActive: true, isCompleted: false, step: 2),
+                              _buildProgressLine(isActive: false),
+                              _buildProgressStep("Payment",
+                                  isActive: false, isCompleted: false, step: 3),
+                              _buildProgressLine(isActive: false),
+                              _buildProgressStep("Confirmation",
+                                  isActive: false, isCompleted: false, step: 4),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -425,7 +430,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
 
   Widget _buildProgressLine({required bool isActive}) {
     return Container(
-      width: 70,
+      width: 25,
       height: 1,
       color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
     );
@@ -443,8 +448,8 @@ class _DeliveryPageState extends State<DeliveryPage> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 28,
-          height: 28,
+          width: 24,
+          height: 24,
           decoration: BoxDecoration(
             color: isCompleted || isActive
                 ? Colors.white.withOpacity(0.2)
@@ -466,23 +471,23 @@ class _DeliveryPageState extends State<DeliveryPage> {
           ),
           child: Center(
             child: isCompleted
-                ? Icon(Icons.check, size: 16, color: Colors.white)
+                ? Icon(Icons.check, size: 14, color: Colors.white)
                 : Text(
                     step.toString(),
                     style: TextStyle(
                       color: color,
                       fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                      fontSize: 10,
                     ),
                   ),
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Text(
           text,
           style: TextStyle(
             color: color,
-            fontSize: 12,
+            fontSize: 9,
             fontWeight:
                 isActive || isCompleted ? FontWeight.w600 : FontWeight.w500,
             letterSpacing: 0.3,
