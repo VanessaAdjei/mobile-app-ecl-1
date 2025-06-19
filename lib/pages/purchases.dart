@@ -57,9 +57,15 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
           print('Raw orders count: ${rawOrders.length}');
 
           for (final order in rawOrders) {
+            print('Processing order: ${order.toString()}');
+            print('Available fields: ${order.keys.toList()}');
+
             final transactionId = order['transaction_id'] ??
                 order['order_id'] ??
+                order['delivery_id'] ??
                 'unknown_${DateTime.now().millisecondsSinceEpoch}';
+
+            print('Using transactionId: $transactionId');
 
             if (!groupedOrders.containsKey(transactionId)) {
               groupedOrders[transactionId] = [];
@@ -233,14 +239,33 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: InkWell(
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => OrderTrackingPage(
-                orderDetails: order,
+          print('Order tapped: ' + order.toString());
+          print('Order type: ' + order.runtimeType.toString());
+          try {
+            final castedOrder = Map<String, dynamic>.from(order);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OrderTrackingPage(
+                  orderDetails: castedOrder,
+                ),
               ),
-            ),
-          );
+            );
+          } catch (e) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: Text('Error'),
+                content: Text('Order data is invalid. Please contact support.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          }
         },
         child: Padding(
           padding: const EdgeInsets.all(18),
@@ -340,6 +365,12 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                           'Qty: $qty',
                           style:
                               TextStyle(color: Colors.grey[600], fontSize: 13),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Order ID: ${order['delivery_id'] ?? 'N/A'}',
+                          style:
+                              TextStyle(color: Colors.grey[600], fontSize: 12),
                         ),
                         SizedBox(height: 4),
                         Text(

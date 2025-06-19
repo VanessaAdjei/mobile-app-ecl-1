@@ -277,6 +277,17 @@ class _PaymentPageState extends State<PaymentPage> {
         throw Exception('Authentication required. Please log in again.');
       }
 
+      print('\n=== EXPRESSPAYMENT API REQUEST START ===');
+      print(
+          'Request URL: https://eclcommerce.ernestchemists.com.gh/api/expresspayment');
+      print('Request Headers: {');
+      print('  Accept: application/json');
+      print('  Content-Type: application/json');
+      print(
+          '  Authorization: Bearer ${authToken.substring(0, min(20, authToken.length))}...');
+      print('}');
+      print('Request Body: ${jsonEncode(params)}');
+
       final response = await http
           .post(
         Uri.parse(
@@ -296,12 +307,22 @@ class _PaymentPageState extends State<PaymentPage> {
         },
       );
 
+      print('\n=== EXPRESSPAYMENT API RESPONSE ===');
+      print('Response Status Code: ${response.statusCode}');
+      print('Response Headers: ${response.headers}');
+      print('Response Body Length: ${response.body.length}');
+      print('Response Body: ${response.body}');
+      print('=== EXPRESSPAYMENT API RESPONSE END ===\n');
+
       if (response.statusCode == 200) {
         final redirectUrl = response.body.trim();
 
         if (redirectUrl.isEmpty) {
+          print('ERROR: Received empty payment URL from server');
           throw Exception('Received empty payment URL from server.');
         }
+
+        print('Extracted redirect URL: $redirectUrl');
 
         if (!mounted) return;
 
@@ -345,16 +366,20 @@ class _PaymentPageState extends State<PaymentPage> {
         // Don't automatically navigate to confirmation page
         // Let the WebView handle the navigation based on payment completion
       } else if (response.statusCode == 401) {
-        throw Exception('Your session has expired. Please log in again.');
+        print('ERROR: 401 Unauthorized - Session expired');
+        throw Exception('Payment Failed, try again');
       } else if (response.statusCode == 403) {
-        throw Exception('You do not have permission to make this payment.');
+        print('ERROR: 403 Forbidden - Permission denied');
+        throw Exception('Payment Failed, try again');
       } else if (response.statusCode == 404) {
-        throw Exception('Payment service is currently unavailable.');
+        print('ERROR: 404 Not Found - Payment service unavailable');
+        throw Exception('Payment Failed, try again');
       } else if (response.statusCode >= 500) {
-        throw Exception('Server error. Please try again later.');
+        print('ERROR: ${response.statusCode} Server Error');
+        throw Exception('Payment Failed, try again');
       } else {
-        throw Exception(
-            'Payment request failed with status ${response.statusCode}');
+        print('ERROR: ${response.statusCode} - Payment request failed');
+        throw Exception('Payment Failed, try again');
       }
     } catch (e, stack) {
       print('Error during payment process: $e');
@@ -538,8 +563,8 @@ class _PaymentPageState extends State<PaymentPage> {
                                       ),
                                       child: Icon(
                                         Icons.error_outline,
-                                        color: Colors.red.shade700,
-                                        size: 14,
+                                        size: 40,
+                                        color: Colors.red.shade600,
                                       ),
                                     ),
                                     const SizedBox(width: 8),
@@ -1766,30 +1791,113 @@ class _PaymentPageState extends State<PaymentPage> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Payment Failed'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('There was an error processing your payment:'),
-              SizedBox(height: 8),
-              Text(
-                error,
-                style: TextStyle(color: Colors.red),
-              ),
-              SizedBox(height: 16),
-              Text('Please try again or choose a different payment method.'),
-            ],
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: Text('OK'),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
-          ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Error Icon
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.error_outline,
+                    size: 30,
+                    color: Colors.red.shade600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Title
+                Text(
+                  'Payment Failed',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Message
+                Text(
+                  'Payment Failed, try again',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                    height: 1.3,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+
+                // Action Button
+                Container(
+                  width: double.infinity,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.red.shade500,
+                        Colors.red.shade600,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.red.withOpacity(0.3),
+                        blurRadius: 6,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () {
+                        Navigator.pop(context);
+                      },
+                      child: Center(
+                        child: Text(
+                          'OK',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
@@ -1925,7 +2033,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     // Show check status button after 10 seconds if still pending
     _buttonShowTimer = Timer(Duration(seconds: 10), () {
       print('10 second delay completed. Current status: $_status');
-      if (mounted && _status?.toLowerCase() == 'pending') {
+      if (mounted) {
         setState(() {
           _showCheckStatusButton = true;
           print('Setting showCheckStatusButton to true');
@@ -1943,8 +2051,26 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       final result = await _fetchPaymentStatus();
       if (mounted) {
         setState(() {
-          _status = result['status'];
-          _statusMessage = result['message'];
+          final newStatus = result['status'];
+          final currentStatus = _status?.toLowerCase();
+
+          // Always update status if we get a new status from server
+          // Only keep failed status if server returns pending/error/null
+          if (currentStatus == 'failed' &&
+              (newStatus == 'pending' ||
+                  newStatus == 'error' ||
+                  newStatus == null)) {
+            // Keep the failed status, don't update
+            print(
+                'Payment is failed, keeping failed status despite server response: $newStatus');
+            _statusMessage = result['message'] ?? _statusMessage;
+          } else {
+            // Update status normally - this includes updating from failed to success
+            print('Updating status from $currentStatus to $newStatus');
+            _status = newStatus;
+            _statusMessage = result['message'];
+          }
+
           _paymentSuccess = _status?.toLowerCase() == 'success';
           _isLoading = false;
 
@@ -1962,11 +2088,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             _firstEmptyResponseTime = null;
             _emptyResponseCount = 0;
           } else if (_status?.toLowerCase() == 'failed') {
-            print('Payment failed, hiding check status button');
+            print('Payment failed, but keeping check status button visible');
             _statusCheckTimer?.cancel(); // Stop automatic checks
             _buttonShowTimer?.cancel(); // Cancel the button show timer
             _emptyResponseTimer?.cancel();
-            _showCheckStatusButton = false; // Hide the button
+            // Don't hide the check status button for failed payments
             // Reset empty response tracking
             _firstEmptyResponseTime = null;
             _emptyResponseCount = 0;
@@ -1977,8 +2103,15 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       print('Error checking payment status: $e');
       if (mounted) {
         setState(() {
-          _status = 'pending';
-          _statusMessage = 'Unable to verify payment status. Please try again.';
+          // Don't change status to 'pending' if it's already 'failed'
+          if (_status?.toLowerCase() != 'failed') {
+            _status = 'pending';
+            _statusMessage =
+                'Unable to verify payment status. Please try again.';
+          } else {
+            _statusMessage =
+                'Unable to verify payment status. Please try again.';
+          }
           _isLoading = false;
         });
       }
@@ -2916,7 +3049,18 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               _emptyResponseCount = 0;
 
               try {
-                final data = json.decode(retryResponse.body);
+                // Handle malformed JSON responses that might have extra text before JSON
+                String responseBody = retryResponse.body.trim();
+
+                // Try to find JSON object in the response
+                int jsonStartIndex = responseBody.indexOf('{');
+                if (jsonStartIndex != -1) {
+                  // Extract only the JSON part
+                  responseBody = responseBody.substring(jsonStartIndex);
+                  print('Extracted JSON from response: $responseBody');
+                }
+
+                final data = json.decode(responseBody);
                 return _processPaymentStatus(data);
               } catch (e) {
                 print('Error parsing retry response: $e');
@@ -2941,7 +3085,18 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           }
 
           try {
-            final data = json.decode(response.body);
+            // Handle malformed JSON responses that might have extra text before JSON
+            String responseBody = response.body.trim();
+
+            // Try to find JSON object in the response
+            int jsonStartIndex = responseBody.indexOf('{');
+            if (jsonStartIndex != -1) {
+              // Extract only the JSON part
+              responseBody = responseBody.substring(jsonStartIndex);
+              print('Extracted JSON from main response: $responseBody');
+            }
+
+            final data = json.decode(responseBody);
             return _processPaymentStatus(data);
           } catch (e) {
             print('Error parsing response: $e');

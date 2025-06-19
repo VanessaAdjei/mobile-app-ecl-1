@@ -188,11 +188,10 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
   }
 
   Widget _buildOrderSummaryCard(
-    DateTime? orderDate,
-    List<Map<String, dynamic>> orderItems,
-    int totalQuantity,
-    double totalAmount,
-  ) {
+      DateTime? orderDate,
+      List<Map<String, dynamic>> orderItems,
+      int totalQuantity,
+      double totalAmount) {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

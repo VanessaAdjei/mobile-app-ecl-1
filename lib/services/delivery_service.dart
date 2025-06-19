@@ -329,12 +329,12 @@ class DeliveryService {
   static double calculateDeliveryFee(String region, String city) {
     if (region.toLowerCase().contains('accra') ||
         city.toLowerCase().contains('accra')) {
-      return 10.00;
+      return 00.00;
     } else if (region.toLowerCase().contains('kumasi') ||
         city.toLowerCase().contains('kumasi')) {
-      return 15.00;
+      return 00.00;
     } else {
-      return 20.00;
+      return 00.00;
     }
   }
 }
