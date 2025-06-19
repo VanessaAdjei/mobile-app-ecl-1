@@ -1,6 +1,7 @@
 // pages/signinpage.dart
 import 'package:flutter/material.dart';
 import 'package:eclapp/pages/auth_service.dart';
+import 'package:eclapp/pages/authprovider.dart';
 import 'createaccount.dart';
 import 'package:provider/provider.dart';
 import 'package:eclapp/pages/cartprovider.dart';
@@ -137,6 +138,16 @@ class _SignInScreenState extends State<SignInScreen>
 
       if (result['token'] != null && result['user'] != null) {
         print('Sign in successful, updating auth state...');
+
+        // Try to update AuthProvider first
+        try {
+          final authProvider =
+              Provider.of<AuthProvider>(context, listen: false);
+          await authProvider.refreshAuthState();
+          print('AuthProvider state updated');
+        } catch (e) {
+          print('AuthProvider not available: $e');
+        }
 
         // Get the current AuthState using the of() pattern
         final authState = AuthState.of(context);

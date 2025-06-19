@@ -25,6 +25,7 @@ import '../main.dart';
 import 'package:eclapp/pages/prescription_history.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import '../widgets/cart_icon_button.dart';
+import 'authprovider.dart';
 
 class Profile extends StatefulWidget {
   const Profile({
@@ -153,6 +154,15 @@ class _ProfileState extends State<Profile> {
 
                   // Then clear all providers
                   if (mounted) {
+                    // Update AuthProvider state
+                    try {
+                      final authProvider =
+                          Provider.of<AuthProvider>(context, listen: false);
+                      await authProvider.logout();
+                    } catch (e) {
+                      print('AuthProvider not available: $e');
+                    }
+
                     await Provider.of<CartProvider>(context, listen: false)
                         .handleUserLogout();
                     Provider.of<UserProvider>(context, listen: false)

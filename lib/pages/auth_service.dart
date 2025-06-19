@@ -37,28 +37,30 @@ class AuthService {
 
   static Future<void> init() async {
     try {
-      // First, migrate any existing data
-      await _migrateExistingData();
+      print('Initializing AuthService...');
 
-      // Check token in memory first
-      if (_authToken != null) {
-        _isLoggedIn = true;
-        return;
-      }
-
-      // If not in memory, check storage
+      // Start with a quick local check first
       _authToken = await _secureStorage.read(key: authTokenKey);
       if (_authToken != null) {
-        _isLoggedIn = await _checkTokenValidity();
-        if (!_isLoggedIn) {
-          // Don't clear token automatically on startup, just set login state to false
-          print(
-              'Token validation failed on startup, but keeping token for user to decide');
-        } else {
-          _startTokenRefreshTimer();
-        }
+        // Set logged in state optimistically, validate in background
+        _isLoggedIn = true;
+        print('Token found, setting optimistic login state');
+
+        // Validate token in background without blocking
+        _validateTokenInBackground();
+      } else {
+        _isLoggedIn = false;
+        print('No token found, user not logged in');
       }
+
+      // Migrate data in background without blocking
+      _migrateExistingData().catchError((e) {
+        print('Background data migration error: $e');
+      });
+
+      print('AuthService initialization complete. Login status: $_isLoggedIn');
     } catch (e) {
+      print('Error during AuthService initialization: $e');
       _isLoggedIn = false;
       _authToken = null;
     }
@@ -319,7 +321,7 @@ class AuthService {
       _isLoggedIn = true;
       _lastTokenVerification = DateTime.now();
       _startTokenRefreshTimer();
-      print('Token saved successfully');
+      print('Token saved successfully and user is now logged in');
     } catch (e) {
       print('Error saving token: $e');
       _isLoggedIn = false;
@@ -443,41 +445,52 @@ class AuthService {
   static Future<bool> isLoggedIn() async {
     // First check memory state
     if (_isLoggedIn && _authToken != null) {
-      // Only verify token if enough time has passed
+      // Only verify token if enough time has passed since last verification
       if (_lastTokenVerification == null ||
           DateTime.now().difference(_lastTokenVerification!) >
               _tokenVerificationInterval) {
+        print('Token verification interval exceeded, checking validity...');
         final isValid = await _checkTokenValidity();
         if (!isValid) {
-          // Don't clear token automatically, just return false
+          print('Token validation failed, setting login state to false');
           _isLoggedIn = false;
           return false;
         }
+      } else {
+        print('Using cached token validation, user is logged in');
       }
       return true;
     }
 
     // If not in memory, check storage
-    final token = await _secureStorage.read(key: authTokenKey);
-    if (token == null) {
-      _isLoggedIn = false;
-      return false;
+    if (_authToken == null) {
+      print('No token in memory, checking storage...');
+      final token = await _secureStorage.read(key: authTokenKey);
+      if (token == null) {
+        print('No token found in storage');
+        _isLoggedIn = false;
+        return false;
+      }
+      _authToken = token;
     }
 
     // Verify token only if it's been long enough since last verification
     if (_lastTokenVerification == null ||
         DateTime.now().difference(_lastTokenVerification!) >
             _tokenVerificationInterval) {
+      print('Verifying token from storage...');
       final isValid = await _checkTokenValidity();
       if (!isValid) {
-        // Don't clear token automatically, just return false
+        print('Token validation failed, setting login state to false');
         _isLoggedIn = false;
         return false;
       }
+    } else {
+      print('Using cached token validation from storage');
     }
 
-    _authToken = token;
     _isLoggedIn = true;
+    print('User is logged in');
     return true;
   }
 
@@ -493,15 +506,38 @@ class AuthService {
           'Authorization': 'Bearer $_authToken',
           'Content-Type': 'application/json',
         },
-      );
+      ).timeout(const Duration(seconds: 10));
 
       _lastTokenVerification = DateTime.now();
       print('Token validity check response: ${response.statusCode}');
-      return response.statusCode == 200;
+
+      if (response.statusCode == 200) {
+        print('Token is valid');
+        return true;
+      } else if (response.statusCode == 401) {
+        print('Token is invalid (401 Unauthorized)');
+        return false;
+      } else {
+        print('Unexpected response status: ${response.statusCode}');
+        // For other status codes, we'll assume the token is still valid
+        // to avoid logging out users due to temporary server issues
+        return true;
+      }
+    } on TimeoutException {
+      print('Token validation timeout, assuming token is valid');
+      _lastTokenVerification = DateTime.now();
+      // Don't invalidate token on timeout, assume it's still valid
+      return true;
+    } on SocketException {
+      print('Network error during token validation, assuming token is valid');
+      _lastTokenVerification = DateTime.now();
+      // Don't invalidate token on network errors, assume it's still valid
+      return true;
     } catch (e) {
       print('Error checking token validity: $e');
-      // Don't clear token on network errors, just return false
-      return false;
+      _lastTokenVerification = DateTime.now();
+      // Don't clear token on other errors, assume it's still valid
+      return true;
     }
   }
 
@@ -513,34 +549,59 @@ class AuthService {
   //  logout
   static Future<void> logout() async {
     try {
+      print('Logging out user...');
       if (_authToken != null) {
-        await http.post(
-          Uri.parse('$baseUrl/logout'),
-          headers: {'Authorization': 'Bearer $_authToken'},
-        );
+        try {
+          await http.post(
+            Uri.parse('$baseUrl/logout'),
+            headers: {'Authorization': 'Bearer $_authToken'},
+          ).timeout(const Duration(seconds: 10));
+          print('Logout request sent to server');
+        } catch (e) {
+          print('Error sending logout request to server: $e');
+          // Continue with local logout even if server request fails
+        }
       }
     } catch (e) {
       debugPrint('Logout error: $e');
     } finally {
+      print('Clearing local authentication state...');
       _authToken = null;
       _isLoggedIn = false;
-      await _secureStorage.deleteAll();
+      _cachedUserData = null;
+      _lastTokenVerification = null;
       _tokenRefreshTimer?.cancel();
+      await _secureStorage.deleteAll();
+      print('Logout completed successfully');
     }
   }
 
   static void _startTokenRefreshTimer() {
     _tokenRefreshTimer?.cancel();
     _tokenRefreshTimer = Timer.periodic(_tokenRefreshInterval, (_) async {
-      if (await isLoggedIn()) {
-        // Only verify if enough time has passed since last verification
-        if (_lastTokenVerification == null ||
-            DateTime.now().difference(_lastTokenVerification!) >
-                _tokenVerificationInterval) {
-          await _checkTokenValidity();
+      try {
+        if (await isLoggedIn()) {
+          print('Token refresh timer: User is still logged in');
+          // Only verify if enough time has passed since last verification
+          if (_lastTokenVerification == null ||
+              DateTime.now().difference(_lastTokenVerification!) >
+                  _tokenVerificationInterval) {
+            print('Token refresh timer: Checking token validity...');
+            await _checkTokenValidity();
+          } else {
+            print('Token refresh timer: Using cached validation');
+          }
+        } else {
+          print(
+              'Token refresh timer: User is no longer logged in, stopping timer');
+          _tokenRefreshTimer?.cancel();
         }
+      } catch (e) {
+        print('Error in token refresh timer: $e');
+        // Don't stop the timer on errors, just log them
       }
     });
+    print('Token refresh timer started');
   }
 
   static Future<Map<String, String>> getAuthHeaders() async {
@@ -1150,6 +1211,22 @@ class AuthService {
     final token = await _secureStorage.read(key: authTokenKey);
     print('AuthService.printStoredToken: '
         '${token != null && token.length > 20 ? token.substring(0, 20) + '...' : token}');
+  }
+
+  static Future<void> _validateTokenInBackground() async {
+    try {
+      final isValid = await _checkTokenValidity();
+      if (!isValid) {
+        print('Token validation failed in background, updating login state');
+        _isLoggedIn = false;
+        _authToken = null;
+      } else {
+        _startTokenRefreshTimer();
+      }
+    } catch (e) {
+      print('Background token validation error: $e');
+      // Keep current state on error
+    }
   }
 }
 

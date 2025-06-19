@@ -1,7 +1,12 @@
 // pages/otp.dart
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'auth_service.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'dart:ui';
+import 'dart:async';
 
 class OtpVerificationScreen extends StatefulWidget {
   final String email;
@@ -18,62 +23,490 @@ class OtpVerificationScreen extends StatefulWidget {
 }
 
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
-  final TextEditingController otpController = TextEditingController();
+  final List<TextEditingController> otpControllers = List.generate(
+    5,
+    (index) => TextEditingController(),
+  );
+  final List<FocusNode> focusNodes = List.generate(
+    5,
+    (index) => FocusNode(),
+  );
+
   bool isLoading = false;
+  String otp = '';
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    for (var controller in otpControllers) {
+      controller.dispose();
+    }
+    for (var node in focusNodes) {
+      node.dispose();
+    }
+    super.dispose();
+  }
+
+  void _onOtpChanged(String value, int index) {
+    setState(() {
+      otp = otpControllers.map((controller) => controller.text).join();
+    });
+
+    if (value.length == 1 && index < 4) {
+      focusNodes[index + 1].requestFocus();
+    } else if (value.isEmpty && index > 0) {
+      focusNodes[index - 1].requestFocus();
+    }
+
+    // Auto-verify when all 5 characters are entered
+    if (otp.length == 5) {
+      _verifyOtp();
+    }
+  }
 
   Future<void> _verifyOtp() async {
+    if (otp.length != 5) {
+      _showError("Please enter the complete 5-character OTP");
+      return;
+    }
+
     setState(() => isLoading = true);
 
-    bool isVerified =
-        await AuthService.verifyOTP(widget.email, otpController.text.trim());
+    try {
+      bool isVerified = await AuthService.verifyOTP(widget.email, otp);
 
-    setState(() => isLoading = false);
+      if (isVerified) {
+        _showSuccess("OTP verified successfully!");
 
-    if (isVerified) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("OTP verified successfully!")),
-      );
-
-      // Navigate to Sign In page
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => SignInScreen()),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Invalid OTP. Please try again.")),
-      );
+        // Navigate to Sign In page
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const SignInScreen()),
+        );
+      } else {
+        _showError("Invalid OTP. Please try again.");
+        // Clear the OTP fields
+        for (var controller in otpControllers) {
+          controller.clear();
+        }
+        setState(() {
+          otp = '';
+        });
+        focusNodes[0].requestFocus();
+      }
+    } catch (e) {
+      _showError("An error occurred. Please try again.");
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Verify OTP")),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Text("Enter the OTP sent to ${widget.phoneNumber}",
-                style: TextStyle(fontSize: 16)),
-            SizedBox(height: 20),
-            TextField(
-              controller: otpController,
-              keyboardType: TextInputType.text,
-              decoration: InputDecoration(labelText: "OTP"),
-            ),
-            SizedBox(height: 20),
-            isLoading
-                ? CircularProgressIndicator()
-                : ElevatedButton(
-                    onPressed: _verifyOtp,
-                    child: Text(
-                      "Verify OTP",
-                      style: TextStyle(color: Colors.green),
+      resizeToAvoidBottomInset: true,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.green.shade50,
+              Colors.white,
+              Colors.green.shade100.withOpacity(0.3),
+            ],
+            stops: const [0.0, 0.6, 1.0],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Back Button with Glassmorphic Effect
+                Animate(
+                  effects: [
+                    FadeEffect(duration: 400.ms),
+                    SlideEffect(
+                      duration: 400.ms,
+                      begin: const Offset(-0.3, 0),
+                      end: Offset.zero,
+                    ),
+                  ],
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 8, bottom: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.8),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.3),
+                            ),
+                          ),
+                          child: IconButton(
+                            icon: Icon(
+                              Icons.arrow_back_rounded,
+                              color: Colors.green.shade800,
+                              size: 24,
+                            ),
+                            onPressed: () {
+                              if (Navigator.canPop(context)) {
+                                Navigator.pop(context);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
                     ),
                   ),
+                ),
+
+                // Header Section
+                Animate(
+                  effects: [
+                    FadeEffect(duration: 500.ms, delay: 100.ms),
+                    SlideEffect(
+                      duration: 500.ms,
+                      begin: const Offset(0, 0.2),
+                      end: Offset.zero,
+                      delay: 100.ms,
+                    ),
+                  ],
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.green.shade50,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.green.shade200.withOpacity(0.3),
+                                blurRadius: 15,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.verified_user_rounded,
+                            size: 40,
+                            color: Colors.green.shade600,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Verify Your Account',
+                          style: GoogleFonts.poppins(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green.shade800,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'We\'ve sent a verification code to',
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w400,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.phoneNumber,
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 40),
+
+                // OTP Input Section
+                Animate(
+                  effects: [
+                    FadeEffect(duration: 600.ms, delay: 200.ms),
+                    SlideEffect(
+                      duration: 600.ms,
+                      begin: const Offset(0, 0.3),
+                      end: Offset.zero,
+                      delay: 200.ms,
+                    ),
+                  ],
+                  child: _buildGlassmorphicCard(
+                    child: Column(
+                      children: [
+                        Text(
+                          'Enter 5-character code',
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: List.generate(
+                            5,
+                            (index) => _buildOtpField(index),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        if (isLoading)
+                          SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.green.shade600,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Manual Verify Button
+                Animate(
+                  effects: [
+                    FadeEffect(duration: 800.ms, delay: 400.ms),
+                    SlideEffect(
+                      duration: 800.ms,
+                      begin: const Offset(0, 0.3),
+                      end: Offset.zero,
+                      delay: 400.ms,
+                    ),
+                  ],
+                  child: Container(
+                    width: double.infinity,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.green.shade600,
+                          Colors.green.shade800,
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.green.shade200.withOpacity(0.4),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton(
+                      onPressed: isLoading ? null : _verifyOtp,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: isLoading
+                          ? SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : Text(
+                              'Verify OTP',
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlassmorphicCard({required Widget child}) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.85),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.3),
+              ),
+            ),
+            padding: const EdgeInsets.all(20),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOtpField(int index) {
+    return Container(
+      width: 50,
+      height: 60,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: focusNodes[index].hasFocus
+              ? Colors.green.shade600
+              : Colors.grey.shade500,
+          width: focusNodes[index].hasFocus ? 3 : 2,
+        ),
+        color: Colors.white,
+      ),
+      child: TextField(
+        controller: otpControllers[index],
+        focusNode: focusNodes[index],
+        keyboardType: TextInputType.text,
+        textAlign: TextAlign.center,
+        style: GoogleFonts.poppins(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          color: Colors.grey.shade800,
+        ),
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          counterText: '',
+        ),
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'[0-9A-Za-z]')),
+          LengthLimitingTextInputFormatter(1),
+        ],
+        onChanged: (value) => _onOtpChanged(value, index),
+      ),
+    );
+  }
+
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              Icons.check_circle_outline,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
           ],
         ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        backgroundColor: Colors.green.shade600,
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        backgroundColor: Colors.red.shade600,
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 3),
       ),
     );
   }

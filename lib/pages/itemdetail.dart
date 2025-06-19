@@ -695,8 +695,10 @@ class _ItemPageState extends State<ItemPage> {
                                         fontSize: 16),
                                   ),
                                   const SizedBox(height: 8),
-                                  ProductDescription(
-                                      description: product.description),
+                                  if (!widget.isPrescribed &&
+                                      product.description.isNotEmpty)
+                                    ProductDescription(
+                                        description: product.description),
                                 ],
                               ),
                             ),

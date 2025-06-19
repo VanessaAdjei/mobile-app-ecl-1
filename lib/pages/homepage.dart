@@ -1431,7 +1431,7 @@ class _HomePageState extends State<HomePage>
               itemCount: 4,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.9,
+                childAspectRatio: 0.7,
                 mainAxisSpacing: finalMainAxisSpacing,
                 crossAxisSpacing: finalCrossAxisSpacing,
               ),
@@ -1449,7 +1449,7 @@ class _HomePageState extends State<HomePage>
               itemCount: 4,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.9,
+                childAspectRatio: 0.7,
                 mainAxisSpacing: finalMainAxisSpacing,
                 crossAxisSpacing: finalCrossAxisSpacing,
               ),
@@ -1488,7 +1488,7 @@ class _HomePageState extends State<HomePage>
               itemCount: 4,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.9,
+                childAspectRatio: 0.7,
                 mainAxisSpacing: finalMainAxisSpacing,
                 crossAxisSpacing: finalCrossAxisSpacing,
               ),
@@ -1627,7 +1627,7 @@ class HomePageSkeleton extends StatelessWidget {
               ),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.9,
+                childAspectRatio: 0.7,
               ),
             ),
             SliverToBoxAdapter(
@@ -1647,7 +1647,7 @@ class HomePageSkeleton extends StatelessWidget {
               ),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.9,
+                childAspectRatio: 0.7,
               ),
             ),
             SliverToBoxAdapter(
@@ -1687,7 +1687,7 @@ class HomePageSkeleton extends StatelessWidget {
               ),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.9,
+                childAspectRatio: 0.7,
               ),
             ),
           ],

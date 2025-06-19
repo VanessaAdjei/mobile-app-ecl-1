@@ -14,8 +14,8 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
 
-    // Navigate to homepage after 3 seconds
-    Future.delayed(const Duration(seconds: 3), () {
+    // Navigate to homepage after 1.5 seconds (reduced from 3 seconds)
+    Future.delayed(const Duration(milliseconds: 1500), () {
       if (mounted) {
         Navigator.pushReplacement(
           context,

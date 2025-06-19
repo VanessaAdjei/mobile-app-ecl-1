@@ -80,7 +80,7 @@ class _CartState extends State<Cart> {
 
     overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
-        top: MediaQuery.of(context).padding.top + 50,
+        top: MediaQuery.of(context).padding.top + 80,
         left: 20,
         right: 20,
         child: Material(
@@ -120,15 +120,15 @@ class _CartState extends State<Cart> {
 
   Map<String, Map<String, Map<String, double>>> locationFees = {
     'Greater Accra': {
-      'Accra': {'Madina': 5.00, 'Osu': 6.50},
-      'Tema': {'Community 1': 6.00, 'Community 2': 7.00},
+      'Accra': {'Madina': 0.00, 'Osu': 0.50},
+      'Tema': {'Community 1': 0.00, 'Community 2': 0.00},
     },
     'Ashanti': {
-      'Kumasi': {'Adum': 4.50, 'Asokwa': 5.50, 'Ahodwo': 6.00},
-      'Ejisu': {'Ejisu Town': 5.00, 'Besease': 5.50},
+      'Kumasi': {'Adum': 0.50, 'Asokwa': 0.50, 'Ahodwo': 0.00},
+      'Ejisu': {'Ejisu Town': 0.00, 'Besease': 0.50},
     },
     'Western': {
-      'Takoradi': {'Market Circle': 4.00, 'Anaji': 5.00, 'Effia': 6.00},
+      'Takoradi': {'Market Circle': 0.00, 'Anaji': 0.00, 'Effia': 0.00},
     },
   };
 
@@ -146,12 +146,7 @@ class _CartState extends State<Cart> {
     'Takoradi': ['Market Circle', 'Anaji'],
   };
 
-  List<String> pickupLocations = [
-    'Madina Mall',
-    'Accra Mall',
-    'Kumasi City Mall',
-    'Takoradi Mall'
-  ];
+  List<String> pickupLocations = ['Site 1', 'Site 2', 'Site 3', 'Site 4'];
 
   // Improved helper to get the full product image URL for all possible formats
   String getImageUrl(String? url) {
@@ -245,21 +240,31 @@ class _CartState extends State<Cart> {
                         ),
                         // Enhanced progress indicator
                         Container(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          child: Row(
-                            children: [
-                              _buildProgressStep("Cart",
-                                  isActive: true, isCompleted: true, step: 1),
-                              _buildProgressLine(isActive: false),
-                              _buildProgressStep("Delivery",
-                                  isActive: false, isCompleted: false, step: 2),
-                              _buildProgressLine(isActive: false),
-                              _buildProgressStep("Payment",
-                                  isActive: false, isCompleted: false, step: 3),
-                              _buildProgressLine(isActive: false),
-                              _buildProgressStep("Confirmation",
-                                  isActive: false, isCompleted: false, step: 4),
-                            ],
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 16, horizontal: 8),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _buildProgressStep("Cart",
+                                    isActive: true, isCompleted: true, step: 1),
+                                _buildProgressLine(isActive: false),
+                                _buildProgressStep("Delivery",
+                                    isActive: false,
+                                    isCompleted: false,
+                                    step: 2),
+                                _buildProgressLine(isActive: false),
+                                _buildProgressStep("Payment",
+                                    isActive: false,
+                                    isCompleted: false,
+                                    step: 3),
+                                _buildProgressLine(isActive: false),
+                                _buildProgressStep("Confirmation",
+                                    isActive: false,
+                                    isCompleted: false,
+                                    step: 4),
+                              ],
+                            ),
                           ),
                         ),
                       ],
@@ -404,7 +409,7 @@ class _CartState extends State<Cart> {
 
   Widget _buildProgressLine({required bool isActive}) {
     return Container(
-      width: 20,
+      width: 50,
       height: 1,
       color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
     );
@@ -418,60 +423,56 @@ class _CartState extends State<Cart> {
             ? Colors.white
             : Colors.white.withOpacity(0.6);
 
-    return Expanded(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AnimatedContainer(
-            duration: Duration(milliseconds: 300),
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: isCompleted || isActive
-                  ? Colors.white.withOpacity(0.25)
-                  : Colors.transparent,
-              border: Border.all(
-                color: color,
-                width: 2,
-              ),
-              shape: BoxShape.circle,
-              boxShadow: isCompleted || isActive
-                  ? [
-                      BoxShadow(
-                        color: Colors.white.withOpacity(0.4),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Center(
-              child: isCompleted
-                  ? Icon(Icons.check, size: 18, color: Colors.white)
-                  : Text(
-                      step.toString(),
-                      style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            text,
-            style: TextStyle(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: isCompleted || isActive
+                ? Colors.white.withOpacity(0.2)
+                : Colors.transparent,
+            border: Border.all(
               color: color,
-              fontSize: 11,
-              fontWeight:
-                  isActive || isCompleted ? FontWeight.w600 : FontWeight.w500,
-              letterSpacing: 0.3,
+              width: 2,
             ),
-            textAlign: TextAlign.center,
+            shape: BoxShape.circle,
+            boxShadow: isCompleted || isActive
+                ? [
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.3),
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
-        ],
-      ),
+          child: Center(
+            child: isCompleted
+                ? Icon(Icons.check, size: 14, color: Colors.white)
+                : Text(
+                    step.toString(),
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          text,
+          style: TextStyle(
+            color: color,
+            fontSize: 9,
+            fontWeight:
+                isActive || isCompleted ? FontWeight.w600 : FontWeight.w500,
+            letterSpacing: 0.3,
+          ),
+        ),
+      ],
     );
   }
 

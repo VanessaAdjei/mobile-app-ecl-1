@@ -430,7 +430,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
 
   Widget _buildProgressLine({required bool isActive}) {
     return Container(
-      width: 25,
+      width: 50,
       height: 1,
       color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
     );
@@ -1316,8 +1316,10 @@ class _DeliveryPageState extends State<DeliveryPage> {
           ),
           child: DropdownButtonFormField<String>(
             key: regionSectionKey,
-            value:
-                _regionController.text.isEmpty ? null : _regionController.text,
+            value: _regionController.text.isEmpty ||
+                    !regions.contains(_regionController.text)
+                ? null
+                : _regionController.text,
             decoration: InputDecoration(
               prefixIcon: Icon(
                 Icons.location_city_outlined,
@@ -2016,28 +2018,55 @@ class _DeliveryPageState extends State<DeliveryPage> {
                 print('API Save Result: ${saveResult['message']}');
                 print('===============================');
 
-                // Show success message
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        Icon(Icons.check_circle, color: Colors.white),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child:
-                              Text('Delivery information saved successfully'),
+                // Show success message in the middle of the screen
+                OverlayEntry overlayEntry = OverlayEntry(
+                  builder: (context) => Positioned(
+                    top: MediaQuery.of(context).size.height / 2 - 50,
+                    left: 16,
+                    right: 16,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.green[600],
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
                         ),
-                      ],
+                        child: Row(
+                          children: [
+                            Icon(Icons.check_circle, color: Colors.white),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Delivery information saved successfully',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    backgroundColor: Colors.green[600],
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    margin: EdgeInsets.all(16),
-                    duration: Duration(seconds: 2),
                   ),
                 );
+
+                Overlay.of(context).insert(overlayEntry);
+
+                // Remove the overlay after 2 seconds
+                Future.delayed(Duration(seconds: 2), () {
+                  overlayEntry.remove();
+                });
 
                 // Navigate to payment page with delivery details
                 _proceedToPayment();

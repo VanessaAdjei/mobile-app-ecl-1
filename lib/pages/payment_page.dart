@@ -470,21 +470,26 @@ class _PaymentPageState extends State<PaymentPage> {
                       ),
                       // Enhanced progress indicator
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Row(
-                          children: [
-                            _buildProgressStep("Cart",
-                                isActive: false, isCompleted: true, step: 1),
-                            _buildProgressLine(isActive: false),
-                            _buildProgressStep("Delivery",
-                                isActive: false, isCompleted: true, step: 2),
-                            _buildProgressLine(isActive: false),
-                            _buildProgressStep("Payment",
-                                isActive: true, isCompleted: false, step: 3),
-                            _buildProgressLine(isActive: false),
-                            _buildProgressStep("Confirmation",
-                                isActive: false, isCompleted: false, step: 4),
-                          ],
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 16, horizontal: 8),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildProgressStep("Cart",
+                                  isActive: false, isCompleted: true, step: 1),
+                              _buildProgressLine(isActive: false),
+                              _buildProgressStep("Delivery",
+                                  isActive: false, isCompleted: true, step: 2),
+                              _buildProgressLine(isActive: false),
+                              _buildProgressStep("Payment",
+                                  isActive: true, isCompleted: false, step: 3),
+                              _buildProgressLine(isActive: false),
+                              _buildProgressStep("Confirmation",
+                                  isActive: false, isCompleted: false, step: 4),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -772,11 +777,10 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   Widget _buildProgressLine({required bool isActive}) {
-    return Expanded(
-      child: Container(
-        height: 1,
-        color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
-      ),
+    return Container(
+      width: 50,
+      height: 1,
+      color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
     );
   }
 
@@ -2202,21 +2206,26 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       ),
                       // Enhanced progress indicator
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Row(
-                          children: [
-                            _buildProgressStep("Cart",
-                                isActive: false, isCompleted: true, step: 1),
-                            _buildProgressLine(isActive: false),
-                            _buildProgressStep("Delivery",
-                                isActive: false, isCompleted: true, step: 2),
-                            _buildProgressLine(isActive: false),
-                            _buildProgressStep("Payment",
-                                isActive: true, isCompleted: false, step: 3),
-                            _buildProgressLine(isActive: false),
-                            _buildProgressStep("Confirmation",
-                                isActive: false, isCompleted: false, step: 4),
-                          ],
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 16, horizontal: 8),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildProgressStep("Cart",
+                                  isActive: false, isCompleted: true, step: 1),
+                              _buildProgressLine(isActive: false),
+                              _buildProgressStep("Delivery",
+                                  isActive: false, isCompleted: true, step: 2),
+                              _buildProgressLine(isActive: false),
+                              _buildProgressStep("Payment",
+                                  isActive: true, isCompleted: false, step: 3),
+                              _buildProgressLine(isActive: false),
+                              _buildProgressStep("Confirmation",
+                                  isActive: false, isCompleted: false, step: 4),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -3168,11 +3177,10 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   Widget _buildProgressLine({required bool isActive}) {
-    return Expanded(
-      child: Container(
-        height: 1,
-        color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
-      ),
+    return Container(
+      width: 50,
+      height: 1,
+      color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
     );
   }
 
