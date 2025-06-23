@@ -73,6 +73,7 @@ class _PaymentPageState extends State<PaymentPage> {
   String expressPaymentForm =
       'https://eclcommerce.ernestchemists.com.gh/api/expresspayment';
   bool _paymentSuccess = false;
+  bool _showAllItems = false; // Add this state variable
 
   // Promo code variables
   final TextEditingController _promoCodeController = TextEditingController();
@@ -251,6 +252,97 @@ class _PaymentPageState extends State<PaymentPage> {
 
       if (selectedPaymentMethod == 'Cash on Delivery') {
         if (!mounted) return;
+
+        // Create the order in the backend for cash on delivery
+        try {
+          print('\n=== PROCESSING CASH ON DELIVERY ORDER ===');
+          print('Transaction ID: $transactionId');
+          print('Total Amount: $total');
+          print('Payment Method: $selectedPaymentMethod');
+          print('Purchased Items Count: ${purchasedItems.length}');
+
+          // Convert cart items to the format expected by the API
+          final orderItems = purchasedItems
+              .map((item) => {
+                    'productId': item.productId,
+                    'name': item.name,
+                    'imageUrl': item.image,
+                    'quantity': item.quantity,
+                    'price': item.price,
+                    'batchNo': item.batchNo,
+                  })
+              .toList();
+
+          print('Order Items: ${jsonEncode(orderItems)}');
+
+          final orderResult = await AuthService.createCashOnDeliveryOrder(
+            items: orderItems,
+            totalAmount: total,
+            orderId: transactionId!,
+            paymentMethod: selectedPaymentMethod,
+            promoCode: _appliedPromoCode,
+          );
+
+          print('Order creation result: $orderResult');
+          print('Order creation status: ${orderResult['status']}');
+          print('Order creation message: ${orderResult['message']}');
+
+          if (orderResult['status'] != 'success') {
+            // Show error but still proceed with the order
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.white),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Warning: ${orderResult['message'] ?? 'Could not save order to server, but proceeding with order'}',
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.orange[600],
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                margin: EdgeInsets.all(16),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          } else {
+            // Clear the cart after successful order creation
+            cart.clearCart();
+            print('Cart cleared successfully');
+          }
+        } catch (e) {
+          print('Error creating cash on delivery order: $e');
+          print('Error stack trace: ${StackTrace.current}');
+          // Show error but still proceed with the order
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.white),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Warning: Could not save order to server, but proceeding with order',
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.orange[600],
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              margin: EdgeInsets.all(16),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
 
         Navigator.pushAndRemoveUntil(
           context,
@@ -1085,7 +1177,7 @@ class _PaymentPageState extends State<PaymentPage> {
               ),
               const SizedBox(height: 8),
               ...cart.cartItems
-                  .take(3)
+                  .take(_showAllItems ? cart.cartItems.length : 3)
                   .map((item) => Container(
                         margin: const EdgeInsets.only(bottom: 6),
                         padding: const EdgeInsets.all(8),
@@ -1154,33 +1246,79 @@ class _PaymentPageState extends State<PaymentPage> {
                         ),
                       ))
                   .toList(),
-              if (cart.cartItems.length > 3) ...[
+              if (cart.cartItems.length > 3 && !_showAllItems) ...[
                 const SizedBox(height: 4),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: Colors.blue.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline,
-                        color: Colors.blue.shade600,
-                        size: 12,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '... and ${cart.cartItems.length - 3} more items',
-                        style: TextStyle(
-                          color: Colors.blue.shade700,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _showAllItems = true;
+                    });
+                  },
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.expand_more,
+                          color: Colors.blue.shade600,
+                          size: 12,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        Text(
+                          'Show ${cart.cartItems.length - 3} more items',
+                          style: TextStyle(
+                            color: Colors.blue.shade700,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              if (cart.cartItems.length > 3 && _showAllItems) ...[
+                const SizedBox(height: 4),
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _showAllItems = false;
+                    });
+                  },
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.expand_less,
+                          color: Colors.grey.shade600,
+                          size: 12,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Show less',
+                          style: TextStyle(
+                            color: Colors.grey.shade700,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

@@ -48,20 +48,36 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
       }
 
       final result = await AuthService.getOrders();
+      print('\n=== FETCHING ORDERS ===');
+      print('Result status: ${result['status']}');
+      print('Result message: ${result['message']}');
+      print('Result data type: ${result['data'].runtimeType}');
+
       if (result['status'] == 'success' && result['data'] is List) {
         if (mounted) {
-          // Group orders by transaction ID to combine items purchased together
+          // Group orders by transaction ID first, then fall back to time-based grouping
           final rawOrders = result['data'] as List;
+          print('Raw orders count: ${rawOrders.length}');
+          print('Raw orders: ${rawOrders.map((order) => {
+                'id': order['order_id'] ??
+                    order['transaction_id'] ??
+                    order['delivery_id'],
+                'product_name': order['product_name'],
+                'payment_method': order['payment_method'],
+                'created_at': order['created_at'],
+              }).toList()}');
           final Map<String, List<dynamic>> groupedOrders = {};
 
           print('Raw orders count: ${rawOrders.length}');
 
+          // First, try to group by transaction_id, order_id, or delivery_id
           for (final order in rawOrders) {
             print('Processing order: ${order.toString()}');
             print('Available fields: ${order.keys.toList()}');
 
-            final transactionId = order['transaction_id'] ??
-                order['order_id'] ??
+            // Use order_id, transaction_id, or delivery_id as the unique identifier
+            final transactionId = order['order_id'] ??
+                order['transaction_id'] ??
                 order['delivery_id'] ??
                 'unknown_${DateTime.now().millisecondsSinceEpoch}';
 
@@ -73,57 +89,236 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
             groupedOrders[transactionId]!.add(order);
           }
 
-          print('Grouped orders count: ${groupedOrders.length}');
-          print('Grouped orders: ${groupedOrders.keys.toList()}');
+          print(
+              'Transaction ID grouping complete. Groups: ${groupedOrders.length}');
+
+          // Check if transaction ID grouping worked well
+          // If we have many single-item groups, try time-based grouping
+          final singleItemGroups =
+              groupedOrders.values.where((orders) => orders.length == 1).length;
+          final totalGroups = groupedOrders.length;
+
+          print(
+              'Single item groups: $singleItemGroups out of $totalGroups total groups');
+
+          if (singleItemGroups > totalGroups * 0.7) {
+            // If more than 70% are single items, try time-based grouping
+            print(
+                'Many single-item groups detected, attempting time-based grouping...');
+
+            // Reset grouping
+            groupedOrders.clear();
+
+            // Sort orders by creation date
+            final sortedOrders = List<dynamic>.from(rawOrders);
+            sortedOrders.sort((a, b) {
+              final dateA =
+                  DateTime.tryParse(a['created_at'] ?? '') ?? DateTime(1970);
+              final dateB =
+                  DateTime.tryParse(b['created_at'] ?? '') ?? DateTime(1970);
+              return dateA.compareTo(dateB);
+            });
+
+            print('Sorted orders by date:');
+            for (int i = 0; i < sortedOrders.length; i++) {
+              final order = sortedOrders[i];
+              final date = DateTime.tryParse(order['created_at'] ?? '') ??
+                  DateTime(1970);
+              print('Order $i: ${order['product_name']} - ${date.toString()}');
+            }
+
+            // Group orders created within 10 minutes of each other
+            // BUT respect transaction IDs - don't group orders with different transaction IDs
+            const groupingWindow = Duration(minutes: 10);
+            String currentGroupKey = '';
+            DateTime? lastOrderTime;
+            String? lastTransactionId;
+
+            for (final order in sortedOrders) {
+              final orderTime = DateTime.tryParse(order['created_at'] ?? '') ??
+                  DateTime.now();
+              final currentTransactionId = order['order_id'] ??
+                  order['transaction_id'] ??
+                  order['delivery_id'] ??
+                  'unknown_${orderTime.millisecondsSinceEpoch}';
+
+              // Start a new group if:
+              // 1. It's the first order, OR
+              // 2. More than 10 minutes have passed, OR
+              // 3. The transaction ID is different (different order)
+              if (lastOrderTime == null ||
+                  orderTime.difference(lastOrderTime!) > groupingWindow ||
+                  currentTransactionId != lastTransactionId) {
+                // Start a new group
+                currentGroupKey =
+                    'group_${currentTransactionId}_${orderTime.millisecondsSinceEpoch}';
+                lastOrderTime = orderTime;
+                lastTransactionId = currentTransactionId;
+                print(
+                    'Starting new group: $currentGroupKey for ${order['product_name'] ?? 'Unknown Product'} (Transaction: $currentTransactionId) at ${orderTime.toString()}');
+              } else {
+                print(
+                    'Adding to existing group: $currentGroupKey for ${order['product_name'] ?? 'Unknown Product'} (Transaction: $currentTransactionId) (${orderTime.difference(lastOrderTime!).inMinutes} minutes apart)');
+              }
+
+              if (!groupedOrders.containsKey(currentGroupKey)) {
+                groupedOrders[currentGroupKey] = [];
+              }
+              groupedOrders[currentGroupKey]!.add(order);
+            }
+
+            print(
+                'Time-based grouping complete. Groups: ${groupedOrders.length}');
+          } else {
+            print(
+                'Transaction ID grouping worked well, keeping existing groups');
+          }
+
+          groupedOrders.forEach((key, orders) {
+            print('Group $key: ${orders.length} items');
+            for (final order in orders) {
+              print('  - ${order['product_name']} (${order['created_at']})');
+            }
+          });
 
           // Convert grouped orders to a list of combined orders
           final combinedOrders = groupedOrders.entries.map((entry) {
             final orders = entry.value;
-            print(
-                'Processing transaction ${entry.key} with ${orders.length} items');
+            print('Processing group ${entry.key} with ${orders.length} items');
 
             if (orders.length == 1) {
               // Single item order - return as is
-              return orders.first;
+              final order = orders.first;
+              print('Single item order: ${order['product_name']}');
+
+              // Handle local orders with items array structure
+              if (order.containsKey('items') &&
+                  order['items'] is List &&
+                  (order['items'] as List).isNotEmpty) {
+                final items = order['items'] as List;
+                final firstItem = items[0];
+
+                // If there are multiple items, mark as multi-item order
+                if (items.length > 1) {
+                  print(
+                      'Local order with multiple items: ${items.length} items');
+                  return {
+                    ...order,
+                    'product_name':
+                        firstItem['product_name'] ?? 'Unknown Product',
+                    'product_img': firstItem['product_img'] ?? '',
+                    'qty': items.fold<int>(
+                        0, (sum, item) => sum + ((item['qty'] ?? 1) as int)),
+                    'price': firstItem['price'] ?? 0.0,
+                    'total_price': order['total_price'] ?? 0.0,
+                    'is_multi_item': true,
+                    'item_count': items.length,
+                    'order_items': items
+                        .map((item) => Map<String, dynamic>.from(item))
+                        .toList(),
+                  };
+                } else {
+                  print(
+                      'Local order with single item: ${firstItem['product_name']}');
+                  return {
+                    ...order,
+                    'product_name':
+                        firstItem['product_name'] ?? 'Unknown Product',
+                    'product_img': firstItem['product_img'] ?? '',
+                    'qty': firstItem['qty'] ?? 1,
+                    'price': firstItem['price'] ?? 0.0,
+                    'batch_no': firstItem['batch_no'] ?? '',
+                  };
+                }
+              }
+
+              return order;
             } else {
               // Multi-item order - combine into one order
               final firstOrder = orders.first;
-              final orderItems = orders
-                  .map((order) => {
-                        'product_name':
-                            order['product_name'] ?? 'Unknown Product',
-                        'product_img': order['product_img'] ?? '',
-                        'qty': order['qty'] ?? 1,
-                        'price': order['price'] ?? 0.0,
-                        'batch_no': order['batch_no'] ?? '',
-                      })
-                  .toList();
+              print('Multi-item order with ${orders.length} items');
 
-              // Calculate totals
-              final totalQuantity = orders.fold<int>(
-                  0, (sum, order) => sum + (order['qty'] ?? 1) as int);
-              final totalAmount = orders.fold<double>(0.0, (sum, order) {
-                final price = (order['price'] ?? 0.0).toDouble();
-                final qty = order['qty'] ?? 1;
-                return sum + (price * qty);
-              });
+              // Handle local orders with items array structure
+              if (firstOrder.containsKey('items') &&
+                  firstOrder['items'] is List) {
+                final orderItems = firstOrder['items'] as List;
+                final firstItem = orderItems.isNotEmpty ? orderItems.first : {};
 
-              print(
-                  'Combined ${orders.length} items into single order with total quantity: $totalQuantity, total amount: $totalAmount');
+                // Calculate totals from all items in all orders
+                double totalAmount = 0.0;
+                int totalQuantity = 0;
+                List<Map<String, dynamic>> allItems = [];
 
-              return {
-                ...firstOrder,
-                'order_items': orderItems,
-                'qty': totalQuantity,
-                'total_price': totalAmount,
-                'is_multi_item': true,
-                'item_count': orders.length,
-              };
+                for (final order in orders) {
+                  if (order.containsKey('items') && order['items'] is List) {
+                    final items = order['items'] as List;
+                    for (final item in items) {
+                      allItems.add(Map<String, dynamic>.from(item));
+                      totalAmount += (item['price'] ?? 0.0).toDouble() *
+                          (item['qty'] ?? 1);
+                      totalQuantity += (item['qty'] ?? 1) as int;
+                    }
+                  }
+                }
+
+                print(
+                    'Local multi-item order: ${allItems.length} total items, total amount: $totalAmount');
+                return {
+                  ...firstOrder,
+                  'product_name':
+                      firstItem['product_name'] ?? 'Unknown Product',
+                  'product_img': firstItem['product_img'] ?? '',
+                  'qty': totalQuantity,
+                  'price': firstItem['price'] ?? 0.0,
+                  'total_price': totalAmount,
+                  'is_multi_item': true,
+                  'item_count': allItems.length,
+                };
+              } else {
+                // Handle server orders (existing logic)
+                final orderItems = orders
+                    .map((order) => {
+                          'product_name':
+                              order['product_name'] ?? 'Unknown Product',
+                          'product_img': order['product_img'] ?? '',
+                          'qty': order['qty'] ?? 1,
+                          'price': order['price'] ?? 0.0,
+                          'batch_no': order['batch_no'] ?? '',
+                        })
+                    .toList();
+
+                // Calculate totals
+                final totalQuantity = orders.fold<int>(
+                    0, (sum, order) => sum + (order['qty'] ?? 1) as int);
+                final totalAmount = orders.fold<double>(0.0, (sum, order) {
+                  final price = (order['price'] ?? 0.0).toDouble();
+                  final qty = order['qty'] ?? 1;
+                  return sum + (price * qty);
+                });
+
+                print(
+                    'Server multi-item order: Combined ${orders.length} items into single order with total quantity: $totalQuantity, total amount: $totalAmount');
+
+                return {
+                  ...firstOrder,
+                  'order_items': orderItems,
+                  'qty': totalQuantity,
+                  'total_price': totalAmount,
+                  'is_multi_item': true,
+                  'item_count': orders.length,
+                };
+              }
             }
           }).toList();
 
           setState(() {
             _orders = combinedOrders;
+            print('\n=== FINAL COMBINED ORDERS ===');
+            for (int i = 0; i < combinedOrders.length; i++) {
+              final order = combinedOrders[i];
+              print(
+                  'Order $i: ${order['product_name']} - Qty: ${order['qty']} - Total: ${order['total_price']} - Multi-item: ${order['is_multi_item']} - Item count: ${order['item_count']}');
+            }
             _orders.sort((a, b) {
               final dateA =
                   DateTime.tryParse(a['created_at'] ?? '') ?? DateTime(1970);
@@ -153,15 +348,35 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
   }
 
   String getImageUrl(String? url) {
-    if (url == null || url.isEmpty) return '';
-    if (url.startsWith('http')) return url;
+    print('getImageUrl called with: "$url"');
+
+    if (url == null || url.isEmpty || url == 'default_product.png') {
+      print('getImageUrl: returning empty string for null/empty URL');
+      return '';
+    }
+
+    if (url.startsWith('http')) {
+      print('getImageUrl: returning full URL: $url');
+      return url;
+    }
+
     if (url.startsWith('/uploads/')) {
-      return 'https://adm-ecommerce.ernestchemists.com.gh$url';
+      final fullUrl = 'https://adm-ecommerce.ernestchemists.com.gh$url';
+      print('getImageUrl: returning uploads URL: $fullUrl');
+      return fullUrl;
     }
+
     if (url.startsWith('/storage/')) {
-      return 'https://eclcommerce.ernestchemists.com.gh$url';
+      final fullUrl = 'https://eclcommerce.ernestchemists.com.gh$url';
+      print('getImageUrl: returning storage URL: $fullUrl');
+      return fullUrl;
     }
-    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
+
+    // For relative paths (like _1750059953_Gastrone-original-200ml.png)
+    final fullUrl =
+        'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
+    print('getImageUrl: returning product URL: $fullUrl');
+    return fullUrl;
   }
 
   Color _getStatusColor(String status) {
@@ -222,12 +437,18 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     final orderDate = DateTime.tryParse(order['created_at'] ?? '');
     final isMultiItem = order['is_multi_item'] == true;
     final itemCount = order['item_count'] ?? 1;
+    final paymentMethod = order['payment_method'] ?? '';
+    final isCashOnDelivery =
+        paymentMethod.toLowerCase().contains('cash on delivery');
 
     // For multi-item orders, show first item as representative
     final productName = isMultiItem
         ? '${order['product_name'] ?? 'Unknown Product'} + ${itemCount - 1} more items'
         : order['product_name'] ?? 'Unknown Product';
     final productImg = getImageUrl(order['product_img']);
+    print('_buildOrderCard: Product name: $productName');
+    print('_buildOrderCard: Original image URL: ${order['product_img']}');
+    print('_buildOrderCard: Processed image URL: $productImg');
     final qty = order['qty'] ?? 1;
     final price = order['price'] ?? 0.0;
     final total = order['total_price'] ?? 0.0;
@@ -300,6 +521,23 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                       ),
                     ),
                   ],
+                  if (isCashOnDelivery) ...[
+                    Container(
+                      margin: EdgeInsets.only(right: 8),
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.orange[100],
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        'COD',
+                        style: TextStyle(
+                            color: Colors.orange[700],
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -319,30 +557,48 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   GestureDetector(
-                    onTap: () => _showFullImageDialog(productImg),
+                    onTap: () => productImg.isNotEmpty
+                        ? _showFullImageDialog(productImg)
+                        : null,
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: CachedNetworkImage(
-                        imageUrl: productImg,
-                        width: 56,
-                        height: 56,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(
-                          color: Colors.grey[200],
-                          child: const Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                      child: productImg.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: productImg,
+                              width: 56,
+                              height: 56,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => Container(
+                                color: Colors.grey[200],
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) => Container(
+                                color: Colors.grey[200],
+                                child: const Icon(Icons.error_outline,
+                                    color: Colors.red),
+                              ),
+                              httpHeaders: const {
+                                'User-Agent':
+                                    'Mozilla/5.0 (compatible; Flutter)',
+                              },
+                            )
+                          : Container(
+                              width: 56,
+                              height: 56,
+                              color: Colors.grey[200],
+                              child: const Icon(
+                                Icons.inventory_2_outlined,
+                                color: Colors.grey,
+                                size: 24,
+                              ),
                             ),
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => Container(
-                          color: Colors.grey[200],
-                          child: const Icon(Icons.error_outline,
-                              color: Colors.red),
-                        ),
-                      ),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -368,10 +624,21 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                         ),
                         SizedBox(height: 4),
                         Text(
-                          'Order ID: ${order['delivery_id'] ?? 'N/A'}',
+                          'Order ID: ${order['delivery_id'] ?? order['order_id'] ?? 'N/A'}',
                           style:
                               TextStyle(color: Colors.grey[600], fontSize: 12),
                         ),
+                        if (isCashOnDelivery) ...[
+                          SizedBox(height: 4),
+                          Text(
+                            'Cash on Delivery',
+                            style: TextStyle(
+                              color: Colors.orange[700],
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                         SizedBox(height: 4),
                         Text(
                           'GHS ${total.toStringAsFixed(2)}',
@@ -615,6 +882,10 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
               : _orders.isEmpty
                   ? _buildEmptyState()
                   : _buildOrderList(),
+      bottomNavigationBar: CustomBottomNav(
+        initialIndex:
+            0, // Don't set profile as selected, so tapping profile will navigate
+      ),
     );
   }
 }

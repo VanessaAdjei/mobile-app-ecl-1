@@ -1194,16 +1194,293 @@ class AuthService {
       debugPrint('Orders API response body: \\${response.body}');
 
       final data = jsonDecode(response.body);
-      // Return the raw structure so the Purchases page can handle it
-      return data is Map<String, dynamic>
-          ? data
-          : {'status': 'error', 'message': 'Invalid response'};
+
+      // Get locally stored cash on delivery orders
+      final localOrders = await getLocalCashOnDeliveryOrders();
+
+      // Combine server orders with local orders
+      List<dynamic> allOrders = [];
+
+      if (data is Map<String, dynamic> && data['data'] is List) {
+        allOrders.addAll(data['data'] as List);
+      }
+
+      // Add local orders
+      allOrders.addAll(localOrders);
+
+      // Sort all orders by creation date (newest first)
+      allOrders.sort((a, b) {
+        final dateA =
+            DateTime.tryParse(a['created_at'] ?? '') ?? DateTime(1970);
+        final dateB =
+            DateTime.tryParse(b['created_at'] ?? '') ?? DateTime(1970);
+        return dateB.compareTo(dateA);
+      });
+
+      return {
+        'status': 'success',
+        'data': allOrders,
+        'message': 'Orders retrieved successfully',
+      };
     } catch (e) {
       debugPrint('Error fetching orders: $e');
+
+      // If server fails, try to return local orders only
+      try {
+        final localOrders = await getLocalCashOnDeliveryOrders();
+        return {
+          'status': 'success',
+          'data': localOrders,
+          'message': 'Retrieved local orders only (server unavailable)',
+        };
+      } catch (localError) {
+        return {
+          'status': 'error',
+          'message': 'Exception: $e',
+        };
+      }
+    }
+  }
+
+  /// Create a cash on delivery order in the backend
+  static Future<Map<String, dynamic>> createCashOnDeliveryOrder({
+    required List<Map<String, dynamic>> items,
+    required double totalAmount,
+    required String orderId,
+    required String paymentMethod,
+    String? promoCode,
+  }) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'status': 'error', 'message': 'Not authenticated'};
+      }
+
+      final userId = await getCurrentUserID();
+      if (userId == null) {
+        return {'status': 'error', 'message': 'User ID not found'};
+      }
+
+      // Create order description
+      String orderDesc = items
+          .map((item) => '${item['quantity']}x ${item['name']}')
+          .join(', ');
+      if (orderDesc.length > 100) {
+        orderDesc = '${orderDesc.substring(0, 97)}...';
+      }
+
+      // Add promo code info to order description if applied
+      if (promoCode != null) {
+        orderDesc += ' (Promo: $promoCode)';
+      }
+
+      // Use the expresspayment endpoint with a special flag for cash on delivery
+      final requestBody = {
+        'request': 'submit',
+        'order_id': orderId,
+        'currency': 'GHS',
+        'amount': totalAmount.toStringAsFixed(2),
+        'order_desc': orderDesc,
+        'payment_method': paymentMethod,
+        'payment_type': 'cash_on_delivery',
+        'user_id': userId,
+        'account_number': userId,
+        'redirect_url': 'http://eclcommerce.test/complete',
+        'items': items
+            .map((item) => {
+                  'product_id': int.tryParse(item['productId'] ?? '0') ?? 0,
+                  'product_name': item['name'] ?? 'Unknown Product',
+                  'product_img': item['imageUrl'] ?? '',
+                  'qty': item['quantity'] ?? 1,
+                  'price': (item['price'] ?? 0.0).toDouble(),
+                  'batch_no': item['batchNo'] ?? '',
+                })
+            .toList(),
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      // Add promo code if applied
+      if (promoCode != null && promoCode.isNotEmpty) {
+        requestBody['promo_code'] = promoCode;
+      }
+
+      print('\n=== CREATING CASH ON DELIVERY ORDER ===');
+      print('Request URL: $baseUrl/expresspayment');
+      print('Request Body: ${jsonEncode(requestBody)}');
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/expresspayment'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(requestBody),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      print('Response Status: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+
+        // Check if the response contains errors
+        if (data is Map<String, dynamic> && data.containsKey('errors')) {
+          print('Backend returned errors, storing order locally');
+          return await _storeCashOnDeliveryOrderLocally(
+            items: items,
+            totalAmount: totalAmount,
+            orderId: orderId,
+            paymentMethod: paymentMethod,
+            promoCode: promoCode,
+          );
+        }
+
+        return {
+          'status': 'success',
+          'message': 'Order created successfully',
+          'data': data,
+        };
+      } else {
+        // If backend doesn't support cash on delivery orders, store locally
+        print(
+            'Backend doesn\'t support cash on delivery orders, storing locally');
+        return await _storeCashOnDeliveryOrderLocally(
+          items: items,
+          totalAmount: totalAmount,
+          orderId: orderId,
+          paymentMethod: paymentMethod,
+          promoCode: promoCode,
+        );
+      }
+    } catch (e) {
+      print('Error creating cash on delivery order: $e');
+      // Fallback to local storage
+      return await _storeCashOnDeliveryOrderLocally(
+        items: items,
+        totalAmount: totalAmount,
+        orderId: orderId,
+        paymentMethod: paymentMethod,
+        promoCode: promoCode,
+      );
+    }
+  }
+
+  /// Store cash on delivery order locally as fallback
+  static Future<Map<String, dynamic>> _storeCashOnDeliveryOrderLocally({
+    required List<Map<String, dynamic>> items,
+    required double totalAmount,
+    required String orderId,
+    required String paymentMethod,
+    String? promoCode,
+  }) async {
+    try {
+      final userId = await getCurrentUserID();
+      if (userId == null) {
+        print('_storeCashOnDeliveryOrderLocally: User ID is null');
+        return {'status': 'error', 'message': 'User ID not found'};
+      }
+
+      print('_storeCashOnDeliveryOrderLocally: Storing order for user $userId');
+      print('_storeCashOnDeliveryOrderLocally: Order ID: $orderId');
+      print('_storeCashOnDeliveryOrderLocally: Total Amount: $totalAmount');
+      print('_storeCashOnDeliveryOrderLocally: Items count: ${items.length}');
+
+      // Create order data
+      final orderData = {
+        'user_id': userId,
+        'order_id': orderId,
+        'transaction_id': orderId,
+        'delivery_id': orderId,
+        'payment_method': paymentMethod,
+        'status': 'processing',
+        'total_price': totalAmount,
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+        'items': items
+            .map((item) => {
+                  'product_name': item['name'] ?? 'Unknown Product',
+                  'product_img': item['imageUrl'] ?? '',
+                  'qty': item['quantity'] ?? 1,
+                  'price': (item['price'] ?? 0.0).toDouble(),
+                  'batch_no': item['batchNo'] ?? '',
+                })
+            .toList(),
+      };
+
+      print('_storeCashOnDeliveryOrderLocally: Order data: $orderData');
+
+      // Store in secure storage
+      final orderKey = 'local_order_$orderId';
+      await _secureStorage.write(
+        key: orderKey,
+        value: jsonEncode(orderData),
+      );
+
+      print('Cash on delivery order stored locally with key: $orderKey');
+
+      return {
+        'status': 'success',
+        'message': 'Order stored locally successfully',
+        'data': orderData,
+      };
+    } catch (e) {
+      print('Error storing order locally: $e');
       return {
         'status': 'error',
-        'message': 'Exception: $e',
+        'message': 'Failed to store order locally: $e',
       };
+    }
+  }
+
+  /// Get locally stored cash on delivery orders
+  static Future<List<Map<String, dynamic>>>
+      getLocalCashOnDeliveryOrders() async {
+    try {
+      final userId = await getCurrentUserID();
+      if (userId == null) {
+        print('getLocalCashOnDeliveryOrders: User ID is null');
+        return [];
+      }
+
+      print('getLocalCashOnDeliveryOrders: Fetching orders for user $userId');
+      final allKeys = await _secureStorage.readAll();
+      print(
+          'getLocalCashOnDeliveryOrders: All storage keys: ${allKeys.keys.toList()}');
+
+      final localOrders = <Map<String, dynamic>>[];
+
+      for (final entry in allKeys.entries) {
+        if (entry.key.startsWith('local_order_')) {
+          print(
+              'getLocalCashOnDeliveryOrders: Found local order key: ${entry.key}');
+          try {
+            final orderData = jsonDecode(entry.value);
+            print(
+                'getLocalCashOnDeliveryOrders: Order data for ${entry.key}: $orderData');
+            if (orderData['user_id'] == userId) {
+              localOrders.add(orderData);
+              print(
+                  'getLocalCashOnDeliveryOrders: Added order for user $userId');
+            } else {
+              print(
+                  'getLocalCashOnDeliveryOrders: Order user_id ${orderData['user_id']} does not match current user $userId');
+            }
+          } catch (e) {
+            print('Error parsing local order: $e');
+          }
+        }
+      }
+
+      print(
+          'getLocalCashOnDeliveryOrders: Returning ${localOrders.length} local orders');
+      return localOrders;
+    } catch (e) {
+      print('Error getting local orders: $e');
+      return [];
     }
   }
 

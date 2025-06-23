@@ -1,4 +1,7 @@
 // pages/categories.dart
+// pages/categories.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -34,139 +37,13 @@ import 'package:eclapp/pages/theme_provider.dart';
 import 'package:eclapp/widgets/cart_icon_button.dart';
 import 'package:eclapp/widgets/error_display.dart';
 
-class Categories extends StatefulWidget {
-  const Categories({super.key});
-
-  @override
-  _CategoriesState createState() => _CategoriesState();
-}
-
-class _CategoriesState extends State<Categories> {
-  bool _isLoading = true;
-  String? _error;
-  List<dynamic> _categories = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchCategories();
-  }
-
-  Future<void> _fetchCategories() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
-
-      final response = await http.get(
-        Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/categories'),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          setState(() {
-            _categories = data['categories'] ?? [];
-            _isLoading = false;
-          });
-        } else {
-          throw Exception(
-              'Failed to load categories: ${data['message'] ?? 'Unknown error'}');
-        }
-      } else {
-        throw Exception('Failed to load categories: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error fetching categories: $e');
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Categories'),
-        backgroundColor: Colors.green.shade700,
-        foregroundColor: Colors.white,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(child: Text(_error!))
-              : GridView.builder(
-                  padding: const EdgeInsets.all(16),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 1.5,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                  ),
-                  itemCount: _categories.length,
-                  itemBuilder: (context, index) {
-                    final category = _categories[index];
-                    return _buildCategoryCard(category);
-                  },
-                ),
-    );
-  }
-
-  Widget _buildCategoryCard(dynamic category) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => HomePage(),
-            ),
-          );
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.green.shade700,
-                Colors.green.shade500,
-              ],
-            ),
-          ),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                category['name'] ?? 'Unknown Category',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class CategoryPage extends StatefulWidget {
   final bool isBulkPurchase;
 
   const CategoryPage({
-    super.key,
+    Key? key,
     this.isBulkPurchase = false,
-  });
+  }) : super(key: key);
 
   @override
   _CategoryPageState createState() => _CategoryPageState();
@@ -179,17 +56,68 @@ class _CategoryPageState extends State<CategoryPage> {
   bool _isLoading = true;
   String _errorMessage = '';
   final Map<int, List<dynamic>> _subcategoriesMap = {};
+  int? _highlightedCategoryId;
+  int? _highlightedSubcategoryId;
+  Timer? _highlightTimer;
+  List<dynamic> _allProducts = [];
+  bool _isLoadingProducts = false;
+  bool _showSearchDropdown = false;
+  List<dynamic> _searchResults = [];
+  FocusNode _searchFocusNode = FocusNode();
+  bool _isSearchLoading = false;
+  Timer? _searchDebounceTimer;
 
   @override
   void initState() {
     super.initState();
+    print('🚀 CategoryPage initState called');
     _fetchTopCategories();
+    _searchFocusNode.addListener(() {
+      if (!_searchFocusNode.hasFocus) {
+        setState(() {
+          _showSearchDropdown = false;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
-    _searchController.dispose();
+    _highlightTimer?.cancel();
+    _searchDebounceTimer?.cancel();
+    _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  void _highlightCategory(int categoryId, int? subcategoryId) {
+    setState(() {
+      _highlightedCategoryId = categoryId;
+      _highlightedSubcategoryId = subcategoryId;
+    });
+
+    // Automatically remove highlight after 5 seconds
+    _highlightTimer?.cancel();
+    _highlightTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          _highlightedCategoryId = null;
+          _highlightedSubcategoryId = null;
+        });
+      }
+    });
+
+    // If this is a subcategory, find and select its parent category first
+    if (subcategoryId != null) {
+      final subcategory = _subcategoriesMap[categoryId]?.firstWhere(
+        (sub) => sub['id'] == subcategoryId,
+        orElse: () => null,
+      );
+
+      if (subcategory != null) {
+        // Remove the call to onSubcategorySelected as it doesn't exist in this class
+        // This method is only available in SubcategoryPageState
+      }
+    }
   }
 
   Future<void> _fetchTopCategories() async {
@@ -199,22 +127,36 @@ class _CategoryPageState extends State<CategoryPage> {
         _errorMessage = '';
       });
 
-      final response = await http
-          .get(
-            Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/top-categories'),
-          )
-          .timeout(const Duration(seconds: 15));
+      final response = await http.get(
+        Uri.parse(
+            'https://eclcommerce.ernestchemists.com.gh/api/top-categories'),
+      );
+
+      print('=== FETCH TOP CATEGORIES DEBUG ===');
+      print('Response status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        print('Decoded data: ${json.encode(data)}');
+
         if (data['success'] == true) {
-          if (mounted) {
-            setState(() {
-              _categories = data['data'];
-              _filteredCategories = data['data'];
-              _isLoading = false;
-            });
+          setState(() {
+            _categories = data['data'];
+            _filteredCategories = data['data'];
+            _isLoading = false;
+          });
+
+          print('Number of categories loaded: ${_categories.length}');
+          print('Categories:');
+          for (var category in _categories) {
+            print('- ${category['name']} (ID: ${category['id']})');
+          }
+
+          // Debug: Print the structure of the first category
+          if (_categories.isNotEmpty) {
+            print('First category structure:');
+            print(json.encode(_categories.first));
           }
         } else {
           throw Exception('Unable to load categories at this time');
@@ -222,32 +164,337 @@ class _CategoryPageState extends State<CategoryPage> {
       } else {
         throw Exception('Unable to connect to the server');
       }
+      print('=== END FETCH TOP CATEGORIES DEBUG ===');
     } catch (e) {
       print('Error fetching top categories: $e');
-      if (mounted) {
-        setState(() {
-          _errorMessage =
-              'Unable to load categories. Please check your internet connection and try again.';
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _errorMessage =
+            'Unable to load categories. Please check your internet connection and try again.';
+        _isLoading = false;
+      });
     }
   }
 
-  void _searchProduct(String query) {
+  Future<List<dynamic>> _getAllProductsFromCategories(
+      {bool forceRefresh = false}) async {
+    print('=== GET ALL PRODUCTS DEBUG ===');
+    print('Current _allProducts length: ${_allProducts.length}');
+    print('Is loading products: $_isLoadingProducts');
+    print('Force refresh: $forceRefresh');
+
+    if (_allProducts.isNotEmpty && !forceRefresh) {
+      print('Products already loaded, returning existing products');
+      return _allProducts;
+    }
+
+    if (_isLoadingProducts) {
+      print('Already loading products, returning empty list');
+      return [];
+    }
+
+    setState(() {
+      _isLoadingProducts = true;
+    });
+
+    List<dynamic> allProducts = [];
+
+    try {
+      print('=== FETCHING ALL PRODUCTS DEBUG ===');
+      print('Number of categories to fetch from: ${_categories.length}');
+      print('Categories to process:');
+      for (var cat in _categories) {
+        print('- ${cat['name']} (ID: ${cat['id']})');
+      }
+
+      // Fetch products from all categories and their subcategories
+      for (var category in _categories) {
+        try {
+          print(
+              '\n--- Processing main category: ${category['name']} (ID: ${category['id']}) ---');
+
+          // First, get subcategories for this main category
+          final subcategoriesResponse = await http.get(
+            Uri.parse(
+                'https://eclcommerce.ernestchemists.com.gh/api/categories/${category['id']}'),
+          );
+
+          if (subcategoriesResponse.statusCode == 200) {
+            final subcategoriesData = json.decode(subcategoriesResponse.body);
+            if (subcategoriesData['success'] == true) {
+              final subcategories = subcategoriesData['data'] as List;
+              print(
+                  'Found ${subcategories.length} subcategories for ${category['name']}');
+
+              // Fetch products from each subcategory
+              for (var subcategory in subcategories) {
+                try {
+                  final subcategoryId = subcategory['id'];
+                  final subcategoryName = subcategory['name'];
+                  print(
+                      'Fetching products for subcategory: $subcategoryName (ID: $subcategoryId)');
+
+                  final apiUrl =
+                      'https://eclcommerce.ernestchemists.com.gh/api/product-categories/$subcategoryId';
+                  print('API URL: $apiUrl');
+
+                  final response = await http.get(Uri.parse(apiUrl));
+
+                  print('Response status code: ${response.statusCode}');
+
+                  if (response.statusCode == 200) {
+                    final data = json.decode(response.body);
+
+                    if (data['success'] == true && data['data'] != null) {
+                      final products = data['data'] as List;
+                      print(
+                          'Number of products found for subcategory $subcategoryName: ${products.length}');
+
+                      for (var product in products) {
+                        allProducts.add({
+                          ...product,
+                          'category_id': category['id'],
+                          'category_name': category['name'],
+                          'subcategory_id': subcategoryId,
+                          'subcategory_name': subcategoryName,
+                        });
+                      }
+                    } else {
+                      print(
+                          'API returned success: false for subcategory $subcategoryName');
+                    }
+                  } else {
+                    print(
+                        'API request failed with status code: ${response.statusCode} for subcategory $subcategoryName');
+                  }
+                } catch (e) {
+                  print(
+                      'Error fetching products for subcategory ${subcategory['id']}: $e');
+                  // Continue with other subcategories even if one fails
+                }
+              }
+            } else {
+              print(
+                  'Failed to get subcategories for category ${category['name']}');
+            }
+          } else {
+            print(
+                'Failed to get subcategories for category ${category['name']}: ${subcategoriesResponse.statusCode}');
+          }
+        } catch (e) {
+          print('Error processing category ${category['id']}: $e');
+          // Continue with other categories even if one fails
+        }
+      }
+
+      print('Total products collected: ${allProducts.length}');
+      _allProducts = allProducts;
+    } catch (e) {
+      print('Error fetching all products: $e');
+    } finally {
+      setState(() {
+        _isLoadingProducts = false;
+      });
+    }
+
+    print('=== END FETCHING ALL PRODUCTS DEBUG ===');
+    return allProducts;
+  }
+
+  void _showSearch(BuildContext context) async {
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.green.shade700),
+          ),
+        );
+      },
+    );
+
+    // Fetch all products
+    final products = await _getAllProductsFromCategories();
+
+    // Hide loading indicator
+    Navigator.of(context).pop();
+
+    if (products.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No products available for search'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Show search
+    showSearch(
+      context: context,
+      delegate: ProductSearchDelegate(
+        products: products,
+        onCategorySelected: _highlightCategory,
+        currentCategoryName: null,
+      ),
+    );
+  }
+
+  void _searchProduct(String query) async {
+    // Cancel previous timer
+    _searchDebounceTimer?.cancel();
+
     if (query.isEmpty) {
+      print('Query is empty, clearing search results');
       setState(() {
         _filteredCategories = _categories;
+        _showSearchDropdown = false;
+        _searchResults = [];
       });
       return;
     }
 
-    final lowercaseQuery = query.toLowerCase();
-    setState(() {
-      _filteredCategories = _categories.where((category) {
-        return category['name'].toLowerCase().contains(lowercaseQuery);
-      }).toList();
+    // Set a timer to debounce the search
+    _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () async {
+      await _performSearch(query);
     });
+  }
+
+  Future<void> _performSearch(String query) async {
+    print('🔍 PERFORMING SEARCH with query: "$query"');
+    print('=== SEARCH DEBUG ===');
+    print('Search query: "$query"');
+    print('Query length: ${query.length}');
+    print('Current _allProducts length: ${_allProducts.length}');
+
+    print('Setting search dropdown to visible');
+    setState(() {
+      _showSearchDropdown = true;
+      _searchResults = []; // Clear previous results while searching
+    });
+
+    // Search through products, not categories
+    List<dynamic> productResults = [];
+
+    // Only fetch all products if we don't have them cached and query is long enough
+    if (_allProducts.isEmpty && query.length >= 2) {
+      print('🔄 Fetching all products for comprehensive search...');
+      await _getAllProductsFromCategories(
+          forceRefresh: false); // Don't force refresh
+      print('✅ Products fetched, total: ${_allProducts.length}');
+    } else if (_allProducts.isNotEmpty) {
+      print(
+          '✅ Using cached products for search (${_allProducts.length} products)');
+    }
+
+    print('Total products available for search: ${_allProducts.length}');
+
+    // Search through products
+    productResults = _allProducts.where((product) {
+      final productName = product['name']?.toString().toLowerCase() ?? '';
+      final searchQuery = query.toLowerCase();
+      final contains = productName.contains(searchQuery);
+      return contains;
+    }).toList();
+
+    print('Found ${productResults.length} matching products');
+
+    setState(() {
+      _searchResults = productResults
+          .map((prod) => {
+                'type': 'product',
+                'data': prod,
+                'name': prod['name'],
+                'id': prod['id'],
+                'category_name': prod['category_name'],
+                'price': prod['price'],
+                'thumbnail': prod['thumbnail'],
+                'urlname': prod['urlname'],
+              })
+          .toList();
+    });
+
+    print('Search results set: ${_searchResults.length} items');
+    print('Show dropdown: $_showSearchDropdown');
+    print('=== END SEARCH DEBUG ===');
+  }
+
+  void _onSearchItemTap(dynamic item) {
+    print('=== PRODUCT TAP DEBUG ===');
+    print('Product tapped: ${json.encode(item)}');
+    print('Product name: ${item['name']}');
+    print('Product price: ${item['price']}');
+    print('Product ID: ${item['id']}');
+    print('Category ID: ${item['category_id']}');
+    print('Category name: ${item['category_name']}');
+    print('Data category ID: ${item['data']?['category_id']}');
+    print('Data category name: ${item['data']?['category_name']}');
+
+    setState(() {
+      _showSearchDropdown = false;
+      _searchController.clear();
+    });
+
+    // Navigate to the category page where this product belongs
+    final categoryId = item['category_id'] ?? item['data']?['category_id'];
+    final categoryName =
+        item['category_name'] ?? item['data']?['category_name'];
+
+    print('Resolved category ID: $categoryId');
+    print('Resolved category name: $categoryName');
+
+    if (categoryId != null && categoryName != null) {
+      print('Navigating to category: $categoryName (ID: $categoryId)');
+
+      // Check if the category has subcategories by looking at the original categories data
+      final category = _categories.firstWhere(
+        (cat) => cat['id'] == categoryId,
+        orElse: () => {'has_subcategories': false},
+      );
+
+      if (category['has_subcategories'] == true) {
+        print('Category has subcategories, navigating to SubcategoryPage');
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SubcategoryPage(
+              categoryName: categoryName,
+              categoryId: categoryId,
+            ),
+          ),
+        );
+      } else {
+        print('Category has no subcategories, navigating to ProductListPage');
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProductListPage(
+              categoryName: categoryName,
+              categoryId: categoryId,
+            ),
+          ),
+        );
+      }
+    } else {
+      print('ERROR: Could not determine category information');
+      print('Available fields in item: ${item.keys.toList()}');
+      print('Available fields in item data: ${item['data']?.keys.toList()}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not navigate to category'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
+    print('=== END PRODUCT TAP DEBUG ===');
   }
 
   String _getCategoryImageUrl(String imagePath) {
@@ -257,34 +504,39 @@ class _CategoryPageState extends State<CategoryPage> {
     return 'https://eclcommerce.ernestchemists.com.gh/storage/$imagePath';
   }
 
+  String _formatPrice(dynamic price) {
+    if (price == null) return '0.00';
+
+    // Convert to double if it's a string
+    double? numericPrice;
+    if (price is String) {
+      numericPrice = double.tryParse(price);
+    } else if (price is int) {
+      numericPrice = price.toDouble();
+    } else if (price is double) {
+      numericPrice = price;
+    }
+
+    if (numericPrice == null) return '0.00';
+    return numericPrice.toStringAsFixed(2);
+  }
+
   @override
   Widget build(BuildContext context) {
+    print('=== BUILD DEBUG ===');
+    print('_showSearchDropdown: $_showSearchDropdown');
+    print('_searchResults.length: ${_searchResults.length}');
+    print('_isLoadingProducts: $_isLoadingProducts');
+    print('_allProducts.length: ${_allProducts.length}');
+    print('=== END BUILD DEBUG ===');
+
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.green.shade700,
-                Colors.green.shade800,
-              ],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-        ),
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        elevation: Theme.of(context).appBarTheme.elevation,
+        centerTitle: Theme.of(context).appBarTheme.centerTitle,
         leading: AppBackButton(
-          backgroundColor: Colors.white.withOpacity(0.2),
+          backgroundColor: Theme.of(context).primaryColor,
           onPressed: () {
             if (widget.isBulkPurchase) {
               Navigator.pushReplacement(
@@ -305,24 +557,16 @@ class _CategoryPageState extends State<CategoryPage> {
         ),
         title: Text(
           'Categories',
-          style: GoogleFonts.poppins(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-            letterSpacing: 0.5,
-          ),
+          style: Theme.of(context).appBarTheme.titleTextStyle,
         ),
         actions: [
-          Container(
-            margin: EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: CartIconButton(
-              iconColor: Colors.white,
-              iconSize: 24,
-            ),
+          CartIconButton(
+            iconColor: Colors.white,
+            iconSize: 24,
+          ),
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () => _showSearch(context),
           ),
         ],
       ),
@@ -337,41 +581,155 @@ class _CategoryPageState extends State<CategoryPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Search Bar
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 6,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: _searchProduct,
-                      decoration: InputDecoration(
-                        hintText: "Search Categories...",
-                        hintStyle: TextStyle(
-                            color: Colors.grey.shade400, fontSize: 13),
-                        prefixIcon: Icon(Icons.search,
-                            color: Colors.green.shade700, size: 20),
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
+                  // Search Bar with Dropdown
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(6),
-                          borderSide: BorderSide.none,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 6,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
                         ),
-                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                        child: TextField(
+                          controller: _searchController,
+                          focusNode: _searchFocusNode,
+                          onChanged: _searchProduct,
+                          onTap: () {
+                            if (_searchController.text.isNotEmpty) {
+                              setState(() {
+                                _showSearchDropdown = true;
+                              });
+                            }
+                          },
+                          decoration: InputDecoration(
+                            hintText: "Search products...",
+                            hintStyle: TextStyle(
+                                color: Colors.grey.shade400, fontSize: 13),
+                            prefixIcon: Icon(Icons.search,
+                                color: Colors.green.shade700, size: 20),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
                       ),
-                    ),
+                      // Search Dropdown
+                      if (_showSearchDropdown)
+                        Container(
+                          margin: EdgeInsets.only(top: 4),
+                          constraints: BoxConstraints(maxHeight: 300),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: Colors.green.shade300, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 10,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Debug header
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade50,
+                                  borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(6)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.search,
+                                        size: 14, color: Colors.green.shade700),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Search Results (${_searchResults.length})',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.green.shade700,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Results
+                              Expanded(
+                                child: _isLoadingProducts
+                                    ? Container(
+                                        padding: EdgeInsets.all(16),
+                                        child: Row(
+                                          children: [
+                                            SizedBox(
+                                              width: 16,
+                                              height: 16,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                valueColor:
+                                                    AlwaysStoppedAnimation<
+                                                            Color>(
+                                                        Colors.green.shade700),
+                                              ),
+                                            ),
+                                            SizedBox(width: 12),
+                                            Text(
+                                              'Loading products...',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    : _searchResults.isEmpty
+                                        ? Container(
+                                            padding: EdgeInsets.all(16),
+                                            child: Text(
+                                              'No products found',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                          )
+                                        : ListView.builder(
+                                            shrinkWrap: true,
+                                            padding: EdgeInsets.zero,
+                                            itemCount: _searchResults.length,
+                                            itemBuilder: (context, index) {
+                                              final item =
+                                                  _searchResults[index];
+                                              return _buildSearchResultItem(
+                                                  item);
+                                            },
+                                          ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'Find your products by category',
+                    'Find products by name',
                     style: TextStyle(
                       color: Colors.green,
                       fontSize: 12,
@@ -413,6 +771,94 @@ class _CategoryPageState extends State<CategoryPage> {
       ),
       bottomNavigationBar: CustomBottomNav(
         initialIndex: 2,
+      ),
+    );
+  }
+
+  Widget _buildSearchResultItem(dynamic item) {
+    return InkWell(
+      onTap: () => _onSearchItemTap(item),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: Colors.grey.shade200,
+              width: 0.5,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            // Product thumbnail
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                color: Colors.grey.shade100,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  item['thumbnail'] ?? '',
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Icon(
+                    Icons.image_not_supported_outlined,
+                    color: Colors.grey.shade400,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(width: 12),
+            // Product content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item['name'],
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'GHS ${_formatPrice(item['price'])}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.green.shade700,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (item['category_name'] != null) ...[
+                    SizedBox(height: 2),
+                    Text(
+                      item['category_name'],
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            // Arrow
+            Icon(
+              Icons.chevron_right,
+              color: Colors.grey.shade400,
+              size: 20,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -524,18 +970,17 @@ class _CategoryPageState extends State<CategoryPage> {
         });
         _fetchTopCategories();
       },
-      icon: Icons.wifi_off_rounded,
+      icon: Icons.error_outline,
       title: 'Connection Issue',
     );
   }
 
   Widget _buildEmptyState() {
     return ErrorDisplay(
-      errorMessage:
-          'We couldn\'t find any categories matching your search. Please try a different search term.',
-      icon: Icons.search_off_rounded,
-      title: 'No Categories Found',
-      iconColor: Colors.blue,
+      errorMessage: 'No products available',
+      icon: Icons.shopping_bag_outlined,
+      title: 'No Products Found',
+      iconColor: Colors.grey.shade400,
     );
   }
 
@@ -557,13 +1002,6 @@ class _CategoryPageState extends State<CategoryPage> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: Offset(0, 4),
-                ),
-              ],
             ),
           );
         },
@@ -599,88 +1037,97 @@ class CategoryGridItem extends StatefulWidget {
 }
 
 class _CategoryGridItemState extends State<CategoryGridItem> {
+  bool _isPressed = false;
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: widget.onTap,
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) => setState(() => _isPressed = false),
+      onTapCancel: () => setState(() => _isPressed = false),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: double.infinity,
-            height: 140,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(widget.imageRadius),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(widget.imageRadius),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  CachedNetworkImage(
-                    imageUrl: widget.imageUrl,
-                    fit: BoxFit.contain,
-                    width: double.infinity,
-                    height: double.infinity,
-                    memCacheWidth: 200,
-                    memCacheHeight: 200,
-                    maxWidthDiskCache: 200,
-                    maxHeightDiskCache: 200,
-                    fadeInDuration: const Duration(milliseconds: 150),
-                    placeholderFadeInDuration:
-                        const Duration(milliseconds: 150),
-                    imageBuilder: (context, imageProvider) => Image(
-                      image: imageProvider,
+          AnimatedScale(
+            scale: _isPressed ? 0.96 : 1.0,
+            duration: Duration(milliseconds: 100),
+            curve: Curves.easeOut,
+            child: Container(
+              width: double.infinity,
+              height: 140,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(widget.imageRadius),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(widget.imageRadius),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CachedNetworkImage(
+                      imageUrl: widget.imageUrl,
                       fit: BoxFit.contain,
-                    ),
-                    placeholder: (context, url) => Container(
-                      color: Colors.grey.shade200,
-                      child: const Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.green),
+                      width: double.infinity,
+                      height: double.infinity,
+                      memCacheWidth: 300,
+                      memCacheHeight: 300,
+                      maxWidthDiskCache: 300,
+                      maxHeightDiskCache: 300,
+                      fadeInDuration: Duration(milliseconds: 200),
+                      placeholderFadeInDuration: Duration(milliseconds: 200),
+                      imageBuilder: (context, imageProvider) => Image(
+                        image: imageProvider,
+                        fit: BoxFit.contain,
+                      ),
+                      placeholder: (context, url) => Container(
+                        color: Colors.grey.shade200,
+                        child: Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.green),
+                            ),
+                          ),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        color: Colors.grey.shade100,
+                        child: Center(
+                          child: Icon(
+                            Icons.image_not_supported_outlined,
+                            color: Colors.grey,
+                            size: 36,
                           ),
                         ),
                       ),
                     ),
-                    errorWidget: (context, url, error) => Container(
-                      color: Colors.grey.shade100,
-                      child: const Center(
-                        child: Icon(
-                          Icons.image_not_supported_outlined,
-                          color: Colors.grey,
-                          size: 32,
+                    // Gradient overlay
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withOpacity(0.2),
+                          ],
+                          stops: [0.7, 1.0],
                         ),
                       ),
                     ),
-                  ),
-                  // Gradient overlay
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withOpacity(0.2),
-                        ],
-                        stops: const [0.7, 1.0],
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -747,12 +1194,10 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     try {
       print(
           'Fetching subcategories for main category ID: ${widget.categoryId}');
-      final response = await http
-          .get(
-            Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/categories/${widget.categoryId}'),
-          )
-          .timeout(const Duration(seconds: 15));
+      final response = await http.get(
+        Uri.parse(
+            'https://eclcommerce.ernestchemists.com.gh/api/categories/${widget.categoryId}'),
+      );
 
       print('Subcategories API Response Status Code: ${response.statusCode}');
       print('Subcategories API Response Body: ${response.body}');
@@ -772,32 +1217,18 @@ class SubcategoryPageState extends State<SubcategoryPage> {
             subcategoriesData.forEach((sub) {
               print('Subcategory: ${sub['name']}, ID: ${sub['id']}');
             });
-
-            if (mounted) {
-              handleSubcategoriesSuccess(data);
-            }
-          } else {
-            if (mounted) {
-              setState(() {
-                errorMessage = 'No subcategories found for this category.';
-                isLoading = false;
-              });
-            }
           }
+          handleSubcategoriesSuccess(data);
         } else {
-          throw Exception('Failed to load subcategories');
+          handleSubcategoriesError('Failed to load subcategories');
         }
       } else {
-        throw Exception('Server error: ${response.statusCode}');
+        handleSubcategoriesError(
+            'Failed to load subcategories: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error fetching subcategories: $e');
-      if (mounted) {
-        setState(() {
-          errorMessage = 'Failed to load subcategories. Please try again.';
-          isLoading = false;
-        });
-      }
+      print('Error in fetchSubcategories: $e');
+      handleSubcategoriesError('Error: ${e.toString()}');
     }
   }
 
@@ -885,7 +1316,6 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       print('ID: ${firstSubcategory['id']}');
       print('All fields: ${json.encode(firstSubcategory)}');
 
-      // Automatically select the first subcategory
       onSubcategorySelected(firstSubcategory['id']);
     }
   }
@@ -1107,7 +1537,13 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   void _showSearch(BuildContext context) {
     showSearch(
       context: context,
-      delegate: ProductSearchDelegate(products),
+      delegate: ProductSearchDelegate(
+        products: products,
+        onCategorySelected: (categoryId, subcategoryId) {
+          // Handle category selection if needed
+        },
+        currentCategoryName: widget.categoryName,
+      ),
     );
   }
 
@@ -1139,7 +1575,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     );
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -1153,18 +1589,18 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(4),
+            padding: EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(6),
             ),
             child: Icon(
               Icons.category_outlined,
               color: Colors.green.shade700,
-              size: 14,
+              size: 16,
             ),
           ),
-          SizedBox(width: 6),
+          SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1173,7 +1609,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                 Text(
                   selectedSubcategory['name'] ?? 'All Products',
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: Colors.grey.shade800,
                     height: 1.1,
@@ -1183,7 +1619,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                 Text(
                   '${products.length} products available',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 11,
                     color: Colors.grey.shade500,
                     height: 1.1,
                   ),
@@ -1198,12 +1634,12 @@ class SubcategoryPageState extends State<SubcategoryPage> {
 
   Widget buildSideNavigation() {
     return Container(
-      width: MediaQuery.of(context).size.width * 0.32,
+      width: MediaQuery.of(context).size.width * 0.4,
       color: Colors.white,
       child: Column(
         children: [
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: Colors.green.shade50,
               border: Border(
@@ -1218,18 +1654,15 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                 Icon(
                   Icons.category_outlined,
                   color: Colors.green.shade700,
-                  size: 16,
+                  size: 18,
                 ),
-                SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Categories',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade900,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                SizedBox(width: 8),
+                Text(
+                  'Categories',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade900,
                   ),
                 ),
               ],
@@ -1237,7 +1670,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           ),
           Expanded(
             child: ListView.builder(
-              padding: EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+              padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
               itemCount: subcategories.length,
               itemBuilder: (context, index) {
                 final subcategory = subcategories[index];
@@ -1245,9 +1678,9 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                     selectedSubcategoryId == subcategory['id'];
 
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
+                  padding: const EdgeInsets.only(bottom: 6),
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(8),
                     onTap: () => onSubcategorySelected(subcategory['id']),
                     child: AnimatedContainer(
                       duration: Duration(milliseconds: 200),
@@ -1256,7 +1689,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                         color: isSelected
                             ? Colors.green.shade50
                             : Colors.transparent,
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: isSelected
                               ? Colors.green.shade700
@@ -1264,14 +1697,15 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                           width: isSelected ? 1.5 : 1,
                         ),
                       ),
-                      padding: EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+                      padding:
+                          EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                       child: Row(
                         children: [
                           if (isSelected)
                             Container(
-                              width: 2,
-                              height: 2,
-                              margin: EdgeInsets.only(right: 5),
+                              width: 3,
+                              height: 3,
+                              margin: EdgeInsets.only(right: 8),
                               decoration: BoxDecoration(
                                 color: Colors.green.shade700,
                                 shape: BoxShape.circle,
@@ -1281,7 +1715,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                             child: Text(
                               subcategory['name'],
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 13,
                                 fontWeight: isSelected
                                     ? FontWeight.w500
                                     : FontWeight.normal,
@@ -1295,13 +1729,10 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                             ),
                           ),
                           if (isSelected)
-                            Container(
-                              margin: EdgeInsets.only(left: 3),
-                              child: Icon(
-                                Icons.check_circle,
-                                size: 11,
-                                color: Colors.green.shade700,
-                              ),
+                            Icon(
+                              Icons.check_circle,
+                              size: 14,
+                              color: Colors.green.shade700,
                             ),
                         ],
                       ),
@@ -1329,39 +1760,72 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   Widget buildProductsGrid() {
     return GridView.builder(
       controller: scrollController,
-      padding: EdgeInsets.all(12),
+      padding: EdgeInsets.all(16),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.6,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        childAspectRatio: 0.55,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
       ),
       itemCount: products.length,
       itemBuilder: (context, index) {
         final product = products[index];
-        final itemDetailURL = product['inventory']?['urlname'] ??
-            product['route']?.split('/').last;
         return ProductCard(
           product: product,
-          onTap: () {
-            if (itemDetailURL != null) {
+          onTap: () async {
+            print('=== PRODUCT CARD TAP DEBUG ===');
+            print('Product tapped: ${json.encode(product)}');
+            print('Product name: ${product['name']}');
+            print('Product price: ${product['price']}');
+            print('Product inventory: ${product['inventory']}');
+            print('Product route: ${product['route']}');
+            print('Product ID: ${product['id']}');
+            print('Product URL name: ${product['urlname']}');
+
+            // Use urlname directly from product data
+            String? itemDetailURL = product['urlname'] ??
+                product['inventory']?['urlname'] ??
+                product['route']?.split('/').last;
+
+            print('Final item detail URL: $itemDetailURL');
+
+            if (itemDetailURL != null && itemDetailURL.isNotEmpty) {
+              print('Navigating to product detail page...');
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ItemPage(urlName: itemDetailURL),
+                  builder: (context) => ItemPage(urlName: itemDetailURL!),
                 ),
               );
             } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Could not load product details'),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+              print('ERROR: Could not determine item detail URL');
+              print('Available fields in product: ${product.keys.toList()}');
+              print(
+                  'Available fields in product data: ${product['data']?.keys.toList()}');
+
+              // Try using the product ID as a fallback
+              final productId = product['id']?.toString();
+              if (productId != null) {
+                print('Trying to navigate using product ID: $productId');
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ItemPage(urlName: productId),
                   ),
-                ),
-              );
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Could not load product details'),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              }
             }
+            print('=== END PRODUCT CARD TAP DEBUG ===');
           },
         );
       },
@@ -1402,99 +1866,26 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   }
 
   Widget buildErrorState(String message) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 80,
-            color: Colors.red.shade300,
-          ),
-          SizedBox(height: 16),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey.shade700,
-              fontSize: 16,
-            ),
-          ),
-          SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () {
-              if (selectedSubcategoryId != null) {
-                onSubcategorySelected(selectedSubcategoryId!);
-              } else {
-                fetchSubcategories();
-              }
-            },
-            icon: Icon(Icons.refresh),
-            label: Text('Try Again'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.shade700,
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              textStyle: TextStyle(fontSize: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ],
-      ),
+    return ErrorDisplay(
+      errorMessage: message,
+      onRetry: () {
+        setState(() {
+          isLoading = true;
+          errorMessage = '';
+        });
+        fetchSubcategories();
+      },
+      icon: Icons.error_outline,
+      title: 'Connection Issue',
     );
   }
 
   Widget buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.shopping_bag_outlined,
-            size: 80,
-            color: Colors.grey.shade400,
-          ),
-          SizedBox(height: 24),
-          Text(
-            'No products available',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade800,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'We couldn\'t find any products in this category',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade600,
-            ),
-          ),
-          SizedBox(height: 32),
-          OutlinedButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            icon: Icon(
-              Icons.arrow_back,
-              color: Colors.black,
-            ),
-            label: Text('Browse Categories'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.green.shade700,
-              side: BorderSide(color: Colors.green.shade700),
-              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ],
-      ),
+    return ErrorDisplay(
+      errorMessage: 'No products available',
+      icon: Icons.shopping_bag_outlined,
+      title: 'No Products Found',
+      iconColor: Colors.grey.shade400,
     );
   }
 }
@@ -1600,14 +1991,20 @@ class ProductCard extends StatelessWidget {
 
 class ProductSearchDelegate extends SearchDelegate<String> {
   final List<dynamic> products;
+  final Function(int categoryId, int? subcategoryId) onCategorySelected;
+  final String? currentCategoryName;
 
-  ProductSearchDelegate(this.products);
+  ProductSearchDelegate({
+    required this.products,
+    required this.onCategorySelected,
+    this.currentCategoryName,
+  });
 
   @override
   List<Widget> buildActions(BuildContext context) {
     return [
       IconButton(
-        icon: Icon(Icons.clear),
+        icon: const Icon(Icons.clear),
         onPressed: () {
           query = '';
         },
@@ -1618,7 +2015,7 @@ class ProductSearchDelegate extends SearchDelegate<String> {
   @override
   Widget buildLeading(BuildContext context) {
     return IconButton(
-      icon: Icon(Icons.arrow_back),
+      icon: const Icon(Icons.arrow_back),
       onPressed: () {
         close(context, '');
       },
@@ -1636,6 +2033,15 @@ class ProductSearchDelegate extends SearchDelegate<String> {
   }
 
   Widget _buildSearchResults() {
+    final filteredProducts = query.isEmpty
+        ? []
+        : products.where((product) {
+            return product['name']
+                .toString()
+                .toLowerCase()
+                .contains(query.toLowerCase());
+          }).toList();
+
     if (query.isEmpty) {
       return Center(
         child: Column(
@@ -1646,9 +2052,11 @@ class ProductSearchDelegate extends SearchDelegate<String> {
               size: 64,
               color: Colors.grey.shade300,
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
-              'Search for products',
+              currentCategoryName != null
+                  ? 'Search in $currentCategoryName'
+                  : 'Search all products',
               style: TextStyle(
                 color: Colors.grey.shade600,
                 fontSize: 16,
@@ -1658,13 +2066,6 @@ class ProductSearchDelegate extends SearchDelegate<String> {
         ),
       );
     }
-
-    final filteredProducts = products.where((product) {
-      return product['name']
-          .toString()
-          .toLowerCase()
-          .contains(query.toLowerCase());
-    }).toList();
 
     if (filteredProducts.isEmpty) {
       return Center(
@@ -1676,9 +2077,9 @@ class ProductSearchDelegate extends SearchDelegate<String> {
               size: 64,
               color: Colors.grey.shade300,
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
-              'No products found',
+              'No products found for "$query"',
               style: TextStyle(
                 color: Colors.grey.shade600,
                 fontSize: 16,
@@ -1695,9 +2096,13 @@ class ProductSearchDelegate extends SearchDelegate<String> {
         final product = filteredProducts[index];
         final itemDetailURL = product['inventory']?['urlname'] ??
             product['route']?.split('/').last;
+        final categoryId = product['category_id'];
+        final subcategoryId = product['subcategory_id'];
+        final categoryName = product['category_name'];
 
         return ListTile(
-          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           leading: Container(
             width: 60,
             height: 60,
@@ -1719,26 +2124,42 @@ class ProductSearchDelegate extends SearchDelegate<String> {
           ),
           title: Text(
             product['name'] ?? 'Unknown Product',
-            style: TextStyle(
+            style: const TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 16,
             ),
           ),
-          subtitle: Text(
-            'In Stock',
-            style: TextStyle(
-              color: Colors.green.shade700,
-              fontSize: 12,
-            ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'GHS ${product['price']?.toStringAsFixed(2) ?? '0.00'}',
+                style: TextStyle(
+                  color: Colors.green.shade700,
+                  fontSize: 14,
+                ),
+              ),
+              if (categoryName != null)
+                Text(
+                  'Category: $categoryName',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+            ],
           ),
-          trailing: Icon(Icons.chevron_right),
+          trailing: const Icon(Icons.chevron_right),
           onTap: () {
-            if (itemDetailURL != null) {
-              close(context, '');
+            close(context, '');
+            // Highlight the category first
+            onCategorySelected(categoryId, subcategoryId);
+            // Then navigate to product detail
+            if (itemDetailURL != null && itemDetailURL.isNotEmpty) {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ItemPage(urlName: itemDetailURL),
+                  builder: (context) => ItemPage(urlName: itemDetailURL!),
                 ),
               );
             }
@@ -1854,6 +2275,19 @@ class _ProductListPageState extends State<ProductListPage> {
     });
   }
 
+  void _showSearch(BuildContext context) {
+    showSearch(
+      context: context,
+      delegate: ProductSearchDelegate(
+        products: products,
+        onCategorySelected: (categoryId, subcategoryId) {
+          // Handle category selection if needed
+        },
+        currentCategoryName: widget.categoryName,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1895,10 +2329,7 @@ class _ProductListPageState extends State<ProductListPage> {
           IconButton(
             icon: Icon(Icons.search, color: Colors.white),
             onPressed: () {
-              showSearch(
-                context: context,
-                delegate: ProductSearchDelegate(products),
-              );
+              _showSearch(context);
             },
           ),
           Stack(
@@ -1991,17 +2422,63 @@ class _ProductListPageState extends State<ProductListPage> {
         itemCount: products.length,
         itemBuilder: (context, index) {
           final product = products[index];
-          final itemDetailURL = product['inventory']?['urlname'] ??
-              product['route']?.split('/').last;
-
           return ProductCard(
             product: product,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ItemPage(urlName: itemDetailURL),
-              ),
-            ),
+            onTap: () async {
+              print('=== PRODUCT CARD TAP DEBUG ===');
+              print('Product tapped: ${json.encode(product)}');
+              print('Product name: ${product['name']}');
+              print('Product price: ${product['price']}');
+              print('Product inventory: ${product['inventory']}');
+              print('Product route: ${product['route']}');
+              print('Product ID: ${product['id']}');
+              print('Product URL name: ${product['urlname']}');
+
+              // Use urlname directly from product data
+              String? itemDetailURL = product['urlname'] ??
+                  product['inventory']?['urlname'] ??
+                  product['route']?.split('/').last;
+
+              print('Final item detail URL: $itemDetailURL');
+
+              if (itemDetailURL != null && itemDetailURL.isNotEmpty) {
+                print('Navigating to product detail page...');
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ItemPage(urlName: itemDetailURL!),
+                  ),
+                );
+              } else {
+                print('ERROR: Could not determine item detail URL');
+                print('Available fields in product: ${product.keys.toList()}');
+                print(
+                    'Available fields in product data: ${product['data']?.keys.toList()}');
+
+                // Try using the product ID as a fallback
+                final productId = product['id']?.toString();
+                if (productId != null) {
+                  print('Trying to navigate using product ID: $productId');
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ItemPage(urlName: productId),
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Could not load product details'),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  );
+                }
+              }
+              print('=== END PRODUCT CARD TAP DEBUG ===');
+            },
           );
         },
       ),

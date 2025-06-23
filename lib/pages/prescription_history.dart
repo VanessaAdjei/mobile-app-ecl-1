@@ -90,24 +90,36 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
         },
       ).timeout(const Duration(seconds: 15));
 
+      // Print the raw response
+      print('API Response Status Code: ${response.statusCode}');
+      print('API Response Body: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        print('Decoded API Data: $data');
+
         if (data['data'] != null) {
+          print('Prescriptions Data: ${data['data']}');
           if (mounted) {
             setState(() {
               _prescriptions = List<Map<String, dynamic>>.from(data['data']);
               _isLoading = false;
             });
           }
+          print('Processed Prescriptions: $_prescriptions');
         } else {
+          print('No data found in response');
           throw Exception('No prescription data found');
         }
       } else if (response.statusCode == 401) {
+        print('Authentication error - Status 401');
         throw Exception('Your session has expired. Please log in again.');
       } else {
+        print('Server error - Status: ${response.statusCode}');
         throw Exception('Unable to connect to the server');
       }
     } catch (e) {
+      print('Error in _fetchPrescriptions: $e');
       if (mounted) {
         setState(() {
           _error = e.toString();
@@ -118,6 +130,8 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   }
 
   void _showPrescriptionImage(String fileUrl) {
+    print('Attempting to load prescription image from URL: $fileUrl');
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -132,8 +146,28 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                     fileUrl,
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) {
+                      print('Image loading error: $error');
+                      print('Stack trace: $stackTrace');
+
+                      String errorTitle = 'Failed to load prescription image';
+                      String errorMessage = 'The image could not be loaded.';
+
+                      if (error.toString().contains('404')) {
+                        errorTitle = 'Image File Not Found';
+                        errorMessage =
+                            'The prescription image file has been removed or is no longer available on the server.';
+                      } else if (error.toString().contains('timeout')) {
+                        errorTitle = 'Connection Timeout';
+                        errorMessage =
+                            'The request to load the image timed out. Please check your internet connection.';
+                      } else if (error.toString().contains('network')) {
+                        errorTitle = 'Network Error';
+                        errorMessage =
+                            'There was a network error while loading the image.';
+                      }
+
                       return Container(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
@@ -141,21 +175,83 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.error_outline,
-                                size: 48, color: Colors.red),
+                            Icon(
+                              Icons.broken_image_outlined,
+                              size: 64,
+                              color: Colors.red.shade400,
+                            ),
                             const SizedBox(height: 16),
-                            const Text(
-                              'Failed to load prescription image',
-                              style: TextStyle(color: Colors.red),
+                            Text(
+                              errorTitle,
+                              style: TextStyle(
+                                color: Colors.red.shade700,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'URL: $fileUrl',
+                              errorMessage,
                               style: TextStyle(
                                 color: Colors.grey[600],
-                                fontSize: 12,
+                                fontSize: 14,
                               ),
                               textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'URL: $fileUrl',
+                              style: TextStyle(
+                                color: Colors.grey[500],
+                                fontSize: 10,
+                                fontFamily: 'monospace',
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Error: $error',
+                              style: TextStyle(
+                                color: Colors.grey[500],
+                                fontSize: 10,
+                                fontFamily: 'monospace',
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) {
+                        print('Image loaded successfully');
+                        return child;
+                      }
+                      print(
+                          'Image loading progress: ${loadingProgress.cumulativeBytesLoaded}/${loadingProgress.expectedTotalBytes}');
+                      return Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                  : null,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Loading prescription image...',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
                             ),
                           ],
                         ),
@@ -317,6 +413,10 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
           final productDetails =
               productId != null ? _productDetails[productId] : null;
 
+          // Debug: Print prescription data
+          print('Prescription $index data: $prescription');
+          print('Prescription $index file URL: ${prescription['file']}');
+
           return Card(
             margin: const EdgeInsets.only(bottom: 16),
             shape: RoundedRectangleBorder(
@@ -327,6 +427,8 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
               leading: GestureDetector(
                 onTap: () {
                   if (prescription['file'] != null) {
+                    print(
+                        'Tapping on prescription image: ${prescription['file']}');
                     _showPrescriptionImage(prescription['file']);
                   }
                 },
@@ -344,10 +446,46 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                             prescription['file'],
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) {
-                              return Icon(
-                                Icons.medical_services_outlined,
-                                size: 30,
-                                color: Colors.green.shade700,
+                              print(
+                                  'Thumbnail image error for prescription $index: $error');
+                              print('Thumbnail URL: ${prescription['file']}');
+
+                              // Check if it's a 404 error
+                              String errorMessage = 'Image not available';
+                              if (error.toString().contains('404')) {
+                                errorMessage = 'Image file not found';
+                              } else if (error.toString().contains('timeout')) {
+                                errorMessage = 'Connection timeout';
+                              } else if (error.toString().contains('network')) {
+                                errorMessage = 'Network error';
+                              }
+
+                              return Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.red.shade50,
+                                  border:
+                                      Border.all(color: Colors.red.shade200),
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.broken_image_outlined,
+                                      size: 20,
+                                      color: Colors.red.shade400,
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text(
+                                      '404',
+                                      style: TextStyle(
+                                        fontSize: 8,
+                                        color: Colors.red.shade400,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               );
                             },
                             loadingBuilder: (context, child, loadingProgress) {
@@ -387,11 +525,21 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
+                  if (prescription['file'] != null)
+                    Text(
+                      'Image: Available',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
                 ],
               ),
               trailing: Icon(Icons.chevron_right),
               onTap: () {
                 if (prescription['file'] != null) {
+                  print(
+                      'Tapping on prescription item: ${prescription['file']}');
                   _showPrescriptionImage(prescription['file']);
                 }
               },

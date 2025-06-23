@@ -17,6 +17,7 @@ class Product {
   final String? wellness;
   final String? selfcare;
   final String? accessories;
+  final int? categoryId;
 
   Product({
     required this.id,
@@ -36,6 +37,7 @@ class Product {
     this.wellness,
     this.selfcare,
     this.accessories,
+    this.categoryId,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -57,6 +59,7 @@ class Product {
       wellness: json['wellness'],
       selfcare: json['selfcare'],
       accessories: json['accessories'],
+      categoryId: json['category_id'],
     );
   }
 }
