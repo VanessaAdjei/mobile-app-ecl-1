@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import '../config/api_config.dart';
-import '../pages/auth_service.dart';
+import 'package:eclapp/pages/auth_service.dart';
 
 class DeliveryService {
   static const String baseUrl = ApiConfig.baseUrl;

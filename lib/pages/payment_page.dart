@@ -255,12 +255,6 @@ class _PaymentPageState extends State<PaymentPage> {
 
         // Create the order in the backend for cash on delivery
         try {
-          print('\n=== PROCESSING CASH ON DELIVERY ORDER ===');
-          print('Transaction ID: $transactionId');
-          print('Total Amount: $total');
-          print('Payment Method: $selectedPaymentMethod');
-          print('Purchased Items Count: ${purchasedItems.length}');
-
           // Convert cart items to the format expected by the API
           final orderItems = purchasedItems
               .map((item) => {
@@ -273,8 +267,6 @@ class _PaymentPageState extends State<PaymentPage> {
                   })
               .toList();
 
-          print('Order Items: ${jsonEncode(orderItems)}');
-
           final orderResult = await AuthService.createCashOnDeliveryOrder(
             items: orderItems,
             totalAmount: total,
@@ -282,10 +274,6 @@ class _PaymentPageState extends State<PaymentPage> {
             paymentMethod: selectedPaymentMethod,
             promoCode: _appliedPromoCode,
           );
-
-          print('Order creation result: $orderResult');
-          print('Order creation status: ${orderResult['status']}');
-          print('Order creation message: ${orderResult['message']}');
 
           if (orderResult['status'] != 'success') {
             // Show error but still proceed with the order
@@ -314,11 +302,8 @@ class _PaymentPageState extends State<PaymentPage> {
           } else {
             // Clear the cart after successful order creation
             cart.clearCart();
-            print('Cart cleared successfully');
-          }
+            }
         } catch (e) {
-          print('Error creating cash on delivery order: $e');
-          print('Error stack trace: ${StackTrace.current}');
           // Show error but still proceed with the order
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -369,17 +354,6 @@ class _PaymentPageState extends State<PaymentPage> {
         throw Exception('Authentication required. Please log in again.');
       }
 
-      print('\n=== EXPRESSPAYMENT API REQUEST START ===');
-      print(
-          'Request URL: https://eclcommerce.ernestchemists.com.gh/api/expresspayment');
-      print('Request Headers: {');
-      print('  Accept: application/json');
-      print('  Content-Type: application/json');
-      print(
-          '  Authorization: Bearer ${authToken.substring(0, min(20, authToken.length))}...');
-      print('}');
-      print('Request Body: ${jsonEncode(params)}');
-
       final response = await http
           .post(
         Uri.parse(
@@ -399,22 +373,12 @@ class _PaymentPageState extends State<PaymentPage> {
         },
       );
 
-      print('\n=== EXPRESSPAYMENT API RESPONSE ===');
-      print('Response Status Code: ${response.statusCode}');
-      print('Response Headers: ${response.headers}');
-      print('Response Body Length: ${response.body.length}');
-      print('Response Body: ${response.body}');
-      print('=== EXPRESSPAYMENT API RESPONSE END ===\n');
-
       if (response.statusCode == 200) {
         final redirectUrl = response.body.trim();
 
         if (redirectUrl.isEmpty) {
-          print('ERROR: Received empty payment URL from server');
           throw Exception('Received empty payment URL from server.');
         }
-
-        print('Extracted redirect URL: $redirectUrl');
 
         if (!mounted) return;
 
@@ -458,24 +422,17 @@ class _PaymentPageState extends State<PaymentPage> {
         // Don't automatically navigate to confirmation page
         // Let the WebView handle the navigation based on payment completion
       } else if (response.statusCode == 401) {
-        print('ERROR: 401 Unauthorized - Session expired');
         throw Exception('Payment Failed, try again');
       } else if (response.statusCode == 403) {
-        print('ERROR: 403 Forbidden - Permission denied');
         throw Exception('Payment Failed, try again');
       } else if (response.statusCode == 404) {
-        print('ERROR: 404 Not Found - Payment service unavailable');
         throw Exception('Payment Failed, try again');
       } else if (response.statusCode >= 500) {
-        print('ERROR: ${response.statusCode} Server Error');
         throw Exception('Payment Failed, try again');
       } else {
-        print('ERROR: ${response.statusCode} - Payment request failed');
         throw Exception('Payment Failed, try again');
       }
     } catch (e, stack) {
-      print('Error during payment process: $e');
-      print('Stack trace: $stack');
       setState(() {
         _paymentError = e.toString();
       });
@@ -2113,7 +2070,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   @override
   void initState() {
     super.initState();
-    print('OrderConfirmationPage: initState called');
     // For cash on delivery, always show success
     if (widget.paymentMethod.toLowerCase() == 'cash on delivery') {
       _status = "success";
@@ -2130,10 +2086,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       _startStatusChecking();
     }
     _transactionId = widget.initialTransactionId;
-    print('Initial status: $_status');
-    print('Initial transaction ID: $_transactionId');
-    print('Initial payment success: $_paymentSuccess');
-  }
+    }
 
   @override
   void dispose() {
@@ -2157,36 +2110,30 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   void _startStatusChecking() {
-    print('Starting status checking...');
     // Check status immediately
     _checkPaymentStatus();
 
     // Set up periodic checking every 5 seconds instead of every second
     _statusCheckTimer = Timer.periodic(Duration(seconds: 5), (timer) {
-      print('Automatic status check triggered');
       if (mounted) {
         _checkPaymentStatus();
       } else {
-        print('Component not mounted, cancelling timer');
         timer.cancel();
       }
     });
 
     // Show check status button after 10 seconds if still pending
     _buttonShowTimer = Timer(Duration(seconds: 10), () {
-      print('10 second delay completed. Current status: $_status');
       if (mounted) {
         setState(() {
           _showCheckStatusButton = true;
-          print('Setting showCheckStatusButton to true');
-        });
+          });
       }
     });
   }
 
   Future<void> _checkPaymentStatus() async {
     try {
-      print('Checking payment status...');
       setState(() {
         _isLoading = true;
       });
@@ -2203,12 +2150,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                   newStatus == 'error' ||
                   newStatus == null)) {
             // Keep the failed status, don't update
-            print(
-                'Payment is failed, keeping failed status despite server response: $newStatus');
             _statusMessage = result['message'] ?? _statusMessage;
           } else {
             // Update status normally - this includes updating from failed to success
-            print('Updating status from $currentStatus to $newStatus');
             _status = newStatus;
             _statusMessage = result['message'];
           }
@@ -2216,12 +2160,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           _paymentSuccess = _status?.toLowerCase() == 'success';
           _isLoading = false;
 
-          print('Payment status updated: $_status');
-          print('Status message: $_statusMessage');
-
           // Handle different payment states
           if (_status?.toLowerCase() == 'success') {
-            print('Payment successful, hiding check status button');
             _statusCheckTimer?.cancel();
             _buttonShowTimer?.cancel();
             _emptyResponseTimer?.cancel();
@@ -2230,7 +2170,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             _firstEmptyResponseTime = null;
             _emptyResponseCount = 0;
           } else if (_status?.toLowerCase() == 'failed') {
-            print('Payment failed, but keeping check status button visible');
             _statusCheckTimer?.cancel(); // Stop automatic checks
             _buttonShowTimer?.cancel(); // Cancel the button show timer
             _emptyResponseTimer?.cancel();
@@ -2242,7 +2181,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         });
       }
     } catch (e) {
-      print('Error checking payment status: $e');
       if (mounted) {
         setState(() {
           // Don't change status to 'pending' if it's already 'failed'
@@ -2382,8 +2320,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                         _hasFetchedStatus = true;
                       });
                     } catch (e) {
-                      print('Error fetching status: $e');
-                    } finally {
+                      } finally {
                       setState(() => _isLoading = false);
                     }
                   },
@@ -2651,8 +2588,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                                         },
                                                         errorBuilder: (context,
                                                             error, stackTrace) {
-                                                          print(
-                                                              'Error loading image: $error');
                                                           return Container(
                                                             width: 60,
                                                             height: 60,
@@ -3078,27 +3013,19 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
   Future<Map<String, dynamic>> _fetchPaymentStatus() async {
     try {
-      print('\n=== PAYMENT STATUS CHECK START ===');
-      print('Starting payment status check...');
-
       final tokenRaw = await AuthService.getToken();
       if (tokenRaw == null || tokenRaw.isEmpty) {
         throw Exception('Please log in to check payment status');
       }
 
-      print('Using bearer token: $tokenRaw');
       final userId = await AuthService.getCurrentUserID();
       if (userId == null) {
         throw Exception('User ID not found. Please log in again.');
       }
-      print('User ID:$userId');
-
       // Create request body
       final requestBody = {
         'user_id': userId,
       };
-      print('Request body: $requestBody');
-
       try {
         // Make the request with timeout
         final response = await http
@@ -3119,26 +3046,16 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           },
         );
 
-        print('\nResponse Status Code: ${response.statusCode}');
-        print('Response Headers: ${response.headers}');
-        print('Raw Response Body: ${response.body}');
-
         if (response.statusCode == 200) {
           // Handle empty response
           if (response.body.isEmpty) {
-            print(
-                'Received empty response body - this might indicate a server issue');
-
             // Track empty response time
             if (_firstEmptyResponseTime == null) {
               _firstEmptyResponseTime = DateTime.now();
               _emptyResponseCount = 1;
-              print(
-                  'First empty response received at: $_firstEmptyResponseTime');
-            } else {
+              } else {
               _emptyResponseCount++;
-              print('Empty response count: $_emptyResponseCount');
-            }
+              }
 
             // Check if we've been receiving empty responses for 3 minutes
             if (_firstEmptyResponseTime != null) {
@@ -3146,14 +3063,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                   DateTime.now().difference(_firstEmptyResponseTime!);
               final minutesSinceFirstEmpty = timeSinceFirstEmpty.inMinutes;
 
-              print(
-                  'Time since first empty response: $minutesSinceFirstEmpty minutes');
-              print('Empty response count: $_emptyResponseCount');
-
               if (minutesSinceFirstEmpty >= _maxEmptyResponseTimeMinutes ||
                   _emptyResponseCount >= _maxEmptyResponseCount) {
-                print(
-                    'Marking payment as failed due to 3 minutes of empty responses');
                 _statusCheckTimer?.cancel();
                 _buttonShowTimer?.cancel();
                 _emptyResponseTimer?.cancel();
@@ -3187,9 +3098,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               },
             );
 
-            print('Retry Response Status Code: ${retryResponse.statusCode}');
-            print('Retry Response Body: ${retryResponse.body}');
-
             if (retryResponse.body.isNotEmpty) {
               // Reset empty response tracking if we get a valid response
               _firstEmptyResponseTime = null;
@@ -3204,22 +3112,18 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                 if (jsonStartIndex != -1) {
                   // Extract only the JSON part
                   responseBody = responseBody.substring(jsonStartIndex);
-                  print('Extracted JSON from response: $responseBody');
-                }
+                  }
 
                 final data = json.decode(responseBody);
                 return _processPaymentStatus(data);
               } catch (e) {
-                print('Error parsing retry response: $e');
                 throw Exception(
                     'Invalid response format from server. Please try again.');
               }
             } else {
               // Retry also returned empty response, increment count
               _emptyResponseCount++;
-              print(
-                  'Retry also returned empty response. Total empty responses: $_emptyResponseCount');
-            }
+              }
 
             return {
               'status': 'pending',
@@ -3240,13 +3144,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             if (jsonStartIndex != -1) {
               // Extract only the JSON part
               responseBody = responseBody.substring(jsonStartIndex);
-              print('Extracted JSON from main response: $responseBody');
-            }
+              }
 
             final data = json.decode(responseBody);
             return _processPaymentStatus(data);
           } catch (e) {
-            print('Error parsing response: $e');
             throw Exception(
                 'Invalid response format from server. Please try again.');
           }
@@ -3273,7 +3175,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             'Invalid response format from server. Please try again.');
       }
     } catch (e) {
-      print('Error checking payment status: $e');
       return {
         'status': 'error',
         'message': e.toString(),
@@ -3282,12 +3183,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   Map<String, dynamic> _processPaymentStatus(Map<String, dynamic> data) {
-    print('Processing payment status data: $data');
-
     // Check for specific status strings
     final status = data['status']?.toString().toLowerCase() ?? '';
-    print('Payment status from response: $status');
-
     if (status.contains('completed') || status.contains('success')) {
       return {
         'status': 'success',
@@ -3405,13 +3302,11 @@ class _WebViewPageState extends State<WebViewPage> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (url) {
-            print('WebView page started loading: $url');
             setState(() {
               _isLoading = true;
             });
           },
           onPageFinished: (url) {
-            print('WebView page finished loading: $url');
             setState(() {
               _isLoading = false;
             });
@@ -3426,19 +3321,14 @@ class _WebViewPageState extends State<WebViewPage> {
             }
           },
           onWebResourceError: (error) {
-            print('WebView error: ${error.description}');
-            print('Error code: ${error.errorCode}');
-            print('Error type: ${error.errorType}');
-          },
+            },
         ),
       );
 
     // Load the URL
     try {
-      print('Loading URL in WebView: ${widget.url}');
       _webViewController.loadRequest(Uri.parse(widget.url));
     } catch (e) {
-      print('Error loading URL in WebView: $e');
       // Handle the error appropriately
       widget.onPaymentComplete(false);
       Navigator.pop(context, false);

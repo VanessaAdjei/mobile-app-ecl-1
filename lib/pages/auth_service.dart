@@ -37,30 +37,20 @@ class AuthService {
 
   static Future<void> init() async {
     try {
-      print('Initializing AuthService...');
-
       // Start with a quick local check first
       _authToken = await _secureStorage.read(key: authTokenKey);
       if (_authToken != null) {
         // Set logged in state optimistically, validate in background
         _isLoggedIn = true;
-        print('Token found, setting optimistic login state');
-
         // Validate token in background without blocking
         _validateTokenInBackground();
       } else {
         _isLoggedIn = false;
-        print('No token found, user not logged in');
       }
 
       // Migrate data in background without blocking
-      _migrateExistingData().catchError((e) {
-        print('Background data migration error: $e');
-      });
-
-      print('AuthService initialization complete. Login status: $_isLoggedIn');
+      _migrateExistingData().catchError((e) {});
     } catch (e) {
-      print('Error during AuthService initialization: $e');
       _isLoggedIn = false;
       _authToken = null;
     }
@@ -144,7 +134,6 @@ class AuthService {
         throw Exception('Failed to load: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error fetching products: $e');
       rethrow;
     }
   }
@@ -177,7 +166,6 @@ class AuthService {
         throw Exception('Failed to load product details');
       }
     } catch (e) {
-      print('Error fetching product details: $e');
       throw Exception('Could not load product');
     }
   }
@@ -193,7 +181,6 @@ class AuthService {
       "password": password,
       "phone": phoneNumber,
     };
-    print('SignUp request payload: ' + payload.toString());
 
     try {
       final response = await http
@@ -203,9 +190,6 @@ class AuthService {
             body: jsonEncode(payload),
           )
           .timeout(const Duration(seconds: 30));
-
-      print('SignUp response status: ' + response.statusCode.toString());
-      print('SignUp response body: ' + response.body);
 
       if (response.statusCode == 201) {
         return true;
@@ -233,7 +217,6 @@ class AuthService {
       throw Exception(
           'Unable to connect to the server. Please check your internet connection.');
     } catch (e) {
-      print("Error during signup: $e");
       rethrow;
     }
   }
@@ -253,7 +236,6 @@ class AuthService {
           .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
-        print("OTP Verified Successfully!");
         return true;
       } else if (response.statusCode == 400) {
         throw Exception('Invalid OTP. Please check and try again.');
@@ -272,7 +254,6 @@ class AuthService {
       throw Exception(
           'Unable to connect to the server. Please check your internet connection.');
     } catch (e) {
-      print("Error during OTP verification: $e");
       rethrow;
     }
   }
@@ -293,37 +274,47 @@ class AuthService {
       }
       return _authToken != null ? 'Bearer $_authToken' : null;
     } catch (e) {
-      print('Error getting bearer token: $e');
       return null;
     }
   }
 
   static Future<void> clearToken() async {
     try {
-      print('Clearing token...');
       await _secureStorage.delete(key: authTokenKey);
       _authToken = null;
       _isLoggedIn = false;
       _cachedUserData = null;
       _lastTokenVerification = null;
       _tokenRefreshTimer?.cancel();
-      print('Token cleared successfully');
-    } catch (e) {
-      print('Error clearing token: $e');
-    }
+    } catch (e) {}
   }
 
   static Future<void> saveToken(String token) async {
     try {
-      print('Saving new token...');
       await _secureStorage.write(key: authTokenKey, value: token);
       _authToken = token;
       _isLoggedIn = true;
       _lastTokenVerification = DateTime.now();
       _startTokenRefreshTimer();
-      print('Token saved successfully and user is now logged in');
     } catch (e) {
-      print('Error saving token: $e');
+      _isLoggedIn = false;
+      _authToken = null;
+    }
+  }
+
+  // Force update authentication state without validation
+  static Future<void> forceUpdateAuthState() async {
+    try {
+      final token = await _secureStorage.read(key: authTokenKey);
+      if (token != null) {
+        _authToken = token;
+        _isLoggedIn = true;
+        _lastTokenVerification = DateTime.now();
+      } else {
+        _isLoggedIn = false;
+        _authToken = null;
+      }
+    } catch (e) {
       _isLoggedIn = false;
       _authToken = null;
     }
@@ -337,7 +328,6 @@ class AuthService {
         'email': email,
         'password': password,
       };
-      print('SignIn request payload: ' + payload.toString());
 
       final response = await http
           .post(
@@ -346,9 +336,6 @@ class AuthService {
             body: jsonEncode(payload),
           )
           .timeout(const Duration(seconds: 30));
-
-      print('SignIn response status: ' + response.statusCode.toString());
-      print('SignIn response body: ' + response.body);
 
       final responseData = json.decode(response.body);
 
@@ -367,7 +354,6 @@ class AuthService {
         // Store user data if available
         if (responseData['user'] != null) {
           final userData = responseData['user'];
-          print('Storing user data: $userData');
           await storeUserData(userData);
 
           // Also store individual fields for backward compatibility
@@ -434,7 +420,6 @@ class AuthService {
         'message': 'Invalid response from server. Please try again.'
       };
     } catch (e) {
-      print('Error during sign in: $e');
       return {
         'success': false,
         'message': 'An unexpected error occurred. Please try again.'
@@ -449,25 +434,19 @@ class AuthService {
       if (_lastTokenVerification == null ||
           DateTime.now().difference(_lastTokenVerification!) >
               _tokenVerificationInterval) {
-        print('Token verification interval exceeded, checking validity...');
         final isValid = await _checkTokenValidity();
         if (!isValid) {
-          print('Token validation failed, setting login state to false');
           _isLoggedIn = false;
           return false;
         }
-      } else {
-        print('Using cached token validation, user is logged in');
       }
       return true;
     }
 
     // If not in memory, check storage
     if (_authToken == null) {
-      print('No token in memory, checking storage...');
       final token = await _secureStorage.read(key: authTokenKey);
       if (token == null) {
-        print('No token found in storage');
         _isLoggedIn = false;
         return false;
       }
@@ -478,19 +457,14 @@ class AuthService {
     if (_lastTokenVerification == null ||
         DateTime.now().difference(_lastTokenVerification!) >
             _tokenVerificationInterval) {
-      print('Verifying token from storage...');
       final isValid = await _checkTokenValidity();
       if (!isValid) {
-        print('Token validation failed, setting login state to false');
         _isLoggedIn = false;
         return false;
       }
-    } else {
-      print('Using cached token validation from storage');
     }
 
     _isLoggedIn = true;
-    print('User is logged in');
     return true;
   }
 
@@ -499,7 +473,6 @@ class AuthService {
     if (_authToken == null) return false;
 
     try {
-      print('Checking token validity...');
       final response = await http.get(
         Uri.parse('$baseUrl/verify-token'),
         headers: {
@@ -509,32 +482,24 @@ class AuthService {
       ).timeout(const Duration(seconds: 10));
 
       _lastTokenVerification = DateTime.now();
-      print('Token validity check response: ${response.statusCode}');
-
       if (response.statusCode == 200) {
-        print('Token is valid');
         return true;
       } else if (response.statusCode == 401) {
-        print('Token is invalid (401 Unauthorized)');
         return false;
       } else {
-        print('Unexpected response status: ${response.statusCode}');
         // For other status codes, we'll assume the token is still valid
         // to avoid logging out users due to temporary server issues
         return true;
       }
     } on TimeoutException {
-      print('Token validation timeout, assuming token is valid');
       _lastTokenVerification = DateTime.now();
       // Don't invalidate token on timeout, assume it's still valid
       return true;
     } on SocketException {
-      print('Network error during token validation, assuming token is valid');
       _lastTokenVerification = DateTime.now();
       // Don't invalidate token on network errors, assume it's still valid
       return true;
     } catch (e) {
-      print('Error checking token validity: $e');
       _lastTokenVerification = DateTime.now();
       // Don't clear token on other errors, assume it's still valid
       return true;
@@ -549,30 +514,25 @@ class AuthService {
   //  logout
   static Future<void> logout() async {
     try {
-      print('Logging out user...');
       if (_authToken != null) {
         try {
           await http.post(
             Uri.parse('$baseUrl/logout'),
             headers: {'Authorization': 'Bearer $_authToken'},
           ).timeout(const Duration(seconds: 10));
-          print('Logout request sent to server');
         } catch (e) {
-          print('Error sending logout request to server: $e');
           // Continue with local logout even if server request fails
         }
       }
     } catch (e) {
       debugPrint('Logout error: $e');
     } finally {
-      print('Clearing local authentication state...');
       _authToken = null;
       _isLoggedIn = false;
       _cachedUserData = null;
       _lastTokenVerification = null;
       _tokenRefreshTimer?.cancel();
       await _secureStorage.deleteAll();
-      print('Logout completed successfully');
     }
   }
 
@@ -581,27 +541,19 @@ class AuthService {
     _tokenRefreshTimer = Timer.periodic(_tokenRefreshInterval, (_) async {
       try {
         if (await isLoggedIn()) {
-          print('Token refresh timer: User is still logged in');
           // Only verify if enough time has passed since last verification
           if (_lastTokenVerification == null ||
               DateTime.now().difference(_lastTokenVerification!) >
                   _tokenVerificationInterval) {
-            print('Token refresh timer: Checking token validity...');
             await _checkTokenValidity();
-          } else {
-            print('Token refresh timer: Using cached validation');
           }
         } else {
-          print(
-              'Token refresh timer: User is no longer logged in, stopping timer');
           _tokenRefreshTimer?.cancel();
         }
       } catch (e) {
-        print('Error in token refresh timer: $e');
         // Don't stop the timer on errors, just log them
       }
     });
-    print('Token refresh timer started');
   }
 
   static Future<Map<String, String>> getAuthHeaders() async {
@@ -628,8 +580,6 @@ class AuthService {
 
   static Future<void> storeUserData(Map<String, dynamic> user) async {
     try {
-      print('Storing user data: $user');
-
       // Update the in-memory cache first
       _cachedUserData = Map<String, dynamic>.from(user);
 
@@ -655,10 +605,7 @@ class AuthService {
         await _secureStorage.write(
             key: hashedLinkKey, value: user['hashed_link']);
       }
-
-      print('User data stored successfully');
     } catch (e) {
-      print("Error saving user data: $e");
       rethrow;
     }
   }
@@ -667,21 +614,15 @@ class AuthService {
     try {
       // First check the in-memory cache
       if (_cachedUserData != null) {
-        print('Returning cached user data');
         return _cachedUserData;
       }
-
-      print('Fetching user data from storage...');
 
       // Try to get the consolidated user data first
       final userData = await _secureStorage.read(key: userDataKey);
       if (userData != null) {
-        print('Found consolidated user data');
         _cachedUserData = json.decode(userData);
         return _cachedUserData;
       }
-
-      print('Consolidated data not found, checking individual fields...');
 
       // If consolidated data doesn't exist, try to get individual fields
       final name = await _secureStorage.read(key: userNameKey);
@@ -691,7 +632,6 @@ class AuthService {
       final hashedLink = await _secureStorage.read(key: hashedLinkKey);
 
       if (email != null) {
-        print('Found individual user fields, consolidating...');
         final Map<String, dynamic> userData = {
           'name': name,
           'email': email,
@@ -708,10 +648,8 @@ class AuthService {
         return userData;
       }
 
-      print('No user data found');
       return null;
     } catch (e) {
-      print("Error retrieving user data: $e");
       return null;
     }
   }
@@ -732,11 +670,8 @@ class AuthService {
   static Future<String?> getUserName() async {
     try {
       String? userName = await _secureStorage.read(key: userNameKey);
-      print("Retrieved User Name: $userName");
-
       return userName?.isNotEmpty == true ? userName : "User";
     } catch (e) {
-      print("Error retrieving user name: $e");
       return "User";
     }
   }
@@ -773,7 +708,6 @@ class AuthService {
 
       return users.containsKey(email);
     } catch (e) {
-      print("Error decoding users data: $e");
       return false;
     }
   }
@@ -782,7 +716,6 @@ class AuthService {
     try {
       return await _secureStorage.read(key: userEmailKey);
     } catch (e) {
-      print("❌ Error retrieving user email: $e");
       return null;
     }
   }
@@ -791,7 +724,6 @@ class AuthService {
     try {
       return await _secureStorage.read(key: userPhoneNumberKey);
     } catch (e) {
-      print("❌ Error retrieving phone number: $e");
       return null;
     }
   }
@@ -799,10 +731,7 @@ class AuthService {
   static Future<void> debugPrintUserData() async {
     try {
       String? usersData = await _secureStorage.read(key: usersKey);
-      print("DEBUG: Users Data: $usersData");
-    } catch (e) {
-      print("Error retrieving user data for debugging: $e");
-    }
+    } catch (e) {}
   }
 
   static Future<bool> validateCurrentPassword(String password) async {
@@ -817,17 +746,12 @@ class AuthService {
             String storedHash = users[userEmail]['password'];
             String inputHash = hashPassword(password);
 
-            print("Entered Hashed Password: $inputHash");
-            print("Stored Hashed Password: $storedHash");
-
             return storedHash == inputHash;
           }
         }
       }
-      print("User not found or no password stored.");
       return false;
     } catch (e) {
-      print("Error validating password: $e");
       return false;
     }
   }
@@ -836,7 +760,6 @@ class AuthService {
       String oldPassword, String newPassword) async {
     try {
       if (!(await validateCurrentPassword(oldPassword))) {
-        print("Old password does not match.");
         return false;
       }
 
@@ -848,22 +771,18 @@ class AuthService {
           users[userEmail]['password'] = hashPassword(newPassword);
 
           await _secureStorage.write(key: usersKey, value: jsonEncode(users));
-          print("Password updated successfully for $userEmail");
           return true;
         }
       }
 
-      print("Password update failed.");
       return false;
     } catch (e) {
-      print("Error updating password: $e");
       return false;
     }
   }
 
   static Future<void> saveUserName(String username) async {
     await _secureStorage.write(key: userNameKey, value: username);
-    print("Username saved: $username");
   }
 
   static Future<void> checkAuthAndRedirect(BuildContext context,
@@ -931,7 +850,6 @@ class AuthService {
   static Future<Map<String, dynamic>> checkAuthWithCart() async {
     try {
       final token = await getToken();
-      print('Token used for check-auth: $token');
       if (token == null) return {'authenticated': false};
 
       final response = await http.post(
@@ -943,8 +861,6 @@ class AuthService {
         },
         body: jsonEncode({}),
       );
-      print('Raw check-auth HTTP response: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return {
@@ -1098,31 +1014,16 @@ class AuthService {
     required int quantity,
     required String batchNo,
   }) async {
-    print('\n=== Add to Cart Check Auth ===');
-    print('Request details:');
-    print('- Product ID: $productID');
-    print('- Quantity: $quantity');
-    print('- Batch No: $batchNo');
-
     final token = await _secureStorage.read(key: authTokenKey);
     if (token == null) {
-      print('Error: No auth token found');
       return {'status': 'error', 'message': 'Not authenticated'};
     }
-
-    print('\nMaking API request to: $baseUrl/check-auth');
-    print('Headers:');
-    print('- Authorization: Bearer ${token.substring(0, 20)}...');
-    print('- Accept: application/json');
-    print('- Content-Type: application/json');
 
     final requestBody = {
       'productID': productID,
       'quantity': quantity,
       'batch_no': batchNo,
     };
-    print('Request body: ${json.encode(requestBody)}');
-
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/check-auth'),
@@ -1134,35 +1035,18 @@ class AuthService {
         body: json.encode(requestBody),
       );
 
-      print('\nResponse details:');
-      print('- Status code: ${response.statusCode}');
-      print('- Headers:');
-      response.headers.forEach((key, value) {
-        print('  $key: $value');
-      });
-      print('- Body: ${response.body}');
-
+      response.headers.forEach((key, value) {});
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
-        print('\nParsed response data:');
         print(json.encode(data));
         return data;
       } else {
-        print('\nError response:');
-        print('- Status code: ${response.statusCode}');
-        print('- Body: ${response.body}');
-        print('\nFull request details:');
-        print('- URL: ${response.request?.url}');
-        print('- Method: ${response.request?.method}');
-        print('- Headers: ${response.request?.headers}');
-        print('- Request body: ${json.encode(requestBody)}');
         return {
           'status': 'error',
           'message': 'Failed to add to cart: ${response.statusCode}',
         };
       }
     } catch (e) {
-      print('\nException during API call:');
       print(e);
       return {
         'status': 'error',
@@ -1305,10 +1189,6 @@ class AuthService {
         requestBody['promo_code'] = promoCode;
       }
 
-      print('\n=== CREATING CASH ON DELIVERY ORDER ===');
-      print('Request URL: $baseUrl/expresspayment');
-      print('Request Body: ${jsonEncode(requestBody)}');
-
       final response = await http
           .post(
             Uri.parse('$baseUrl/expresspayment'),
@@ -1321,15 +1201,11 @@ class AuthService {
           )
           .timeout(const Duration(seconds: 30));
 
-      print('Response Status: ${response.statusCode}');
-      print('Response Body: ${response.body}');
-
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
 
         // Check if the response contains errors
         if (data is Map<String, dynamic> && data.containsKey('errors')) {
-          print('Backend returned errors, storing order locally');
           return await _storeCashOnDeliveryOrderLocally(
             items: items,
             totalAmount: totalAmount,
@@ -1346,8 +1222,6 @@ class AuthService {
         };
       } else {
         // If backend doesn't support cash on delivery orders, store locally
-        print(
-            'Backend doesn\'t support cash on delivery orders, storing locally');
         return await _storeCashOnDeliveryOrderLocally(
           items: items,
           totalAmount: totalAmount,
@@ -1357,7 +1231,6 @@ class AuthService {
         );
       }
     } catch (e) {
-      print('Error creating cash on delivery order: $e');
       // Fallback to local storage
       return await _storeCashOnDeliveryOrderLocally(
         items: items,
@@ -1380,14 +1253,8 @@ class AuthService {
     try {
       final userId = await getCurrentUserID();
       if (userId == null) {
-        print('_storeCashOnDeliveryOrderLocally: User ID is null');
         return {'status': 'error', 'message': 'User ID not found'};
       }
-
-      print('_storeCashOnDeliveryOrderLocally: Storing order for user $userId');
-      print('_storeCashOnDeliveryOrderLocally: Order ID: $orderId');
-      print('_storeCashOnDeliveryOrderLocally: Total Amount: $totalAmount');
-      print('_storeCashOnDeliveryOrderLocally: Items count: ${items.length}');
 
       // Create order data
       final orderData = {
@@ -1411,8 +1278,6 @@ class AuthService {
             .toList(),
       };
 
-      print('_storeCashOnDeliveryOrderLocally: Order data: $orderData');
-
       // Store in secure storage
       final orderKey = 'local_order_$orderId';
       await _secureStorage.write(
@@ -1420,15 +1285,12 @@ class AuthService {
         value: jsonEncode(orderData),
       );
 
-      print('Cash on delivery order stored locally with key: $orderKey');
-
       return {
         'status': 'success',
         'message': 'Order stored locally successfully',
         'data': orderData,
       };
     } catch (e) {
-      print('Error storing order locally: $e');
       return {
         'status': 'error',
         'message': 'Failed to store order locally: $e',
@@ -1442,44 +1304,25 @@ class AuthService {
     try {
       final userId = await getCurrentUserID();
       if (userId == null) {
-        print('getLocalCashOnDeliveryOrders: User ID is null');
         return [];
       }
 
-      print('getLocalCashOnDeliveryOrders: Fetching orders for user $userId');
       final allKeys = await _secureStorage.readAll();
-      print(
-          'getLocalCashOnDeliveryOrders: All storage keys: ${allKeys.keys.toList()}');
-
       final localOrders = <Map<String, dynamic>>[];
 
       for (final entry in allKeys.entries) {
         if (entry.key.startsWith('local_order_')) {
-          print(
-              'getLocalCashOnDeliveryOrders: Found local order key: ${entry.key}');
           try {
             final orderData = jsonDecode(entry.value);
-            print(
-                'getLocalCashOnDeliveryOrders: Order data for ${entry.key}: $orderData');
             if (orderData['user_id'] == userId) {
               localOrders.add(orderData);
-              print(
-                  'getLocalCashOnDeliveryOrders: Added order for user $userId');
-            } else {
-              print(
-                  'getLocalCashOnDeliveryOrders: Order user_id ${orderData['user_id']} does not match current user $userId');
             }
-          } catch (e) {
-            print('Error parsing local order: $e');
-          }
+          } catch (e) {}
         }
       }
 
-      print(
-          'getLocalCashOnDeliveryOrders: Returning ${localOrders.length} local orders');
       return localOrders;
     } catch (e) {
-      print('Error getting local orders: $e');
       return [];
     }
   }
@@ -1494,14 +1337,12 @@ class AuthService {
     try {
       final isValid = await _checkTokenValidity();
       if (!isValid) {
-        print('Token validation failed in background, updating login state');
         _isLoggedIn = false;
         _authToken = null;
       } else {
         _startTokenRefreshTimer();
       }
     } catch (e) {
-      print('Background token validation error: $e');
       // Keep current state on error
     }
   }

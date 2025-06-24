@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'auth_service.dart';
+import 'package:eclapp/pages/auth_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import 'homepage.dart';
@@ -16,7 +16,7 @@ import 'package:eclapp/widgets/error_display.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class PrescriptionHistoryScreen extends StatefulWidget {
-  const PrescriptionHistoryScreen({Key? key}) : super(key: key);
+  const PrescriptionHistoryScreen({super.key});
 
   @override
   _PrescriptionHistoryScreenState createState() =>
@@ -25,10 +25,9 @@ class PrescriptionHistoryScreen extends StatefulWidget {
 
 class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   List<Map<String, dynamic>> _prescriptions = [];
-  Map<int, Map<String, dynamic>> _productDetails = {};
+  final Map<int, Map<String, dynamic>> _productDetails = {};
   bool _isLoading = true;
   String? _error;
-  int _selectedIndex = 2; // Set to 2 for prescription history
 
   @override
   void initState() {
@@ -36,35 +35,6 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchPrescriptions();
     });
-  }
-
-  Future<void> _fetchProductDetails(int productId) async {
-    try {
-      final token = await AuthService.getToken();
-      if (token == null) {
-        throw Exception('Not authenticated');
-      }
-
-      final response = await http.get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/products/$productId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 15));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (mounted) {
-          setState(() {
-            _productDetails[productId] = data['data'];
-          });
-        }
-      }
-    } catch (e) {
-      // Silently handle product detail errors
-    }
   }
 
   Future<void> _fetchPrescriptions() async {
@@ -91,35 +61,24 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
       ).timeout(const Duration(seconds: 15));
 
       // Print the raw response
-      print('API Response Status Code: ${response.statusCode}');
-      print('API Response Body: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('Decoded API Data: $data');
-
         if (data['data'] != null) {
-          print('Prescriptions Data: ${data['data']}');
           if (mounted) {
             setState(() {
               _prescriptions = List<Map<String, dynamic>>.from(data['data']);
               _isLoading = false;
             });
           }
-          print('Processed Prescriptions: $_prescriptions');
         } else {
-          print('No data found in response');
           throw Exception('No prescription data found');
         }
       } else if (response.statusCode == 401) {
-        print('Authentication error - Status 401');
         throw Exception('Your session has expired. Please log in again.');
       } else {
-        print('Server error - Status: ${response.statusCode}');
         throw Exception('Unable to connect to the server');
       }
     } catch (e) {
-      print('Error in _fetchPrescriptions: $e');
       if (mounted) {
         setState(() {
           _error = e.toString();
@@ -130,8 +89,6 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   }
 
   void _showPrescriptionImage(String fileUrl) {
-    print('Attempting to load prescription image from URL: $fileUrl');
-
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -146,9 +103,6 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                     fileUrl,
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) {
-                      print('Image loading error: $error');
-                      print('Stack trace: $stackTrace');
-
                       String errorTitle = 'Failed to load prescription image';
                       String errorMessage = 'The image could not be loaded.';
 
@@ -225,11 +179,8 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                     },
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) {
-                        print('Image loaded successfully');
                         return child;
                       }
-                      print(
-                          'Image loading progress: ${loadingProgress.cumulativeBytesLoaded}/${loadingProgress.expectedTotalBytes}');
                       return Container(
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
@@ -275,36 +226,6 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
     );
   }
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    switch (index) {
-      case 0:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => HomePage()),
-        );
-        break;
-      case 1:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => Cart()),
-        );
-        break;
-      case 2:
-        // Already on prescription history page
-        break;
-      case 3:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => Profile()),
-        );
-        break;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -324,15 +245,15 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 8,
-                offset: Offset(0, 2),
+                offset: const Offset(0, 2),
               ),
             ],
           ),
         ),
         leading: AppBackButton(
-          backgroundColor: Colors.white.withOpacity(0.2),
+          backgroundColor: Colors.white.withValues(alpha: 0.2),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -379,7 +300,8 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
 
   Widget _buildErrorState() {
     return ErrorDisplay(
-      errorMessage: _error ?? 'An error occurred',
+      title: 'Error Loading Prescriptions',
+      message: _error ?? 'An error occurred while loading your prescriptions',
       onRetry: () {
         setState(() {
           _isLoading = true;
@@ -387,17 +309,42 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
         });
         _fetchPrescriptions();
       },
-      icon: Icons.medical_information_outlined,
-      title: 'Unable to Load Prescriptions',
     );
   }
 
   Widget _buildEmptyState() {
-    return ErrorDisplay(
-      errorMessage: 'You haven\'t uploaded any prescriptions yet.',
-      icon: Icons.upload_file_outlined,
-      title: 'No Prescriptions Found',
-      iconColor: Colors.blue,
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.medical_services_outlined,
+              size: 100,
+              color: Colors.green[200],
+            ),
+            const SizedBox(height: 30),
+            Text(
+              'No Prescriptions Yet',
+              style: TextStyle(
+                fontSize: 24,
+                color: Colors.green[700],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'You haven\'t uploaded any prescriptions yet.',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -409,14 +356,8 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
         itemCount: _prescriptions.length,
         itemBuilder: (context, index) {
           final prescription = _prescriptions[index];
-          final productId = prescription['product_id'];
-          final productDetails =
-              productId != null ? _productDetails[productId] : null;
 
           // Debug: Print prescription data
-          print('Prescription $index data: $prescription');
-          print('Prescription $index file URL: ${prescription['file']}');
-
           return Card(
             margin: const EdgeInsets.only(bottom: 16),
             shape: RoundedRectangleBorder(
@@ -427,8 +368,6 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
               leading: GestureDetector(
                 onTap: () {
                   if (prescription['file'] != null) {
-                    print(
-                        'Tapping on prescription image: ${prescription['file']}');
                     _showPrescriptionImage(prescription['file']);
                   }
                 },
@@ -446,10 +385,6 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                             prescription['file'],
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) {
-                              print(
-                                  'Thumbnail image error for prescription $index: $error');
-                              print('Thumbnail URL: ${prescription['file']}');
-
                               // Check if it's a 404 error
                               String errorMessage = 'Image not available';
                               if (error.toString().contains('404')) {
@@ -475,7 +410,7 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                                       size: 20,
                                       color: Colors.red.shade400,
                                     ),
-                                    SizedBox(height: 2),
+                                    const SizedBox(height: 2),
                                     Text(
                                       '404',
                                       style: TextStyle(
@@ -512,7 +447,7 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
               ),
               title: Text(
                 'Prescription #${prescription['id']}',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -535,11 +470,9 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                     ),
                 ],
               ),
-              trailing: Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right),
               onTap: () {
                 if (prescription['file'] != null) {
-                  print(
-                      'Tapping on prescription item: ${prescription['file']}');
                   _showPrescriptionImage(prescription['file']);
                 }
               },
@@ -560,16 +493,6 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
         return Colors.orange;
       default:
         return Colors.grey;
-    }
-  }
-
-  String _formatDate(String? dateStr) {
-    if (dateStr == null) return 'Unknown date';
-    try {
-      final date = DateTime.parse(dateStr);
-      return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return 'Invalid date';
     }
   }
 }

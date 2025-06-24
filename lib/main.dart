@@ -22,6 +22,10 @@ import 'dart:async';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Configure image cache for better performance
+  PaintingBinding.instance.imageCache.maximumSize = 1000;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 100 << 20; // 100 MB
+
   // Start auth initialization in background, don't wait for it
   AuthService.init().catchError((e) {
     print('Background auth initialization error: $e');
@@ -41,10 +45,23 @@ class _MyAppState extends State<MyApp> {
   bool _isLoggedIn = false;
   bool _isInitialized = false;
 
+  // Global function to refresh auth state
+  static void Function()? _refreshAuthStateCallback;
+
+  static void setRefreshAuthStateCallback(void Function() callback) {
+    _refreshAuthStateCallback = callback;
+  }
+
+  static void refreshAuthState() {
+    _refreshAuthStateCallback?.call();
+  }
+
   @override
   void initState() {
     super.initState();
     _initializeAuthState();
+    // Set up the global callback
+    _MyAppState.setRefreshAuthStateCallback(_refreshAuthState);
   }
 
   Future<void> _initializeAuthState() async {
@@ -89,30 +106,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isInitialized) {
-      return MaterialApp(
-        home: Scaffold(
-          backgroundColor: Colors.white,
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset(
-                  'assets/images/png.png',
-                  height: 120,
-                  width: 120,
-                ),
-                const SizedBox(height: 20),
-                const CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
+    // Remove the loading screen - go directly to the main app
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => CartProvider()),

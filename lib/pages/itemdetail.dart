@@ -55,131 +55,25 @@ class _ItemPageState extends State<ItemPage> {
   void _addToCart(BuildContext context, Product product) async {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
-    print('\n=== Adding to Cart ===');
-    print('Product Details:');
-    print('- ID: ${product.id}');
-    print('- Name: ${product.name}');
-    print('- Price: ${product.price}');
-    print('- Quantity: $quantity');
-    print('- Batch No: ${product.batch_no}');
-    print('- URL Name: ${product.urlName}');
-
     try {
-      // Verify the product exists first
-      final verifyResponse = await http
-          .get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/product-details/${product.urlName}'),
-      )
-          .timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException('The request timed out. Please try again.');
-        },
+      final cartItem = CartItem(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        productId: product.id.toString(),
+        name: product.name,
+        price: double.tryParse(product.price) ?? 0.0,
+        quantity: quantity,
+        image: product.thumbnail,
+        batchNo: product.batch_no,
+        urlName: product.urlName,
+        totalPrice: (double.tryParse(product.price) ?? 0.0) * quantity,
       );
 
-      print('\n=== Product Verification Response ===');
-      print('Status Code: ${verifyResponse.statusCode}');
-      print('Response Body: ${verifyResponse.body}');
+      cartProvider.addToCart(cartItem);
 
-      if (verifyResponse.statusCode != 200) {
-        throw Exception(
-            'Product verification failed: ${verifyResponse.statusCode}');
-      }
-
-      try {
-        final verifyData = json.decode(verifyResponse.body);
-        print('\nParsed verification data:');
-        print(json.encode(verifyData));
-
-        // Check if we have the required data structure
-        if (!verifyData.containsKey('data') ||
-            !verifyData['data'].containsKey('product') ||
-            !verifyData['data'].containsKey('inventory')) {
-          throw Exception('Invalid product data structure');
-        }
-
-        final productData = verifyData['data']['product'] ?? {};
-        final inventoryData = verifyData['data']['inventory'] ?? {};
-
-        print('\nProduct Data:');
-        print(json.encode(productData));
-        print('\nInventory Data:');
-        print(json.encode(inventoryData));
-
-        // Get the ID from inventory data since product data doesn't have an ID
-        final productId = inventoryData['id'] ?? 0;
-
-        print('\nVerified Product ID: $productId');
-        print('Using inventory ID: ${inventoryData['id']}');
-        print('Product data keys: ${productData.keys.toList()}');
-        print('Inventory data keys: ${inventoryData.keys.toList()}');
-
-        if (productId == 0) {
-          throw Exception('Invalid product ID');
-        }
-
-        print('\n=== Calling Add to Cart API ===');
-        print('Product ID: $productId');
-        print('Quantity: $quantity');
-        print('Batch No: ${product.batch_no}');
-
-        final response = await AuthService.addToCartCheckAuth(
-          productID: productId,
-          quantity: quantity,
-          batchNo: product.batch_no,
-        );
-
-        print('\n=== Cart API Response ===');
-        print('Full Response: ${json.encode(response)}');
-        print('Status: ${response['status']}');
-        print('Message: ${response['added'] ?? response['message']}');
-        if (response['items'] != null) {
-          print('Number of items: ${(response['items'] as List).length}');
-        }
-        if (response['totalPrice'] != null) {
-          print('Total Price: ${response['totalPrice']}');
-        }
-        if (response['cartQty'] != null) {
-          print('Cart Quantity: ${response['cartQty']}');
-        }
-
-        if (response['status'] == 'success') {
-          // Update local cart with the server response
-          if (response['items'] != null && response['items'] is List) {
-            final items = (response['items'] as List)
-                .map((item) => CartItem.fromServerJson(item))
-                .toList();
-
-            print('\nUpdating cart with ${items.length} items');
-            cartProvider.setCartItems(items);
-
-            // Show success message with total items
-            final totalItems =
-                items.fold<int>(0, (sum, item) => sum + item.quantity);
-            if (mounted) {
-              showTopSnackBar(
-                  context, '${product.name} has been added to cart ');
-            }
-          }
-        } else {
-          final errorMessage = response['message'] ?? 'Unknown error';
-          throw Exception('Failed to add item to cart: $errorMessage');
-        }
-      } catch (e) {
-        throw Exception('Error processing product data: $e');
-      }
-    } on TimeoutException {
       if (mounted) {
-        showTopSnackBar(context, 'Request timed out. Please try again.');
-      }
-    } on SocketException {
-      if (mounted) {
-        showTopSnackBar(context,
-            'No internet connection. Please check your network settings.');
+        showTopSnackBar(context, '${product.name} has been added to cart');
       }
     } catch (e) {
-      print('\nException adding to cart: $e');
       if (mounted) {
         showTopSnackBar(context, 'Error adding item to cart: $e');
       }
@@ -289,7 +183,6 @@ class _ItemPageState extends State<ItemPage> {
       throw Exception(
           'No internet connection. Please check your network settings.');
     } catch (e) {
-      print('Error fetching product details: $e');
       throw Exception('Could not load product: $e');
     }
   }
@@ -599,23 +492,22 @@ class _ItemPageState extends State<ItemPage> {
                                 ? CachedNetworkImage(
                                     imageUrl: product.thumbnail,
                                     fit: BoxFit.cover,
-                                    placeholder: (context, url) => const Center(
-                                        child: CircularProgressIndicator()),
+                                    placeholder: (context, url) => Container(
+                                      color: Colors.grey[200],
+                                      child: const Center(
+                                          child: CircularProgressIndicator()),
+                                    ),
                                     errorWidget: (context, url, error) =>
                                         Container(
                                       color: Colors.grey[200],
-                                      child: const Center(
-                                        child: Icon(Icons.medical_services,
-                                            size: 60),
-                                      ),
+                                      child: Icon(Icons.medical_services,
+                                          size: 60),
                                     ),
                                   )
                                 : Container(
                                     color: Colors.grey[200],
-                                    child: const Center(
-                                      child: Icon(Icons.medical_services,
-                                          size: 60),
-                                    ),
+                                    child: const Icon(Icons.medical_services,
+                                        size: 60),
                                   ),
                           ),
                         ),
@@ -820,48 +712,8 @@ class _ItemPageState extends State<ItemPage> {
                           ),
                           child: ElevatedButton(
                             onPressed: () async {
-                              final isLoggedIn = await AuthService.isLoggedIn();
-                              if (!isLoggedIn) {
-                                final result = await Navigator.pushNamed(
-                                    context, '/signin');
-                                if (result == true) {
-                                  // User successfully logged in, now add to cart
-                                  if (widget.isPrescribed) {
-                                    // Navigate to prescription upload page
-                                    final token = await AuthService.getToken();
-                                    if (token == null) {
-                                      _showConfirmationSnackbar(
-                                          "Please log in to continue");
-                                      return;
-                                    }
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            PrescriptionUploadPage(
-                                          token: token,
-                                          item: {
-                                            'product': {
-                                              'name': product.name,
-                                              'thumbnail': product.thumbnail,
-                                              'id': product.id,
-                                            },
-                                            'price': product.price,
-                                            'batch_no': product.batch_no,
-                                          },
-                                        ),
-                                      ),
-                                    );
-                                  } else {
-                                    // Regular product, add to cart
-                                    _addToCart(context, product);
-                                  }
-                                }
-                                return;
-                              }
-
                               if (widget.isPrescribed) {
-                                // Navigate to prescription upload page
+                                // Prescription upload logic (keep login check if needed)
                                 final token = await AuthService.getToken();
                                 if (token == null) {
                                   _showConfirmationSnackbar(
@@ -887,7 +739,7 @@ class _ItemPageState extends State<ItemPage> {
                                   ),
                                 );
                               } else {
-                                // Regular product, add to cart
+                                // Regular product, add to cart (no login required)
                                 _addToCart(context, product);
                               }
                             },
@@ -1090,20 +942,18 @@ class _ItemPageState extends State<ItemPage> {
                                 imageUrl: imageUrl,
                                 fit: BoxFit.cover,
                                 placeholder: (context, url) => Container(
-                                  color: Colors.grey[200],
-                                  child: const Center(
-                                      child: CircularProgressIndicator()),
-                                ),
+                                    color: Colors.grey[200],
+                                    child: const Center(
+                                        child: CircularProgressIndicator())),
                                 errorWidget: (context, url, error) => Container(
                                   color: Colors.grey[200],
-                                  child: const Icon(Icons.image_not_supported,
-                                      size: 30),
+                                  child: Icon(Icons.medical_services, size: 60),
                                 ),
                               )
                             : Container(
                                 color: Colors.grey[200],
                                 child: const Icon(Icons.medical_services,
-                                    size: 30),
+                                    size: 60),
                               ),
                       ),
                       Positioned(

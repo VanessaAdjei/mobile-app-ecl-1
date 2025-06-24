@@ -20,7 +20,7 @@ import 'loggedout.dart';
 import 'notifications.dart';
 import 'homepage.dart';
 import 'AppBackButton.dart';
-import 'auth_service.dart';
+import 'package:eclapp/pages/auth_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'cartprovider.dart';
 import '../widgets/cart_icon_button.dart';

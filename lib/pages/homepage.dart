@@ -29,8 +29,66 @@ import 'package:eclapp/pages/splashscreen.dart';
 import 'package:provider/provider.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/product_card.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+
+// Image preloading service for better performance
+class ImagePreloader {
+  static final Map<String, bool> _preloadedImages = {};
+
+  static void preloadImage(String imageUrl, BuildContext context) {
+    if (imageUrl.isEmpty || _preloadedImages.containsKey(imageUrl)) return;
+
+    _preloadedImages[imageUrl] = true;
+    precacheImage(CachedNetworkImageProvider(imageUrl), context);
+  }
+
+  static void preloadImages(List<String> imageUrls, BuildContext context) {
+    for (final imageUrl in imageUrls) {
+      preloadImage(imageUrl, context);
+    }
+  }
+
+  static void clearPreloadedImages() {
+    _preloadedImages.clear();
+  }
+
+  static bool isPreloaded(String imageUrl) {
+    return _preloadedImages.containsKey(imageUrl);
+  }
+}
+
+// Global cache for products to persist across navigation
+class ProductCache {
+  static List<Product> _cachedProducts = [];
+  static List<Product> _cachedPopularProducts = [];
+  static DateTime? _lastCacheTime;
+  static const Duration _cacheValidDuration = Duration(minutes: 30);
+
+  static bool get isCacheValid {
+    if (_lastCacheTime == null) return false;
+    return DateTime.now().difference(_lastCacheTime!) < _cacheValidDuration;
+  }
+
+  static void cacheProducts(List<Product> products) {
+    _cachedProducts = products;
+    _lastCacheTime = DateTime.now();
+  }
+
+  static void cachePopularProducts(List<Product> products) {
+    _cachedPopularProducts = products;
+  }
+
+  static List<Product> get cachedProducts => _cachedProducts;
+  static List<Product> get cachedPopularProducts => _cachedPopularProducts;
+
+  static void clearCache() {
+    _cachedProducts.clear();
+    _cachedPopularProducts.clear();
+    _lastCacheTime = null;
+  }
+}
 
 class ErrorDisplayWidget extends StatelessWidget {
   final VoidCallback? onRetry;
@@ -146,19 +204,17 @@ class _HomePageState extends State<HomePage>
   List<Product> accessoriesProducts = [];
   List<Product> drugsSectionProducts = [];
 
+  // Image preloading controller
+  final Map<String, bool> _preloadedImages = {};
+
   _launchPhoneDialer(String phoneNumber) async {
     final permissionStatus = await Permission.phone.request();
     if (permissionStatus.isGranted) {
       final String formattedPhoneNumber = 'tel:$phoneNumber';
-      print("Dialing number: $formattedPhoneNumber");
       if (await canLaunch(formattedPhoneNumber)) {
         await launch(formattedPhoneNumber);
-      } else {
-        print("Error: Could not open the dialer.");
-      }
-    } else {
-      print("Permission denied.");
-    }
+      } else {}
+    } else {}
   }
 
   Future<bool> requireAuth(BuildContext context) async {
@@ -178,12 +234,10 @@ class _HomePageState extends State<HomePage>
 
   _launchWhatsApp(String phoneNumber, String message) async {
     if (phoneNumber.isEmpty || message.isEmpty) {
-      print("Phone number or message is empty");
       return;
     }
 
     if (!phoneNumber.startsWith('+')) {
-      print("Phone number must include the country code (e.g., +233*******)");
       return;
     }
 
@@ -193,7 +247,6 @@ class _HomePageState extends State<HomePage>
     if (await canLaunch(whatsappUrl)) {
       await launch(whatsappUrl);
     } else {
-      print("WhatsApp is not installed or cannot be launched.");
       showTopSnackBar(
           context, 'Could not open WhatsApp. Please ensure it is installed.');
     }
@@ -204,11 +257,18 @@ class _HomePageState extends State<HomePage>
     try {
       // Load products first, then popular products
       await loadProducts();
-      // Load popular products in background
-      _fetchPopularProducts();
+
+      // Load popular products in background if not cached
+      if (ProductCache.cachedPopularProducts.isEmpty) {
+        _fetchPopularProducts();
+      } else {
+        setState(() {
+          popularProducts = ProductCache.cachedPopularProducts;
+          _isLoadingPopular = false;
+        });
+      }
     } catch (e) {
       // Handle error without cache fallback
-      print('Error loading content: $e');
     } finally {
       if (mounted) {
         setState(() => _allContentLoaded = true);
@@ -217,6 +277,22 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> loadProducts() async {
+    // Check if we have valid cached data
+    if (ProductCache.isCacheValid && ProductCache.cachedProducts.isNotEmpty) {
+      setState(() {
+        _isLoading = false;
+        _error = null;
+      });
+
+      // Use cached data
+      final cachedProducts = ProductCache.cachedProducts;
+      _processProducts(cachedProducts);
+
+      // Preload images in background
+      _preloadImages(cachedProducts);
+      return;
+    }
+
     try {
       setState(() {
         _isLoading = true;
@@ -255,48 +331,14 @@ class _HomePageState extends State<HomePage>
           );
         }).toList();
 
-        // Optimize filtering by doing it once
-        final List<Product> otcDrugProducts = [];
-        final List<Product> wellnessList = [];
-        final List<Product> selfcareList = [];
-        final List<Product> accessoriesList = [];
+        // Cache the products
+        ProductCache.cacheProducts(allProducts);
 
-        for (final product in allProducts) {
-          if ((product.otcpom != null &&
-                  product.otcpom!.trim().toLowerCase() == 'otc') ||
-              (product.drug != null &&
-                  product.drug!.trim().toLowerCase() == 'drug')) {
-            otcDrugProducts.add(product);
-          }
-          if (product.wellness != null && product.wellness!.trim().isNotEmpty) {
-            wellnessList.add(product);
-          }
-          if (product.selfcare != null && product.selfcare!.trim().isNotEmpty) {
-            selfcareList.add(product);
-          }
-          if (product.accessories != null &&
-              product.accessories!.trim().isNotEmpty) {
-            accessoriesList.add(product);
-          }
-        }
+        // Process products and update state
+        _processProducts(allProducts);
 
-        // Shuffle lists efficiently
-        otcDrugProducts.shuffle();
-        wellnessList.shuffle();
-        selfcareList.shuffle();
-        accessoriesList.shuffle();
-
-        if (mounted) {
-          setState(() {
-            _products = allProducts;
-            filteredProducts = allProducts;
-            drugsSectionProducts = otcDrugProducts;
-            wellnessProducts = wellnessList;
-            selfcareProducts = selfcareList;
-            accessoriesProducts = accessoriesList;
-            _isLoading = false;
-          });
-        }
+        // Preload images in background
+        _preloadImages(allProducts);
       } else {
         throw Exception('Server error');
       }
@@ -331,8 +373,79 @@ class _HomePageState extends State<HomePage>
     }
   }
 
+  // Helper method to process products and categorize them
+  void _processProducts(List<Product> allProducts) {
+    if (!mounted) return;
+
+    setState(() {
+      _products = allProducts;
+      filteredProducts = allProducts;
+    });
+
+    // Optimize filtering by doing it once
+    final List<Product> otcDrugProducts = [];
+    final List<Product> wellnessList = [];
+    final List<Product> selfcareList = [];
+    final List<Product> accessoriesList = [];
+
+    for (final product in allProducts) {
+      if ((product.otcpom != null &&
+              product.otcpom!.trim().toLowerCase() == 'otc') ||
+          (product.drug != null &&
+              product.drug!.trim().toLowerCase() == 'drug')) {
+        otcDrugProducts.add(product);
+      }
+      if (product.wellness != null && product.wellness!.trim().isNotEmpty) {
+        wellnessList.add(product);
+      }
+      if (product.selfcare != null && product.selfcare!.trim().isNotEmpty) {
+        selfcareList.add(product);
+      }
+      if (product.accessories != null &&
+          product.accessories!.trim().isNotEmpty) {
+        accessoriesList.add(product);
+      }
+    }
+
+    // Shuffle lists efficiently
+    otcDrugProducts.shuffle();
+    wellnessList.shuffle();
+    selfcareList.shuffle();
+    accessoriesList.shuffle();
+
+    if (mounted) {
+      setState(() {
+        drugsSectionProducts = otcDrugProducts;
+        wellnessProducts = wellnessList;
+        selfcareProducts = selfcareList;
+        accessoriesProducts = accessoriesList;
+      });
+    }
+  }
+
+  // Preload images for better performance
+  void _preloadImages(List<Product> products) {
+    final imageUrls = products
+        .take(20) // Preload first 20 images
+        .map((product) => getProductImageUrl(product.thumbnail))
+        .where((url) => url.isNotEmpty)
+        .toList();
+
+    ImagePreloader.preloadImages(imageUrls, context);
+  }
+
   Future<void> _fetchPopularProducts() async {
     if (!mounted) return;
+
+    // Check if we have cached popular products
+    if (ProductCache.cachedPopularProducts.isNotEmpty) {
+      setState(() {
+        popularProducts = ProductCache.cachedPopularProducts;
+        _isLoadingPopular = false;
+      });
+      return;
+    }
+
     setState(() {
       _isLoadingPopular = true;
       _popularError = null;
@@ -349,28 +462,35 @@ class _HomePageState extends State<HomePage>
         final Map<String, dynamic> data = json.decode(response.body);
         final List<dynamic> productsData = data['data'] ?? [];
         if (!mounted) return;
+
+        final popularProductsList = productsData.map<Product>((item) {
+          final productData = item['product'] as Map<String, dynamic>;
+          return Product(
+            id: productData['id'] ?? 0,
+            name: productData['name'] ?? 'No name',
+            description: productData['description'] ?? '',
+            urlName: productData['url_name'] ?? '',
+            status: productData['status'] ?? '',
+            batch_no: item['batch_no'] ?? '',
+            price: (item['price'] ?? 0).toString(),
+            thumbnail: productData['thumbnail'] ?? '',
+            quantity: item['qty_in_stock']?.toString() ?? '',
+            category: productData['category'] ?? '',
+            route: productData['route'] ?? '',
+            otcpom: productData['otcpom'],
+            drug: productData['drug'],
+            wellness: productData['wellness'],
+            selfcare: productData['selfcare'],
+            accessories: productData['accessories'],
+          );
+        }).toList();
+
+        // Cache popular products
+        ProductCache.cachePopularProducts(popularProductsList);
+
+        if (!mounted) return;
         setState(() {
-          popularProducts = productsData.map<Product>((item) {
-            final productData = item['product'] as Map<String, dynamic>;
-            return Product(
-              id: productData['id'] ?? 0,
-              name: productData['name'] ?? 'No name',
-              description: productData['description'] ?? '',
-              urlName: productData['url_name'] ?? '',
-              status: productData['status'] ?? '',
-              batch_no: item['batch_no'] ?? '',
-              price: (item['price'] ?? 0).toString(),
-              thumbnail: productData['thumbnail'] ?? '',
-              quantity: item['qty_in_stock']?.toString() ?? '',
-              category: productData['category'] ?? '',
-              route: productData['route'] ?? '',
-              otcpom: productData['otcpom'],
-              drug: productData['drug'],
-              wellness: productData['wellness'],
-              selfcare: productData['selfcare'],
-              accessories: productData['accessories'],
-            );
-          }).toList();
+          popularProducts = popularProductsList;
           _isLoadingPopular = false;
         });
       } else {
@@ -452,10 +572,18 @@ class _HomePageState extends State<HomePage>
     );
   }
 
+  // Clear cache and reload data
+  Future<void> _clearCacheAndReload() async {
+    ProductCache.clearCache();
+    ImagePreloader.clearPreloadedImages();
+    _preloadedImages.clear();
+    await _loadAllContent();
+  }
+
   @override
   void initState() {
     super.initState();
-    _loadAllContent();
+    _loadContentOptimized();
     _scrollController.addListener(() {
       if (_scrollController.offset > 100 && !_isScrolled) {
         setState(() {
@@ -467,6 +595,15 @@ class _HomePageState extends State<HomePage>
         });
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Preload images when dependencies change (e.g., when coming back to this page)
+    if (_products.isNotEmpty && _preloadedImages.isEmpty) {
+      _preloadImages(_products);
+    }
   }
 
   void showTopSnackBar(BuildContext context, String message,
@@ -648,14 +785,18 @@ class _HomePageState extends State<HomePage>
               matchingProduct.thumbnail.isNotEmpty
                   ? matchingProduct.thumbnail
                   : suggestion.thumbnail);
-          print(
-              'Search suggestion: \\${suggestion.name}, thumbnail: \\${suggestion.thumbnail}, used thumbnail: \\${matchingProduct.thumbnail}, imageUrl: \\${imageUrl}');
           return ListTile(
             leading: CachedNetworkImage(
               imageUrl: imageUrl,
               width: 40,
               height: 40,
               fit: BoxFit.cover,
+              memCacheWidth: 300,
+              memCacheHeight: 300,
+              maxWidthDiskCache: 300,
+              maxHeightDiskCache: 300,
+              fadeInDuration: Duration(milliseconds: 100),
+              fadeOutDuration: Duration(milliseconds: 100),
               placeholder: (context, url) => SizedBox(
                 width: 24,
                 height: 24,
@@ -677,7 +818,6 @@ class _HomePageState extends State<HomePage>
           final urlName = matchingProduct.urlName.isNotEmpty
               ? matchingProduct.urlName
               : suggestion.urlName;
-          print('Navigating to item page with urlName: $urlName');
           if (suggestion.name == '__VIEW_MORE__') {
             Navigator.push(
               context,
@@ -719,7 +859,7 @@ class _HomePageState extends State<HomePage>
 
   Widget _buildActionCards() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
       child: Row(
         children: [
           Expanded(
@@ -735,7 +875,7 @@ class _HomePageState extends State<HomePage>
               },
             ),
           ),
-          SizedBox(width: 12),
+          SizedBox(width: 8),
           Expanded(
             child: _buildActionCard(
               icon: Icons.location_on,
@@ -749,7 +889,7 @@ class _HomePageState extends State<HomePage>
               },
             ),
           ),
-          SizedBox(width: 12),
+          SizedBox(width: 8),
           Expanded(
             child: _buildActionCard(
               icon: Icons.contact_support_rounded,
@@ -816,7 +956,7 @@ class _HomePageState extends State<HomePage>
   Widget _buildPopularProducts() {
     if (_isLoadingPopular) {
       return Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(8.0),
         child: Center(child: CircularProgressIndicator()),
       );
     }
@@ -841,67 +981,77 @@ class _HomePageState extends State<HomePage>
 
     // Limit popular products for better performance
     final limitedPopularProducts =
-        _getLimitedProducts(popularProducts, limit: 10);
+        _getLimitedProducts(popularProducts, limit: 8);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         buildCapsuleHeading('Popular Products', Colors.green[700]!),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            children: limitedPopularProducts.map((product) {
-              return GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ItemPage(
-                        urlName: product.urlName,
-                        isPrescribed: product.otcpom?.toLowerCase() == 'pom',
+        Container(
+          height: 100,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: limitedPopularProducts.map((product) {
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ItemPage(
+                          urlName: product.urlName,
+                          isPrescribed: product.otcpom?.toLowerCase() == 'pom',
+                        ),
+                      ),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ClipOval(
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          CachedNetworkImage(
+                            imageUrl: getProductImageUrl(product.thumbnail),
+                            fit: BoxFit.contain,
+                            height: 80,
+                            width: 80,
+                            memCacheWidth: 160,
+                            memCacheHeight: 160,
+                            maxWidthDiskCache: 160,
+                            maxHeightDiskCache: 160,
+                            fadeInDuration: Duration(milliseconds: 100),
+                            fadeOutDuration: Duration(milliseconds: 100),
+                            placeholder: (context, url) {
+                              return Center(child: CircularProgressIndicator());
+                            },
+                            errorWidget: (context, url, error) {
+                              return Container(
+                                color: Colors.grey[200],
+                                child: Icon(Icons.broken_image, size: 32),
+                              );
+                            },
+                          ),
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  );
-                },
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ClipOval(
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        CachedNetworkImage(
-                          imageUrl: getProductImageUrl(product.thumbnail),
-                          fit: BoxFit.contain,
-                          height: 90,
-                          width: 80,
-                          placeholder: (context, url) {
-                            return Center(child: CircularProgressIndicator());
-                          },
-                          errorWidget: (context, url, error) {
-                            return Container(
-                              color: Colors.grey[200],
-                              child: Icon(Icons.broken_image, size: 32),
-                            );
-                          },
-                        ),
-                        Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
-                ),
-              );
-            }).toList(),
+                );
+              }).toList(),
+            ),
           ),
         ),
         Divider(
           color: Colors.grey.shade300,
-          thickness: 2.0,
+          thickness: 1.0,
+          height: 16,
         ),
       ],
     );
@@ -924,7 +1074,8 @@ class _HomePageState extends State<HomePage>
         Container(
           width: cardWidth,
           margin: EdgeInsets.symmetric(
-              horizontal: screenWidth * 0.008, vertical: 0),
+              horizontal: screenWidth * 0.004,
+              vertical: 0), // Reduced from 0.008 to 0.004
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
@@ -959,6 +1110,12 @@ class _HomePageState extends State<HomePage>
                       child: CachedNetworkImage(
                         imageUrl: getProductImageUrl(product.thumbnail),
                         fit: BoxFit.cover,
+                        memCacheWidth: 300,
+                        memCacheHeight: 300,
+                        maxWidthDiskCache: 300,
+                        maxHeightDiskCache: 300,
+                        fadeInDuration: Duration(milliseconds: 100),
+                        fadeOutDuration: Duration(milliseconds: 100),
                         placeholder: (context, url) => Center(
                           child: CircularProgressIndicator(strokeWidth: 1),
                         ),
@@ -1001,23 +1158,26 @@ class _HomePageState extends State<HomePage>
           width: cardWidth,
           child: Column(
             children: [
-              const SizedBox(height: 1),
+              const SizedBox(height: 0), // Removed spacing completely
               Text(
                 product.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: fontSize * 0.95,
+                  fontSize:
+                      fontSize * 0.85, // Reduced from 0.9 for smaller text
                   fontWeight: FontWeight.w600,
                   color: Colors.black87,
                 ),
               ),
+              const SizedBox(height: 0), // No spacing between name and price
               Text(
                 'GHS ${product.price}',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: fontSize * 0.95,
+                  fontSize:
+                      fontSize * 0.85, // Reduced from 0.9 for smaller text
                   fontWeight: FontWeight.w700,
                   color: Colors.green[700],
                 ),
@@ -1043,23 +1203,28 @@ class _HomePageState extends State<HomePage>
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    // Calculate responsive spacing
+    // Calculate responsive spacing - reduced for more compact layout
     final responsiveMainAxisSpacing =
-        screenHeight * 0.005; // 0.5% of screen height
-    final responsiveCrossAxisSpacing = screenWidth * 0.02; // 2% of screen width
-    final responsivePadding = screenWidth * 0.02; // 2% of screen width
+        screenHeight * 0.002; // Reduced from 0.005 to 0.002
+    final responsiveCrossAxisSpacing =
+        screenWidth * 0.01; // Reduced from 0.02 to 0.01
+    final responsivePadding = screenWidth * 0.015; // Reduced from 0.02 to 0.015
 
-    // Ensure minimum and maximum values
-    final finalMainAxisSpacing = responsiveMainAxisSpacing.clamp(2.0, 6.0);
-    final finalCrossAxisSpacing = responsiveCrossAxisSpacing.clamp(6.0, 16.0);
-    final finalPadding = responsivePadding.clamp(6.0, 16.0);
+    // Ensure minimum and maximum values - reduced for tighter spacing
+    final finalMainAxisSpacing =
+        responsiveMainAxisSpacing.clamp(1.0, 4.0); // Reduced from 2.0, 6.0
+    final finalCrossAxisSpacing =
+        responsiveCrossAxisSpacing.clamp(3.0, 12.0); // Reduced from 6.0, 16.0
+    final finalPadding =
+        responsivePadding.clamp(4.0, 12.0); // Reduced from 6.0, 16.0
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Section header with See More button on same row
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          padding: const EdgeInsets.symmetric(
+              horizontal: 16.0, vertical: 2.0), // Reduced from 4.0 to 2.0
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1092,12 +1257,14 @@ class _HomePageState extends State<HomePage>
         GridView.builder(
           shrinkWrap: true,
           physics: NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.symmetric(horizontal: finalPadding),
+          padding: EdgeInsets.symmetric(
+              horizontal: finalPadding, vertical: 1), // Reduced from 2 to 1
           itemCount: products.length > 6 ? 6 : products.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
-            childAspectRatio: 0.9,
-            mainAxisSpacing: finalMainAxisSpacing,
+            childAspectRatio:
+                1.1, // Increased from 0.75 to 1.1 for shorter cards
+            mainAxisSpacing: 0.0, // Removed spacing completely
             crossAxisSpacing: finalCrossAxisSpacing,
           ),
           itemBuilder: (context, index) {
@@ -1109,6 +1276,7 @@ class _HomePageState extends State<HomePage>
             );
           },
         ),
+        SizedBox(height: 4), // Reduced from 8 to 4
       ],
     );
   }
@@ -1134,7 +1302,7 @@ class _HomePageState extends State<HomePage>
           setState(() {
             _error = null;
           });
-          _loadAllContent();
+          _clearCacheAndReload();
         },
       );
     }
@@ -1162,7 +1330,7 @@ class _HomePageState extends State<HomePage>
           children: [
             SmartRefresher(
               controller: _refreshController,
-              onRefresh: loadProducts,
+              onRefresh: _clearCacheAndReload,
               child: CustomScrollView(
                 controller: _scrollController,
                 slivers: [
@@ -1211,7 +1379,9 @@ class _HomePageState extends State<HomePage>
                   // Bulk Purchase Card
                   SliverToBoxAdapter(
                     child: Container(
-                      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      margin: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 2), // Reduced vertical margin
                       child: InkWell(
                         onTap: () async {
                           final shouldProceed = await showDialog<bool>(
@@ -1547,6 +1717,41 @@ class _HomePageState extends State<HomePage>
       ),
     );
   }
+
+  // Check if images are already cached
+  bool _areImagesCached() {
+    return _preloadedImages.isNotEmpty ||
+        ImagePreloader.isPreloaded(
+            getProductImageUrl(_products.firstOrNull?.thumbnail ?? ''));
+  }
+
+  // Optimized loading that checks cache first
+  Future<void> _loadContentOptimized() async {
+    // If we have cached data and images are preloaded, use them immediately
+    if (ProductCache.isCacheValid &&
+        ProductCache.cachedProducts.isNotEmpty &&
+        _areImagesCached()) {
+      setState(() {
+        _isLoading = false;
+        _error = null;
+        _allContentLoaded = true;
+      });
+
+      final cachedProducts = ProductCache.cachedProducts;
+      _processProducts(cachedProducts);
+
+      if (ProductCache.cachedPopularProducts.isNotEmpty) {
+        setState(() {
+          popularProducts = ProductCache.cachedPopularProducts;
+          _isLoadingPopular = false;
+        });
+      }
+      return;
+    }
+
+    // Otherwise, load normally
+    await _loadAllContent();
+  }
 }
 
 class HomePageSkeleton extends StatelessWidget {
@@ -1800,7 +2005,7 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.85);
+    _pageController = PageController(viewportFraction: 1.0);
     fetchBanners();
     _timer = Timer.periodic(Duration(seconds: 10), (timer) {
       if (_pageController.hasClients && banners.isNotEmpty) {
@@ -1874,14 +2079,14 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
   Widget build(BuildContext context) {
     if (_isLoadingBanners) {
       return Container(
-        height: 150,
+        height: 140,
         alignment: Alignment.center,
         child: CircularProgressIndicator(),
       );
     }
     if (banners.isEmpty) {
       return Container(
-        height: 150,
+        height: 140,
         alignment: Alignment.center,
         child: Text(
           'No banners available',
@@ -1889,9 +2094,9 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
         ),
       );
     }
-    return Container(
-      height: 150,
-      padding: EdgeInsets.symmetric(vertical: 10),
+    return SizedBox(
+      width: double.infinity,
+      height: 190, // Increased height to show more of the image length
       child: PageView.builder(
         controller: _pageController,
         itemCount: banners.length,
@@ -1900,36 +2105,55 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
           final imageUrl = banner.img.startsWith('http')
               ? banner.img
               : 'https://eclcommerce.ernestchemists.com.gh/storage/banners/${Uri.encodeComponent(banner.img)}';
-          print('Banner image URL: ' + imageUrl);
-          return Padding(
-            padding: EdgeInsets.symmetric(horizontal: 5),
-            child: GestureDetector(
-              onTap: () {
-                if (banner.urlName != null && banner.urlName!.isNotEmpty) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ItemPage(urlName: banner.urlName!),
-                    ),
-                  );
-                }
-              },
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  imageUrl,
-                  fit: BoxFit.cover,
-                  cacheHeight: 300,
-                  cacheWidth:
-                      (MediaQuery.of(context).size.width * 0.85).round(),
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    color: Colors.grey[200],
-                    child: Icon(Icons.broken_image, size: 40),
+          return GestureDetector(
+            onTap: () {
+              if (banner.urlName != null && banner.urlName!.isNotEmpty) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ItemPage(urlName: banner.urlName!),
                   ),
-                  loadingBuilder: (context, child, progress) {
-                    if (progress == null) return child;
-                    return Center(child: CircularProgressIndicator());
-                  },
+                );
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 6,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    fit: BoxFit
+                        .cover, // Changed back to cover for full-width banner
+                    placeholder: (context, url) => Container(
+                      color: Colors.grey[200],
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.green),
+                        ),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      color: Colors.grey[200],
+                      child: Icon(
+                        Icons.broken_image,
+                        size: 40,
+                        color: Colors.grey[400],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1942,22 +2166,16 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
 
 String getProductImageUrl(String? url) {
   if (url == null || url.isEmpty) {
-    print('Empty or null URL provided');
     return '';
   }
 
   // If it's already a full URL, return it
   if (url.startsWith('http')) {
-    print('Full URL provided: $url');
     return url;
   }
 
   // Use the correct path 'product' (singular) instead of 'products'
-  final finalUrl =
-      'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
-  print('Original URL: $url');
-  print('Final URL: $finalUrl');
-  return finalUrl;
+  return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
 }
 
 class BannerModel {

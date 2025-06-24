@@ -43,22 +43,14 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
   }
 
   void _onItemTapped(int index) async {
-    print('\n=== Bottom Nav Tapped ===');
-    print('Selected Index: $index');
-    print('Current Index: $_selectedIndex');
-    print('Can Pop: ${Navigator.canPop(context)}');
-    print('Current Route: ${ModalRoute.of(context)?.settings.name}');
-
     // Always allow home navigation
     if (index == 0) {
-      print('Navigating to Home');
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
           builder: (context) => const home.HomePage(),
         ),
         (route) {
-          print('Route predicate: ${route.settings.name}');
           return false;
         },
       );
@@ -67,7 +59,6 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
 
     // For other navigation items, check if we're already on that page
     if (index == _selectedIndex) {
-      print('Same index selected, returning');
       return;
     }
 
@@ -77,7 +68,6 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
 
     switch (index) {
       case 1:
-        print('Navigating to Cart');
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -86,7 +76,6 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
         );
         break;
       case 2:
-        print('Navigating to Categories');
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -95,7 +84,6 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
         );
         break;
       case 3:
-        print('Navigating to Profile');
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -190,7 +178,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
               label: 'Cart',
             ),
             const BottomNavigationBarItem(
-              icon: Icon(Icons.category),
+              icon: Icon(Icons.grid_view),
               label: 'Categories',
             ),
             const BottomNavigationBarItem(

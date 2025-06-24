@@ -2,20 +2,31 @@
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'auth_service.dart';
+import 'package:eclapp/pages/auth_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
 import 'dart:async';
+import 'package:provider/provider.dart';
+import 'authprovider.dart';
+import 'cartprovider.dart';
+import '../main.dart' as main_app;
+import 'package:eclapp/pages/homepage.dart';
+import 'package:eclapp/widgets/error_display.dart';
+import 'package:provider/provider.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final String email;
   final String phoneNumber;
+  final String? password; // Optional for auto-login
+  final String? name; // Optional for auto-login
 
   const OtpVerificationScreen({
     super.key,
     required this.email,
     required this.phoneNumber,
+    this.password,
+    this.name,
   });
 
   @override
@@ -82,11 +93,92 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       if (isVerified) {
         _showSuccess("OTP verified successfully!");
 
-        // Navigate to Sign In page
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const SignInScreen()),
-        );
+        // Auto-login if credentials are provided
+        if (widget.password != null) {
+          try {
+            final result =
+                await AuthService.signIn(widget.email, widget.password!);
+
+            if (result['success'] == true && result['token'] != null) {
+              // Add a longer delay to ensure token is properly saved and all states are updated
+              await Future.delayed(const Duration(milliseconds: 50));
+
+              // Force update AuthService state multiple times to ensure consistency
+              await AuthService.forceUpdateAuthState();
+              await Future.delayed(const Duration(milliseconds: 100));
+              await AuthService.forceUpdateAuthState();
+
+              // Update AuthProvider state
+              try {
+                final authProvider =
+                    Provider.of<AuthProvider>(context, listen: false);
+                await authProvider
+                    .login(); // This will check the current login state
+              } catch (e) {
+                // AuthProvider not available, continue
+              }
+
+              // Get the current AuthState using the of() pattern
+              final authState = main_app.AuthState.of(context);
+              if (authState != null) {
+                authState.refreshAuthState();
+              }
+
+              // Sync cart for logged-in user
+              final userId = await AuthService.getCurrentUserID();
+              if (userId != null) {
+                await Provider.of<CartProvider>(context, listen: false)
+                    .handleUserLogin(userId);
+              }
+
+              // Final verification - check if user is actually logged in
+              final isActuallyLoggedIn = await AuthService.isLoggedIn();
+              if (!isActuallyLoggedIn) {
+                // If still not logged in, redirect to sign in page
+                if (mounted) {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const SignInScreen()),
+                  );
+                }
+                return;
+              }
+
+              // Successfully logged in, navigate to home
+              if (mounted) {
+                // Navigate to home and clear all previous routes
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/home',
+                  (route) => false,
+                );
+              }
+            } else {
+              // Auto-login failed, redirect to sign in page
+              if (mounted) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SignInScreen()),
+                );
+              }
+            }
+          } catch (e) {
+            // Auto-login failed, redirect to sign in page
+            if (mounted) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const SignInScreen()),
+              );
+            }
+          }
+        } else {
+          // No credentials provided, navigate to Sign In page
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const SignInScreen()),
+          );
+        }
       } else {
         _showError("Invalid OTP. Please try again.");
         // Clear the OTP fields
@@ -446,68 +538,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 
   void _showSuccess(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              Icons.check_circle_outline,
-              color: Colors.white,
-              size: 20,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                message,
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        backgroundColor: Colors.green.shade600,
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    SnackBarUtils.showSuccess(context, message);
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              Icons.error_outline,
-              color: Colors.white,
-              size: 20,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                message,
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        backgroundColor: Colors.red.shade600,
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    SnackBarUtils.showError(context, message);
   }
 }

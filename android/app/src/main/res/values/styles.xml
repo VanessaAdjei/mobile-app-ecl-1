@@ -5,14 +5,14 @@
         <!-- Show a splash screen on the activity. Automatically removed when
              the Flutter engine draws its first frame -->
         <!-- <item name="android:windowBackground">@drawable/launch_background</item> -->
-        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:forceDarkAllowed">false</item>
         <item name="android:windowFullscreen">false</item>
         <item name="android:windowDrawsSystemBarBackgrounds">false</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
-        <!-- Optimize for faster startup -->
-        <item name="android:windowDisablePreview">false</item>
-        <item name="android:windowIsTranslucent">false</item>
+        <!-- Disable launch screen preview -->
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowAnimationStyle">@android:style/Animation</item>
     </style>
     <!-- Theme applied to the Android Window as soon as the process has started.

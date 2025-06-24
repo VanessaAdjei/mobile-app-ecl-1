@@ -45,8 +45,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
         }
       }
     } catch (e) {
-      print('Error checking auth state: $e');
-    }
+      }
   }
 
   void _navigateToConfirmation(bool success) async {
@@ -132,8 +131,6 @@ class _PaymentWebViewState extends State<PaymentWebView> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        print('WillPopScope triggered');
-
         if (!mounted) return false;
 
         // Show confirmation dialog
@@ -145,14 +142,12 @@ class _PaymentWebViewState extends State<PaymentWebView> {
                 actions: [
                   TextButton(
                     onPressed: () {
-                      print('Dialog: No pressed');
                       Navigator.pop(context, false);
                     },
                     child: Text('No'),
                   ),
                   TextButton(
                     onPressed: () {
-                      print('Dialog: Yes pressed');
                       Navigator.pop(context, true);
                     },
                     child: Text('Yes'),
@@ -162,9 +157,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
             ) ??
             false;
 
-        print('Dialog result: $shouldPop');
         if (shouldPop) {
-          print('Attempting to navigate back to PaymentPage');
           // Simply pop back to the previous screen (payment page)
           Navigator.pop(context, false);
         }

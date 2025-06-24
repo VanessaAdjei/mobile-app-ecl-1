@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
+import 'package:eclapp/widgets/error_display.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -61,7 +62,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
         password,
         phoneNumber,
       );
-      print('SignUp result: ' + signUpSuccess.toString());
 
       if (signUpSuccess) {
         Navigator.pushReplacement(
@@ -70,6 +70,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
             builder: (context) => OtpVerificationScreen(
               email: email,
               phoneNumber: phoneNumber,
+              password: password,
+              name: name,
             ),
           ),
         );
@@ -540,36 +542,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              Icons.error_outline,
-              color: Colors.white,
-              size: 20,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                message,
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        backgroundColor: Colors.red.shade600,
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    SnackBarUtils.showError(context, message);
   }
 
   Widget _buildTextField(

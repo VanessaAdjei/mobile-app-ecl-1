@@ -39,7 +39,7 @@ class HomeProductCard extends StatelessWidget {
         Container(
           width: defaultCardWidth,
           margin: EdgeInsets.symmetric(
-              horizontal: screenWidth * 0.008, vertical: 0),
+              horizontal: screenWidth * 0.004, vertical: 0),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
@@ -76,6 +76,12 @@ class HomeProductCard extends StatelessWidget {
                       child: CachedNetworkImage(
                         imageUrl: getProductImageUrl(product.thumbnail),
                         fit: BoxFit.cover,
+                        memCacheWidth: 300,
+                        memCacheHeight: 300,
+                        maxWidthDiskCache: 300,
+                        maxHeightDiskCache: 300,
+                        fadeInDuration: Duration(milliseconds: 100),
+                        fadeOutDuration: Duration(milliseconds: 100),
                         placeholder: (context, url) => Center(
                           child: CircularProgressIndicator(strokeWidth: 1),
                         ),
@@ -119,23 +125,24 @@ class HomeProductCard extends StatelessWidget {
           width: defaultCardWidth,
           child: Column(
             children: [
-              const SizedBox(height: 1),
+              const SizedBox(height: 0),
               Text(
                 product.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: defaultFontSize * 0.95,
+                  fontSize: defaultFontSize * 0.85,
                   fontWeight: FontWeight.w600,
                   color: Colors.black87,
                 ),
               ),
+              const SizedBox(height: 0),
               Text(
                 'GHS ${product.price}',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: defaultFontSize * 0.95,
+                  fontSize: defaultFontSize * 0.85,
                   fontWeight: FontWeight.w700,
                   color: Colors.green[700],
                 ),
@@ -194,7 +201,7 @@ class GenericProductCard extends StatelessWidget {
         Container(
           width: defaultCardWidth,
           margin: EdgeInsets.symmetric(
-              horizontal: screenWidth * 0.008, vertical: 0),
+              horizontal: screenWidth * 0.004, vertical: 0),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
@@ -211,17 +218,15 @@ class GenericProductCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
                 onTap: onTap ??
                     () {
-                      if (urlName.isNotEmpty) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ItemPage(
-                              urlName: urlName,
-                              isPrescribed: isPrescribed,
-                            ),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ItemPage(
+                            urlName: urlName,
+                            isPrescribed: isPrescribed,
                           ),
-                        );
-                      }
+                        ),
+                      );
                     },
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
@@ -232,6 +237,12 @@ class GenericProductCard extends StatelessWidget {
                       child: CachedNetworkImage(
                         imageUrl: getProductImageUrl(productImage),
                         fit: BoxFit.cover,
+                        memCacheWidth: 300,
+                        memCacheHeight: 300,
+                        maxWidthDiskCache: 300,
+                        maxHeightDiskCache: 300,
+                        fadeInDuration: Duration(milliseconds: 100),
+                        fadeOutDuration: Duration(milliseconds: 100),
                         placeholder: (context, url) => Center(
                           child: CircularProgressIndicator(strokeWidth: 1),
                         ),
@@ -290,28 +301,30 @@ class GenericProductCard extends StatelessWidget {
           width: defaultCardWidth,
           child: Column(
             children: [
-              const SizedBox(height: 1),
+              const SizedBox(height: 0),
               Text(
                 productName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: defaultFontSize * 0.95,
+                  fontSize: defaultFontSize * 0.85,
                   fontWeight: FontWeight.w600,
                   color: Colors.black87,
                 ),
               ),
-              if (showPrice && productPrice.isNotEmpty)
+              if (showPrice) ...[
+                const SizedBox(height: 0),
                 Text(
                   'GHS $productPrice',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: defaultFontSize * 0.95,
+                    fontSize: defaultFontSize * 0.85,
                     fontWeight: FontWeight.w700,
                     color: Colors.green[700],
                   ),
                 ),
+              ],
             ],
           ),
         ),
@@ -360,6 +373,7 @@ class GenericProductCard extends StatelessWidget {
       return product.urlName;
     } else if (product is Map<String, dynamic>) {
       return product['url_name'] ??
+          product['url'] ??
           product['inventory']?['urlname'] ??
           product['route']?.split('/').last ??
           '';
@@ -370,20 +384,250 @@ class GenericProductCard extends StatelessWidget {
 
 String getProductImageUrl(String? url) {
   if (url == null || url.isEmpty) {
-    print('Empty or null URL provided');
     return '';
   }
 
   // If it's already a full URL, return it
   if (url.startsWith('http')) {
-    print('Full URL provided: $url');
     return url;
   }
 
   // Use the correct path 'product' (singular) instead of 'products'
   final finalUrl =
       'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
-  print('Original URL: $url');
-  print('Final URL: $finalUrl');
   return finalUrl;
+}
+
+class ProductCard extends StatelessWidget {
+  final dynamic product;
+  final VoidCallback onTap;
+  final bool showFavoriteButton;
+  final bool isFavorite;
+  final VoidCallback? onFavoriteToggle;
+
+  const ProductCard({
+    super.key,
+    required this.product,
+    required this.onTap,
+    this.showFavoriteButton = true,
+    this.isFavorite = false,
+    this.onFavoriteToggle,
+  });
+
+  String _formatPrice(dynamic price) {
+    if (price == null) return '0.00';
+
+    double? numericPrice;
+    if (price is String) {
+      numericPrice = double.tryParse(price);
+    } else if (price is int) {
+      numericPrice = price.toDouble();
+    } else if (price is double) {
+      numericPrice = price;
+    }
+
+    if (numericPrice == null) return '0.00';
+    return numericPrice.toStringAsFixed(2);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 3,
+              child: Stack(
+                children: [
+                  Container(
+                    decoration: const BoxDecoration(
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(16),
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(16),
+                      ),
+                      child: CachedNetworkImage(
+                        imageUrl: product['thumbnail'] ?? '',
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                        memCacheWidth: 120,
+                        memCacheHeight: 120,
+                        maxWidthDiskCache: 120,
+                        maxHeightDiskCache: 120,
+                        fadeInDuration: const Duration(milliseconds: 200),
+                        fadeOutDuration: const Duration(milliseconds: 100),
+                        placeholder: (context, url) => Container(
+                          color: Colors.grey.shade200,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.green.shade700,
+                              ),
+                            ),
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          color: Colors.grey.shade200,
+                          child: Icon(
+                            Icons.image_not_supported_outlined,
+                            color: Colors.grey.shade400,
+                            size: 32,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Favorite button
+                  if (showFavoriteButton)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: onFavoriteToggle,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.9),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            isFavorite ? Icons.favorite : Icons.favorite_border,
+                            size: 16,
+                            color:
+                                isFavorite ? Colors.red : Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Price tag
+                  Positioned(
+                    bottom: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade700.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'GHS ${_formatPrice(product['price'])}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Product Info
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product['name'] ?? 'Unknown Product',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                        color: Colors.black87,
+                        height: 1.3,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    if (product['brand'] != null)
+                      Text(
+                        product['brand'],
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.star,
+                          size: 12,
+                          color: Colors.amber.shade600,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          '4.5',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (product['stock'] != null && product['stock'] > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'In Stock',
+                              style: TextStyle(
+                                fontSize: 8,
+                                color: Colors.green.shade700,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

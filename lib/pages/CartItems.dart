@@ -22,7 +22,6 @@ class CartItems {
     _cart.removeWhere((item) => item['name'] == name);
   }
 
-
   static void updateQuantity(String name, int newQuantity) {
     int index = _cart.indexWhere((item) => item['name'] == name);
 
@@ -36,11 +35,9 @@ class CartItems {
     }
   }
 
-
   static void clearCart() {
     _cart.clear();
   }
-
 
   static List<Map<String, dynamic>> getCartItems() {
     return _cart;

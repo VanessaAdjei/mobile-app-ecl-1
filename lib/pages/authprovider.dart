@@ -1,7 +1,7 @@
 // pages/authprovider.dart
 import 'package:flutter/material.dart';
 
-import 'auth_service.dart';
+import 'package:eclapp/pages/auth_service.dart';
 
 class AuthProvider with ChangeNotifier {
   bool _isLoggedIn = false;
@@ -16,7 +16,6 @@ class AuthProvider with ChangeNotifier {
       _isInitialized = true;
       notifyListeners();
     } catch (e) {
-      print('Error initializing AuthProvider: $e');
       _isLoggedIn = false;
       _isInitialized = true;
       notifyListeners();
@@ -25,10 +24,12 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> login() async {
     try {
+      // Force update AuthService state first
+      await AuthService.forceUpdateAuthState();
+      // Then check the login state
       _isLoggedIn = await AuthService.isLoggedIn();
       notifyListeners();
     } catch (e) {
-      print('Error in AuthProvider login: $e');
       _isLoggedIn = false;
       notifyListeners();
     }
@@ -40,7 +41,6 @@ class AuthProvider with ChangeNotifier {
       _isLoggedIn = false;
       notifyListeners();
     } catch (e) {
-      print('Error in AuthProvider logout: $e');
       _isLoggedIn = false;
       notifyListeners();
     }

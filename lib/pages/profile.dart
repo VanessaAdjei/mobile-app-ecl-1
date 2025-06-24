@@ -1,20 +1,16 @@
 // pages/profile.dart
 
-import 'dart:io';
 import 'package:eclapp/pages/aboutus.dart';
 import 'package:eclapp/pages/loggedout.dart';
 import 'package:eclapp/pages/privacypolicy.dart';
 import 'package:eclapp/pages/profilescreen.dart';
 import 'package:eclapp/pages/purchases.dart';
-import 'package:eclapp/pages/settings.dart';
 import 'package:eclapp/pages/tandc.dart';
 import 'package:eclapp/pages/theme_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:eclapp/pages/cart.dart';
 import 'auth_service.dart';
 import 'bottomnav.dart';
 import 'notifications.dart';
@@ -28,15 +24,13 @@ import '../widgets/cart_icon_button.dart';
 import 'authprovider.dart';
 
 class Profile extends StatefulWidget {
-  const Profile({
-    Key? key,
-  }) : super(key: key);
+  const Profile({super.key});
 
   @override
-  _ProfileState createState() => _ProfileState();
+  ProfileState createState() => ProfileState();
 }
 
-class _ProfileState extends State<Profile> {
+class ProfileState extends State<Profile> {
   String _userName = "User";
   String _userEmail = "No email available";
   bool _userLoggedIn = false;
@@ -51,50 +45,41 @@ class _ProfileState extends State<Profile> {
 
   Future<void> _initializeUserData() async {
     try {
-      // First check login status
       final loggedIn = await AuthService.isLoggedIn();
-
-      if (mounted) {
-        setState(() {
-          _userLoggedIn = loggedIn;
-        });
-      }
-
+      if (!mounted) return;
+      setState(() {
+        _userLoggedIn = loggedIn;
+      });
       if (loggedIn) {
         await _loadUserData();
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading profile: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error loading profile: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   Future<void> _loadUserData() async {
     try {
       final secureStorage = FlutterSecureStorage();
-
       final name = await secureStorage.read(key: 'userName');
       final email = await secureStorage.read(key: 'userEmail');
-
-      if (mounted) {
-        setState(() {
-          _userName = name ?? "User";
-          _userEmail = email ?? "No email available";
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _userName = name ?? "User";
+        _userEmail = email ?? "No email available";
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _userName = "User";
-          _userEmail = "Error loading data";
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _userName = "User";
+        _userEmail = "Error loading data";
+      });
     }
   }
 
@@ -106,9 +91,9 @@ class _ProfileState extends State<Profile> {
   }
 
   void _showLogoutDialog() {
+    if (!mounted) return;
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     final isDark = themeProvider.isDarkMode;
-
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -148,52 +133,45 @@ class _ProfileState extends State<Profile> {
                 ),
               ),
               onPressed: () async {
+                // Get providers before any await
+                final authProvider =
+                    Provider.of<AuthProvider>(context, listen: false);
+                final cartProvider =
+                    Provider.of<CartProvider>(context, listen: false);
+                final userProvider =
+                    Provider.of<UserProvider>(context, listen: false);
+                bool logoutSuccess = false;
+                String? errorMsg;
                 try {
-                  // First logout from the service
                   await AuthService.logout();
-
-                  // Then clear all providers
-                  if (mounted) {
-                    // Update AuthProvider state
-                    try {
-                      final authProvider =
-                          Provider.of<AuthProvider>(context, listen: false);
-                      await authProvider.logout();
-                    } catch (e) {
-                      print('AuthProvider not available: $e');
-                    }
-
-                    await Provider.of<CartProvider>(context, listen: false)
-                        .handleUserLogout();
-                    Provider.of<UserProvider>(context, listen: false)
-                        .clearUserData();
-
-                    // Update local state
-                    setState(() {
-                      _userLoggedIn = false;
-                    });
-
-                    // Close the dialog
-                    Navigator.of(context, rootNavigator: true).pop();
-
-                    // Navigate to logged out screen
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(
-                          builder: (context) => LoggedOutScreen()),
-                      (route) => false,
-                    );
+                  try {
+                    await authProvider.logout();
+                  } catch (e) {
+                    // ignore: empty_catches
                   }
+                  await cartProvider.handleUserLogout();
+                  userProvider.clearUserData();
+                  logoutSuccess = true;
                 } catch (e) {
-                  print('Error during logout: $e');
-                  // Show error in the current context before closing dialog
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error during logout: ${e.toString()}'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
+                  errorMsg = 'Error during logout: ${e.toString()}';
+                }
+                if (!mounted) return;
+                Navigator.of(context, rootNavigator: true).pop();
+                if (logoutSuccess) {
+                  setState(() {
+                    _userLoggedIn = false;
+                  });
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => LoggedOutScreen()),
+                    (route) => false,
+                  );
+                } else if (errorMsg != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(errorMsg),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
                 }
               },
               child: Text(
@@ -219,94 +197,10 @@ class _ProfileState extends State<Profile> {
     );
   }
 
-  // Handle navigation with login check
-  void _navigateWithLoginCheck(Widget screen) {
-    if (_userLoggedIn) {
-      _navigateTo(screen);
-    } else {
-      // Show dialog or directly redirect to sign-in
-      _showLoginRequiredDialog();
-    }
-  }
-
-  // Show dialog informing user they need to login
-  void _showLoginRequiredDialog() {
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    final isDark = themeProvider.isDarkMode;
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: isDark ? Colors.grey[900] : Colors.white,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(
-            "Login Required",
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black,
-            ),
-          ),
-          content: Text(
-            "You need to sign in to access this feature. Would you like to sign in now?",
-            style: GoogleFonts.poppins(
-              color: isDark ? Colors.white70 : Colors.black87,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                "Cancel",
-                style: GoogleFonts.poppins(
-                  color: Colors.grey,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade400,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              onPressed: () {
-                Navigator.pop(context); // Close dialog
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SignInScreen(
-                      returnTo: '/profile',
-                      onSuccess: () {
-                        // Refresh the profile page after successful login
-                        setState(() {
-                          _userLoggedIn = true;
-                        });
-                        _loadUserData();
-                      },
-                    ),
-                  ),
-                );
-              },
-              child: Text(
-                "Sign In",
-                style: GoogleFonts.poppins(),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = themeProvider.isDarkMode;
-
-    // Color scheme
     final primaryColor = isDark ? Colors.green.shade400 : Colors.green.shade700;
     final backgroundColor = isDark ? Colors.grey.shade900 : Colors.grey.shade50;
     final cardColor = isDark ? Colors.grey.shade800 : Colors.white;
@@ -331,7 +225,7 @@ class _ProfileState extends State<Profile> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withAlpha((255 * 0.1).toInt()),
                 blurRadius: 8,
                 offset: Offset(0, 2),
               ),
@@ -339,7 +233,7 @@ class _ProfileState extends State<Profile> {
           ),
         ),
         leading: AppBackButton(
-          backgroundColor: Colors.white.withOpacity(0.2),
+          backgroundColor: Colors.white.withAlpha((255 * 0.2).toInt()),
           onPressed: () {
             if (Navigator.canPop(context)) {
               Navigator.pop(context);
@@ -364,7 +258,7 @@ class _ProfileState extends State<Profile> {
           Container(
             margin: EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withAlpha((255 * 0.15).toInt()),
               borderRadius: BorderRadius.circular(8),
             ),
             child: CartIconButton(
@@ -390,7 +284,7 @@ class _ProfileState extends State<Profile> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: primaryColor.withOpacity(0.3),
+                    color: primaryColor.withAlpha((255 * 0.3).toInt()),
                     blurRadius: 20,
                     offset: Offset(0, 10),
                   ),
@@ -408,7 +302,7 @@ class _ProfileState extends State<Profile> {
                       border: Border.all(color: Colors.white, width: 4),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
+                          color: Colors.black.withAlpha((255 * 0.2).toInt()),
                           blurRadius: 10,
                           offset: Offset(0, 5),
                         ),
@@ -435,7 +329,7 @@ class _ProfileState extends State<Profile> {
                     _userLoggedIn ? _userEmail : "Please sign in to continue",
                     style: GoogleFonts.poppins(
                       fontSize: 16,
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withAlpha((255 * 0.9).toInt()),
                     ),
                   ),
                   const SizedBox(height: 30),
@@ -657,7 +551,7 @@ class _ProfileState extends State<Profile> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withAlpha((255 * 0.05).toInt()),
               blurRadius: 10,
               offset: const Offset(0, 5),
             ),
@@ -675,7 +569,7 @@ class _ProfileState extends State<Profile> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: iconColor.withOpacity(0.1),
+                      color: iconColor.withAlpha((255 * 0.1).toInt()),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(icon, color: iconColor, size: 24),

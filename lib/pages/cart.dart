@@ -9,6 +9,8 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:core';
 import 'AppBackButton.dart';
+import 'auth_service.dart';
+import 'signinpage.dart';
 
 class Cart extends StatefulWidget {
   const Cart({super.key});
@@ -29,31 +31,20 @@ class _CartState extends State<Cart> {
   TextEditingController _promoController = TextEditingController();
 
   Timer? _syncTimer;
+  bool _isLoggedIn = false;
 
   @override
   void initState() {
     super.initState();
+    _checkAuthStatus();
+
     // Initial sync with server
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final cart = Provider.of<CartProvider>(context, listen: false);
       await cart.syncWithApi();
 
       // Log cart items after sync
-      print('Cart opened. Current items:');
-      for (var item in cart.cartItems) {
-        print('Item: ${item.name}');
-        print('  ID: ${item.id}');
-        print('  Product ID: ${item.productId}');
-        print('  Price: GHS ${item.price}');
-        print('  Quantity: ${item.quantity}');
-        print('  Total: GHS ${item.price * item.quantity}');
-        print('  Image: ${item.image}');
-        print('  Batch No: ${item.batchNo}');
-        print('  Last Modified: ${item.lastModified}');
-        print('---');
-      }
-      print('Total items in cart: ${cart.cartItems.length}');
-      print('Total amount: GHS ${cart.calculateSubtotal()}');
+      for (var item in cart.cartItems) {}
     });
 
     // Start periodic sync every 5 minutes
@@ -62,6 +53,23 @@ class _CartState extends State<Cart> {
         Provider.of<CartProvider>(context, listen: false).syncWithApi();
       }
     });
+  }
+
+  Future<void> _checkAuthStatus() async {
+    try {
+      final isLoggedIn = await AuthService.isLoggedIn();
+      if (mounted) {
+        setState(() {
+          _isLoggedIn = isLoggedIn;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoggedIn = false;
+        });
+      }
+    }
   }
 
   @override
@@ -168,7 +176,6 @@ class _CartState extends State<Cart> {
 
     return Consumer<CartProvider>(
       builder: (context, cart, child) {
-        print('Cart items in UI: \\${cart.cartItems}');
         return Scaffold(
           backgroundColor: Colors.grey[50],
           body: Stack(
@@ -340,14 +347,23 @@ class _CartState extends State<Cart> {
                     Container(
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Colors.green.shade600,
-                            Colors.green.shade700,
-                          ],
-                        ),
+                        gradient: cart.cartItems.isNotEmpty && _isLoggedIn
+                            ? LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Colors.green.shade600,
+                                  Colors.green.shade700,
+                                ],
+                              )
+                            : LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Colors.grey.shade400,
+                                  Colors.grey.shade300,
+                                ],
+                              ),
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: [
                           BoxShadow(
@@ -363,7 +379,23 @@ class _CartState extends State<Cart> {
                           borderRadius: BorderRadius.circular(8),
                           onTap: cart.cartItems.isEmpty
                               ? null
-                              : () {
+                              : () async {
+                                  if (!_isLoggedIn) {
+                                    // Navigate to sign-in page
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => SignInScreen(),
+                                      ),
+                                    );
+                                    // After returning, re-check auth status
+                                    final isNowLoggedIn =
+                                        await AuthService.isLoggedIn();
+                                    setState(() {
+                                      _isLoggedIn = isNowLoggedIn;
+                                    });
+                                    return;
+                                  }
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
@@ -602,6 +634,11 @@ class _CartState extends State<Cart> {
                 child: CachedNetworkImage(
                   imageUrl: getImageUrl(item.image),
                   fit: BoxFit.cover,
+                  memCacheWidth: 100, // 2x for high DPI
+                  memCacheHeight: 100,
+                  maxWidthDiskCache: 100,
+                  maxHeightDiskCache: 100,
+                  fadeInDuration: Duration(milliseconds: 200),
                   placeholder: (context, url) => Container(
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,

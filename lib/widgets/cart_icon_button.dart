@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pages/cart.dart';
 import '../pages/cartprovider.dart';
-import '../pages/auth_service.dart';
+import 'package:eclapp/pages/auth_service.dart';
 
 class CartIconButton extends StatefulWidget {
   final Color? iconColor;

@@ -66,50 +66,25 @@ class _DeliveryPageState extends State<DeliveryPage> {
 
   Future<void> _loadUserData() async {
     try {
-      print('=== STARTING LOAD USER DATA ===');
-
       // First, immediately load basic user data for fast UI response
       await _loadBasicUserData();
-      print('Basic user data loaded immediately');
-
       // Check if user is logged in
       final isLoggedIn = await AuthService.isLoggedIn();
-      print('User logged in: $isLoggedIn');
-
       if (!isLoggedIn) {
-        print('User not logged in, skipping API call');
         return;
       }
 
       // User is logged in, try to load delivery info from API in background
-      print(
-          'User is logged in, fetching delivery info from API in background...');
-
       // Use a shorter timeout and handle the API call asynchronously
       try {
         final deliveryResult = await DeliveryService.getLastDeliveryInfo()
             .timeout(const Duration(
                 seconds: 8)); // 8 second timeout for faster failure
 
-        print('API result success: ${deliveryResult['success']}');
-        print('API result message: ${deliveryResult['message']}');
-        print('API result data: ${deliveryResult['data']}');
-
         if (deliveryResult['success'] &&
             deliveryResult['data'] != null &&
             mounted) {
           final deliveryData = deliveryResult['data'];
-          print('Setting form data from API...');
-          print('Name: "${deliveryData['name']}"');
-          print('Email: "${deliveryData['email']}"');
-          print('Phone: "${deliveryData['phone']}"');
-          print('Region: "${deliveryData['region']}"');
-          print('City: "${deliveryData['city']}"');
-          print('Address: "${deliveryData['address']}"');
-          print('Shipping Type: "${deliveryData['shipping_type']}"');
-          print('Pickup Location: "${deliveryData['pickup_location']}"');
-          print('Delivery Option: "${deliveryData['delivery_option']}"');
-
           setState(() {
             // Pre-fill the form fields with delivery data
             _nameController.text = deliveryData['name'] ?? '';
@@ -124,13 +99,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
 
             // Fill delivery-specific fields
             if (deliveryOption == 'delivery') {
-              print(' SETTING DELIVERY FIELDS:');
-              print(
-                  'Setting region controller to: "${deliveryData['region']}"');
-              print('Setting city controller to: "${deliveryData['city']}"');
-              print(
-                  'Setting address controller to: "${deliveryData['address']}"');
-
               _regionController.text = deliveryData['region'] ?? '';
               _cityController.text = deliveryData['city'] ?? '';
               _addressController.text = deliveryData['address'] ?? '';
@@ -147,36 +115,17 @@ class _DeliveryPageState extends State<DeliveryPage> {
             _notesController.text = deliveryData['notes'] ?? '';
           });
 
-          print('Delivery information loaded from API successfully');
-          print('Form fields after setState:');
-          print('- Name controller: "${_nameController.text}"');
-          print('- Email controller: "${_emailController.text}"');
-          print('- Phone controller: "${_phoneController.text}"');
-          print('- Region controller: "${_regionController.text}"');
-          print('- City controller: "${_cityController.text}"');
-          print('- Address controller: "${_addressController.text}"');
-          print('- Delivery option: "$deliveryOption"');
-          print('- Selected pickup region: "$selectedRegion"');
-          print('- Selected pickup city: "$selectedCity"');
-          print('- Selected pickup site: "$selectedPickupSite"');
-        } else {
-          print('No delivery data found from API');
+          } else {
           if (deliveryResult['message'] != null) {
-            print(
-                'Delivery info loading message: ${deliveryResult['message']}');
-          }
+            }
         }
       } catch (apiError) {
-        print('API error loading delivery info: $apiError');
         // API failed, but we already have basic user data loaded
-        print('Continuing with basic user data only');
-      }
+        }
     } catch (e) {
-      print('Error loading user data: $e');
       // Continue with empty fields if there's an error
     }
-    print('=== ENDING LOAD USER DATA ===');
-  }
+    }
 
   Future<void> _loadBasicUserData() async {
     try {
@@ -189,8 +138,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
         });
       }
     } catch (e) {
-      print('Error loading basic user data: $e');
-    }
+      }
   }
 
   double _calculateDeliveryFee(String region, String city) {
@@ -1885,25 +1833,9 @@ class _DeliveryPageState extends State<DeliveryPage> {
 
               try {
                 // Save delivery information to API
-                print('=== STARTING API SAVE ===');
-                print('User: ${_nameController.text.trim()}');
-                print('Email: ${_emailController.text.trim()}');
-                print('Phone: ${_phoneController.text}');
-                print('Delivery Option: $deliveryOption');
-                print('Shipping Type: $deliveryOption');
                 if (deliveryOption == 'delivery') {
-                  print('Region: ${_regionController.text.trim()}');
-                  print('City: ${_cityController.text.trim()}');
-                  print('Address: ${_addressController.text.trim()}');
-                } else {
-                  print('Pickup Region: ${selectedRegion}');
-                  print('Pickup City: ${selectedCity}');
-                  print('Pickup Site: ${selectedPickupSite}');
-                  print('Pickup Location: ${selectedPickupSite}');
-                }
-                print('Notes: ${_notesController.text.trim()}');
-                print('========================');
-
+                  } else {
+                  }
                 final saveResult = await DeliveryService.saveDeliveryInfo(
                   name: _nameController.text.trim(),
                   email: _emailController.text.trim(),
@@ -1925,12 +1857,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   pickupSite:
                       deliveryOption == 'pickup' ? selectedPickupSite : null,
                 );
-
-                print('=== API SAVE RESULT ===');
-                print('Success: ${saveResult['success']}');
-                print('Message: ${saveResult['message']}');
-                print('Data: ${saveResult['data']}');
-                print('=======================');
 
                 if (!saveResult['success']) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1996,28 +1922,9 @@ class _DeliveryPageState extends State<DeliveryPage> {
                 await prefs.setString('delivery_address', deliveryAddress);
 
                 // Print saved information for verification
-                print('=== Saved Delivery Information ===');
-                print('Name: ${_nameController.text.trim()}');
-                print('Email: ${_emailController.text.trim()}');
-                print('Phone Number: ${_phoneController.text}');
-                print('Delivery Option: $deliveryOption');
-                print('Shipping Type: $deliveryOption');
                 if (deliveryOption == 'delivery') {
-                  print('Region: ${_regionController.text.trim()}');
-                  print('City: ${_cityController.text.trim()}');
-                  print('Address: ${_addressController.text.trim()}');
-                } else {
-                  print('Pickup Region: ${selectedRegion ?? 'Not selected'}');
-                  print('Pickup City: ${selectedCity ?? 'Not selected'}');
-                  print('Pickup Site: ${selectedPickupSite ?? 'Not selected'}');
-                  print(
-                      'Pickup Location: ${selectedPickupSite ?? 'Not selected'}');
-                }
-                print('Delivery Address: $deliveryAddress');
-                print('Order Status: Processing');
-                print('API Save Result: ${saveResult['message']}');
-                print('===============================');
-
+                  } else {
+                  }
                 // Show success message in the middle of the screen
                 OverlayEntry overlayEntry = OverlayEntry(
                   builder: (context) => Positioned(

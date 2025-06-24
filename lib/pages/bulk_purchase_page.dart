@@ -427,6 +427,12 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
                                                         product['product']
                                                             ['thumbnail']),
                                                     fit: BoxFit.cover,
+                                                    memCacheWidth: 300,
+                                                    memCacheHeight: 300,
+                                                    maxWidthDiskCache: 300,
+                                                    maxHeightDiskCache: 300,
+                                                    fadeInDuration: Duration(
+                                                        milliseconds: 200),
                                                     placeholder:
                                                         (context, url) =>
                                                             Center(

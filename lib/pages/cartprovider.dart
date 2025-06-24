@@ -39,7 +39,11 @@ class CartProvider with ChangeNotifier {
       _loadCurrentUserCart();
     } else {
       _currentUserId = null;
-      _cartItems = [];
+      // For non-logged-in users, maintain a local cart
+      // This allows users to add items before logging in
+      if (_cartItems.isEmpty) {
+        _cartItems = [];
+      }
     }
     notifyListeners();
   }
@@ -66,6 +70,9 @@ class CartProvider with ChangeNotifier {
   void _loadCurrentUserCart() {
     if (_currentUserId != null && _userCarts.containsKey(_currentUserId)) {
       _cartItems = _userCarts[_currentUserId]!;
+    } else if (_currentUserId == null && _userCarts.containsKey('guest')) {
+      // Load guest cart for non-logged-in users
+      _cartItems = _userCarts['guest']!;
     } else {
       _cartItems = [];
     }
@@ -81,6 +88,9 @@ class CartProvider with ChangeNotifier {
       // Update current user's cart in the map if logged in
       if (_currentUserId != null) {
         _userCarts[_currentUserId!] = _cartItems;
+      } else {
+        // For non-logged-in users, save to a special key
+        _userCarts['guest'] = _cartItems;
       }
 
       // Convert user carts to JSON
@@ -110,15 +120,6 @@ class CartProvider with ChangeNotifier {
         return;
       }
 
-      print('\n=== Syncing Cart ===');
-      print('Request details:');
-      print(
-          '- URL: https://eclcommerce.ernestchemists.com.gh/api/check-out/$hashedLink');
-      print('- Method: GET');
-      print('- Headers:');
-      print('  Authorization: Bearer ${token.substring(0, 20)}...');
-      print('  Accept: application/json');
-
       final response = await http.get(
         Uri.parse(
             'https://eclcommerce.ernestchemists.com.gh/api/check-out/$hashedLink'),
@@ -128,46 +129,25 @@ class CartProvider with ChangeNotifier {
         },
       );
 
-      print('\nResponse details:');
-      print('- Status code: ${response.statusCode}');
-      print('- Headers:');
-      response.headers.forEach((key, value) {
-        print('  $key: $value');
-      });
-      print('- Body: ${response.body}');
-
+      response.headers.forEach((key, value) {});
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['cart_items'] != null) {
-          print('\nSuccessfully synced cart');
           final items = (data['cart_items'] as List)
               .map((item) => CartItem.fromServerJson(item))
               .toList();
           _cartItems = items;
           await _saveUserCarts();
           notifyListeners();
-          print('Cart synced successfully. Items count: ${items.length}');
-        } else {
-          print('\nFailed to sync cart: No cart items in response');
-        }
-      } else {
-        print('\nFailed to sync cart. Status code: ${response.statusCode}');
-        print('Response body: ${response.body}');
-      }
-    } catch (e) {
-      print('\nError syncing cart: $e');
-    }
+        } else {}
+      } else {}
+    } catch (e) {}
   }
 
   Future<bool> _verifyProductExists(String urlName, String batchNo) async {
     try {
       final token = await AuthService.getToken();
       if (token == null) return false;
-
-      print('\n=== Verifying Product ===');
-      print('Checking product:');
-      print('- URL Name: $urlName');
-      print('- Batch No: $batchNo');
 
       final response = await http.get(
         Uri.parse(
@@ -177,10 +157,6 @@ class CartProvider with ChangeNotifier {
           'Accept': 'application/json',
         },
       );
-
-      print('\nVerification response:');
-      print('- Status code: ${response.statusCode}');
-      print('- Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -193,29 +169,39 @@ class CartProvider with ChangeNotifier {
               inventoryData['batch_no'] ?? productData['batch_no'];
           final exists = productData != null && productBatchNo == batchNo;
 
-          print(
-              'Product verification result: ${exists ? 'Found' : 'Not found'}');
-          print('Product data:');
-          print('- Product ID: ${productData['id']}');
-          print('- Name: ${productData['name']}');
-          print('- Batch No: $productBatchNo');
           return exists;
         }
       }
-      print('Product verification failed: ${response.body}');
       return false;
     } catch (e) {
-      print('Error verifying product: $e');
       return false;
     }
   }
 
   void addToCart(CartItem item) async {
+    // For non-logged-in users, add to local cart only
     if (!await AuthService.isLoggedIn()) {
-      debugPrint('User must be logged in to add items to cart');
+      // Check if item already exists in cart
+      final existingIndex = _cartItems.indexWhere((cartItem) =>
+          cartItem.productId == item.productId &&
+          cartItem.batchNo == item.batchNo);
+
+      if (existingIndex != -1) {
+        // Update quantity of existing item
+        _cartItems[existingIndex]
+            .updateQuantity(_cartItems[existingIndex].quantity + item.quantity);
+      } else {
+        // Add new item to cart
+        _cartItems.add(item);
+      }
+
+      // Save to local storage
+      await _saveUserCarts();
+      notifyListeners();
       return;
     }
 
+    // For logged-in users, sync with server
     _currentUserId ??= await AuthService.getCurrentUserID();
 
     try {
@@ -225,15 +211,6 @@ class CartProvider with ChangeNotifier {
         throw Exception('Cannot add to cart - missing auth token');
       }
 
-      print('\n=== Adding to Cart ===');
-      print('Product details:');
-      print('- Item ID: ${item.id}');
-      print('- Product ID: ${item.productId}');
-      print('- Name: ${item.name}');
-      print('- Quantity: ${item.quantity}');
-      print('- Batch No: ${item.batchNo}');
-      print('- Price: ${item.price}');
-
       final requestBody = {
         'productID': int.parse(item.productId),
         'quantity': item.quantity,
@@ -241,15 +218,6 @@ class CartProvider with ChangeNotifier {
       };
 
       final url = 'https://eclcommerce.ernestchemists.com.gh/api/check-auth';
-
-      print('\nRequest details:');
-      print('- URL: $url');
-      print('- Method: POST');
-      print('- Headers:');
-      print('  Authorization: Bearer ${token.substring(0, 20)}...');
-      print('  Accept: application/json');
-      print('  Content-Type: application/json');
-      print('- Body: ${jsonEncode(requestBody)}');
 
       final response = await http.post(
         Uri.parse(url),
@@ -261,14 +229,7 @@ class CartProvider with ChangeNotifier {
         body: jsonEncode(requestBody),
       );
 
-      print('\nResponse details:');
-      print('- Status code: ${response.statusCode}');
-      print('- Headers:');
-      response.headers.forEach((key, value) {
-        print('  $key: $value');
-      });
-      print('- Body: ${response.body}');
-
+      response.headers.forEach((key, value) {});
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
         if (data['success'] == true) {
@@ -281,7 +242,6 @@ class CartProvider with ChangeNotifier {
         throw Exception('Failed to add item to cart: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error adding item to cart: $e');
       rethrow;
     }
   }
@@ -299,75 +259,60 @@ class CartProvider with ChangeNotifier {
   }
 
   Future<void> removeFromCart(String cartId) async {
-    try {
-      final token = await AuthService.getToken();
-      if (token == null) {
-        debugPrint('Cannot remove from cart - missing auth token');
-        return;
+    // Remove from local cart first (works for both logged-in and non-logged-in users)
+    _cartItems.removeWhere((item) => item.id == cartId);
+    await _saveUserCarts();
+    notifyListeners();
+
+    // Only sync with server if user is logged in
+    if (await AuthService.isLoggedIn()) {
+      try {
+        final token = await AuthService.getToken();
+        if (token == null) {
+          debugPrint('Cannot remove from cart - missing auth token');
+          return;
+        }
+
+        final response = await http.post(
+          Uri.parse(
+              'https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'cart_id': cartId,
+          }),
+        );
+
+        response.headers.forEach((key, value) {});
+        // Always sync with server after removal
+        await syncWithApi();
+      } catch (e) {
+        // Even if there's an error, try to sync with server
+        await syncWithApi();
       }
-
-      print('\n=== Removing from Cart ===');
-      print('Request details:');
-      print(
-          '- URL: https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart');
-      print('- Method: POST');
-      print('- Headers:');
-      print('  Authorization: Bearer ${token.substring(0, 20)}...');
-      print('  Accept: application/json');
-      print('  Content-Type: application/json');
-      print('- Body: ${jsonEncode({'cart_id': cartId})}');
-
-      // Remove from local cart first
-      _cartItems.removeWhere((item) => item.id == cartId);
-      await _saveUserCarts();
-      notifyListeners();
-
-      final response = await http.post(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'cart_id': cartId,
-        }),
-      );
-
-      print('\nResponse details:');
-      print('- Status code: ${response.statusCode}');
-      print('- Headers:');
-      response.headers.forEach((key, value) {
-        print('  $key: $value');
-      });
-      print('- Body: ${response.body}');
-
-      // Always sync with server after removal
-      await syncWithApi();
-    } catch (e) {
-      print('\nError removing from cart: $e');
-      // Even if there's an error, try to sync with server
-      await syncWithApi();
     }
   }
 
   void updateQuantity(int index, int newQuantity) async {
-    if (_currentUserId == null) return;
+    // Update local state for both logged-in and non-logged-in users
+    if (index >= 0 && index < _cartItems.length) {
+      final item = _cartItems[index];
+      final currentQuantity = item.quantity;
 
-    final item = _cartItems[index];
-    final currentQuantity = item.quantity;
-
-    if (newQuantity > currentQuantity) {
-      // Increment: Update local state
-      _cartItems[index].updateQuantity(newQuantity);
-      await _saveUserCarts();
-      notifyListeners();
-    } else if (newQuantity < currentQuantity) {
-      // Decrement: Update local state
-      _cartItems[index].updateQuantity(newQuantity);
-      await _saveUserCarts();
-      notifyListeners();
+      if (newQuantity > currentQuantity) {
+        // Increment: Update local state
+        _cartItems[index].updateQuantity(newQuantity);
+        await _saveUserCarts();
+        notifyListeners();
+      } else if (newQuantity < currentQuantity) {
+        // Decrement: Update local state
+        _cartItems[index].updateQuantity(newQuantity);
+        await _saveUserCarts();
+        notifyListeners();
+      }
     }
   }
 

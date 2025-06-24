@@ -9,6 +9,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:eclapp/widgets/error_display.dart';
 
 class PrescriptionUploadPage extends StatefulWidget {
   final Map<String, dynamic>? item;
@@ -21,7 +22,7 @@ class PrescriptionUploadPage extends StatefulWidget {
   });
 
   @override
-  _PrescriptionUploadPageState createState() => _PrescriptionUploadPageState();
+  State<PrescriptionUploadPage> createState() => _PrescriptionUploadPageState();
 }
 
 class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
@@ -83,13 +84,9 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
   }
 
   void _showConfirmationSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.green.shade600,
-        duration: Duration(seconds: 1),
-      ),
-    );
+    if (mounted) {
+      SnackBarUtils.showSuccess(context, message);
+    }
   }
 
   void _showFullImageDialog(BuildContext context, dynamic image) {
@@ -112,18 +109,12 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
   }
 
   Widget _buildItemDetails() {
-    print('Building item details with item: ${widget.item}');
     if (widget.item == null) {
-      print('Item is null');
-      return SizedBox.shrink();
+      return const SizedBox.shrink();
     }
 
-    print('Product name: ${widget.item!['product']['name']}');
-    print('Product thumbnail: ${widget.item!['product']['thumbnail']}');
-    print('Product price: ${widget.item!['price']}');
-
     return Card(
-      margin: EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 20),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -133,7 +124,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
             Row(
               children: [
                 Icon(Icons.medication, color: Colors.green.shade700),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text(
                   "Prescription Required",
                   style: TextStyle(
@@ -144,7 +135,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                 ),
               ],
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -157,7 +148,6 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                       width: 80,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
-                        print('Error loading image: $error');
                         return Container(
                           height: 80,
                           width: 80,
@@ -165,25 +155,25 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                             color: Colors.grey[200],
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Icon(Icons.image_not_supported,
-                              color: Colors.grey[400]),
+                          child: const Icon(Icons.image_not_supported,
+                              color: Colors.grey),
                         );
                       },
                     ),
                   ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         widget.item!['product']['name'] ?? 'Unknown Product',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 15,
                         ),
                       ),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       Text(
                         'GHS ${widget.item!['price'] ?? '0.00'}',
                         style: TextStyle(
@@ -193,7 +183,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                         ),
                       ),
                       if (widget.item!['batch_no'] != null) ...[
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
                           'Batch: ${widget.item!['batch_no']}',
                           style: TextStyle(
@@ -258,7 +248,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
 
         // Send request with timeout
         final streamedResponse = await request.send().timeout(
-          Duration(seconds: 30),
+          const Duration(seconds: 30),
           onTimeout: () {
             throw Exception('Request timed out. Please try again.');
           },
@@ -266,21 +256,14 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
 
         final response = await http.Response.fromStream(streamedResponse);
 
-        print('\n=== PRESCRIPTION UPLOAD RESPONSE ===');
-        print('Status Code: ${response.statusCode}');
-        print('Response Body: ${response.body}');
-        print('================================\n');
-
         if (response.statusCode == 200 || response.statusCode == 201) {
           final data = json.decode(response.body);
           if (data['status'] == 'success') {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Prescription uploaded successfully'),
-                backgroundColor: Colors.green,
-              ),
-            );
-            Navigator.pop(context);
+            if (mounted) {
+              SnackBarUtils.showSuccess(
+                  context, 'Prescription uploaded successfully');
+              Navigator.pop(context);
+            }
           } else {
             throw Exception(data['message'] ?? 'Failed to upload prescription');
           }
@@ -293,13 +276,10 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
               'Failed to upload prescription: ${response.statusCode}');
         }
       } catch (e) {
-        print('Error submitting prescription: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to upload prescription: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        if (mounted) {
+          SnackBarUtils.showError(
+              context, 'Failed to upload prescription: ${e.toString()}');
+        }
       } finally {
         if (mounted) {
           setState(() {
@@ -337,22 +317,22 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 8,
-                offset: Offset(0, 2),
+                offset: const Offset(0, 2),
               ),
             ],
           ),
         ),
         leading: AppBackButton(
-          backgroundColor: Colors.white.withOpacity(0.2),
+          backgroundColor: Colors.white.withValues(alpha: 0.2),
           onPressed: () {
             if (Navigator.canPop(context)) {
               Navigator.pop(context);
             } else {
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => HomePage()),
+                MaterialPageRoute(builder: (context) => const HomePage()),
               );
             }
           },
@@ -393,8 +373,8 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                         FadeEffect(duration: 400.ms),
                         SlideEffect(
                             duration: 400.ms,
-                            begin: Offset(0, 0.1),
-                            end: Offset(0, 0))
+                            begin: const Offset(0, 0.1),
+                            end: Offset.zero)
                       ],
                       child: _buildItemDetails(),
                     ),
@@ -403,8 +383,8 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                       FadeEffect(duration: 400.ms),
                       SlideEffect(
                           duration: 400.ms,
-                          begin: Offset(0, 0.1),
-                          end: Offset(0, 0))
+                          begin: const Offset(0, 0.1),
+                          end: Offset.zero)
                     ],
                     child: _buildUploadArea(theme),
                   ),
@@ -415,8 +395,8 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                         FadeEffect(duration: 400.ms),
                         SlideEffect(
                             duration: 400.ms,
-                            begin: Offset(0, 0.1),
-                            end: Offset(0, 0))
+                            begin: const Offset(0, 0.1),
+                            end: Offset.zero)
                       ],
                       child: _buildImagePreview(),
                     ),
@@ -426,8 +406,8 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                       FadeEffect(duration: 400.ms),
                       SlideEffect(
                           duration: 400.ms,
-                          begin: Offset(0, 0.1),
-                          end: Offset(0, 0))
+                          begin: const Offset(0, 0.1),
+                          end: Offset.zero)
                     ],
                     child: _buildSubmitButton(),
                   ),
@@ -437,8 +417,8 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                       FadeEffect(duration: 400.ms),
                       SlideEffect(
                           duration: 400.ms,
-                          begin: Offset(0, 0.1),
-                          end: Offset(0, 0))
+                          begin: const Offset(0, 0.1),
+                          end: Offset.zero)
                     ],
                     child: _buildRequirementsCard(),
                   ),
@@ -448,8 +428,8 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                       FadeEffect(duration: 400.ms),
                       SlideEffect(
                           duration: 400.ms,
-                          begin: Offset(0, 0.1),
-                          end: Offset(0, 0))
+                          begin: const Offset(0, 0.1),
+                          end: Offset.zero)
                     ],
                     child: _buildSamplePrescriptionCard(),
                   ),
@@ -459,8 +439,8 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                       FadeEffect(duration: 400.ms),
                       SlideEffect(
                           duration: 400.ms,
-                          begin: Offset(0, 0.1),
-                          end: Offset(0, 0))
+                          begin: const Offset(0, 0.1),
+                          end: Offset.zero)
                     ],
                     child: _buildWarningCard(),
                   ),
@@ -470,7 +450,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
           ),
           if (_isLoading)
             Container(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withValues(alpha: 0.2),
               child: Center(
                 child: CircularProgressIndicator(color: theme.primaryColor),
               ),
@@ -488,8 +468,8 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
         color: Colors.green.shade700,
         strokeWidth: 2,
         borderType: BorderType.RRect,
-        radius: Radius.circular(16),
-        dashPattern: [8, 4],
+        radius: const Radius.circular(16),
+        dashPattern: const [8, 4],
         child: Container(
           height: 140,
           decoration: BoxDecoration(
@@ -497,9 +477,9 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.green.withOpacity(0.04),
+                color: Colors.green.withValues(alpha: 0.04),
                 blurRadius: 8,
-                offset: Offset(0, 2),
+                offset: const Offset(0, 2),
               ),
             ],
           ),
@@ -509,7 +489,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
               children: [
                 Icon(Icons.cloud_upload,
                     size: 40, color: Colors.green.shade700),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 Text(
                   "Tap to upload prescription",
                   style: TextStyle(
@@ -518,7 +498,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 Text(
                   "Supported: JPG, PNG, Max 10MB",
                   style: TextStyle(
@@ -537,7 +517,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
   void _showUploadOptions() {
     showModalBottomSheet(
       context: context,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
       builder: (context) => SafeArea(
@@ -546,7 +526,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
           children: [
             ListTile(
               leading: Icon(Icons.photo_library, color: Colors.green.shade700),
-              title: Text('Choose from Gallery'),
+              title: const Text('Choose from Gallery'),
               onTap: () {
                 Navigator.pop(context);
                 _chooseFromGallery();
@@ -554,7 +534,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
             ),
             ListTile(
               leading: Icon(Icons.camera_alt, color: Colors.green.shade700),
-              title: Text('Take a Photo'),
+              title: const Text('Take a Photo'),
               onTap: () {
                 Navigator.pop(context);
                 _chooseFromCamera();
@@ -567,7 +547,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
   }
 
   Widget _buildImagePreview() {
-    if (_selectedImage == null) return SizedBox.shrink();
+    if (_selectedImage == null) return const SizedBox.shrink();
 
     return Stack(
       children: [
@@ -580,9 +560,9 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: Colors.black.withValues(alpha: 0.08),
                   blurRadius: 8,
-                  offset: Offset(0, 2),
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
@@ -599,11 +579,11 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
             onTap: _deleteImage,
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.85),
+                color: Colors.red.withValues(alpha: 0.85),
                 shape: BoxShape.circle,
               ),
-              padding: EdgeInsets.all(8),
-              child: Icon(Icons.close, color: Colors.white, size: 20),
+              padding: const EdgeInsets.all(8),
+              child: const Icon(Icons.close, color: Colors.white, size: 20),
             ),
           ),
         ),
@@ -635,17 +615,17 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
           boxShadow: [
             BoxShadow(
               color: isEnabled
-                  ? Colors.green.withOpacity(0.18)
-                  : Colors.grey.withOpacity(0.10),
+                  ? Colors.green.withValues(alpha: 0.18)
+                  : Colors.grey.withValues(alpha: 0.10),
               blurRadius: 12,
-              offset: Offset(0, 6),
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: ElevatedButton.icon(
           onPressed: isEnabled ? _submitPrescription : null,
           icon: _isSubmitting
-              ? SizedBox(
+              ? const SizedBox(
                   width: 28,
                   height: 28,
                   child: CircularProgressIndicator(
@@ -658,14 +638,13 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                   color: iconColor,
                   size: 28,
                 ),
-          label: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6.0),
+          label: const Padding(
+            padding: EdgeInsets.symmetric(vertical: 6.0),
             child: Text(
-              _isSubmitting ? "Submitting..." : "Submit Prescription",
+              "Submit Prescription",
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: textColor,
                 letterSpacing: 0.5,
               ),
             ),
@@ -674,16 +653,16 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
             foregroundColor: textColor,
-            padding: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
             elevation: 0,
           ).copyWith(
-            overlayColor: MaterialStateProperty.resolveWith<Color?>(
-              (Set<MaterialState> states) {
-                if (states.contains(MaterialState.pressed) && isEnabled) {
-                  return Colors.green.shade900.withOpacity(0.18);
+            overlayColor: WidgetStateProperty.resolveWith<Color?>(
+              (Set<WidgetState> states) {
+                if (states.contains(WidgetState.pressed) && isEnabled) {
+                  return Colors.green.shade900.withValues(alpha: 0.18);
                 }
                 return null;
               },
@@ -706,7 +685,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
             Row(
               children: [
                 Icon(Icons.info_outline, color: Colors.green.shade700),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text("Prescription Requirements",
                     style: TextStyle(
                         fontWeight: FontWeight.w600,
@@ -714,7 +693,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                         color: Colors.green.shade700)),
               ],
             ),
-            SizedBox(height: 10),
+            const SizedBox(height: 10),
             Wrap(spacing: 6, runSpacing: 6, children: [
               _infoChip("Doctor Details", Icons.person),
               _infoChip("Date of Prescription", Icons.date_range),
@@ -748,7 +727,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                 color: Colors.green.shade700,
               ),
             ),
-            SizedBox(height: 10),
+            const SizedBox(height: 10),
             GestureDetector(
               onTap: () => _showFullImageDialog(
                   context, "assets/images/prescriptionsample.png"),
@@ -777,8 +756,8 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
       color: Colors.orange.shade50,
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
+      child: const Padding(
+        padding: EdgeInsets.all(14),
         child: Row(
           children: [
             Icon(Icons.warning, color: Colors.orange),
@@ -786,7 +765,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
             Expanded(
               child: Text(
                 "Our pharmacist will dispense medicines only if the prescription is valid & meets all government regulations.",
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+                style: TextStyle(fontSize: 14, color: Colors.grey),
               ),
             ),
           ],

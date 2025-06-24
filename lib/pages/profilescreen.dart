@@ -129,7 +129,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _phoneNumberController.text = _phoneNumber;
       });
     } catch (e) {
-      print("Error loading user data: $e");
       setState(() {
         _userName = "User";
         _userEmail = "No email available";
@@ -235,6 +234,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _buildProfileHeader(),
             const SizedBox(height: 20),
             _buildProfileDetails(),
+            const SizedBox(height: 30),
           ],
         ),
       ),
@@ -246,7 +246,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.only(top: 30, bottom: 30),
       decoration: BoxDecoration(
-        color: Colors.green.shade700,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.green.shade700,
+            Colors.green.shade800,
+          ],
+        ),
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(30),
           bottomRight: Radius.circular(30),
@@ -319,13 +326,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Personal Information",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
+          Row(
+            children: [
+              Icon(
+                Icons.person_outline,
+                color: Colors.green.shade700,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                "Personal Information",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
           _buildEditableField(

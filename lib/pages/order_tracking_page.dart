@@ -40,7 +40,6 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading delivery info: $e');
       setState(() {
         _isLoading = false;
       });
@@ -381,7 +380,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
 
     // Normalize the current status
     final normalizedStatus = currentStatus.toLowerCase().trim();
-    print('Current Status: $normalizedStatus'); // Debug print
+    // Debug print
 
     return Column(
       children: List.generate(statuses.length, (index) {
@@ -390,8 +389,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
         final isCompleted = _isStatusCompleted(statusStr, normalizedStatus);
         final isCurrent = statusStr == normalizedStatus;
 
-        print(
-            'Checking status: $statusStr, isCurrent: $isCurrent, isCompleted: $isCompleted'); // Debug print
+        // Debug print
 
         return Row(
           children: [
