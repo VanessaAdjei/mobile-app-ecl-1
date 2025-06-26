@@ -11,9 +11,7 @@ import 'package:provider/provider.dart';
 import 'authprovider.dart';
 import 'cartprovider.dart';
 import '../main.dart' as main_app;
-import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/widgets/error_display.dart';
-import 'package:provider/provider.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final String email;
@@ -45,10 +43,14 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   bool isLoading = false;
   String otp = '';
+  bool canResend = false;
+  int resendCountdown = 60;
+  Timer? resendTimer;
 
   @override
   void initState() {
     super.initState();
+    _startResendTimer();
   }
 
   @override
@@ -59,7 +61,25 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     for (var node in focusNodes) {
       node.dispose();
     }
+    resendTimer?.cancel();
     super.dispose();
+  }
+
+  void _startResendTimer() {
+    setState(() {
+      canResend = false;
+      resendCountdown = 60;
+    });
+
+    resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        resendCountdown--;
+        if (resendCountdown <= 0) {
+          canResend = true;
+          timer.cancel();
+        }
+      });
+    });
   }
 
   void _onOtpChanged(String value, int index) {
@@ -192,6 +212,30 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       }
     } catch (e) {
       _showError("An error occurred. Please try again.");
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _resendOtp() async {
+    if (!canResend || isLoading) return;
+
+    setState(() => isLoading = true);
+
+    try {
+      // Call the resend OTP API
+      final result = await AuthService.resendOTP(widget.email);
+
+      if (result['success'] == true) {
+        _showSuccess("OTP resent successfully!");
+        _startResendTimer(); // Restart the countdown
+      } else {
+        _showError(result['message'] ?? "Failed to resend OTP");
+      }
+    } catch (e) {
+      _showError("An error occurred while resending OTP");
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
@@ -455,6 +499,80 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                                 letterSpacing: 0.3,
                               ),
                             ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Resend OTP Button
+                Animate(
+                  effects: [
+                    FadeEffect(duration: 900.ms, delay: 500.ms),
+                    SlideEffect(
+                      duration: 900.ms,
+                      begin: const Offset(0, 0.3),
+                      end: Offset.zero,
+                      delay: 500.ms,
+                    ),
+                  ],
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Text(
+                          'Didn\'t receive the code?',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 40,
+                          child: TextButton(
+                            onPressed:
+                                canResend && !isLoading ? _resendOtp : null,
+                            style: TextButton.styleFrom(
+                              foregroundColor: canResend
+                                  ? Colors.green.shade700
+                                  : Colors.grey,
+                              backgroundColor: canResend
+                                  ? Colors.green.shade50
+                                  : Colors.grey.shade200,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.refresh_rounded,
+                                  size: 16,
+                                  color: canResend
+                                      ? Colors.green.shade700
+                                      : Colors.grey,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  canResend
+                                      ? 'Resend OTP'
+                                      : 'Resend in ${resendCountdown}s',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: canResend
+                                        ? Colors.green.shade700
+                                        : Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

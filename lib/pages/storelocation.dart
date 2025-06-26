@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shimmer/shimmer.dart';
 
 class StoreSelectionPage extends StatefulWidget {
   const StoreSelectionPage({super.key});
@@ -15,7 +16,8 @@ class StoreSelectionPage extends StatefulWidget {
   _StoreSelectionPageState createState() => _StoreSelectionPageState();
 }
 
-class _StoreSelectionPageState extends State<StoreSelectionPage> {
+class _StoreSelectionPageState extends State<StoreSelectionPage>
+    with TickerProviderStateMixin {
   // List of all regions
   final List<String> regions = [
     'All Regions',
@@ -431,7 +433,6 @@ class _StoreSelectionPageState extends State<StoreSelectionPage> {
     City(name: 'Bole Junction', region: 'Savannah'),
     City(name: 'Bole Junction', region: 'Savannah'),
     City(name: 'Bole Junction', region: 'Savannah'),
-    City(name: 'Bole Junction', region: 'Savannah'),
 
     // North East
     City(name: 'Nalerigu', region: 'North East'),
@@ -461,6 +462,9 @@ class _StoreSelectionPageState extends State<StoreSelectionPage> {
       address: 'Accra Mall, Spintex Road',
       phone: '+233 20 123 4567',
       hours: 'Mon-Sat: 8:00 AM - 8:00 PM\nSun: 10:00 AM - 6:00 PM',
+      isOpen: true,
+      distance: '2.5 km',
+      rating: 4.5,
     ),
     Store(
       name: 'Ernest Chemists - West Hills Mall',
@@ -469,6 +473,9 @@ class _StoreSelectionPageState extends State<StoreSelectionPage> {
       address: 'West Hills Mall, Weija',
       phone: '+233 20 234 5678',
       hours: 'Mon-Sat: 8:00 AM - 8:00 PM\nSun: 10:00 AM - 6:00 PM',
+      isOpen: true,
+      distance: '5.2 km',
+      rating: 4.3,
     ),
     Store(
       name: 'Ernest Chemists - Kumasi City Mall',
@@ -477,6 +484,9 @@ class _StoreSelectionPageState extends State<StoreSelectionPage> {
       address: 'Kumasi City Mall, Harper Road',
       phone: '+233 20 345 6789',
       hours: 'Mon-Sat: 8:00 AM - 8:00 PM\nSun: 10:00 AM - 6:00 PM',
+      isOpen: true,
+      distance: '15.8 km',
+      rating: 4.7,
     ),
     Store(
       name: 'Ernest Chemists - Tamale',
@@ -485,6 +495,9 @@ class _StoreSelectionPageState extends State<StoreSelectionPage> {
       address: 'Central Business District',
       phone: '+233 20 456 7890',
       hours: 'Mon-Sat: 8:00 AM - 8:00 PM\nSun: 10:00 AM - 6:00 PM',
+      isOpen: false,
+      distance: '45.3 km',
+      rating: 4.1,
     ),
     Store(
       name: 'Ernest Chemists - Takoradi',
@@ -493,40 +506,68 @@ class _StoreSelectionPageState extends State<StoreSelectionPage> {
       address: 'Market Circle',
       phone: '+233 20 567 8901',
       hours: 'Mon-Sat: 8:00 AM - 8:00 PM\nSun: 10:00 AM - 6:00 PM',
+      isOpen: true,
+      distance: '28.7 km',
+      rating: 4.4,
+    ),
+    Store(
+      name: 'Ernest Chemists - Cape Coast',
+      city: 'Cape Coast',
+      region: 'Central',
+      address: 'Victoria Road',
+      phone: '+233 20 678 9012',
+      hours: 'Mon-Sat: 8:00 AM - 8:00 PM\nSun: 10:00 AM - 6:00 PM',
+      isOpen: true,
+      distance: '32.1 km',
+      rating: 4.2,
+    ),
+    Store(
+      name: 'Ernest Chemists - Koforidua',
+      city: 'Koforidua',
+      region: 'Eastern',
+      address: 'Main Street',
+      phone: '+233 20 789 0123',
+      hours: 'Mon-Sat: 8:00 AM - 8:00 PM\nSun: 10:00 AM - 6:00 PM',
+      isOpen: false,
+      distance: '18.9 km',
+      rating: 4.0,
     ),
   ];
 
   String? selectedRegion;
   String? selectedCity;
   String searchQuery = '';
+  bool isLoading = false;
+  late AnimationController _fadeController;
+  late AnimationController _slideController;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    _slideController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.green.shade700,
-                Colors.green.shade800,
-              ],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-        ),
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        elevation: Theme.of(context).appBarTheme.elevation,
+        centerTitle: Theme.of(context).appBarTheme.centerTitle,
         leading: AppBackButton(
           backgroundColor: Colors.white.withOpacity(0.2),
           onPressed: () {
@@ -542,12 +583,7 @@ class _StoreSelectionPageState extends State<StoreSelectionPage> {
         ),
         title: Text(
           'Store Locations',
-          style: GoogleFonts.poppins(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-            letterSpacing: 0.5,
-          ),
+          style: Theme.of(context).appBarTheme.titleTextStyle,
         ),
         actions: [
           Container(
@@ -564,402 +600,725 @@ class _StoreSelectionPageState extends State<StoreSelectionPage> {
           ),
         ],
       ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        color: Colors.white,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 100, 16, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Find a Store Near You',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Select your region and city to find the nearest store',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Card(
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        children: [
-                          TextField(
-                            decoration: InputDecoration(
-                              hintText: 'Search stores...',
-                              prefixIcon: const Icon(Icons.search,
-                                  color: Colors.black54, size: 20),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide:
-                                    BorderSide(color: Colors.grey[300]!),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide:
-                                    BorderSide(color: Colors.grey[300]!),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide:
-                                    BorderSide(color: Colors.grey[400]!),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey[50],
-                              contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 8, horizontal: 12),
-                            ),
-                            onChanged: (value) {
-                              setState(() {
-                                searchQuery = value;
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: DropdownButtonFormField<String>(
-                                  value: selectedRegion,
-                                  decoration: InputDecoration(
-                                    prefixIcon: const Icon(Icons.map,
-                                        color: Colors.black54, size: 20),
-                                    labelText: 'Region',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[300]!),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[300]!),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[400]!),
-                                    ),
-                                    filled: true,
-                                    fillColor: Colors.grey[50],
-                                    contentPadding: const EdgeInsets.symmetric(
-                                        vertical: 8, horizontal: 12),
-                                  ),
-                                  hint: const Text('Select Region',
-                                      overflow: TextOverflow.ellipsis),
-                                  isExpanded: true,
-                                  items: regions.map((String region) {
-                                    return DropdownMenuItem<String>(
-                                      value: region,
-                                      child: Text(
-                                        region,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(fontSize: 14),
-                                      ),
-                                    );
-                                  }).toList(),
-                                  onChanged: (String? newValue) {
-                                    setState(() {
-                                      selectedRegion = newValue;
-                                      selectedCity = null;
-                                    });
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: DropdownButtonFormField<String>(
-                                  value: selectedCity,
-                                  decoration: InputDecoration(
-                                    prefixIcon: const Icon(Icons.location_city,
-                                        color: Colors.black54, size: 20),
-                                    labelText: 'City',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[300]!),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[300]!),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[400]!),
-                                    ),
-                                    filled: true,
-                                    fillColor: Colors.grey[50],
-                                    contentPadding: const EdgeInsets.symmetric(
-                                        vertical: 8, horizontal: 12),
-                                  ),
-                                  hint: const Text('Select City',
-                                      overflow: TextOverflow.ellipsis),
-                                  isExpanded: true,
-                                  items: cities
-                                      .where((city) =>
-                                          selectedRegion == null ||
-                                          city.region == selectedRegion)
-                                      .map((City city) {
-                                    return DropdownMenuItem<String>(
-                                      value: city.name,
-                                      child: Text(
-                                        city.name,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(fontSize: 14),
-                                      ),
-                                    );
-                                  }).toList(),
-                                  onChanged: (String? newValue) {
-                                    setState(() {
-                                      selectedCity = newValue;
-                                    });
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+      body: SafeArea(
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.green.shade50,
+                Colors.white,
+              ],
+            ),
+          ),
+          child: Column(
+            children: [
+              _buildHeaderSection(),
+              Expanded(
+                child: _buildStoreList(),
               ),
-            ),
-            Expanded(
-              child: _buildStoreList(),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: const CustomBottomNav(),
     );
   }
 
-  Widget _buildStoreList() {
-    final filteredStores = _getFilteredStores();
-
-    if (filteredStores.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.store_mall_directory_outlined,
-                size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'No stores found',
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Try adjusting your filters',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
-            ),
+  Widget _buildHeaderSection() {
+    return Container(
+      margin: EdgeInsets.fromLTRB(0, 0, 0, 16),
+      padding: EdgeInsets.fromLTRB(0, 0, 0, 24),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.green.shade100,
+            Colors.green.shade50,
           ],
         ),
-      );
-    }
+        borderRadius: BorderRadius.vertical(
+          bottom: Radius.circular(32),
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 32, 16, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.location_on, color: Colors.green.shade600, size: 28),
+                SizedBox(width: 8),
+                Text(
+                  'Find a Store Near You',
+                  style: GoogleFonts.poppins(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+              ],
+            ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.2, end: 0),
+            SizedBox(height: 4),
+            Text(
+              'Select your region and city to find the nearest store',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+              ),
+            )
+                .animate()
+                .fadeIn(duration: 400.ms, delay: 100.ms)
+                .slideX(begin: -0.2, end: 0),
+            SizedBox(height: 16),
+            _buildSearchAndFilterCard(),
+          ],
+        ),
+      ),
+    );
+  }
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: filteredStores.length,
-      itemBuilder: (context, index) {
-        final store = filteredStores[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          elevation: 1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+  Widget _buildSearchAndFilterCard() {
+    return Card(
+      elevation: 2,
+      shadowColor: Colors.green.shade100,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white,
+              Colors.green.shade50,
+            ],
           ),
-          child: InkWell(
-            onTap: () => _launchMaps(store),
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: Colors.grey[100],
-                        radius: 20,
-                        child:
-                            Icon(Icons.store, color: Colors.black54, size: 24),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              store.name,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Row(
-                              children: [
-                                Icon(Icons.location_on,
-                                    size: 14, color: Colors.grey[600]),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    store.address,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.access_time,
-                                    size: 14, color: Colors.grey[600]),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Hours',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              store.hours,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.phone,
-                                    size: 14, color: Colors.grey[600]),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Phone',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              store.phone,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      TextButton.icon(
-                        icon: const Icon(Icons.directions,
-                            color: Colors.black87, size: 18),
-                        label: const Text(
-                          'Get Directions',
-                          style: TextStyle(
-                            color: Colors.black87,
-                            fontSize: 13,
-                          ),
-                        ),
-                        onPressed: () => _launchMaps(store),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                        ),
-                      ),
-                      TextButton.icon(
-                        icon: const Icon(Icons.phone,
-                            color: Colors.black87, size: 18),
-                        label: const Text(
-                          'Call Store',
-                          style: TextStyle(
-                            color: Colors.black87,
-                            fontSize: 13,
-                          ),
-                        ),
-                        onPressed: () => _launchPhone(store.phone),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                        ),
-                      ),
-                    ],
+        ),
+        child: Column(
+          children: [
+            // Search Bar
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.shade100,
+                    blurRadius: 6,
+                    offset: Offset(0, 2),
                   ),
                 ],
               ),
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search stores by name or address...',
+                  hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                  prefixIcon: Container(
+                    margin: EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.green.shade400, Colors.green.shade600],
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.search, color: Colors.white, size: 20),
+                  ),
+                  suffixIcon: searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(Icons.clear,
+                              color: Colors.grey[400], size: 18),
+                          onPressed: () {
+                            setState(() {
+                              searchQuery = '';
+                            });
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide:
+                        BorderSide(color: Colors.green.shade300, width: 2),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding:
+                      EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    searchQuery = value;
+                  });
+                },
+              ),
             ),
+            SizedBox(height: 16),
+
+            // Filter Dropdowns
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDropdown(
+                    value: selectedRegion,
+                    hint: 'Select Region',
+                    icon: Icons.map,
+                    items: regions,
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        selectedRegion = newValue;
+                        selectedCity = null;
+                      });
+                    },
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: _buildDropdown(
+                    value: selectedCity,
+                    hint: 'Select City',
+                    icon: Icons.location_city,
+                    items: cities
+                        .where((city) =>
+                            selectedRegion == null ||
+                            city.region == selectedRegion)
+                        .map((city) => city.name)
+                        .toList(),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        selectedCity = newValue;
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    )
+        .animate()
+        .fadeIn(duration: 400.ms, delay: 200.ms)
+        .slideY(begin: 0.2, end: 0);
+  }
+
+  Widget _buildDropdown({
+    required String? value,
+    required String hint,
+    required IconData icon,
+    required List<String> items,
+    required Function(String?) onChanged,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.shade100,
+            blurRadius: 6,
+            offset: Offset(0, 2),
           ),
-        ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.2, end: 0);
+        ],
+      ),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        decoration: InputDecoration(
+          prefixIcon: Container(
+            margin: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.green.shade400, Colors.green.shade600],
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+          labelText: hint,
+          labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.green.shade300, width: 2),
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        ),
+        hint: Text(hint,
+            overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14)),
+        isExpanded: true,
+        items: items.map((String item) {
+          return DropdownMenuItem<String>(
+            value: item,
+            child: Text(
+              item,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 14),
+            ),
+          );
+        }).toList(),
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _buildStoreList() {
+    final filteredStores = _getFilteredStores();
+
+    if (isLoading) {
+      return _buildLoadingSkeleton();
+    }
+
+    if (filteredStores.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return ListView.builder(
+      padding: EdgeInsets.symmetric(horizontal: 16),
+      itemCount: filteredStores.length,
+      itemBuilder: (context, index) {
+        final store = filteredStores[index];
+        return _buildStoreCard(store, index);
       },
     );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: ListView.builder(
+        padding: EdgeInsets.symmetric(horizontal: 16),
+        itemCount: 5,
+        itemBuilder: (context, index) => Container(
+          margin: EdgeInsets.only(bottom: 12),
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          height: 16,
+                          color: Colors.white,
+                        ),
+                        SizedBox(height: 8),
+                        Container(
+                          width: 200,
+                          height: 12,
+                          color: Colors.white,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                height: 12,
+                color: Colors.white,
+              ),
+              SizedBox(height: 8),
+              Container(
+                width: 150,
+                height: 12,
+                color: Colors.white,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.store_mall_directory_outlined,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+          ),
+          SizedBox(height: 24),
+          Text(
+            'No stores found',
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Try adjusting your search or filters',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              color: Colors.grey[500],
+            ),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () {
+              setState(() {
+                selectedRegion = null;
+                selectedCity = null;
+                searchQuery = '';
+              });
+            },
+            icon: Icon(Icons.refresh, size: 18),
+            label: Text('Clear Filters'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.shade600,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStoreCard(Store store, int index) {
+    return Card(
+      margin: EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shadowColor: Colors.green.shade100,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: InkWell(
+        onTap: () => _launchMaps(store),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white,
+                Colors.green.shade50,
+              ],
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Store Header
+              Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.green.shade400, Colors.green.shade600],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.green.shade200,
+                          blurRadius: 6,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.store,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                store.name,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey.shade800,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              margin: EdgeInsets.only(right: 4),
+                              child: Icon(
+                                Icons.circle,
+                                size: 12,
+                                color: (store.isOpen == true)
+                                    ? Colors.green.shade400
+                                    : Colors.red.shade400,
+                              ),
+                            ),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: (store.isOpen == true)
+                                      ? [
+                                          Colors.green.shade50,
+                                          Colors.green.shade100
+                                        ]
+                                      : [
+                                          Colors.red.shade50,
+                                          Colors.red.shade100
+                                        ],
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: (store.isOpen == true)
+                                      ? Colors.green.shade200
+                                      : Colors.red.shade200,
+                                ),
+                              ),
+                              child: Text(
+                                (store.isOpen == true) ? 'Open' : 'Closed',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: (store.isOpen == true)
+                                      ? Colors.green.shade700
+                                      : Colors.red.shade700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Icon(Icons.location_on,
+                                  size: 12, color: Colors.orange.shade500),
+                            ),
+                            SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                store.address,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              SizedBox(height: 16),
+
+              // Store Info
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.shade50,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Icon(Icons.access_time,
+                                  size: 12, color: Colors.amber.shade500),
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Hours',
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          store.hours,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.purple.shade50,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Icon(Icons.phone,
+                                  size: 12, color: Colors.purple.shade500),
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Phone',
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          store.phone,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              SizedBox(height: 16),
+
+              // Action Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.green.shade500,
+                            Colors.green.shade600
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: ElevatedButton.icon(
+                        onPressed: () => _launchMaps(store),
+                        icon: Icon(Icons.directions,
+                            size: 16, color: Colors.white),
+                        label: Text('Get Directions'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 0,
+                          shadowColor: Colors.transparent,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _launchPhone(store.phone),
+                      icon: Icon(Icons.phone,
+                          size: 16, color: Colors.purple.shade500),
+                      label: Text('Call Store'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.purple.shade500,
+                        side: BorderSide(color: Colors.purple.shade200),
+                        padding: EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    )
+        .animate()
+        .fadeIn(duration: 300.ms, delay: (index * 100).ms)
+        .slideY(begin: 0.2, end: 0);
   }
 
   List<Store> _getFilteredStores() {
@@ -1056,6 +1415,9 @@ class Store {
   final String address;
   final String phone;
   final String hours;
+  final bool isOpen;
+  final String distance;
+  final double rating;
 
   const Store({
     required this.name,
@@ -1064,5 +1426,8 @@ class Store {
     required this.address,
     required this.phone,
     required this.hours,
+    required this.isOpen,
+    required this.distance,
+    required this.rating,
   });
 }

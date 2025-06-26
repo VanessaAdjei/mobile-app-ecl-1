@@ -1,20 +1,15 @@
 // pages/homepage.dart
-import 'dart:math';
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:eclapp/pages/storelocation.dart';
 import 'package:eclapp/pages/categories.dart';
-import 'package:eclapp/pages/pharmacists.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:eclapp/pages/cart.dart';
 import 'ProductModel.dart';
 import 'auth_service.dart';
 import 'bottomnav.dart';
-import 'clickableimage.dart';
 import 'itemdetail.dart';
 import 'package:shimmer/shimmer.dart';
 import 'dart:async';
@@ -23,15 +18,13 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'search_results_page.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:eclapp/pages/auth_service.dart';
-import 'package:eclapp/pages/profile.dart';
-import 'package:eclapp/pages/splashscreen.dart';
-import 'package:provider/provider.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/product_card.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+
+// Import the new health tips service and model
+import '../services/health_tips_service.dart';
+import '../models/health_tip.dart';
 
 // Image preloading service for better performance
 class ImagePreloader {
@@ -181,14 +174,18 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   bool _isLoading = true;
   bool _isLoadingPopular = true;
+  bool _isLoadingHealthTips = true;
+  bool _isFetchingHealthTips = false; // Add flag to prevent multiple calls
   String? _error;
   String? _popularError;
+  String? _healthTipsError;
   List<Product> _products = [];
   List<Product> filteredProducts = [];
   List<Product> popularProducts = [];
+  List<HealthTip> healthTips = <HealthTip>[];
   final RefreshController _refreshController = RefreshController();
   bool _allContentLoaded = false;
   TextEditingController searchController = TextEditingController();
@@ -196,6 +193,11 @@ class _HomePageState extends State<HomePage>
 
   final ScrollController _scrollController = ScrollController();
   bool _isScrolled = false;
+
+  // Health tips carousel state
+  final PageController _healthTipsPageController =
+      PageController(viewportFraction: 0.92);
+  int _currentHealthTipsPage = 0;
 
   List<Product> otcpomProducts = [];
   List<Product> drugProducts = [];
@@ -253,25 +255,36 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _loadAllContent() async {
+    print('HomePage: _loadAllContent called');
     setState(() => _allContentLoaded = false);
     try {
-      // Load products first, then popular products
+      // Load products first, then popular products and health tips
+      print('HomePage: Loading products');
       await loadProducts();
 
       // Load popular products in background if not cached
       if (ProductCache.cachedPopularProducts.isEmpty) {
+        print('HomePage: Loading popular products');
         _fetchPopularProducts();
       } else {
+        print('HomePage: Using cached popular products');
         setState(() {
           popularProducts = ProductCache.cachedPopularProducts;
           _isLoadingPopular = false;
         });
       }
+
+      // Always load fresh health tips on refresh
+      print('HomePage: Loading fresh health tips');
+      HealthTipsService.clearCache(); // Clear cache to force fresh fetch
+      _fetchHealthTips();
     } catch (e) {
+      print('HomePage: Exception in _loadAllContent: $e');
       // Handle error without cache fallback
     } finally {
       if (mounted) {
         setState(() => _allContentLoaded = true);
+        print('HomePage: _loadAllContent completed');
       }
     }
   }
@@ -521,6 +534,446 @@ class _HomePageState extends State<HomePage>
     }
   }
 
+  Future<void> _fetchHealthTips() async {
+    print('HomePage: _fetchHealthTips called');
+    if (!mounted) return;
+
+    // Prevent multiple simultaneous calls
+    if (_isFetchingHealthTips) {
+      print('HomePage: Health tips fetch already in progress, skipping');
+      return;
+    }
+
+    setState(() {
+      _isLoadingHealthTips = true;
+      _healthTipsError = null;
+      _isFetchingHealthTips = true;
+    });
+
+    try {
+      print(
+          'HomePage: Calling HealthTipsService.fetchHealthTips with random parameters');
+      // Use the new MyHealthfinder API service with random parameters for variety
+      final tips = await HealthTipsService.fetchHealthTips(
+        limit: 6,
+        // Don't specify category, age, or gender to let the service randomize them
+      );
+      print('HomePage: Received ${tips.length} tips from service');
+
+      // Debug: Print the first tip details
+      if (tips.isNotEmpty) {
+        print(
+            'HomePage: First tip - Title: "${tips[0].title}", Category: "${tips[0].category}"');
+        print('HomePage: First tip - Summary: "${tips[0].summary}"');
+        print('HomePage: First tip - Content: "${tips[0].content}"');
+      }
+
+      if (!mounted) return;
+
+      if (tips.isNotEmpty) {
+        print('HomePage: Setting health tips in state');
+        setState(() {
+          healthTips = List<HealthTip>.from(tips); // Ensure correct type
+          _isLoadingHealthTips = false;
+          _isFetchingHealthTips = false;
+        });
+        print(
+            'HomePage: Health tips set successfully. healthTips.length = ${healthTips.length}');
+      } else {
+        print('HomePage: No tips received, loading default tips');
+        _loadDefaultHealthTips();
+      }
+    } catch (e) {
+      print('HomePage: Exception in _fetchHealthTips: $e');
+      if (!mounted) return;
+      _loadDefaultHealthTips();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFetchingHealthTips = false;
+        });
+      }
+    }
+  }
+
+  void _loadDefaultHealthTips() {
+    if (!mounted) return;
+
+    setState(() {
+      healthTips = <HealthTip>[
+        HealthTip(
+          title: 'Stay Hydrated',
+          url: '',
+          content: 'Drink 8 glasses of water daily for better health',
+          category: 'Wellness',
+          summary: 'Drink 8 glasses of water daily for better health',
+        ),
+        HealthTip(
+          title: 'Exercise Regularly',
+          url: '',
+          content: '30 minutes of daily exercise keeps you fit',
+          category: 'Physical Activity',
+          summary: '30 minutes of daily exercise keeps you fit',
+        ),
+        HealthTip(
+          title: 'Get Enough Sleep',
+          url: '',
+          content: '7-8 hours of sleep is essential for health',
+          category: 'Wellness',
+          summary: '7-8 hours of sleep is essential for health',
+        ),
+        HealthTip(
+          title: 'Eat Healthy',
+          url: '',
+          content: 'Include fruits and vegetables in your diet',
+          category: 'Nutrition',
+          summary: 'Include fruits and vegetables in your diet',
+        ),
+        HealthTip(
+          title: 'Wash Hands',
+          url: '',
+          content: 'Regular hand washing prevents infections',
+          category: 'Prevention',
+          summary: 'Regular hand washing prevents infections',
+        ),
+        HealthTip(
+          title: 'Take Breaks',
+          url: '',
+          content: 'Take regular breaks from screen time',
+          category: 'Wellness',
+          summary: 'Take regular breaks from screen time',
+        ),
+      ];
+      _isLoadingHealthTips = false;
+      _isFetchingHealthTips = false;
+    });
+  }
+
+  Widget _buildHealthTips() {
+    print(
+        'HomePage: _buildHealthTips called - healthTips.length = ${healthTips.length}, _isLoadingHealthTips = $_isLoadingHealthTips, _healthTipsError = $_healthTipsError');
+
+    return Container(
+      margin: EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              children: [
+                Icon(Icons.health_and_safety,
+                    color: Colors.cyan[700], size: 22),
+                SizedBox(width: 8),
+                Text(
+                  'Health Tips',
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[800],
+                  ),
+                ),
+                Spacer(),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.cyan[600],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${healthTips.length}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 8),
+          if (_isLoadingHealthTips)
+            Container(
+              height: 160,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_healthTipsError != null)
+            Container(
+              height: 160,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline,
+                        size: 48, color: Colors.grey[400]),
+                    SizedBox(height: 16),
+                    Text('Could not load health tips',
+                        style:
+                            TextStyle(color: Colors.grey[600], fontSize: 14)),
+                    SizedBox(height: 8),
+                    TextButton(
+                        onPressed: _fetchHealthTips, child: Text('Retry')),
+                  ],
+                ),
+              ),
+            )
+          else if (healthTips.isEmpty)
+            Container(
+              height: 160,
+              child: Center(
+                  child: Text('No health tips available',
+                      style: TextStyle(color: Colors.grey[600]))),
+            )
+          else
+            Column(
+              children: [
+                SizedBox(
+                  height: 160,
+                  child: PageView.builder(
+                    controller: _healthTipsPageController,
+                    itemCount: healthTips.length,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _currentHealthTipsPage = index;
+                      });
+                    },
+                    itemBuilder: (context, index) {
+                      final tip = healthTips[index];
+                      return _buildCarouselHealthTipCard(tip, height: 160);
+                    },
+                  ),
+                ),
+                SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(healthTips.length, (index) {
+                    return Container(
+                      width: 8,
+                      height: 8,
+                      margin: EdgeInsets.symmetric(horizontal: 2),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _currentHealthTipsPage == index
+                            ? Colors.cyan[700]
+                            : Colors.cyan[200],
+                      ),
+                    );
+                  }),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCarouselHealthTipCard(HealthTip tip, {double height = 220}) {
+    final color = _getColorFromCategory(tip.category);
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.10),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Stack(
+          children: [
+            // Image
+            tip.imageUrl != null && tip.imageUrl!.isNotEmpty
+                ? Image.network(
+                    tip.imageUrl!,
+                    width: double.infinity,
+                    height: height,
+                    fit: BoxFit.cover,
+                  )
+                : Container(
+                    width: double.infinity,
+                    height: height,
+                    color: color.withOpacity(0.15),
+                    child: Center(
+                      child:
+                          Icon(Icons.health_and_safety, color: color, size: 48),
+                    ),
+                  ),
+            // Gradient overlay
+            Container(
+              width: double.infinity,
+              height: height,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.7),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+            // Category badge
+            Positioned(
+              top: 10,
+              left: 10,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.85),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  _getShortCategoryName(tip.category),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+            ),
+            // Text overlay
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 12,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tip.title,
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      shadows: [Shadow(blurRadius: 8, color: Colors.black45)],
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    tip.summary ?? tip.content,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.95),
+                      fontSize: 10.5,
+                      height: 1.3,
+                      shadows: [Shadow(blurRadius: 6, color: Colors.black38)],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _getIconFromCategory(String category) {
+    switch (category.toLowerCase()) {
+      case 'wellness':
+        return Icons.favorite;
+      case 'physical activity':
+      case 'exercise':
+        return Icons.fitness_center;
+      case 'nutrition':
+      case 'diet':
+        return Icons.restaurant;
+      case 'prevention':
+        return Icons.shield;
+      case 'mental health':
+        return Icons.psychology;
+      case 'heart health':
+        return Icons.favorite;
+      case 'diabetes':
+        return Icons.monitor_heart;
+      case 'cancer':
+        return Icons.local_hospital;
+      case 'pregnancy':
+        return Icons.pregnant_woman;
+      case 'vaccinations':
+      case 'immunizations':
+        return Icons.vaccines;
+      default:
+        return Icons.health_and_safety;
+    }
+  }
+
+  Color _getColorFromCategory(String category) {
+    switch (category.toLowerCase()) {
+      case 'wellness':
+        return Colors.green[600]!;
+      case 'physical activity':
+      case 'exercise':
+        return Colors.blue[600]!;
+      case 'nutrition':
+      case 'diet':
+        return Colors.orange[600]!;
+      case 'prevention':
+        return Colors.purple[600]!;
+      case 'mental health':
+        return Colors.indigo[600]!;
+      case 'heart health':
+        return Colors.red[600]!;
+      case 'diabetes':
+        return Colors.teal[600]!;
+      case 'cancer':
+        return Colors.pink[600]!;
+      case 'pregnancy':
+        return Colors.pink[400]!;
+      case 'vaccinations':
+      case 'immunizations':
+        return Colors.cyan[600]!;
+      default:
+        return Colors.green[600]!;
+    }
+  }
+
+  String _getShortCategoryName(String category) {
+    // Handle long category names by taking the first meaningful part
+    if (category.contains(',')) {
+      return category.split(',')[0].trim();
+    }
+
+    // Handle specific long categories
+    switch (category.toLowerCase()) {
+      case 'hiv and other stis, screening tests, sexual health':
+        return 'Sexual Health';
+      case 'cervical cancer, vaccines (shots)':
+        return 'Cancer Prevention';
+      case 'screening tests':
+        return 'Screening';
+      case 'heart health':
+        return 'Heart Health';
+      case 'mental health':
+        return 'Mental Health';
+      case 'physical activity':
+        return 'Exercise';
+      case 'nutrition':
+        return 'Nutrition';
+      case 'prevention':
+        return 'Prevention';
+      case 'wellness':
+        return 'Wellness';
+      case 'pregnancy':
+        return 'Pregnancy';
+      case 'vaccinations':
+      case 'immunizations':
+        return 'Vaccines';
+      default:
+        // If category is still too long, truncate it
+        if (category.length > 15) {
+          return category.substring(0, 15) + '...';
+        }
+        return category;
+    }
+  }
+
   void makePhoneCall(String phoneNumber) async {
     final Uri callUri = Uri.parse("tel:$phoneNumber");
     if (await canLaunchUrl(callUri)) {
@@ -572,10 +1025,10 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  // Clear cache and reload data
   Future<void> _clearCacheAndReload() async {
     ProductCache.clearCache();
     ImagePreloader.clearPreloadedImages();
+    HealthTipsService.clearCache(); // Clear health tips cache
     _preloadedImages.clear();
     await _loadAllContent();
   }
@@ -583,6 +1036,10 @@ class _HomePageState extends State<HomePage>
   @override
   void initState() {
     super.initState();
+    // Register for app lifecycle changes
+    WidgetsBinding.instance.addObserver(this);
+    // Clear any old cached data to prevent type mismatches
+    HealthTipsService.clearCache();
     _loadContentOptimized();
     _scrollController.addListener(() {
       if (_scrollController.offset > 100 && !_isScrolled) {
@@ -598,11 +1055,27 @@ class _HomePageState extends State<HomePage>
   }
 
   @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    searchController.dispose();
+    _healthTipsPageController.dispose();
+    super.dispose();
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Preload images when dependencies change (e.g., when coming back to this page)
     if (_products.isNotEmpty && _preloadedImages.isEmpty) {
       _preloadImages(_products);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Refresh health tips when app becomes active
+    if (state == AppLifecycleState.resumed) {
+      _fetchHealthTips();
     }
   }
 
@@ -650,12 +1123,6 @@ class _HomePageState extends State<HomePage>
     Future.delayed(duration ?? const Duration(seconds: 2), () {
       overlayEntry.remove();
     });
-  }
-
-  @override
-  void dispose() {
-    searchController.dispose();
-    super.dispose();
   }
 
   Widget _buildSearchBar() {
@@ -895,7 +1362,7 @@ class _HomePageState extends State<HomePage>
               icon: Icons.contact_support_rounded,
               title: "Contact Us",
               color: Colors.orange[600]!,
-              onTap: () => _showContactOptions("+233504518047"),
+              onTap: () => _showContactOptions("+2330000000000"),
             ),
           ),
         ],
@@ -953,6 +1420,566 @@ class _HomePageState extends State<HomePage>
     );
   }
 
+  Widget _buildSpecialOffers() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(height: 12),
+        Container(
+          margin: EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Image
+              ClipRRect(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                child: Image.asset(
+                  'assets/images/specialoffer.PNG',
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: 120,
+                ),
+              ),
+              // Text below image
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius:
+                      BorderRadius.vertical(bottom: Radius.circular(12)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'GET DEAL 10% OFF ON FIRST PURCHASE',
+                      style: GoogleFonts.poppins(
+                        color: Colors.green[700],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Orders above GH₵100.',
+                      style: TextStyle(
+                        color: Colors.grey[800],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Make purchase through the Ernest Chemists e-commerce platform and get a 10% discount of your first purchase.',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 11,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 16),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return WillPopScope(
+      onWillPop: () async {
+        return true;
+      },
+      child: Scaffold(
+        body:
+            _allContentLoaded ? _buildMainContent() : _buildOptimizedSkeleton(),
+        bottomNavigationBar: CustomBottomNav(),
+      ),
+    );
+  }
+
+  Widget _buildMainContent() {
+    if (_error != null) {
+      return ErrorDisplayWidget(
+        onRetry: () {
+          setState(() {
+            _error = null;
+          });
+          _loadAllContent();
+        },
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        double screenWidth = constraints.maxWidth;
+        int crossAxisCount = 2;
+        double aspectRatio = 1.2;
+        if (screenWidth > 900) {
+          crossAxisCount = 4;
+          aspectRatio = 1.1;
+        } else if (screenWidth > 600) {
+          crossAxisCount = 3;
+          aspectRatio = 1.15;
+        }
+        double cardFontSize =
+            screenWidth < 400 ? 11 : (screenWidth < 600 ? 13 : 15);
+        double cardPadding =
+            screenWidth < 400 ? 6 : (screenWidth < 600 ? 8 : 12);
+        double cardImageHeight =
+            screenWidth < 400 ? 55 : (screenWidth < 600 ? 75 : 95);
+
+        return Stack(
+          children: [
+            SmartRefresher(
+              controller: _refreshController,
+              onRefresh: _loadAllContent,
+              child: CustomScrollView(
+                controller: _scrollController,
+                slivers: [
+                  SliverAppBar(
+                    automaticallyImplyLeading: false,
+                    backgroundColor:
+                        Theme.of(context).appBarTheme.backgroundColor,
+                    toolbarHeight: 60,
+                    floating: false,
+                    pinned: false,
+                    title: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Padding(
+                          padding: EdgeInsets.only(left: 1),
+                          child: Image.asset(
+                            'assets/images/png.png',
+                            height: 85,
+                          ),
+                        ),
+                        CartIconButton(
+                          iconColor: Colors.white,
+                          iconSize: 24,
+                          backgroundColor: Colors.transparent,
+                        ),
+                      ],
+                    ),
+                  ),
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: SliverSearchBarDelegate(
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                            top: 20.0, left: 10.0, right: 10.0, bottom: 1.0),
+                        child: _buildSearchBar(),
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: buildOrderMedicineCard(),
+                  ),
+                  SliverToBoxAdapter(
+                    child: _buildActionCards(),
+                  ),
+                  // Bulk Purchase Card - Commented out for now
+                  /*
+                  SliverToBoxAdapter(
+                    child: Container(
+                      margin: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 2), // Reduced vertical margin
+                      child: InkWell(
+                        onTap: () async {
+                          final shouldProceed = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Bulk Purchase Notice'),
+                              content: const Text(
+                                'You will be redirected to our website to complete your bulk purchase. This is required for bulk orders as they need special handling and verification.',
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(context, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: const Text('Continue to Website'),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          if (shouldProceed == true) {
+                            final url = Uri.parse(
+                                'https://eclcommerce.ernestchemists.com.gh/index');
+                            try {
+                              await launchUrl(url,
+                                  mode: LaunchMode.externalApplication);
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                        'Could not open bulk purchase page'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          }
+                        },
+                        child: Container(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.blue.shade600,
+                                Colors.blue.shade800
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(6),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.blue.withOpacity(0.2),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Bulk Purchase',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Icon(
+                                Icons.shopping_cart,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  */
+                  // Drugs Section
+                  SliverToBoxAdapter(
+                    child: _buildProductSection(
+                      'Drugs',
+                      Colors.green[700]!,
+                      _getLimitedProducts(drugsSectionProducts),
+                      'drugs',
+                      fontSize: cardFontSize,
+                      padding: cardPadding,
+                      imageHeight: cardImageHeight,
+                    ),
+                  ),
+                  // Special Offers Section
+                  SliverToBoxAdapter(
+                    child: _buildSpecialOffers(),
+                  ),
+                  // Wellness Section
+                  SliverToBoxAdapter(
+                    child: _buildProductSection(
+                      'Wellness',
+                      Colors.purple[700]!,
+                      _getLimitedProducts(wellnessProducts),
+                      'wellness',
+                      fontSize: cardFontSize,
+                      padding: cardPadding,
+                      imageHeight: cardImageHeight,
+                    ),
+                  ),
+                  // Health Tips Section
+                  SliverToBoxAdapter(
+                    child: _buildHealthTips(),
+                  ),
+                  // Popular Products Section
+                  SliverToBoxAdapter(
+                    child: _buildPopularProducts(),
+                  ),
+                  // Selfcare Section
+                  SliverToBoxAdapter(
+                    child: _buildProductSection(
+                      'Selfcare',
+                      Colors.orange[700]!,
+                      _getLimitedProducts(selfcareProducts),
+                      'selfcare',
+                      fontSize: cardFontSize,
+                      padding: cardPadding,
+                      imageHeight: cardImageHeight,
+                    ),
+                  ),
+                  // Accessories Section
+                  SliverToBoxAdapter(
+                    child: _buildProductSection(
+                      'Accessories',
+                      Colors.teal[700]!,
+                      _getLimitedProducts(accessoriesProducts),
+                      'accessories',
+                      fontSize: cardFontSize,
+                      padding: cardPadding,
+                      imageHeight: cardImageHeight,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildOptimizedSkeleton() {
+    // Get screen dimensions for responsive spacing
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // Calculate responsive spacing
+    final responsiveMainAxisSpacing =
+        screenHeight * 0.005; // 0.5% of screen height
+    final responsiveCrossAxisSpacing = screenWidth * 0.02; // 2% of screen width
+    final responsivePadding = screenWidth * 0.02; // 2% of screen width
+
+    // Ensure minimum and maximum values
+    final finalMainAxisSpacing = responsiveMainAxisSpacing.clamp(2.0, 6.0);
+    final finalCrossAxisSpacing = responsiveCrossAxisSpacing.clamp(6.0, 16.0);
+    final finalPadding = responsivePadding.clamp(6.0, 16.0);
+
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            Container(
+              height: kToolbarHeight + MediaQuery.of(context).padding.top,
+              color: Colors.white,
+            ),
+            // Search bar
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Container(
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+            Container(
+              height: 150,
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(
+                    3,
+                    (index) => Container(
+                          width: (MediaQuery.of(context).size.width - 48) / 3,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        )),
+              ),
+            ),
+            GridView.builder(
+              physics: NeverScrollableScrollPhysics(),
+              shrinkWrap: true,
+              padding: EdgeInsets.symmetric(horizontal: finalPadding),
+              itemCount: 4,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 0.7,
+                mainAxisSpacing: finalMainAxisSpacing,
+                crossAxisSpacing: finalCrossAxisSpacing,
+              ),
+              itemBuilder: (context, index) => _buildProductSkeleton(),
+            ),
+            Container(
+              height: 120,
+              margin: const EdgeInsets.all(16),
+              color: Colors.white,
+            ),
+            GridView.builder(
+              physics: NeverScrollableScrollPhysics(),
+              shrinkWrap: true,
+              padding: EdgeInsets.symmetric(horizontal: finalPadding),
+              itemCount: 4,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 0.7,
+                mainAxisSpacing: finalMainAxisSpacing,
+                crossAxisSpacing: finalCrossAxisSpacing,
+              ),
+              itemBuilder: (context, index) => _buildProductSkeleton(),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Container(
+                width: 150,
+                height: 24,
+                color: Colors.white,
+              ),
+            ),
+            SizedBox(
+              height: 120,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(left: 16),
+                itemCount: 5,
+                itemBuilder: (context, index) => Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: Container(
+                    width: 80,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            GridView.builder(
+              physics: NeverScrollableScrollPhysics(),
+              shrinkWrap: true,
+              padding: EdgeInsets.symmetric(horizontal: finalPadding),
+              itemCount: 4,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 0.7,
+                mainAxisSpacing: finalMainAxisSpacing,
+                crossAxisSpacing: finalCrossAxisSpacing,
+              ),
+              itemBuilder: (context, index) => _buildProductSkeleton(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductSkeleton() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: double.infinity,
+                  height: 16,
+                  color: Colors.white,
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  width: 100,
+                  height: 14,
+                  color: Colors.white,
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: 60,
+                  height: 16,
+                  color: Colors.white,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Check if images are already cached
+  bool _areImagesCached() {
+    return _preloadedImages.isNotEmpty ||
+        ImagePreloader.isPreloaded(
+            getProductImageUrl(_products.firstOrNull?.thumbnail ?? ''));
+  }
+
+  // Optimized loading that checks cache first
+  Future<void> _loadContentOptimized() async {
+    // If we have cached data and images are preloaded, use them immediately
+    if (ProductCache.isCacheValid &&
+        ProductCache.cachedProducts.isNotEmpty &&
+        _areImagesCached()) {
+      setState(() {
+        _isLoading = false;
+        _error = null;
+        _allContentLoaded = true;
+      });
+
+      final cachedProducts = ProductCache.cachedProducts;
+      _processProducts(cachedProducts);
+
+      if (ProductCache.cachedPopularProducts.isNotEmpty) {
+        setState(() {
+          popularProducts = ProductCache.cachedPopularProducts;
+          _isLoadingPopular = false;
+        });
+      }
+      return;
+    }
+
+    // Otherwise, load normally
+    await _loadAllContent();
+  }
+
   Widget _buildPopularProducts() {
     if (_isLoadingPopular) {
       return Padding(
@@ -966,7 +1993,7 @@ class _HomePageState extends State<HomePage>
           setState(() {
             _popularError = null;
           });
-          _fetchPopularProducts();
+          _loadAllContent();
         },
       );
     }
@@ -1280,478 +2307,6 @@ class _HomePageState extends State<HomePage>
       ],
     );
   }
-
-  @override
-  Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        return true;
-      },
-      child: Scaffold(
-        body:
-            _allContentLoaded ? _buildMainContent() : _buildOptimizedSkeleton(),
-        bottomNavigationBar: CustomBottomNav(),
-      ),
-    );
-  }
-
-  Widget _buildMainContent() {
-    if (_error != null) {
-      return ErrorDisplayWidget(
-        onRetry: () {
-          setState(() {
-            _error = null;
-          });
-          _clearCacheAndReload();
-        },
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        double screenWidth = constraints.maxWidth;
-        int crossAxisCount = 2;
-        double aspectRatio = 1.2;
-        if (screenWidth > 900) {
-          crossAxisCount = 4;
-          aspectRatio = 1.1;
-        } else if (screenWidth > 600) {
-          crossAxisCount = 3;
-          aspectRatio = 1.15;
-        }
-        double cardFontSize =
-            screenWidth < 400 ? 11 : (screenWidth < 600 ? 13 : 15);
-        double cardPadding =
-            screenWidth < 400 ? 6 : (screenWidth < 600 ? 8 : 12);
-        double cardImageHeight =
-            screenWidth < 400 ? 55 : (screenWidth < 600 ? 75 : 95);
-
-        return Stack(
-          children: [
-            SmartRefresher(
-              controller: _refreshController,
-              onRefresh: _clearCacheAndReload,
-              child: CustomScrollView(
-                controller: _scrollController,
-                slivers: [
-                  SliverAppBar(
-                    automaticallyImplyLeading: false,
-                    backgroundColor:
-                        Theme.of(context).appBarTheme.backgroundColor,
-                    toolbarHeight: 60,
-                    floating: false,
-                    pinned: false,
-                    title: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Padding(
-                          padding: EdgeInsets.only(left: 1),
-                          child: Image.asset(
-                            'assets/images/png.png',
-                            height: 85,
-                          ),
-                        ),
-                        CartIconButton(
-                          iconColor: Colors.white,
-                          iconSize: 24,
-                          backgroundColor: Colors.transparent,
-                        ),
-                      ],
-                    ),
-                  ),
-                  SliverPersistentHeader(
-                    pinned: true,
-                    delegate: SliverSearchBarDelegate(
-                      child: Padding(
-                        padding: const EdgeInsets.only(
-                            top: 20.0, left: 10.0, right: 10.0, bottom: 1.0),
-                        child: _buildSearchBar(),
-                      ),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: buildOrderMedicineCard(),
-                  ),
-                  SliverToBoxAdapter(
-                    child: _buildActionCards(),
-                  ),
-                  // Bulk Purchase Card
-                  SliverToBoxAdapter(
-                    child: Container(
-                      margin: EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 2), // Reduced vertical margin
-                      child: InkWell(
-                        onTap: () async {
-                          final shouldProceed = await showDialog<bool>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('Bulk Purchase Notice'),
-                              content: const Text(
-                                'You will be redirected to our website to complete your bulk purchase. This is required for bulk orders as they need special handling and verification.',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(context, false),
-                                  child: const Text('Cancel'),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () => Navigator.pop(context, true),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blue,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  child: const Text('Continue to Website'),
-                                ),
-                              ],
-                            ),
-                          );
-
-                          if (shouldProceed == true) {
-                            final url = Uri.parse(
-                                'https://eclcommerce.ernestchemists.com.gh/index');
-                            try {
-                              await launchUrl(url,
-                                  mode: LaunchMode.externalApplication);
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                        'Could not open bulk purchase page'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                              }
-                            }
-                          }
-                        },
-                        child: Container(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.blue.shade600,
-                                Colors.blue.shade800
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(6),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.blue.withOpacity(0.2),
-                                blurRadius: 4,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Bulk Purchase',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              Icon(
-                                Icons.shopping_cart,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Drugs Section
-                  SliverToBoxAdapter(
-                    child: _buildProductSection(
-                      'Drugs',
-                      Colors.green[700]!,
-                      _getLimitedProducts(drugsSectionProducts),
-                      'drugs',
-                      fontSize: cardFontSize,
-                      padding: cardPadding,
-                      imageHeight: cardImageHeight,
-                    ),
-                  ),
-                  // Wellness Section
-                  SliverToBoxAdapter(
-                    child: _buildProductSection(
-                      'Wellness',
-                      Colors.purple[700]!,
-                      _getLimitedProducts(wellnessProducts),
-                      'wellness',
-                      fontSize: cardFontSize,
-                      padding: cardPadding,
-                      imageHeight: cardImageHeight,
-                    ),
-                  ),
-                  // Popular Products Section
-                  SliverToBoxAdapter(
-                    child: _buildPopularProducts(),
-                  ),
-                  // Selfcare Section
-                  SliverToBoxAdapter(
-                    child: _buildProductSection(
-                      'Selfcare',
-                      Colors.orange[700]!,
-                      _getLimitedProducts(selfcareProducts),
-                      'selfcare',
-                      fontSize: cardFontSize,
-                      padding: cardPadding,
-                      imageHeight: cardImageHeight,
-                    ),
-                  ),
-                  // Accessories Section
-                  SliverToBoxAdapter(
-                    child: _buildProductSection(
-                      'Accessories',
-                      Colors.teal[700]!,
-                      _getLimitedProducts(accessoriesProducts),
-                      'accessories',
-                      fontSize: cardFontSize,
-                      padding: cardPadding,
-                      imageHeight: cardImageHeight,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildOptimizedSkeleton() {
-    // Get screen dimensions for responsive spacing
-    final screenHeight = MediaQuery.of(context).size.height;
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    // Calculate responsive spacing
-    final responsiveMainAxisSpacing =
-        screenHeight * 0.005; // 0.5% of screen height
-    final responsiveCrossAxisSpacing = screenWidth * 0.02; // 2% of screen width
-    final responsivePadding = screenWidth * 0.02; // 2% of screen width
-
-    // Ensure minimum and maximum values
-    final finalMainAxisSpacing = responsiveMainAxisSpacing.clamp(2.0, 6.0);
-    final finalCrossAxisSpacing = responsiveCrossAxisSpacing.clamp(6.0, 16.0);
-    final finalPadding = responsivePadding.clamp(6.0, 16.0);
-
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
-      child: SingleChildScrollView(
-        child: Column(
-          children: [
-            Container(
-              height: kToolbarHeight + MediaQuery.of(context).padding.top,
-              color: Colors.white,
-            ),
-            // Search bar
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Container(
-                height: 50,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            Container(
-              height: 150,
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(
-                    3,
-                    (index) => Container(
-                          width: (MediaQuery.of(context).size.width - 48) / 3,
-                          height: 100,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        )),
-              ),
-            ),
-            GridView.builder(
-              physics: NeverScrollableScrollPhysics(),
-              shrinkWrap: true,
-              padding: EdgeInsets.symmetric(horizontal: finalPadding),
-              itemCount: 4,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.7,
-                mainAxisSpacing: finalMainAxisSpacing,
-                crossAxisSpacing: finalCrossAxisSpacing,
-              ),
-              itemBuilder: (context, index) => _buildProductSkeleton(),
-            ),
-            Container(
-              height: 120,
-              margin: const EdgeInsets.all(16),
-              color: Colors.white,
-            ),
-            GridView.builder(
-              physics: NeverScrollableScrollPhysics(),
-              shrinkWrap: true,
-              padding: EdgeInsets.symmetric(horizontal: finalPadding),
-              itemCount: 4,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.7,
-                mainAxisSpacing: finalMainAxisSpacing,
-                crossAxisSpacing: finalCrossAxisSpacing,
-              ),
-              itemBuilder: (context, index) => _buildProductSkeleton(),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Container(
-                width: 150,
-                height: 24,
-                color: Colors.white,
-              ),
-            ),
-            SizedBox(
-              height: 120,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.only(left: 16),
-                itemCount: 5,
-                itemBuilder: (context, index) => Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: Container(
-                    width: 80,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            GridView.builder(
-              physics: NeverScrollableScrollPhysics(),
-              shrinkWrap: true,
-              padding: EdgeInsets.symmetric(horizontal: finalPadding),
-              itemCount: 4,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.7,
-                mainAxisSpacing: finalMainAxisSpacing,
-                crossAxisSpacing: finalCrossAxisSpacing,
-              ),
-              itemBuilder: (context, index) => _buildProductSkeleton(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProductSkeleton() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AspectRatio(
-            aspectRatio: 1,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: double.infinity,
-                  height: 16,
-                  color: Colors.white,
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  width: 100,
-                  height: 14,
-                  color: Colors.white,
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  width: 60,
-                  height: 16,
-                  color: Colors.white,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Check if images are already cached
-  bool _areImagesCached() {
-    return _preloadedImages.isNotEmpty ||
-        ImagePreloader.isPreloaded(
-            getProductImageUrl(_products.firstOrNull?.thumbnail ?? ''));
-  }
-
-  // Optimized loading that checks cache first
-  Future<void> _loadContentOptimized() async {
-    // If we have cached data and images are preloaded, use them immediately
-    if (ProductCache.isCacheValid &&
-        ProductCache.cachedProducts.isNotEmpty &&
-        _areImagesCached()) {
-      setState(() {
-        _isLoading = false;
-        _error = null;
-        _allContentLoaded = true;
-      });
-
-      final cachedProducts = ProductCache.cachedProducts;
-      _processProducts(cachedProducts);
-
-      if (ProductCache.cachedPopularProducts.isNotEmpty) {
-        setState(() {
-          popularProducts = ProductCache.cachedPopularProducts;
-          _isLoadingPopular = false;
-        });
-      }
-      return;
-    }
-
-    // Otherwise, load normally
-    await _loadAllContent();
-  }
 }
 
 class HomePageSkeleton extends StatelessWidget {
@@ -1855,14 +2410,12 @@ class HomePageSkeleton extends StatelessWidget {
                 childAspectRatio: 0.7,
               ),
             ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                child: Container(
-                  width: 150,
-                  height: 24,
-                  color: Colors.white,
-                ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Container(
+                width: 150,
+                height: 24,
+                color: Colors.white,
               ),
             ),
             SliverToBoxAdapter(
@@ -2020,54 +2573,6 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
     });
   }
 
-  Future<void> fetchBanners() async {
-    if (!mounted) return;
-    setState(() => _isLoadingBanners = true);
-    try {
-      final response = await http
-          .get(
-            Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/banner'),
-          )
-          .timeout(Duration(seconds: 15));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final List bannersData = data['data'] ?? [];
-        if (mounted) {
-          setState(() {
-            banners = bannersData
-                .map<BannerModel>((item) => BannerModel.fromJson(item))
-                .toList();
-          });
-        }
-      } else {
-        throw Exception('Server error');
-      }
-    } on TimeoutException {
-      if (mounted) {
-        setState(() {
-          _isLoadingBanners = false;
-        });
-      }
-    } on http.ClientException {
-      if (mounted) {
-        setState(() {
-          _isLoadingBanners = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoadingBanners = false;
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingBanners = false);
-      }
-    }
-  }
-
   @override
   void dispose() {
     _timer?.cancel();
@@ -2161,6 +2666,54 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
         },
       ),
     );
+  }
+
+  Future<void> fetchBanners() async {
+    if (!mounted) return;
+    setState(() => _isLoadingBanners = true);
+    try {
+      final response = await http
+          .get(
+            Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/banner'),
+          )
+          .timeout(Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List bannersData = data['data'] ?? [];
+        if (mounted) {
+          setState(() {
+            banners = bannersData
+                .map<BannerModel>((item) => BannerModel.fromJson(item))
+                .toList();
+          });
+        }
+      } else {
+        throw Exception('Server error');
+      }
+    } on TimeoutException {
+      if (mounted) {
+        setState(() {
+          _isLoadingBanners = false;
+        });
+      }
+    } on http.ClientException {
+      if (mounted) {
+        setState(() {
+          _isLoadingBanners = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingBanners = false;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingBanners = false);
+      }
+    }
   }
 }
 

@@ -179,23 +179,30 @@ class CartProvider with ChangeNotifier {
   }
 
   void addToCart(CartItem item) async {
-    // For non-logged-in users, add to local cart only
-    if (!await AuthService.isLoggedIn()) {
-      // Check if item already exists in cart
-      final existingIndex = _cartItems.indexWhere((cartItem) =>
-          cartItem.productId == item.productId &&
-          cartItem.batchNo == item.batchNo);
+    // Check if item already exists in cart (for both logged-in and non-logged-in users)
+    final existingIndex = _cartItems.indexWhere((cartItem) =>
+        cartItem.productId == item.productId &&
+        cartItem.batchNo == item.batchNo);
 
-      if (existingIndex != -1) {
-        // Update quantity of existing item
-        _cartItems[existingIndex]
-            .updateQuantity(_cartItems[existingIndex].quantity + item.quantity);
+    if (existingIndex != -1) {
+      // Update quantity of existing item
+      final newQuantity = _cartItems[existingIndex].quantity + item.quantity;
+      _cartItems[existingIndex].updateQuantity(newQuantity);
+
+      // For logged-in users, sync with server
+      if (await AuthService.isLoggedIn()) {
+        await _updateCartItemOnServer(_cartItems[existingIndex]);
       } else {
-        // Add new item to cart
-        _cartItems.add(item);
+        await _saveUserCarts();
       }
 
-      // Save to local storage
+      notifyListeners();
+      return;
+    }
+
+    // For non-logged-in users, add to local cart only
+    if (!await AuthService.isLoggedIn()) {
+      _cartItems.add(item);
       await _saveUserCarts();
       notifyListeners();
       return;
@@ -243,6 +250,45 @@ class CartProvider with ChangeNotifier {
       }
     } catch (e) {
       rethrow;
+    }
+  }
+
+  // Helper method to update cart item quantity on server
+  Future<void> _updateCartItemOnServer(CartItem item) async {
+    try {
+      final token = await AuthService.getToken();
+      if (token == null) {
+        debugPrint('Cannot update cart item - missing auth token');
+        return;
+      }
+
+      final requestBody = {
+        'productID': int.parse(item.productId),
+        'quantity': item.quantity,
+        'batch_no': item.batchNo,
+      };
+
+      final url = 'https://eclcommerce.ernestchemists.com.gh/api/check-auth';
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Sync with server to ensure consistency
+        await syncWithApi();
+      } else {
+        debugPrint(
+            'Failed to update cart item on server: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error updating cart item on server: $e');
     }
   }
 

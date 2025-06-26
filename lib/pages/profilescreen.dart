@@ -1,10 +1,8 @@
 // pages/profilescreen.dart
 import 'package:eclapp/pages/theme_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'Cart.dart';
 import 'auth_service.dart';
 import 'bottomnav.dart';
 import 'loggedout.dart';
@@ -20,19 +18,16 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _isEditingUserName = false;
   String _userName = "User";
   String _userEmail = "No email available";
   String _phoneNumber = "";
 
-  late TextEditingController _userNameController;
   late TextEditingController _userEmailController;
   late TextEditingController _phoneNumberController;
 
   @override
   void initState() {
     super.initState();
-    _userNameController = TextEditingController(text: _userName);
     _userEmailController = TextEditingController(text: _userEmail);
     _phoneNumberController = TextEditingController(text: _phoneNumber);
     _loadUserData();
@@ -40,7 +35,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void dispose() {
-    _userNameController.dispose();
     _userEmailController.dispose();
     _phoneNumberController.dispose();
     super.dispose();
@@ -124,7 +118,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _userEmail = userData?['email'] ?? "No email available";
         _phoneNumber = userData?['phone'] ?? "";
 
-        _userNameController.text = _userName;
         _userEmailController.text = _userEmail;
         _phoneNumberController.text = _phoneNumber;
       });
@@ -134,29 +127,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _userEmail = "No email available";
         _phoneNumber = "";
       });
-    }
-  }
-
-  Future<void> _saveUserData() async {
-    try {
-      await AuthService.saveUserDetails(
-        _userNameController.text,
-        _userEmail,
-        _phoneNumber,
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Profile updated successfully")),
-      );
-
-      setState(() {
-        _userName = _userNameController.text;
-        _isEditingUserName = false;
-      });
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error updating profile: $e")),
-      );
     }
   }
 
@@ -345,20 +315,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           const SizedBox(height: 20),
-          _buildEditableField(
+          _buildInfoField(
             icon: Icons.person,
             label: "Full Name",
-            controller: _userNameController,
-            isEditable: true,
-            isEditing: _isEditingUserName,
-            onToggleEdit: () {
-              setState(() {
-                _isEditingUserName = !_isEditingUserName;
-                if (!_isEditingUserName) {
-                  _saveUserData();
-                }
-              });
-            },
+            value: _userName,
           ),
           const Divider(height: 30),
           _buildInfoField(
@@ -390,71 +350,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildEditableField({
-    required IconData icon,
-    required String label,
-    required TextEditingController controller,
-    required bool isEditable,
-    required bool isEditing,
-    required VoidCallback onToggleEdit,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.green.shade50,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: Colors.green.shade700),
-        ),
-        const SizedBox(width: 15),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-              isEditing
-                  ? TextField(
-                      controller: controller,
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    )
-                  : Text(
-                      controller.text,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-            ],
-          ),
-        ),
-        if (isEditable)
-          IconButton(
-            icon: Icon(
-              isEditing ? Icons.check : Icons.edit,
-              color: Colors.green.shade700,
-            ),
-            onPressed: onToggleEdit,
-          ),
-      ],
     );
   }
 

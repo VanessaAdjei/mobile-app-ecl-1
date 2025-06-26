@@ -258,6 +258,68 @@ class AuthService {
     }
   }
 
+  // Resend OTP
+  static Future<Map<String, dynamic>> resendOTP(String email) async {
+    final url =
+        Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/resend-otp');
+
+    try {
+      final response = await http
+          .post(
+            url,
+            headers: {"Content-Type": "application/json"},
+            body: jsonEncode({"email": email}),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      final responseData = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': responseData['message'] ?? 'OTP resent successfully',
+        };
+      } else if (response.statusCode == 400) {
+        return {
+          'success': false,
+          'message': responseData['message'] ?? 'Invalid email address',
+        };
+      } else if (response.statusCode == 404) {
+        return {
+          'success': false,
+          'message': responseData['message'] ?? 'Email not found',
+        };
+      } else if (response.statusCode >= 500) {
+        return {
+          'success': false,
+          'message': 'Server is currently unavailable. Please try again later.',
+        };
+      }
+
+      return {
+        'success': false,
+        'message': responseData['message'] ??
+            'Unable to resend OTP. Please try again.',
+      };
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message': 'The request took too long to complete. Please try again.',
+      };
+    } on SocketException {
+      return {
+        'success': false,
+        'message':
+            'Unable to connect to the server. Please check your internet connection.',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'An unexpected error occurred. Please try again.',
+      };
+    }
+  }
+
   static Future<String?> getBearerToken() async {
     try {
       // Use cached token if available and not expired
@@ -1089,8 +1151,32 @@ class AuthService {
         allOrders.addAll(data['data'] as List);
       }
 
-      // Add local orders
-      allOrders.addAll(localOrders);
+      for (final localOrder in localOrders) {
+        final localOrderId =
+            localOrder['order_id'] ?? localOrder['transaction_id'] ?? '';
+        final localDeliveryId = localOrder['delivery_id'] ?? '';
+
+        bool existsOnServer = false;
+        for (final serverOrder in allOrders) {
+          final serverOrderId =
+              serverOrder['order_id'] ?? serverOrder['transaction_id'] ?? '';
+          final serverDeliveryId = serverOrder['delivery_id'] ?? '';
+
+          if ((localOrderId.isNotEmpty && localOrderId == serverOrderId) ||
+              (localDeliveryId.isNotEmpty &&
+                  localDeliveryId == serverDeliveryId)) {
+            existsOnServer = true;
+            debugPrint(
+                'Local order $localOrderId already exists on server, skipping duplicate');
+            break;
+          }
+        }
+
+        if (!existsOnServer) {
+          allOrders.add(localOrder);
+          debugPrint('Added local order $localOrderId to combined list');
+        }
+      }
 
       // Sort all orders by creation date (newest first)
       allOrders.sort((a, b) {
@@ -1109,7 +1195,6 @@ class AuthService {
     } catch (e) {
       debugPrint('Error fetching orders: $e');
 
-      // If server fails, try to return local orders only
       try {
         final localOrders = await getLocalCashOnDeliveryOrders();
         return {
@@ -1135,103 +1220,11 @@ class AuthService {
     String? promoCode,
   }) async {
     try {
-      final token = await getToken();
-      if (token == null) {
-        return {'status': 'error', 'message': 'Not authenticated'};
-      }
-
       final userId = await getCurrentUserID();
       if (userId == null) {
         return {'status': 'error', 'message': 'User ID not found'};
       }
 
-      // Create order description
-      String orderDesc = items
-          .map((item) => '${item['quantity']}x ${item['name']}')
-          .join(', ');
-      if (orderDesc.length > 100) {
-        orderDesc = '${orderDesc.substring(0, 97)}...';
-      }
-
-      // Add promo code info to order description if applied
-      if (promoCode != null) {
-        orderDesc += ' (Promo: $promoCode)';
-      }
-
-      // Use the expresspayment endpoint with a special flag for cash on delivery
-      final requestBody = {
-        'request': 'submit',
-        'order_id': orderId,
-        'currency': 'GHS',
-        'amount': totalAmount.toStringAsFixed(2),
-        'order_desc': orderDesc,
-        'payment_method': paymentMethod,
-        'payment_type': 'cash_on_delivery',
-        'user_id': userId,
-        'account_number': userId,
-        'redirect_url': 'http://eclcommerce.test/complete',
-        'items': items
-            .map((item) => {
-                  'product_id': int.tryParse(item['productId'] ?? '0') ?? 0,
-                  'product_name': item['name'] ?? 'Unknown Product',
-                  'product_img': item['imageUrl'] ?? '',
-                  'qty': item['quantity'] ?? 1,
-                  'price': (item['price'] ?? 0.0).toDouble(),
-                  'batch_no': item['batchNo'] ?? '',
-                })
-            .toList(),
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-      };
-
-      // Add promo code if applied
-      if (promoCode != null && promoCode.isNotEmpty) {
-        requestBody['promo_code'] = promoCode;
-      }
-
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/expresspayment'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(requestBody),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-
-        // Check if the response contains errors
-        if (data is Map<String, dynamic> && data.containsKey('errors')) {
-          return await _storeCashOnDeliveryOrderLocally(
-            items: items,
-            totalAmount: totalAmount,
-            orderId: orderId,
-            paymentMethod: paymentMethod,
-            promoCode: promoCode,
-          );
-        }
-
-        return {
-          'status': 'success',
-          'message': 'Order created successfully',
-          'data': data,
-        };
-      } else {
-        // If backend doesn't support cash on delivery orders, store locally
-        return await _storeCashOnDeliveryOrderLocally(
-          items: items,
-          totalAmount: totalAmount,
-          orderId: orderId,
-          paymentMethod: paymentMethod,
-          promoCode: promoCode,
-        );
-      }
-    } catch (e) {
-      // Fallback to local storage
       return await _storeCashOnDeliveryOrderLocally(
         items: items,
         totalAmount: totalAmount,
@@ -1239,10 +1232,14 @@ class AuthService {
         paymentMethod: paymentMethod,
         promoCode: promoCode,
       );
+    } catch (e) {
+      return {
+        'status': 'error',
+        'message': 'Failed to create COD order: $e',
+      };
     }
   }
 
-  /// Store cash on delivery order locally as fallback
   static Future<Map<String, dynamic>> _storeCashOnDeliveryOrderLocally({
     required List<Map<String, dynamic>> items,
     required double totalAmount,
@@ -1256,39 +1253,76 @@ class AuthService {
         return {'status': 'error', 'message': 'User ID not found'};
       }
 
-      // Create order data
-      final orderData = {
-        'user_id': userId,
+      final now = DateTime.now();
+      final timestamp = now.toIso8601String();
+
+      // Create individual order items for each product (similar to server structure)
+      final orderItems = items
+          .map((item) => {
+                'id':
+                    DateTime.now().millisecondsSinceEpoch + items.indexOf(item),
+                'user_id': userId,
+                'delivery_id': orderId,
+                'payment_type': paymentMethod,
+                'product_name': item['name'] ?? 'Unknown Product',
+                'product_id': int.tryParse(item['productId'] ?? '0') ?? 0,
+                'product_img': item['imageUrl'] ?? '',
+                'batch_no': item['batchNo'] ?? '',
+                'restricted': null,
+                'served_by': null,
+                'refill': null,
+                'price': (item['price'] ?? 0.0).toDouble(),
+                'qty': item['quantity'] ?? 1,
+                'total_price': ((item['price'] ?? 0.0).toDouble() *
+                    (item['quantity'] ?? 1)),
+                'status': 'Order Placed',
+                'created_at': timestamp, // Use same timestamp for all items
+                'updated_at': timestamp,
+              })
+          .toList();
+
+      // Store the grouped order as a single entity
+      final groupedOrder = {
         'order_id': orderId,
-        'transaction_id': orderId,
         'delivery_id': orderId,
+        'transaction_id': orderId,
+        'user_id': userId,
+        'payment_type': paymentMethod,
         'payment_method': paymentMethod,
-        'status': 'processing',
         'total_price': totalAmount,
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-        'items': items
-            .map((item) => {
-                  'product_name': item['name'] ?? 'Unknown Product',
-                  'product_img': item['imageUrl'] ?? '',
-                  'qty': item['quantity'] ?? 1,
-                  'price': (item['price'] ?? 0.0).toDouble(),
-                  'batch_no': item['batchNo'] ?? '',
-                })
-            .toList(),
+        'status': 'Order Placed',
+        'created_at': timestamp,
+        'updated_at': timestamp,
+        'items': orderItems,
+        'is_multi_item': items.length > 1,
+        'item_count': items.length,
       };
 
-      // Store in secure storage
-      final orderKey = 'local_order_$orderId';
+      // Store the grouped order
+      final orderKey = 'local_grouped_order_$orderId';
       await _secureStorage.write(
         key: orderKey,
-        value: jsonEncode(orderData),
+        value: jsonEncode(groupedOrder),
       );
+
+      // Also store individual items for backward compatibility
+      for (final orderItem in orderItems) {
+        final itemKey = 'local_order_${orderId}_${orderItem['id']}';
+        await _secureStorage.write(
+          key: itemKey,
+          value: jsonEncode(orderItem),
+        );
+      }
 
       return {
         'status': 'success',
-        'message': 'Order stored locally successfully',
-        'data': orderData,
+        'message': 'COD order stored locally successfully',
+        'data': {
+          'order_id': orderId,
+          'items': orderItems,
+          'total_amount': totalAmount,
+          'payment_method': paymentMethod,
+        },
       };
     } catch (e) {
       return {
@@ -1309,15 +1343,76 @@ class AuthService {
 
       final allKeys = await _secureStorage.readAll();
       final localOrders = <Map<String, dynamic>>[];
+      final processedOrderIds = <String>{};
+
+      // First, look for grouped orders
+      for (final entry in allKeys.entries) {
+        if (entry.key.startsWith('local_grouped_order_')) {
+          try {
+            final orderData = jsonDecode(entry.value);
+            if (orderData['user_id'] == userId) {
+              localOrders.add(orderData);
+              processedOrderIds.add(orderData['order_id'] ?? '');
+            }
+          } catch (e) {
+            // Skip invalid entries
+          }
+        }
+      }
+
+      // Then, look for individual items and group them by delivery_id
+      final individualItems = <String, List<Map<String, dynamic>>>{};
 
       for (final entry in allKeys.entries) {
         if (entry.key.startsWith('local_order_')) {
           try {
             final orderData = jsonDecode(entry.value);
             if (orderData['user_id'] == userId) {
-              localOrders.add(orderData);
+              final deliveryId =
+                  orderData['delivery_id'] ?? orderData['order_id'] ?? '';
+
+              // Only process individual items if we don't already have a grouped order for this deliveryId
+              if (!processedOrderIds.contains(deliveryId)) {
+                if (!individualItems.containsKey(deliveryId)) {
+                  individualItems[deliveryId] = [];
+                }
+                individualItems[deliveryId]!.add(orderData);
+              }
             }
-          } catch (e) {}
+          } catch (e) {
+            // Skip invalid entries
+          }
+        }
+      }
+
+      // Convert grouped individual items to grouped orders
+      for (final entry in individualItems.entries) {
+        final deliveryId = entry.key;
+        final items = entry.value;
+
+        if (items.isNotEmpty) {
+          final firstItem = items.first;
+          final totalAmount = items.fold<double>(0.0, (sum, item) {
+            return sum + ((item['total_price'] ?? 0.0).toDouble());
+          });
+
+          final groupedOrder = {
+            'order_id': deliveryId,
+            'delivery_id': deliveryId,
+            'transaction_id': deliveryId,
+            'user_id': firstItem['user_id'],
+            'payment_type': firstItem['payment_type'],
+            'payment_method': firstItem['payment_type'],
+            'total_price': totalAmount,
+            'status': firstItem['status'] ?? 'Order Placed',
+            'created_at': firstItem['created_at'],
+            'updated_at': firstItem['updated_at'],
+            'items': items,
+            'is_multi_item': items.length > 1,
+            'item_count': items.length,
+          };
+
+          localOrders.add(groupedOrder);
         }
       }
 

@@ -25,6 +25,11 @@ import 'package:eclapp/pages/cart.dart' as cart;
 import 'package:eclapp/pages/upload_prescription.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:share_plus/share_plus.dart';
+
+// Cache for product details
+final Map<String, Product> _productCache = {};
+final Map<String, List<Product>> _relatedProductsCache = {};
 
 class ItemPage extends StatefulWidget {
   final String urlName;
@@ -40,16 +45,92 @@ class ItemPage extends StatefulWidget {
   State<ItemPage> createState() => _ItemPageState();
 }
 
-class _ItemPageState extends State<ItemPage> {
+class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   late Future<Product> _productFuture;
+  late Future<List<Product>> _relatedProductsFuture;
   int quantity = 1;
   final uuid = Uuid();
   bool isDescriptionExpanded = false;
+  PageController? _imagePageController;
+  int _currentImageIndex = 0;
+  List<String> _productImages = [];
+
+  // Animation controllers
+  late AnimationController _fadeController;
+  late AnimationController _scaleController;
 
   @override
   void initState() {
     super.initState();
-    _productFuture = fetchProductDetails(widget.urlName);
+    _imagePageController = PageController();
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _scaleController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+
+    // Load data concurrently
+    _productFuture = _fetchProductDetailsWithCache(widget.urlName);
+    _relatedProductsFuture = _fetchRelatedProductsWithCache(widget.urlName);
+  }
+
+  @override
+  void dispose() {
+    _imagePageController?.dispose();
+    _fadeController.dispose();
+    _scaleController.dispose();
+    super.dispose();
+  }
+
+  // Enhanced product fetching with caching
+  Future<Product> _fetchProductDetailsWithCache(String urlName) async {
+    // Check cache first
+    if (_productCache.containsKey(urlName)) {
+      return _productCache[urlName]!;
+    }
+
+    try {
+      final product = await fetchProductDetails(urlName);
+
+      // Cache the result
+      _productCache[urlName] = product;
+
+      // Extract images for gallery
+      if (product.thumbnail.isNotEmpty) {
+        _productImages = [product.thumbnail];
+        // You can add more images here if available in the API response
+      }
+
+      return product;
+    } catch (e) {
+      // Remove from cache if there's an error
+      _productCache.remove(urlName);
+      rethrow;
+    }
+  }
+
+  // Enhanced related products fetching with caching
+  Future<List<Product>> _fetchRelatedProductsWithCache(String urlName) async {
+    // Check cache first
+    if (_relatedProductsCache.containsKey(urlName)) {
+      return _relatedProductsCache[urlName]!;
+    }
+
+    try {
+      final products = await fetchRelatedProducts(urlName);
+
+      // Cache the result
+      _relatedProductsCache[urlName] = products;
+
+      return products;
+    } catch (e) {
+      // Remove from cache if there's an error
+      _relatedProductsCache.remove(urlName);
+      return [];
+    }
   }
 
   void _addToCart(BuildContext context, Product product) async {
@@ -71,13 +152,50 @@ class _ItemPageState extends State<ItemPage> {
       cartProvider.addToCart(cartItem);
 
       if (mounted) {
-        showTopSnackBar(context, '${product.name} has been added to cart');
+        _showSuccessSnackBar(context, '${product.name} has been added to cart');
+        _scaleController.forward().then((_) => _scaleController.reverse());
       }
     } catch (e) {
       if (mounted) {
-        showTopSnackBar(context, 'Error adding item to cart: $e');
+        _showErrorSnackBar(context, 'Error adding item to cart: $e');
       }
     }
+  }
+
+  void _showSuccessSnackBar(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white, size: 20),
+            SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.green.shade600,
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.white, size: 20),
+            SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.red.shade600,
+        duration: Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
   }
 
   Future<Product> fetchProductDetails(String urlName) async {
@@ -268,60 +386,6 @@ class _ItemPageState extends State<ItemPage> {
     }
   }
 
-  void showTopSnackBar(BuildContext context, String message,
-      {Duration? duration}) {
-    final overlay = Overlay.of(context);
-    late final OverlayEntry overlayEntry;
-
-    overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        top: MediaQuery.of(context).padding.top + 50,
-        left: 20,
-        right: 20,
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.green[900],
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Text(
-              message,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
-      ),
-    );
-
-    overlay.insert(overlayEntry);
-    Future.delayed(duration ?? const Duration(seconds: 2), () {
-      overlayEntry.remove();
-    });
-  }
-
-  void _showConfirmationSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.green.shade600,
-        duration: Duration(seconds: 1),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -381,6 +445,7 @@ class _ItemPageState extends State<ItemPage> {
           },
         ),
         actions: [
+          // Cart button
           Container(
             margin: EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
@@ -398,59 +463,22 @@ class _ItemPageState extends State<ItemPage> {
       body: RefreshIndicator(
         onRefresh: () async {
           setState(() {
-            _productFuture = fetchProductDetails(widget.urlName);
+            _productFuture = _fetchProductDetailsWithCache(widget.urlName);
+            _relatedProductsFuture =
+                _fetchRelatedProductsWithCache(widget.urlName);
           });
           await _productFuture;
+          await _relatedProductsFuture;
         },
         child: FutureBuilder<Product>(
           future: _productFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return _buildLoadingSkeleton();
             }
 
             if (snapshot.hasError) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 48,
-                      color: Colors.grey[400],
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Product details not available',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _productFuture = fetchProductDetails(widget.urlName);
-                        });
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text('Try Again'),
-                    ),
-                  ],
-                ),
-              );
+              return _buildErrorState(snapshot.error.toString());
             }
 
             final product = snapshot.data!;
@@ -460,414 +488,20 @@ class _ItemPageState extends State<ItemPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Product Image with Hero animation
-                  Hero(
-                    tag: 'product-image-${product.id}',
-                    child: Animate(
-                      effects: [
-                        FadeEffect(duration: 400.ms),
-                        SlideEffect(
-                            duration: 400.ms,
-                            begin: Offset(0, 0.1),
-                            end: Offset(0, 0))
-                      ],
-                      child: Center(
-                        child: Container(
-                          height: 250,
-                          width: 250,
-                          margin: const EdgeInsets.symmetric(vertical: 8),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.08),
-                                blurRadius: 16,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: product.thumbnail.isNotEmpty
-                                ? CachedNetworkImage(
-                                    imageUrl: product.thumbnail,
-                                    fit: BoxFit.cover,
-                                    placeholder: (context, url) => Container(
-                                      color: Colors.grey[200],
-                                      child: const Center(
-                                          child: CircularProgressIndicator()),
-                                    ),
-                                    errorWidget: (context, url, error) =>
-                                        Container(
-                                      color: Colors.grey[200],
-                                      child: Icon(Icons.medical_services,
-                                          size: 60),
-                                    ),
-                                  )
-                                : Container(
-                                    color: Colors.grey[200],
-                                    child: const Icon(Icons.medical_services,
-                                        size: 60),
-                                  ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Glassmorphic Product Info Card
-                  Animate(
-                    effects: [
-                      FadeEffect(duration: 400.ms, delay: 100.ms),
-                      SlideEffect(
-                          duration: 400.ms,
-                          begin: Offset(0, 0.1),
-                          end: Offset(0, 0),
-                          delay: 100.ms)
-                    ],
-                    child: Center(
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 320),
-                        margin: const EdgeInsets.symmetric(
-                            vertical: 4, horizontal: 8),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.08),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.85),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                    color: Colors.white.withOpacity(0.3)),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (product.category.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 6),
-                                      child: Chip(
-                                        label: Text(
-                                          product.category,
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w500,
-                                              fontSize: 11),
-                                        ),
-                                        backgroundColor: theme.primaryColor,
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 2),
-                                      ),
-                                    ),
-                                  Text(
-                                    product.name,
-                                    style: theme.textTheme.titleLarge?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
-                                        fontSize: 16),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'GHS ${double.parse(product.price).toStringAsFixed(2)}',
-                                    style: theme.textTheme.titleLarge?.copyWith(
-                                        color: Colors.green.shade800,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  if (!widget.isPrescribed &&
-                                      product.description.isNotEmpty)
-                                    ProductDescription(
-                                        description: product.description),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Floating Quantity Selector
-                  Animate(
-                    effects: [
-                      FadeEffect(duration: 400.ms, delay: 200.ms),
-                      SlideEffect(
-                          duration: 400.ms,
-                          begin: Offset(0, 0.1),
-                          end: Offset(0, 0),
-                          delay: 200.ms)
-                    ],
-                    child: Center(
-                      child: Material(
-                        elevation: 3,
-                        borderRadius: BorderRadius.circular(6),
-                        color: Colors.transparent,
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 4),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 2, vertical: 0),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(6),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                            border: Border.all(color: Colors.green.shade100),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.remove,
-                                    color: Colors.black, size: 16),
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(
-                                    minWidth: 28, minHeight: 28),
-                                onPressed: () {
-                                  setState(() {
-                                    if (quantity > 1) {
-                                      quantity--;
-                                    } else {
-                                      showTopSnackBar(context,
-                                          'Quantity cannot be less than 1');
-                                    }
-                                  });
-                                },
-                              ),
-                              Text(
-                                quantity.toString(),
-                                style: const TextStyle(
-                                    color: Colors.black,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.add,
-                                    color: Colors.black, size: 16),
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(
-                                    minWidth: 28, minHeight: 28),
-                                onPressed: () {
-                                  setState(() {
-                                    quantity++;
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Add to Cart Button
-                  Animate(
-                    effects: [
-                      FadeEffect(duration: 400.ms, delay: 300.ms),
-                      SlideEffect(
-                          duration: 400.ms,
-                          begin: Offset(0, 0.1),
-                          end: Offset(0, 0),
-                          delay: 300.ms)
-                    ],
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 8.0, horizontal: 16.0),
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 45,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.green.shade600,
-                                Colors.green.shade800
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(25),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.green.shade200.withOpacity(0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              if (widget.isPrescribed) {
-                                // Prescription upload logic (keep login check if needed)
-                                final token = await AuthService.getToken();
-                                if (token == null) {
-                                  _showConfirmationSnackbar(
-                                      "Please log in to continue");
-                                  return;
-                                }
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        PrescriptionUploadPage(
-                                      token: token,
-                                      item: {
-                                        'product': {
-                                          'name': product.name,
-                                          'thumbnail': product.thumbnail,
-                                          'id': product.id,
-                                        },
-                                        'price': product.price,
-                                        'batch_no': product.batch_no,
-                                      },
-                                    ),
-                                  ),
-                                );
-                              } else {
-                                // Regular product, add to cart (no login required)
-                                _addToCart(context, product);
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(25),
-                              ),
-                              elevation: 0,
-                              backgroundColor: widget.isPrescribed
-                                  ? Colors.red[600]
-                                  : Colors.transparent,
-                              shadowColor: Colors.transparent,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                if (widget.isPrescribed) ...[
-                                  Icon(Icons.medical_services_outlined,
-                                      color: Colors.white, size: 20),
-                                  SizedBox(width: 6),
-                                ],
-                                Text(
-                                  widget.isPrescribed
-                                      ? 'Upload Prescription'
-                                      : 'Add to Cart  •  GHS ${double.parse(product.price) * quantity}',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                      color: Colors.white),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  // Related Products Carousel
-                  Animate(
-                    effects: [
-                      FadeEffect(duration: 400.ms, delay: 400.ms),
-                      SlideEffect(
-                          duration: 400.ms,
-                          begin: Offset(0, 0.1),
-                          end: Offset(0, 0),
-                          delay: 400.ms)
-                    ],
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              'Related Products',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        FutureBuilder<List<Product>>(
-                          future: fetchRelatedProducts(product.urlName),
-                          builder: (context, relatedSnapshot) {
-                            if (relatedSnapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return SizedBox(
-                                height: 180,
-                                child: ListView.builder(
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: 3,
-                                  itemBuilder: (context, index) => Container(
-                                    width: 140,
-                                    margin: const EdgeInsets.symmetric(
-                                        horizontal: 6, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[200],
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }
-                            if (relatedSnapshot.hasError) {
-                              return const Padding(
-                                padding: EdgeInsets.all(16.0),
-                                child: Text('Failed to load related products',
-                                    style: TextStyle(color: Colors.red)),
-                              );
-                            }
-                            final relatedProducts = relatedSnapshot.data ?? [];
-                            if (relatedProducts.isEmpty) {
-                              return Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Row(
-                                  children: const [
-                                    Icon(Icons.info_outline,
-                                        color: Colors.grey, size: 18),
-                                    SizedBox(width: 6),
-                                    Text('No related products found.',
-                                        style: TextStyle(
-                                            color: Colors.grey, fontSize: 13)),
-                                  ],
-                                ),
-                              );
-                            }
-                            return SizedBox(
-                              height: 180,
-                              child: ListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: relatedProducts.length,
-                                itemBuilder: (context, index) =>
-                                    _buildRelatedProductCard(
-                                        relatedProducts[index], context),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
+                  // Enhanced Product Image Gallery
+                  _buildProductImageGallery(product),
+
+                  // Product Info Card
+                  _buildProductInfoCard(product, theme),
+
+                  // Quantity Selector
+                  _buildQuantitySelector(),
+
+                  // Action Buttons
+                  _buildActionButtons(product),
+
+                  // Related Products
+                  _buildRelatedProductsSection(product),
                 ],
               ),
             );
@@ -880,147 +514,721 @@ class _ItemPageState extends State<ItemPage> {
     );
   }
 
-  Widget _buildRelatedProductCard(Product product, BuildContext context) {
-    final imageUrl = product.thumbnail.startsWith('http')
-        ? product.thumbnail
-        : 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/${product.thumbnail}';
-    final inStock = (int.tryParse(product.quantity) ?? 0) > 0;
-    return GestureDetector(
-      onTap: () {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ItemPage(urlName: product.urlName),
-          ),
-        );
-      },
-      child: Animate(
-        effects: [
-          ScaleEffect(
-            duration: 120.ms,
-            begin: const Offset(1, 1),
-            end: const Offset(1.03, 1.03),
-            curve: Curves.easeOut,
-          ),
-        ],
-        child: SizedBox(
-          height: 200,
-          width: 140,
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.green.shade50,
-                  Colors.white,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+  Widget _buildLoadingSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // Image skeleton
+            Container(
+              height: 250,
+              width: 250,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
               ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            SizedBox(height: 20),
+
+            // Product info skeleton
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(height: 20, width: 150, color: Colors.white),
+                  SizedBox(height: 8),
+                  Container(height: 24, width: 100, color: Colors.white),
+                  SizedBox(height: 16),
+                  Container(
+                      height: 16, width: double.infinity, color: Colors.white),
+                  SizedBox(height: 8),
+                  Container(height: 16, width: 200, color: Colors.white),
+                ],
+              ),
+            ),
+
+            SizedBox(height: 20),
+
+            // Quantity selector skeleton
+            Container(
+              height: 40,
+              width: 120,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+
+            SizedBox(height: 20),
+
+            // Button skeleton
+            Container(
+              height: 50,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(25),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _getErrorIcon(error),
+              size: 64,
+              color: _getErrorColor(error),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Oops! Something went wrong',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[800],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 8),
+            Text(
+              _getErrorMessage(error),
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                // Image section
-                SizedBox(
-                  height: 70,
-                  child: Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(16)),
-                        child: product.thumbnail.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: imageUrl,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
-                                    color: Colors.grey[200],
-                                    child: const Center(
-                                        child: CircularProgressIndicator())),
-                                errorWidget: (context, url, error) => Container(
-                                  color: Colors.grey[200],
-                                  child: Icon(Icons.medical_services, size: 60),
-                                ),
-                              )
-                            : Container(
-                                color: Colors.grey[200],
-                                child: const Icon(Icons.medical_services,
-                                    size: 60),
-                              ),
-                      ),
-                      Positioned(
-                        top: 4,
-                        right: 4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: inStock
-                                ? Colors.green.withOpacity(0.85)
-                                : Colors.red.withOpacity(0.85),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            inStock ? 'In Stock' : 'Out of Stock',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 8,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                ElevatedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _productFuture =
+                          _fetchProductDetailsWithCache(widget.urlName);
+                      _relatedProductsFuture =
+                          _fetchRelatedProductsWithCache(widget.urlName);
+                    });
+                  },
+                  icon: Icon(Icons.refresh),
+                  label: Text('Try Again'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green.shade600,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
-                // Content section
-                Expanded(
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          product.name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 11,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'GHS ${product.price}',
-                          style: TextStyle(
-                            color: Colors.green.shade800,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
-                            letterSpacing: 0.1,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: Icon(Icons.arrow_back),
+                  label: Text('Go Back'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.grey[600],
+                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                 ),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductImageGallery(Product product) {
+    return Animate(
+      effects: [
+        FadeEffect(duration: 400.ms),
+        SlideEffect(duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
+      ],
+      child: Container(
+        height: 260,
+        margin: EdgeInsets.symmetric(vertical: 4),
+        child: Stack(
+          children: [
+            // Image PageView
+            PageView.builder(
+              controller: _imagePageController,
+              onPageChanged: (index) {
+                setState(() {
+                  _currentImageIndex = index;
+                });
+              },
+              itemCount: _productImages.isNotEmpty ? _productImages.length : 1,
+              itemBuilder: (context, index) {
+                final imageUrl = _productImages.isNotEmpty
+                    ? _productImages[index]
+                    : product.thumbnail;
+
+                return Center(
+                  child: Container(
+                    height: 240,
+                    width: 240,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Hero(
+                        tag: 'product-image-${product.id}',
+                        child: imageUrl.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: imageUrl,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => Container(
+                                  color: Colors.grey[200],
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.green.shade600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                errorWidget: (context, url, error) => Container(
+                                  color: Colors.grey[200],
+                                  child: Icon(
+                                    Icons.medical_services,
+                                    size: 60,
+                                    color: Colors.grey[400],
+                                  ),
+                                ),
+                              )
+                            : Container(
+                                color: Colors.grey[200],
+                                child: Icon(
+                                  Icons.medical_services,
+                                  size: 60,
+                                  color: Colors.grey[400],
+                                ),
+                              ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            // Image indicators
+            if (_productImages.length > 1)
+              Positioned(
+                bottom: 12,
+                left: 0,
+                right: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(
+                    _productImages.length,
+                    (index) => Container(
+                      width: 8,
+                      height: 8,
+                      margin: EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _currentImageIndex == index
+                            ? Colors.green.shade600
+                            : Colors.white.withOpacity(0.5),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductInfoCard(Product product, ThemeData theme) {
+    return Animate(
+      effects: [
+        FadeEffect(duration: 400.ms, delay: 100.ms),
+        SlideEffect(
+            duration: 400.ms,
+            begin: Offset(0, 0.1),
+            end: Offset(0, 0),
+            delay: 100.ms)
+      ],
+      child: Container(
+        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Category chip
+              if (product.category.isNotEmpty)
+                Container(
+                  margin: EdgeInsets.only(bottom: 12),
+                  child: Chip(
+                    label: Text(
+                      product.category,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
+                      ),
+                    ),
+                    backgroundColor: Colors.green.shade600,
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  ),
+                ),
+
+              // Product name
+              Text(
+                product.name,
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+
+              SizedBox(height: 8),
+
+              // Price
+              Row(
+                children: [
+                  Text(
+                    'GHS ${double.parse(product.price).toStringAsFixed(2)}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green.shade800,
+                    ),
+                  ),
+                ],
+              ),
+
+              SizedBox(height: 16),
+
+              // Description
+              if (!widget.isPrescribed && product.description.isNotEmpty)
+                ProductDescription(description: product.description),
+            ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildQuantitySelector() {
+    return Animate(
+      effects: [
+        FadeEffect(duration: 400.ms, delay: 300.ms),
+        SlideEffect(
+            duration: 400.ms,
+            begin: Offset(0, 0.1),
+            end: Offset(0, 0),
+            delay: 300.ms)
+      ],
+      child: Container(
+        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Quantity',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            SizedBox(height: 12),
+            Row(
+              children: [
+                // Quantity controls
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.remove,
+                            color: Colors.grey.shade700, size: 20),
+                        onPressed: () {
+                          setState(() {
+                            if (quantity > 1) {
+                              quantity--;
+                            } else {
+                              _showErrorSnackBar(
+                                  context, 'Quantity cannot be less than 1');
+                            }
+                          });
+                        },
+                      ),
+                      Container(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Text(
+                          quantity.toString(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.add,
+                            color: Colors.green.shade600, size: 20),
+                        onPressed: () {
+                          setState(() {
+                            quantity++;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                Spacer(),
+                // Total price
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: FutureBuilder<Product>(
+                    future: _productFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        final totalPrice =
+                            double.parse(snapshot.data!.price) * quantity;
+                        return Text(
+                          'Total: GHS ${totalPrice.toStringAsFixed(2)}',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green.shade800,
+                          ),
+                        );
+                      }
+                      return Text(
+                        'Total: GHS 0.00',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green.shade800,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(Product product) {
+    return Animate(
+      effects: [
+        FadeEffect(duration: 400.ms, delay: 400.ms),
+        SlideEffect(
+            duration: 400.ms,
+            begin: Offset(0, 0.1),
+            end: Offset(0, 0),
+            delay: 400.ms)
+      ],
+      child: Container(
+        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.green.shade600, Colors.green.shade800],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(25),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.green.shade200.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: ElevatedButton(
+              onPressed: () async {
+                if (widget.isPrescribed) {
+                  final token = await AuthService.getToken();
+                  if (token == null) {
+                    _showErrorSnackBar(context, "Please log in to continue");
+                    return;
+                  }
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => PrescriptionUploadPage(
+                        token: token,
+                        item: {
+                          'product': {
+                            'name': product.name,
+                            'thumbnail': product.thumbnail,
+                            'id': product.id,
+                          },
+                          'price': product.price,
+                          'batch_no': product.batch_no,
+                        },
+                      ),
+                    ),
+                  );
+                } else {
+                  _addToCart(context, product);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                elevation: 0,
+                backgroundColor:
+                    widget.isPrescribed ? Colors.red[600] : Colors.transparent,
+                shadowColor: Colors.transparent,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (widget.isPrescribed) ...[
+                    Icon(Icons.medical_services_outlined,
+                        color: Colors.white, size: 20),
+                    SizedBox(width: 8),
+                  ],
+                  Text(
+                    widget.isPrescribed ? 'Upload Prescription' : 'Add to Cart',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRelatedProductsSection(Product product) {
+    return Animate(
+      effects: [
+        FadeEffect(duration: 400.ms, delay: 500.ms),
+        SlideEffect(
+            duration: 400.ms,
+            begin: Offset(0, 0.1),
+            end: Offset(0, 0),
+            delay: 500.ms)
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Icon(Icons.local_offer, color: Colors.green.shade600, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'Related Products',
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 8),
+          FutureBuilder<List<Product>>(
+            future: _relatedProductsFuture,
+            builder: (context, relatedSnapshot) {
+              if (relatedSnapshot.connectionState == ConnectionState.waiting) {
+                return _buildRelatedProductsSkeleton();
+              }
+
+              if (relatedSnapshot.hasError) {
+                return _buildEmptyState(
+                  icon: Icons.error_outline,
+                  title: 'Failed to load related products',
+                  message: 'Please try again later',
+                  color: Colors.red.shade400,
+                );
+              }
+
+              final relatedProducts = relatedSnapshot.data ?? [];
+              if (relatedProducts.isEmpty) {
+                return _buildEmptyState(
+                  icon: Icons.local_offer_outlined,
+                  title: 'No related products',
+                  message:
+                      'We couldn\'t find any related products at the moment',
+                  color: Colors.grey.shade400,
+                );
+              }
+
+              return SizedBox(
+                height: 200,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: relatedProducts.length,
+                  itemBuilder: (context, index) =>
+                      _buildRelatedProductCard(relatedProducts[index], context),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRelatedProductsSkeleton() {
+    return SizedBox(
+      height: 200,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(horizontal: 16),
+        itemCount: 3,
+        itemBuilder: (context, index) => Container(
+          width: 150,
+          margin: EdgeInsets.only(right: 12),
+          child: Shimmer.fromColors(
+            baseColor: Colors.grey[300]!,
+            highlightColor: Colors.grey[100]!,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String message,
+    required Color color,
+  }) {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 48, color: color),
+          SizedBox(height: 12),
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 4),
+          Text(
+            message,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getErrorMessage(String error) {
+    if (error.contains('timed out') || error.contains('SocketException')) {
+      return 'Please check your internet connection and try again.';
+    } else if (error.contains('404')) {
+      return 'This product could not be found.';
+    } else if (error.contains('500')) {
+      return 'Our servers are experiencing issues. Please try again later.';
+    }
+    return 'An unexpected error occurred. Please try again.';
   }
 
   IconData _getErrorIcon(String error) {
@@ -1043,6 +1251,124 @@ class _ItemPageState extends State<ItemPage> {
       return Colors.red;
     }
     return Colors.red;
+  }
+
+  Widget _buildRelatedProductCard(Product product, BuildContext context) {
+    final imageUrl = product.thumbnail.startsWith('http')
+        ? product.thumbnail
+        : 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/${product.thumbnail}';
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ItemPage(urlName: product.urlName),
+          ),
+        );
+      },
+      child: Animate(
+        effects: [
+          ScaleEffect(
+            duration: 120.ms,
+            begin: const Offset(1, 1),
+            end: const Offset(1.03, 1.03),
+            curve: Curves.easeOut,
+          ),
+        ],
+        child: Container(
+          width: 150,
+          margin: EdgeInsets.only(right: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Image section
+              SizedBox(
+                height: 100,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                  child: product.thumbnail.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
+                            color: Colors.grey[200],
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.green.shade600,
+                                ),
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            color: Colors.grey[200],
+                            child: Icon(
+                              Icons.medical_services,
+                              size: 40,
+                              color: Colors.grey[400],
+                            ),
+                          ),
+                        )
+                      : Container(
+                          color: Colors.grey[200],
+                          child: Icon(
+                            Icons.medical_services,
+                            size: 40,
+                            color: Colors.grey[400],
+                          ),
+                        ),
+                ),
+              ),
+              // Content section
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        product.name,
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          color: Colors.black87,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'GHS ${product.price}',
+                        style: GoogleFonts.poppins(
+                          color: Colors.green.shade800,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
