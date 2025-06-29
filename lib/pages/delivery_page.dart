@@ -42,9 +42,23 @@ class _DeliveryPageState extends State<DeliveryPage> {
   final GlobalKey regionSectionKey = GlobalKey();
   final GlobalKey citySectionKey = GlobalKey();
   final GlobalKey addressSectionKey = GlobalKey();
-  String? selectedRegion;
-  String? selectedCity;
-  String? selectedPickupSite;
+
+  // API Data for pickup locations
+  List<Map<String, dynamic>> regions = [];
+  List<Map<String, dynamic>> cities = [];
+  List<Map<String, dynamic>> stores = [];
+  bool isLoadingRegions = false;
+  bool isLoadingCities = false;
+  bool isLoadingStores = false;
+
+  // Caching for better performance
+  Map<int, List<Map<String, dynamic>>> _citiesCache = {};
+  Map<int, List<Map<String, dynamic>>> _storesCache = {};
+
+  // Selected values for pickup
+  Map<String, dynamic>? selectedRegion;
+  Map<String, dynamic>? selectedCity;
+  Map<String, dynamic>? selectedPickupSite;
 
   @override
   void dispose() {
@@ -62,6 +76,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
   void initState() {
     super.initState();
     _loadUserData();
+    _loadRegions(); // Load regions when page initializes
   }
 
   Future<void> _loadUserData() async {
@@ -114,18 +129,16 @@ class _DeliveryPageState extends State<DeliveryPage> {
             // Fill notes
             _notesController.text = deliveryData['notes'] ?? '';
           });
-
-          } else {
-          if (deliveryResult['message'] != null) {
-            }
+        } else {
+          if (deliveryResult['message'] != null) {}
         }
       } catch (apiError) {
         // API failed, but we already have basic user data loaded
-        }
+      }
     } catch (e) {
-      // Continue with empty fields if there's an error
+      // Continue with empty fields if there's an error loading user data
     }
-    }
+  }
 
   Future<void> _loadBasicUserData() async {
     try {
@@ -137,8 +150,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
           _phoneController.text = userData['phone'] ?? '';
         });
       }
-    } catch (e) {
-      }
+    } catch (e) {}
   }
 
   double _calculateDeliveryFee(String region, String city) {
@@ -170,7 +182,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
-    final theme = Theme.of(context);
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -741,41 +752,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
   }
 
   Widget _buildPickupForm() {
-    final Map<String, Map<String, List<String>>> pickupLocations = {
-      'Greater Accra': {
-        'Accra': [
-          'Accra Mall',
-          'West Hills Mall',
-          'Achimota Retail Centre',
-          'Osu Mall'
-        ],
-        'Tema': ['Tema Mall', 'Community 25 Station', 'Harbour City Mall']
-      },
-      'Ashanti': {
-        'Kumasi': [
-          'Kumasi City Mall',
-          'Adum Station',
-          'Asokwa Station',
-          'Kejetia Market'
-        ]
-      },
-      'Western': {
-        'Takoradi': ['Takoradi Mall', 'Airport Station', 'Harbour Station']
-      },
-      'Eastern': {
-        'Madina': ['Madina Mall', 'Madina Zongo Junction'],
-        'Koforidua': ['Koforidua Station', 'Jackson Park']
-      },
-      'Central': {
-        'Cape Coast': ['Cape Coast Mall', 'University Station'],
-        'Winneba': ['Winneba Station', 'University of Education']
-      },
-      'Volta': {
-        'Ho': ['Ho Station', 'Volta Regional Hospital'],
-        'Hohoe': ['Hohoe Station', 'Central Market']
-      }
-    };
-
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
@@ -811,6 +787,24 @@ class _DeliveryPageState extends State<DeliveryPage> {
                     letterSpacing: 0.5,
                   ),
                 ),
+                const Spacer(),
+                if (isLoadingRegions)
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Colors.green[600]!),
+                    ),
+                  )
+                else
+                  IconButton(
+                    onPressed: _refreshRegions,
+                    icon:
+                        Icon(Icons.refresh, color: Colors.green[600], size: 20),
+                    tooltip: 'Refresh locations',
+                  ),
               ],
             ),
             const SizedBox(height: 16),
@@ -818,10 +812,10 @@ class _DeliveryPageState extends State<DeliveryPage> {
             _buildPickupDropdown(
               label: 'Select Region',
               value: selectedRegion,
-              items: pickupLocations.keys.map((region) {
+              items: regions.map((region) {
                 return DropdownMenuItem(
                   value: region,
-                  child: Text(region),
+                  child: Text(region['description'] ?? ''),
                 );
               }).toList(),
               onChanged: (value) {
@@ -830,7 +824,11 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   selectedCity = null;
                   selectedPickupSite = null;
                 });
+                if (value != null) {
+                  _loadCities(value['id']);
+                }
               },
+              isLoading: isLoadingRegions,
             ),
             if (selectedRegion != null) ...[
               const SizedBox(height: 16),
@@ -838,10 +836,10 @@ class _DeliveryPageState extends State<DeliveryPage> {
               _buildPickupDropdown(
                 label: 'Select City',
                 value: selectedCity,
-                items: pickupLocations[selectedRegion]!.keys.map((city) {
+                items: cities.map((city) {
                   return DropdownMenuItem(
                     value: city,
-                    child: Text(city),
+                    child: Text(city['description'] ?? ''),
                   );
                 }).toList(),
                 onChanged: (value) {
@@ -849,7 +847,11 @@ class _DeliveryPageState extends State<DeliveryPage> {
                     selectedCity = value;
                     selectedPickupSite = null;
                   });
+                  if (value != null) {
+                    _loadStores(value['id']);
+                  }
                 },
+                isLoading: isLoadingCities,
               ),
             ],
             if (selectedCity != null) ...[
@@ -858,11 +860,10 @@ class _DeliveryPageState extends State<DeliveryPage> {
               _buildPickupDropdown(
                 label: 'Select Pickup Site',
                 value: selectedPickupSite,
-                items:
-                    pickupLocations[selectedRegion]![selectedCity]!.map((site) {
+                items: stores.map((store) {
                   return DropdownMenuItem(
-                    value: site,
-                    child: Text(site),
+                    value: store,
+                    child: Text(store['description'] ?? ''),
                   );
                 }).toList(),
                 onChanged: (value) {
@@ -870,6 +871,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
                     selectedPickupSite = value;
                   });
                 },
+                isLoading: isLoadingStores,
               ),
             ],
             const SizedBox(height: 16),
@@ -938,9 +940,10 @@ class _DeliveryPageState extends State<DeliveryPage> {
 
   Widget _buildPickupDropdown({
     required String label,
-    required String? value,
-    required List<DropdownMenuItem<String>> items,
-    required Function(String?) onChanged,
+    required Map<String, dynamic>? value,
+    required List<DropdownMenuItem<Map<String, dynamic>>> items,
+    required Function(Map<String, dynamic>?) onChanged,
+    bool isLoading = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -974,34 +977,55 @@ class _DeliveryPageState extends State<DeliveryPage> {
             borderRadius: BorderRadius.circular(8),
             color: _highlightPickupField ? Colors.red.shade50 : Colors.grey[50],
           ),
-          child: DropdownButtonFormField<String>(
+          child: DropdownButtonFormField<Map<String, dynamic>>(
             value: value,
             decoration: InputDecoration(
-              prefixIcon: Icon(
-                Icons.location_on_outlined,
-                color: _highlightPickupField ? Colors.red : Colors.grey[600],
-              ),
+              prefixIcon: isLoading
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            _highlightPickupField
+                                ? Colors.red
+                                : (Colors.grey[600] ?? Colors.grey),
+                          ),
+                        ),
+                      ),
+                    )
+                  : Icon(
+                      Icons.location_on_outlined,
+                      color:
+                          _highlightPickupField ? Colors.red : Colors.grey[600],
+                    ),
               border: InputBorder.none,
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
             hint: Text(
-              label,
+              isLoading
+                  ? 'Loading...'
+                  : (items.isEmpty ? 'No options available' : label),
               style: TextStyle(
                 color: Colors.grey[500],
                 fontSize: 14,
               ),
             ),
             items: items,
-            onChanged: (String? newValue) {
-              onChanged(newValue);
-              // Reset highlight when user makes a selection
-              if (_highlightPickupField) {
-                setState(() {
-                  _highlightPickupField = false;
-                });
-              }
-            },
+            onChanged: isLoading
+                ? null
+                : (Map<String, dynamic>? newValue) {
+                    onChanged(newValue);
+                    // Reset highlight when user makes a selection
+                    if (_highlightPickupField) {
+                      setState(() {
+                        _highlightPickupField = false;
+                      });
+                    }
+                  },
             dropdownColor: Colors.white,
             icon: Icon(
               Icons.keyboard_arrow_down,
@@ -1211,25 +1235,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
   }
 
   Widget _buildRegionDropdown() {
-    final List<String> regions = [
-      'Greater Accra',
-      'Ashanti',
-      'Western',
-      'Eastern',
-      'Central',
-      'Volta',
-      'Northern',
-      'Upper East',
-      'Upper West',
-      'Bono',
-      'Bono East',
-      'Ahafo',
-      'Savannah',
-      'North East',
-      'Oti',
-      'Western North',
-    ];
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1264,10 +1269,8 @@ class _DeliveryPageState extends State<DeliveryPage> {
           ),
           child: DropdownButtonFormField<String>(
             key: regionSectionKey,
-            value: _regionController.text.isEmpty ||
-                    !regions.contains(_regionController.text)
-                ? null
-                : _regionController.text,
+            value:
+                _regionController.text.isEmpty ? null : _regionController.text,
             decoration: InputDecoration(
               prefixIcon: Icon(
                 Icons.location_city_outlined,
@@ -1284,11 +1287,11 @@ class _DeliveryPageState extends State<DeliveryPage> {
                 fontSize: 14,
               ),
             ),
-            items: regions.map((String region) {
+            items: regions.map((region) {
               return DropdownMenuItem<String>(
-                value: region,
+                value: region['description'],
                 child: Text(
-                  region,
+                  region['description'],
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey[800],
@@ -1357,7 +1360,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
               required bool isFocused,
               required int? maxLength}) {
             return Text(
-              '${currentLength}/$maxLength',
+              '$currentLength/$maxLength',
               style: TextStyle(
                 color: currentLength == maxLength ? Colors.green : Colors.grey,
                 fontSize: 12,
@@ -1833,9 +1836,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
 
               try {
                 // Save delivery information to API
-                if (deliveryOption == 'delivery') {
-                  } else {
-                  }
                 final saveResult = await DeliveryService.saveDeliveryInfo(
                   name: _nameController.text.trim(),
                   email: _emailController.text.trim(),
@@ -1852,35 +1852,44 @@ class _DeliveryPageState extends State<DeliveryPage> {
                       : null,
                   notes: _notesController.text.trim(),
                   pickupRegion:
-                      deliveryOption == 'pickup' ? selectedRegion : null,
-                  pickupCity: deliveryOption == 'pickup' ? selectedCity : null,
+                      (deliveryOption == 'pickup' && selectedRegion != null)
+                          ? selectedRegion!['description']
+                          : null,
+                  pickupCity:
+                      (deliveryOption == 'pickup' && selectedCity != null)
+                          ? selectedCity!['description']
+                          : null,
                   pickupSite:
-                      deliveryOption == 'pickup' ? selectedPickupSite : null,
+                      (deliveryOption == 'pickup' && selectedPickupSite != null)
+                          ? selectedPickupSite!['description']
+                          : null,
                 );
 
                 if (!saveResult['success']) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Row(
-                        children: [
-                          Icon(Icons.warning_amber_rounded,
-                              color: Colors.white),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                                'Warning: ${saveResult['message'] ?? 'Could not save delivery info, but proceeding with order'}'),
-                          ),
-                        ],
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded,
+                                color: Colors.white),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                  'Warning: ${saveResult['message'] ?? 'Could not save delivery info, but proceeding with order'}'),
+                            ),
+                          ],
+                        ),
+                        backgroundColor: Colors.orange[600],
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        margin: EdgeInsets.all(16),
+                        duration: Duration(seconds: 3),
                       ),
-                      backgroundColor: Colors.orange[600],
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      margin: EdgeInsets.all(16),
-                      duration: Duration(seconds: 3),
-                    ),
-                  );
+                    );
+                  }
 
                   // Continue with order even if API save fails
                   _proceedToPayment();
@@ -1910,95 +1919,100 @@ class _DeliveryPageState extends State<DeliveryPage> {
                 } else {
                   // For pickup, use the selected pickup location
                   String pickupLocation = selectedPickupSite != null
-                      ? '$selectedPickupSite, $selectedCity, $selectedRegion'
-                      : '${selectedCity ?? 'Selected'}, ${selectedRegion ?? 'Location'}';
+                      ? '${selectedPickupSite!['description']}, ${selectedCity!['description']}, ${selectedRegion!['description']}'
+                      : '${selectedCity?['description'] ?? 'Selected'}, ${selectedRegion?['description'] ?? 'Location'}';
                   deliveryAddress = 'Pickup at $pickupLocation';
-                  await prefs.setString('pickup_region', selectedRegion ?? '');
-                  await prefs.setString('pickup_city', selectedCity ?? '');
                   await prefs.setString(
-                      'pickup_site', selectedPickupSite ?? '');
+                      'pickup_region', selectedRegion?['description'] ?? '');
+                  await prefs.setString(
+                      'pickup_city', selectedCity?['description'] ?? '');
+                  await prefs.setString(
+                      'pickup_site', selectedPickupSite?['description'] ?? '');
                 }
 
                 await prefs.setString('delivery_address', deliveryAddress);
 
-                // Print saved information for verification
-                if (deliveryOption == 'delivery') {
-                  } else {
-                  }
                 // Show success message in the middle of the screen
-                OverlayEntry overlayEntry = OverlayEntry(
-                  builder: (context) => Positioned(
-                    top: MediaQuery.of(context).size.height / 2 - 50,
-                    left: 16,
-                    right: 16,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.green[600],
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
-                              blurRadius: 8,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.check_circle, color: Colors.white),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Delivery information saved successfully',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
+                if (mounted) {
+                  OverlayEntry overlayEntry = OverlayEntry(
+                    builder: (context) => Positioned(
+                      top: MediaQuery.of(context).size.height / 2 - 50,
+                      left: 16,
+                      right: 16,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.green[600],
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 8,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.check_circle, color: Colors.white),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Delivery information saved successfully',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
+                  );
 
-                Overlay.of(context).insert(overlayEntry);
+                  Overlay.of(context).insert(overlayEntry);
 
-                // Remove the overlay after 2 seconds
-                Future.delayed(Duration(seconds: 2), () {
-                  overlayEntry.remove();
-                });
+                  // Remove the overlay after 2 seconds
+                  Future.delayed(Duration(seconds: 2), () {
+                    if (mounted) {
+                      overlayEntry.remove();
+                    }
+                  });
+                }
 
                 // Navigate to payment page with delivery details
                 _proceedToPayment();
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        Icon(Icons.warning_amber_rounded, color: Colors.white),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                              'Warning: Could not save delivery info, but proceeding with order'),
-                        ),
-                      ],
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(Icons.warning_amber_rounded,
+                              color: Colors.white),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                                'Warning: Could not save delivery info, but proceeding with order'),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: Colors.orange[600],
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      margin: EdgeInsets.all(16),
+                      duration: Duration(seconds: 3),
                     ),
-                    backgroundColor: Colors.orange[600],
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    margin: EdgeInsets.all(16),
-                    duration: Duration(seconds: 3),
-                  ),
-                );
+                  );
+                }
 
                 // Continue with order even if there's an exception
                 _proceedToPayment();
@@ -2048,8 +2062,8 @@ class _DeliveryPageState extends State<DeliveryPage> {
     } else {
       // For pickup, use the selected pickup location
       String pickupLocation = selectedPickupSite != null
-          ? '$selectedPickupSite, $selectedCity, $selectedRegion'
-          : '${selectedCity ?? 'Selected'}, ${selectedRegion ?? 'Location'}';
+          ? '${selectedPickupSite!['description']}, ${selectedCity!['description']}, ${selectedRegion!['description']}'
+          : '${selectedCity?['description'] ?? 'Selected'}, ${selectedRegion?['description'] ?? 'Location'}';
       deliveryAddress = 'Pickup at $pickupLocation';
     }
 
@@ -2064,5 +2078,169 @@ class _DeliveryPageState extends State<DeliveryPage> {
         ),
       ),
     );
+  }
+
+  /// Load regions from API
+  Future<void> _loadRegions() async {
+    setState(() {
+      isLoadingRegions = true;
+    });
+
+    try {
+      final result = await DeliveryService.getRegions()
+          .timeout(const Duration(seconds: 5)); // Reduced timeout
+      if (result['success'] && mounted) {
+        setState(() {
+          regions = List<Map<String, dynamic>>.from(result['data']);
+          isLoadingRegions = false;
+        });
+      } else {
+        setState(() {
+          isLoadingRegions = false;
+        });
+        print('Failed to load regions: ${result['message']}');
+      }
+    } catch (e) {
+      setState(() {
+        isLoadingRegions = false;
+      });
+      print('Error loading regions: $e');
+    }
+  }
+
+  /// Load cities for selected region
+  Future<void> _loadCities(int regionId) async {
+    // Check cache first
+    if (_citiesCache.containsKey(regionId)) {
+      setState(() {
+        cities = _citiesCache[regionId]!;
+        selectedCity = null;
+        selectedPickupSite = null;
+        stores = [];
+      });
+      return;
+    }
+
+    setState(() {
+      isLoadingCities = true;
+      cities = [];
+      stores = [];
+      selectedCity = null;
+      selectedPickupSite = null;
+    });
+
+    try {
+      final result = await DeliveryService.getCitiesByRegion(regionId)
+          .timeout(const Duration(seconds: 3)); // Faster timeout
+      if (result['success'] && mounted) {
+        final citiesData = List<Map<String, dynamic>>.from(result['data']);
+        setState(() {
+          cities = citiesData;
+          _citiesCache[regionId] = citiesData; // Cache the result
+          isLoadingCities = false;
+        });
+      } else {
+        setState(() {
+          isLoadingCities = false;
+        });
+        print('Failed to load cities: ${result['message']}');
+      }
+    } catch (e) {
+      setState(() {
+        isLoadingCities = false;
+      });
+      print('Error loading cities: $e');
+    }
+  }
+
+  /// Load stores for selected city
+  Future<void> _loadStores(int cityId) async {
+    // Check cache first
+    if (_storesCache.containsKey(cityId)) {
+      setState(() {
+        stores = _storesCache[cityId]!;
+        selectedPickupSite = null;
+      });
+      return;
+    }
+
+    setState(() {
+      isLoadingStores = true;
+      stores = [];
+      selectedPickupSite = null;
+    });
+
+    try {
+      final result = await DeliveryService.getStoresByCity(cityId)
+          .timeout(const Duration(seconds: 3)); // Faster timeout
+      if (result['success'] && mounted) {
+        final storesData = List<Map<String, dynamic>>.from(result['data']);
+        setState(() {
+          stores = storesData;
+          _storesCache[cityId] = storesData; // Cache the result
+          isLoadingStores = false;
+        });
+      } else {
+        setState(() {
+          isLoadingStores = false;
+        });
+        print('Failed to load stores: ${result['message']}');
+      }
+    } catch (e) {
+      setState(() {
+        isLoadingStores = false;
+      });
+      print('Error loading stores: $e');
+    }
+  }
+
+  /// Preload cities for a region (for better UX)
+  Future<void> _preloadCities(int regionId) async {
+    if (!_citiesCache.containsKey(regionId)) {
+      try {
+        final result = await DeliveryService.getCitiesByRegion(regionId)
+            .timeout(const Duration(seconds: 2));
+        if (result['success']) {
+          _citiesCache[regionId] =
+              List<Map<String, dynamic>>.from(result['data']);
+        }
+      } catch (e) {
+        // Silent fail for preloading
+      }
+    }
+  }
+
+  /// Preload stores for a city (for better UX)
+  Future<void> _preloadStores(int cityId) async {
+    if (!_storesCache.containsKey(cityId)) {
+      try {
+        final result = await DeliveryService.getStoresByCity(cityId)
+            .timeout(const Duration(seconds: 2));
+        if (result['success']) {
+          _storesCache[cityId] =
+              List<Map<String, dynamic>>.from(result['data']);
+        }
+      } catch (e) {
+        // Silent fail for preloading
+      }
+    }
+  }
+
+  /// Clear cache and reload data
+  void _clearCache() {
+    _citiesCache.clear();
+    _storesCache.clear();
+    setState(() {
+      cities = [];
+      stores = [];
+      selectedCity = null;
+      selectedPickupSite = null;
+    });
+  }
+
+  /// Refresh regions data
+  Future<void> _refreshRegions() async {
+    _clearCache();
+    await _loadRegions();
   }
 }

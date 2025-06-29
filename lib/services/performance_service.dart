@@ -4,6 +4,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class PerformanceService {
   static final PerformanceService _instance = PerformanceService._internal();
@@ -22,6 +23,37 @@ class PerformanceService {
   int _maxEvents = 1000;
   int _maxMetrics = 100;
 
+  // Cache configuration
+  static const String _cacheKey = 'image_cache_settings';
+  static const String _lastCleanupKey = 'last_cache_cleanup';
+
+  // Cache configuration
+  static const int maxMemoryCacheSize = 100 * 1024 * 1024; // 100MB
+  static const int maxDiskCacheSize = 500 * 1024 * 1024; // 500MB
+  static const Duration cacheCleanupInterval = Duration(days: 7);
+
+  // Image size configurations
+  static const Map<String, Map<String, int>> imageSizes = {
+    'thumbnail': {
+      'width': 120,
+      'height': 120,
+      'disk_width': 240,
+      'disk_height': 240,
+    },
+    'medium': {
+      'width': 400,
+      'height': 400,
+      'disk_width': 800,
+      'disk_height': 800,
+    },
+    'large': {
+      'width': 800,
+      'height': 800,
+      'disk_width': 1200,
+      'disk_height': 1200,
+    },
+  };
+
   // Getters
   bool get isEnabled => _isEnabled;
   List<PerformanceEvent> get events => List.unmodifiable(_events);
@@ -31,6 +63,7 @@ class PerformanceService {
   Future<void> initialize() async {
     await _loadSettings();
     _startPeriodicCleanup();
+    await _checkAndCleanupCache();
   }
 
   // Enable/Disable performance monitoring
@@ -350,6 +383,387 @@ class PerformanceService {
     _timers.clear();
     _metrics.clear();
     _events.clear();
+  }
+
+  /// Get optimized image widget for thumbnails
+  static Widget getOptimizedThumbnail({
+    required String imageUrl,
+    required double width,
+    required double height,
+    BoxFit fit = BoxFit.cover,
+    BorderRadius? borderRadius,
+    Widget Function(BuildContext, String)? placeholder,
+    Widget Function(BuildContext, String, dynamic)? errorWidget,
+  }) {
+    final size = imageSizes['thumbnail']!;
+
+    return ClipRRect(
+      borderRadius: borderRadius ?? BorderRadius.circular(8),
+      child: CachedNetworkImage(
+        imageUrl: imageUrl,
+        width: width,
+        height: height,
+        fit: fit,
+        memCacheWidth: size['width'],
+        memCacheHeight: size['height'],
+        maxWidthDiskCache: size['disk_width'],
+        maxHeightDiskCache: size['disk_height'],
+        placeholder:
+            placeholder ?? (context, url) => _buildDefaultPlaceholder(),
+        errorWidget: errorWidget ??
+            (context, url, error) => _buildDefaultErrorWidget(error),
+        fadeInDuration: const Duration(milliseconds: 200),
+        fadeOutDuration: const Duration(milliseconds: 200),
+      ),
+    );
+  }
+
+  /// Get optimized image widget for medium size images
+  static Widget getOptimizedMediumImage({
+    required String imageUrl,
+    BoxFit fit = BoxFit.contain,
+    BorderRadius? borderRadius,
+    Widget Function(BuildContext, String)? placeholder,
+    Widget Function(BuildContext, String, dynamic)? errorWidget,
+  }) {
+    final size = imageSizes['medium']!;
+
+    return ClipRRect(
+      borderRadius: borderRadius ?? BorderRadius.circular(16),
+      child: CachedNetworkImage(
+        imageUrl: imageUrl,
+        fit: fit,
+        memCacheWidth: size['width'],
+        memCacheHeight: size['height'],
+        maxWidthDiskCache: size['disk_width'],
+        maxHeightDiskCache: size['disk_height'],
+        placeholder: placeholder ?? (context, url) => _buildMediumPlaceholder(),
+        errorWidget: errorWidget ??
+            (context, url, error) => _buildMediumErrorWidget(error),
+        fadeInDuration: const Duration(milliseconds: 300),
+        fadeOutDuration: const Duration(milliseconds: 300),
+      ),
+    );
+  }
+
+  /// Get optimized image widget for large images
+  static Widget getOptimizedLargeImage({
+    required String imageUrl,
+    BoxFit fit = BoxFit.contain,
+    BorderRadius? borderRadius,
+    Widget Function(BuildContext, String)? placeholder,
+    Widget Function(BuildContext, String, dynamic)? errorWidget,
+  }) {
+    final size = imageSizes['large']!;
+
+    return ClipRRect(
+      borderRadius: borderRadius ?? BorderRadius.circular(16),
+      child: CachedNetworkImage(
+        imageUrl: imageUrl,
+        fit: fit,
+        memCacheWidth: size['width'],
+        memCacheHeight: size['height'],
+        maxWidthDiskCache: size['disk_width'],
+        maxHeightDiskCache: size['disk_height'],
+        placeholder: placeholder ?? (context, url) => _buildLargePlaceholder(),
+        errorWidget: errorWidget ??
+            (context, url, error) => _buildLargeErrorWidget(error),
+        fadeInDuration: const Duration(milliseconds: 400),
+        fadeOutDuration: const Duration(milliseconds: 400),
+      ),
+    );
+  }
+
+  /// Build default placeholder for thumbnails
+  static Widget _buildDefaultPlaceholder() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.green.shade700),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build default error widget for thumbnails
+  static Widget _buildDefaultErrorWidget(dynamic error) {
+    String errorCode = '404';
+    if (error.toString().contains('timeout')) {
+      errorCode = 'TO';
+    } else if (error.toString().contains('network')) {
+      errorCode = 'NE';
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.red.shade50,
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.broken_image_outlined,
+            size: 20,
+            color: Colors.red.shade400,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            errorCode,
+            style: TextStyle(
+              fontSize: 8,
+              color: Colors.red.shade400,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build medium placeholder
+  static Widget _buildMediumPlaceholder() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.green.shade700),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Loading image...',
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build medium error widget
+  static Widget _buildMediumErrorWidget(dynamic error) {
+    String errorTitle = 'Failed to load image';
+    String errorMessage = 'The image could not be loaded.';
+
+    if (error.toString().contains('404')) {
+      errorTitle = 'Image File Not Found';
+      errorMessage =
+          'The image file has been removed or is no longer available.';
+    } else if (error.toString().contains('timeout')) {
+      errorTitle = 'Connection Timeout';
+      errorMessage =
+          'The request to load the image timed out. Please check your internet connection.';
+    } else if (error.toString().contains('network')) {
+      errorTitle = 'Network Error';
+      errorMessage = 'There was a network error while loading the image.';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.broken_image_outlined,
+            size: 48,
+            color: Colors.red.shade400,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            errorTitle,
+            style: TextStyle(
+              color: Colors.red.shade700,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            errorMessage,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 12,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build large placeholder
+  static Widget _buildLargePlaceholder() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.green.shade700),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Loading prescription...',
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build large error widget
+  static Widget _buildLargeErrorWidget(dynamic error) {
+    String errorTitle = 'Failed to load prescription image';
+    String errorMessage = 'The image could not be loaded.';
+
+    if (error.toString().contains('404')) {
+      errorTitle = 'Image File Not Found';
+      errorMessage =
+          'The prescription image file has been removed or is no longer available on the server.';
+    } else if (error.toString().contains('timeout')) {
+      errorTitle = 'Connection Timeout';
+      errorMessage =
+          'The request to load the image timed out. Please check your internet connection.';
+    } else if (error.toString().contains('network')) {
+      errorTitle = 'Network Error';
+      errorMessage = 'There was a network error while loading the image.';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.broken_image_outlined,
+            size: 64,
+            color: Colors.red.shade400,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            errorTitle,
+            style: TextStyle(
+              color: Colors.red.shade700,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            errorMessage,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 14,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Check and cleanup cache if needed
+  Future<void> _checkAndCleanupCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastCleanup = prefs.getString(_lastCleanupKey);
+
+      if (lastCleanup == null) {
+        await _performCacheCleanup();
+        return;
+      }
+
+      final lastCleanupDate = DateTime.parse(lastCleanup);
+      final now = DateTime.now();
+
+      if (now.difference(lastCleanupDate) > cacheCleanupInterval) {
+        await _performCacheCleanup();
+      }
+    } catch (e) {
+      // Silently handle cleanup errors
+      debugPrint('Cache cleanup error: $e');
+    }
+  }
+
+  /// Perform cache cleanup
+  Future<void> _performCacheCleanup() async {
+    try {
+      // Note: In cached_network_image 3.4.1, we can't clear all cache without specific URLs
+      // The cache will be managed automatically by the package
+
+      // Update last cleanup time
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_lastCleanupKey, DateTime.now().toIso8601String());
+
+      debugPrint('Cache cleanup timestamp updated');
+    } catch (e) {
+      debugPrint('Cache cleanup failed: $e');
+    }
+  }
+
+  /// Clear all cached images
+  Future<void> clearCache() async {
+    try {
+      // Note: In cached_network_image 3.4.1, we can't clear all cache without specific URLs
+      // This method is kept for future compatibility
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_lastCleanupKey);
+      debugPrint('Cache cleanup timestamp cleared');
+    } catch (e) {
+      debugPrint('Failed to clear cache: $e');
+    }
+  }
+
+  /// Get cache statistics
+  Future<Map<String, dynamic>> getCacheStats() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastCleanup = prefs.getString(_lastCleanupKey);
+
+      return {
+        'last_cleanup': lastCleanup,
+        'max_memory_cache': maxMemoryCacheSize,
+        'max_disk_cache': maxDiskCacheSize,
+        'cleanup_interval_days': cacheCleanupInterval.inDays,
+      };
+    } catch (e) {
+      return {'error': e.toString()};
+    }
   }
 }
 

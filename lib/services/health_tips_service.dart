@@ -6,7 +6,7 @@ import '../models/health_tip.dart';
 
 class HealthTipsService {
   static const String _baseUrl =
-      'https://health.gov/myhealthfinder/api/v3/topicsearch.json';
+      'https://health.gov/myhealthfinder/api/v4/topicsearch.json';
 
   // Cache for health tips - will refresh on each page visit
   static List<HealthTip> _cachedTips = [];
@@ -14,7 +14,6 @@ class HealthTipsService {
   static int _lastFetchTime = 0;
 
   static bool get isCacheValid {
-    // Only use cache if we haven't loaded once yet (to avoid showing empty state)
     return _hasLoadedOnce && _cachedTips.isNotEmpty;
   }
 
@@ -26,7 +25,6 @@ class HealthTipsService {
   }) async {
     print('HealthTipsService: Starting fetchHealthTips');
 
-    // Always fetch fresh data when called (no time-based caching)
     try {
       print('HealthTipsService: Fetching fresh data from API');
 
@@ -240,14 +238,15 @@ class HealthTipsService {
             'Drink 8 glasses of water daily for better health and hydration.',
         category: 'Wellness',
         summary:
-            'Drink 8 glasses of water daily for better health and hydration.',
+            'Proper hydration helps maintain body temperature, lubricate joints, and transport nutrients throughout your body.',
       ),
       HealthTip(
         title: 'Exercise Regularly',
         url: '',
         content: '30 minutes of daily exercise keeps you fit and healthy.',
         category: 'Physical Activity',
-        summary: '30 minutes of daily exercise keeps you fit and healthy.',
+        summary:
+            'Regular physical activity strengthens your heart, improves mood, and helps maintain a healthy weight.',
       ),
       HealthTip(
         title: 'Get Enough Sleep',
@@ -256,7 +255,7 @@ class HealthTipsService {
             '7-8 hours of sleep is essential for overall health and well-being.',
         category: 'Wellness',
         summary:
-            '7-8 hours of sleep is essential for overall health and well-being.',
+            'Quality sleep supports immune function, memory consolidation, and overall physical and mental recovery.',
       ),
       HealthTip(
         title: 'Eat Healthy',
@@ -265,7 +264,7 @@ class HealthTipsService {
             'Include fruits and vegetables in your daily diet for better nutrition.',
         category: 'Nutrition',
         summary:
-            'Include fruits and vegetables in your daily diet for better nutrition.',
+            'A balanced diet rich in fruits, vegetables, and whole grains provides essential nutrients for optimal health.',
       ),
       HealthTip(
         title: 'Wash Hands Regularly',
@@ -274,7 +273,7 @@ class HealthTipsService {
             'Regular hand washing prevents infections and keeps you healthy.',
         category: 'Prevention',
         summary:
-            'Regular hand washing prevents infections and keeps you healthy.',
+            'Proper hand hygiene is one of the most effective ways to prevent the spread of germs and infections.',
       ),
       HealthTip(
         title: 'Take Breaks from Screens',
@@ -283,7 +282,7 @@ class HealthTipsService {
             'Take regular breaks from screen time to protect your eyes and mental health.',
         category: 'Wellness',
         summary:
-            'Take regular breaks from screen time to protect your eyes and mental health.',
+            'Regular breaks from digital devices help reduce eye strain, improve posture, and maintain mental well-being.',
       ),
       HealthTip(
         title: 'Practice Mindfulness',
@@ -292,7 +291,7 @@ class HealthTipsService {
             'Take time to meditate or practice mindfulness for better mental health.',
         category: 'Mental Health',
         summary:
-            'Take time to meditate or practice mindfulness for better mental health.',
+            'Mindfulness practices help reduce stress, improve focus, and enhance overall emotional well-being.',
       ),
       HealthTip(
         title: 'Limit Sugar Intake',
@@ -301,21 +300,23 @@ class HealthTipsService {
             'Reduce added sugars in your diet to maintain healthy blood sugar levels.',
         category: 'Nutrition',
         summary:
-            'Reduce added sugars in your diet to maintain healthy blood sugar levels.',
+            'Reducing added sugars helps prevent weight gain, diabetes, and other chronic health conditions.',
       ),
       HealthTip(
         title: 'Get Regular Check-ups',
         url: '',
         content: 'Schedule regular health check-ups to catch issues early.',
         category: 'Prevention',
-        summary: 'Schedule regular health check-ups to catch issues early.',
+        summary:
+            'Regular preventive care helps detect health issues early when they are most treatable.',
       ),
       HealthTip(
         title: 'Practice Good Posture',
         url: '',
         content: 'Maintain good posture to prevent back and neck problems.',
         category: 'Wellness',
-        summary: 'Maintain good posture to prevent back and neck problems.',
+        summary:
+            'Good posture reduces strain on muscles and joints, preventing chronic pain and improving breathing.',
       ),
       HealthTip(
         title: 'Stay Socially Connected',
@@ -324,7 +325,7 @@ class HealthTipsService {
             'Maintain social connections for better mental and emotional health.',
         category: 'Mental Health',
         summary:
-            'Maintain social connections for better mental and emotional health.',
+            'Strong social connections improve mental health, reduce stress, and increase life satisfaction.',
       ),
       HealthTip(
         title: 'Use Sunscreen Daily',
@@ -333,7 +334,7 @@ class HealthTipsService {
             'Apply sunscreen with SPF 30+ daily to protect your skin from UV damage.',
         category: 'Prevention',
         summary:
-            'Apply sunscreen with SPF 30+ daily to protect your skin from UV damage.',
+            'Daily sunscreen use prevents skin cancer, premature aging, and protects against harmful UV radiation.',
       ),
     ];
 

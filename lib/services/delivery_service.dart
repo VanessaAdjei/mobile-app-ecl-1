@@ -337,4 +337,149 @@ class DeliveryService {
       return 00.00;
     }
   }
+
+  /// Fetch all regions from API
+  static Future<Map<String, dynamic>> getRegions() async {
+    try {
+      print('Fetching regions from API...');
+      print('API URL: https://eclcommerce.ernestchemists.com.gh/api/regions');
+
+      final response = await http.get(
+        Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/regions'),
+        headers: {
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 5));
+
+      print('Get regions response status: ${response.statusCode}');
+      print('Get regions response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        print('=== API GET REGIONS SUCCESS ===');
+        print('Regions data: ${json.encode(data)}');
+        print('===============================');
+
+        return {
+          'success': true,
+          'data': data['data'],
+          'message': 'Regions fetched successfully',
+        };
+      } else {
+        final errorData = json.decode(response.body);
+        print('=== API GET REGIONS ERROR ===');
+        print('Error status code: ${response.statusCode}');
+        print('Error response: ${json.encode(errorData)}');
+        print('=============================');
+        return {
+          'success': false,
+          'message': errorData['message'] ?? 'Failed to fetch regions',
+        };
+      }
+    } catch (e) {
+      print('Error getting regions: $e');
+      return {
+        'success': false,
+        'message': 'Network error. Please check your connection and try again.',
+      };
+    }
+  }
+
+  /// Fetch cities for a specific region from API
+  static Future<Map<String, dynamic>> getCitiesByRegion(int regionId) async {
+    try {
+      print('Fetching cities for region $regionId from API...');
+      print(
+          'API URL: https://eclcommerce.ernestchemists.com.gh/api/regions/$regionId/cities');
+
+      final response = await http.get(
+        Uri.parse(
+            'https://eclcommerce.ernestchemists.com.gh/api/regions/$regionId/cities'),
+        headers: {
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 3));
+
+      print('Get cities response status: ${response.statusCode}');
+      print('Get cities response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        print('=== API GET CITIES SUCCESS ===');
+        print('Cities data: ${json.encode(data)}');
+        print('==============================');
+
+        return {
+          'success': true,
+          'data': data['data'],
+          'message': 'Cities fetched successfully',
+        };
+      } else {
+        final errorData = json.decode(response.body);
+        print('=== API GET CITIES ERROR ===');
+        print('Error status code: ${response.statusCode}');
+        print('Error response: ${json.encode(errorData)}');
+        print('============================');
+        return {
+          'success': false,
+          'message': errorData['message'] ?? 'Failed to fetch cities',
+        };
+      }
+    } catch (e) {
+      print('Error getting cities: $e');
+      return {
+        'success': false,
+        'message': 'Network error. Please check your connection and try again.',
+      };
+    }
+  }
+
+  /// Fetch stores for a specific city from API
+  static Future<Map<String, dynamic>> getStoresByCity(int cityId) async {
+    try {
+      print('Fetching stores for city $cityId from API...');
+      print(
+          'API URL: https://eclcommerce.ernestchemists.com.gh/api/cities/$cityId/stores');
+
+      final response = await http.get(
+        Uri.parse(
+            'https://eclcommerce.ernestchemists.com.gh/api/cities/$cityId/stores'),
+        headers: {
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 3));
+
+      print('Get stores response status: ${response.statusCode}');
+      print('Get stores response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        print('=== API GET STORES SUCCESS ===');
+        print('Stores data: ${json.encode(data)}');
+        print('==============================');
+
+        return {
+          'success': true,
+          'data': data['data'],
+          'message': 'Stores fetched successfully',
+        };
+      } else {
+        final errorData = json.decode(response.body);
+        print('=== API GET STORES ERROR ===');
+        print('Error status code: ${response.statusCode}');
+        print('Error response: ${json.encode(errorData)}');
+        print('============================');
+        return {
+          'success': false,
+          'message': errorData['message'] ?? 'Failed to fetch stores',
+        };
+      }
+    } catch (e) {
+      print('Error getting stores: $e');
+      return {
+        'success': false,
+        'message': 'Network error. Please check your connection and try again.',
+      };
+    }
+  }
 }

@@ -14,6 +14,7 @@ import 'AppBackButton.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:eclapp/widgets/error_display.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:eclapp/widgets/optimized_image_widget.dart';
 
 class PrescriptionHistoryScreen extends StatefulWidget {
   const PrescriptionHistoryScreen({super.key});
@@ -28,6 +29,7 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   final Map<int, Map<String, dynamic>> _productDetails = {};
   bool _isLoading = true;
   String? _error;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -35,6 +37,12 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchPrescriptions();
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchPrescriptions() async {
@@ -60,7 +68,6 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
         },
       ).timeout(const Duration(seconds: 15));
 
-      // Print the raw response
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['data'] != null) {
@@ -97,118 +104,10 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
           child: Stack(
             children: [
               InteractiveViewer(
-                child: ClipRRect(
+                child: OptimizedImageWidget.large(
+                  imageUrl: fileUrl,
+                  fit: BoxFit.contain,
                   borderRadius: BorderRadius.circular(16),
-                  child: Image.network(
-                    fileUrl,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      String errorTitle = 'Failed to load prescription image';
-                      String errorMessage = 'The image could not be loaded.';
-
-                      if (error.toString().contains('404')) {
-                        errorTitle = 'Image File Not Found';
-                        errorMessage =
-                            'The prescription image file has been removed or is no longer available on the server.';
-                      } else if (error.toString().contains('timeout')) {
-                        errorTitle = 'Connection Timeout';
-                        errorMessage =
-                            'The request to load the image timed out. Please check your internet connection.';
-                      } else if (error.toString().contains('network')) {
-                        errorTitle = 'Network Error';
-                        errorMessage =
-                            'There was a network error while loading the image.';
-                      }
-
-                      return Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.broken_image_outlined,
-                              size: 64,
-                              color: Colors.red.shade400,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              errorTitle,
-                              style: TextStyle(
-                                color: Colors.red.shade700,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              errorMessage,
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 14,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'URL: $fileUrl',
-                              style: TextStyle(
-                                color: Colors.grey[500],
-                                fontSize: 10,
-                                fontFamily: 'monospace',
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Error: $error',
-                              style: TextStyle(
-                                color: Colors.grey[500],
-                                fontSize: 10,
-                                fontFamily: 'monospace',
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) {
-                        return child;
-                      }
-                      return Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(
-                              value: loadingProgress.expectedTotalBytes != null
-                                  ? loadingProgress.cumulativeBytesLoaded /
-                                      loadingProgress.expectedTotalBytes!
-                                  : null,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Loading prescription image...',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
                 ),
               ),
               Positioned(
@@ -352,12 +251,12 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
     return RefreshIndicator(
       onRefresh: _fetchPrescriptions,
       child: ListView.builder(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
         itemCount: _prescriptions.length,
         itemBuilder: (context, index) {
           final prescription = _prescriptions[index];
 
-          // Debug: Print prescription data
           return Card(
             margin: const EdgeInsets.only(bottom: 16),
             shape: RoundedRectangleBorder(
@@ -379,64 +278,12 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                     color: Colors.grey[200],
                   ),
                   child: prescription['file'] != null
-                      ? ClipRRect(
+                      ? OptimizedImageWidget.thumbnail(
+                          imageUrl: prescription['file'],
+                          width: 60,
+                          height: 60,
+                          fit: BoxFit.cover,
                           borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            prescription['file'],
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              // Check if it's a 404 error
-                              String errorMessage = 'Image not available';
-                              if (error.toString().contains('404')) {
-                                errorMessage = 'Image file not found';
-                              } else if (error.toString().contains('timeout')) {
-                                errorMessage = 'Connection timeout';
-                              } else if (error.toString().contains('network')) {
-                                errorMessage = 'Network error';
-                              }
-
-                              return Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(8),
-                                  color: Colors.red.shade50,
-                                  border:
-                                      Border.all(color: Colors.red.shade200),
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.broken_image_outlined,
-                                      size: 20,
-                                      color: Colors.red.shade400,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '404',
-                                      style: TextStyle(
-                                        fontSize: 8,
-                                        color: Colors.red.shade400,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Center(
-                                child: CircularProgressIndicator(
-                                  value: loadingProgress.expectedTotalBytes !=
-                                          null
-                                      ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                      : null,
-                                  strokeWidth: 2,
-                                ),
-                              );
-                            },
-                          ),
                         )
                       : Icon(
                           Icons.medical_services_outlined,

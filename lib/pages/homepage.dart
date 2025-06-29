@@ -606,42 +606,48 @@ class _HomePageState extends State<HomePage>
           url: '',
           content: 'Drink 8 glasses of water daily for better health',
           category: 'Wellness',
-          summary: 'Drink 8 glasses of water daily for better health',
+          summary:
+              'Proper hydration helps maintain body temperature, lubricate joints, and transport nutrients throughout your body.',
         ),
         HealthTip(
           title: 'Exercise Regularly',
           url: '',
           content: '30 minutes of daily exercise keeps you fit',
           category: 'Physical Activity',
-          summary: '30 minutes of daily exercise keeps you fit',
+          summary:
+              'Regular physical activity strengthens your heart, improves mood, and helps maintain a healthy weight.',
         ),
         HealthTip(
           title: 'Get Enough Sleep',
           url: '',
           content: '7-8 hours of sleep is essential for health',
           category: 'Wellness',
-          summary: '7-8 hours of sleep is essential for health',
+          summary:
+              'Quality sleep supports immune function, memory consolidation, and overall physical and mental recovery.',
         ),
         HealthTip(
           title: 'Eat Healthy',
           url: '',
           content: 'Include fruits and vegetables in your diet',
           category: 'Nutrition',
-          summary: 'Include fruits and vegetables in your diet',
+          summary:
+              'A balanced diet rich in fruits, vegetables, and whole grains provides essential nutrients for optimal health.',
         ),
         HealthTip(
           title: 'Wash Hands',
           url: '',
           content: 'Regular hand washing prevents infections',
           category: 'Prevention',
-          summary: 'Regular hand washing prevents infections',
+          summary:
+              'Proper hand hygiene is one of the most effective ways to prevent the spread of germs and infections.',
         ),
         HealthTip(
           title: 'Take Breaks',
           url: '',
           content: 'Take regular breaks from screen time',
           category: 'Wellness',
-          summary: 'Take regular breaks from screen time',
+          summary:
+              'Regular breaks from digital devices help reduce eye strain, improve posture, and maintain mental well-being.',
         ),
       ];
       _isLoadingHealthTips = false;
@@ -695,12 +701,12 @@ class _HomePageState extends State<HomePage>
           SizedBox(height: 8),
           if (_isLoadingHealthTips)
             Container(
-              height: 160,
+              height: 200,
               child: Center(child: CircularProgressIndicator()),
             )
           else if (_healthTipsError != null)
             Container(
-              height: 160,
+              height: 200,
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -720,7 +726,7 @@ class _HomePageState extends State<HomePage>
             )
           else if (healthTips.isEmpty)
             Container(
-              height: 160,
+              height: 200,
               child: Center(
                   child: Text('No health tips available',
                       style: TextStyle(color: Colors.grey[600]))),
@@ -729,7 +735,7 @@ class _HomePageState extends State<HomePage>
             Column(
               children: [
                 SizedBox(
-                  height: 160,
+                  height: 200,
                   child: PageView.builder(
                     controller: _healthTipsPageController,
                     itemCount: healthTips.length,
@@ -740,7 +746,7 @@ class _HomePageState extends State<HomePage>
                     },
                     itemBuilder: (context, index) {
                       final tip = healthTips[index];
-                      return _buildCarouselHealthTipCard(tip, height: 160);
+                      return _buildCarouselHealthTipCard(tip, height: 200);
                     },
                   ),
                 ),
@@ -768,7 +774,7 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildCarouselHealthTipCard(HealthTip tip, {double height = 220}) {
+  Widget _buildCarouselHealthTipCard(HealthTip tip, {double height = 200}) {
     final color = _getColorFromCategory(tip.category);
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -854,6 +860,8 @@ class _HomePageState extends State<HomePage>
                       fontSize: 13,
                       shadows: [Shadow(blurRadius: 8, color: Colors.black45)],
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   SizedBox(height: 4),
                   Text(
@@ -864,6 +872,8 @@ class _HomePageState extends State<HomePage>
                       height: 1.3,
                       shadows: [Shadow(blurRadius: 6, color: Colors.black38)],
                     ),
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),

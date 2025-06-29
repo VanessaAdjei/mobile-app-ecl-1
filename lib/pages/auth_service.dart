@@ -1490,3 +1490,160 @@ class AuthState extends InheritedWidget {
     return isLoggedIn != oldWidget.isLoggedIn;
   }
 }
+
+class CODPaymentService {
+  static const String _baseUrl =
+      'https://eclcommerce.ernestchemists.com.gh/api';
+  static const String _codEndpoint = '/pay-on-delivery';
+
+  /// Process COD payment with the provided parameters
+  static Future<Map<String, dynamic>> processCODPayment({
+    required String firstName,
+    required String email,
+    required String phone,
+    required double amount,
+    String? authToken,
+  }) async {
+    try {
+      final url = Uri.parse('$_baseUrl$_codEndpoint');
+
+      // Prepare request headers
+      final headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      };
+
+      // Add authorization header if token is provided
+      if (authToken != null && authToken.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $authToken';
+      }
+
+      // Prepare request body
+      final requestBody = {
+        'fname': firstName,
+        'email': email,
+        'phone': phone,
+        'amount': amount.toStringAsFixed(2),
+      };
+
+      debugPrint('COD Payment Request: ${json.encode(requestBody)}');
+
+      // Make the API call
+      final response = await http
+          .post(
+        url,
+        headers: headers,
+        body: json.encode(requestBody),
+      )
+          .timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Request timed out. Please try again.');
+        },
+      );
+
+      debugPrint('COD Payment Response Status: ${response.statusCode}');
+      debugPrint('COD Payment Response Body: ${response.body}');
+
+      // Handle different response status codes
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        try {
+          final responseData = json.decode(response.body);
+          return {
+            'success': true,
+            'data': responseData,
+            'message':
+                responseData['message'] ?? 'COD payment processed successfully',
+          };
+        } catch (e) {
+          // Handle case where response is not JSON
+          return {
+            'success': true,
+            'data': {'raw_response': response.body},
+            'message': 'COD payment processed successfully',
+          };
+        }
+      } else if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'message': 'Authentication required. Please log in again.',
+          'error_code': 'UNAUTHORIZED',
+        };
+      } else if (response.statusCode == 422) {
+        try {
+          final errorData = json.decode(response.body);
+          return {
+            'success': false,
+            'message': errorData['message'] ?? 'Invalid request parameters',
+            'errors': errorData['errors'],
+            'error_code': 'VALIDATION_ERROR',
+          };
+        } catch (e) {
+          return {
+            'success': false,
+            'message': 'Invalid request parameters',
+            'error_code': 'VALIDATION_ERROR',
+          };
+        }
+      } else if (response.statusCode >= 500) {
+        return {
+          'success': false,
+          'message': 'Server error. Please try again later.',
+          'error_code': 'SERVER_ERROR',
+        };
+      } else {
+        return {
+          'success': false,
+          'message': 'Payment failed. Please try again.',
+          'error_code': 'UNKNOWN_ERROR',
+        };
+      }
+    } catch (e) {
+      debugPrint('COD Payment Error: $e');
+      return {
+        'success': false,
+        'message': 'Payment failed: ${e.toString()}',
+        'error_code': 'EXCEPTION',
+      };
+    }
+  }
+
+  /// Validate COD payment parameters
+  static Map<String, dynamic> validateParameters({
+    required String firstName,
+    required String email,
+    required String phone,
+    required double amount,
+  }) {
+    final errors = <String, String>{};
+
+    // Validate first name
+    if (firstName.trim().isEmpty) {
+      errors['fname'] = 'First name is required';
+    }
+
+    // Validate email
+    if (email.trim().isEmpty) {
+      errors['email'] = 'Email is required';
+    } else if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      errors['email'] = 'Please enter a valid email address';
+    }
+
+    // Validate phone
+    if (phone.trim().isEmpty) {
+      errors['phone'] = 'Phone number is required';
+    } else if (!RegExp(r'^\+?[\d\s\-\(\)]+$').hasMatch(phone)) {
+      errors['phone'] = 'Please enter a valid phone number';
+    }
+
+    // Validate amount
+    if (amount <= 0) {
+      errors['amount'] = 'Amount must be greater than 0';
+    }
+
+    return {
+      'isValid': errors.isEmpty,
+      'errors': errors,
+    };
+  }
+}

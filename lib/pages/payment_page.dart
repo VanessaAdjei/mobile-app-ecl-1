@@ -253,6 +253,41 @@ class _PaymentPageState extends State<PaymentPage> {
       if (selectedPaymentMethod == 'Cash on Delivery') {
         if (!mounted) return;
 
+        // Extract first name from user name
+        final firstName = _userName.split(' ').first.isNotEmpty
+            ? _userName.split(' ').first
+            : 'Customer';
+
+        // Validate COD payment parameters
+        final validation = CODPaymentService.validateParameters(
+          firstName: firstName,
+          email: _userEmail,
+          phone: widget.contactNumber ?? _phoneNumber,
+          amount: total,
+        );
+
+        if (!validation['isValid']) {
+          final errors = validation['errors'] as Map<String, String>;
+          final errorMessage = errors.values.first;
+          throw Exception(errorMessage);
+        }
+
+        // Get auth token for the API call
+        final authToken = await AuthService.getToken();
+
+        // Process COD payment through the API
+        final codResult = await CODPaymentService.processCODPayment(
+          firstName: firstName,
+          email: _userEmail,
+          phone: widget.contactNumber ?? _phoneNumber,
+          amount: total,
+          authToken: authToken,
+        );
+
+        if (!codResult['success']) {
+          throw Exception(codResult['message'] ?? 'COD payment failed');
+        }
+
         // Create the order in the backend for cash on delivery
         try {
           // Convert cart items to the format expected by the API
@@ -276,7 +311,7 @@ class _PaymentPageState extends State<PaymentPage> {
           );
 
           if (orderResult['status'] != 'success') {
-            // Show error but still proceed with the order
+            // Show warning but still proceed with the order
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Row(
@@ -302,9 +337,9 @@ class _PaymentPageState extends State<PaymentPage> {
           } else {
             // Clear the cart after successful order creation
             cart.clearCart();
-            }
+          }
         } catch (e) {
-          // Show error but still proceed with the order
+          // Show warning but still proceed with the order
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
@@ -328,6 +363,30 @@ class _PaymentPageState extends State<PaymentPage> {
             ),
           );
         }
+
+        // Show success message for COD payment
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'COD payment processed successfully! You will pay when you receive your order.',
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green[600],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            margin: EdgeInsets.all(16),
+            duration: Duration(seconds: 4),
+          ),
+        );
 
         Navigator.pushAndRemoveUntil(
           context,
@@ -745,7 +804,10 @@ class _PaymentPageState extends State<PaymentPage> {
                                               ),
                                               const SizedBox(width: 8),
                                               Text(
-                                                'Processing...',
+                                                selectedPaymentMethod ==
+                                                        'Cash on Delivery'
+                                                    ? 'Processing COD Order...'
+                                                    : 'Processing...',
                                                 style: TextStyle(
                                                   color: Colors.white,
                                                   fontWeight: FontWeight.w600,
@@ -759,13 +821,19 @@ class _PaymentPageState extends State<PaymentPage> {
                                                 MainAxisAlignment.center,
                                             children: [
                                               Icon(
-                                                Icons.payment,
+                                                selectedPaymentMethod ==
+                                                        'Cash on Delivery'
+                                                    ? Icons.money
+                                                    : Icons.payment,
                                                 color: Colors.white,
                                                 size: 16,
                                               ),
                                               const SizedBox(width: 6),
                                               Text(
-                                                'CONTINUE TO PAYMENT',
+                                                selectedPaymentMethod ==
+                                                        'Cash on Delivery'
+                                                    ? 'PLACE ORDER (COD)'
+                                                    : 'CONTINUE TO PAYMENT',
                                                 style: TextStyle(
                                                   color: Colors.white,
                                                   fontSize: 14,
@@ -2086,7 +2154,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       _startStatusChecking();
     }
     _transactionId = widget.initialTransactionId;
-    }
+  }
 
   @override
   void dispose() {
@@ -2127,7 +2195,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       if (mounted) {
         setState(() {
           _showCheckStatusButton = true;
-          });
+        });
       }
     });
   }
@@ -2320,7 +2388,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                         _hasFetchedStatus = true;
                       });
                     } catch (e) {
-                      } finally {
+                    } finally {
                       setState(() => _isLoading = false);
                     }
                   },
@@ -3053,9 +3121,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             if (_firstEmptyResponseTime == null) {
               _firstEmptyResponseTime = DateTime.now();
               _emptyResponseCount = 1;
-              } else {
+            } else {
               _emptyResponseCount++;
-              }
+            }
 
             // Check if we've been receiving empty responses for 3 minutes
             if (_firstEmptyResponseTime != null) {
@@ -3112,7 +3180,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                 if (jsonStartIndex != -1) {
                   // Extract only the JSON part
                   responseBody = responseBody.substring(jsonStartIndex);
-                  }
+                }
 
                 final data = json.decode(responseBody);
                 return _processPaymentStatus(data);
@@ -3123,7 +3191,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             } else {
               // Retry also returned empty response, increment count
               _emptyResponseCount++;
-              }
+            }
 
             return {
               'status': 'pending',
@@ -3144,7 +3212,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             if (jsonStartIndex != -1) {
               // Extract only the JSON part
               responseBody = responseBody.substring(jsonStartIndex);
-              }
+            }
 
             final data = json.decode(responseBody);
             return _processPaymentStatus(data);
@@ -3320,8 +3388,7 @@ class _WebViewPageState extends State<WebViewPage> {
               Navigator.pop(context, false);
             }
           },
-          onWebResourceError: (error) {
-            },
+          onWebResourceError: (error) {},
         ),
       );
 
