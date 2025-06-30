@@ -18,6 +18,7 @@ class Product {
   final String? selfcare;
   final String? accessories;
   final int? categoryId;
+  final String? uom;
 
   Product({
     required this.id,
@@ -38,9 +39,14 @@ class Product {
     this.selfcare,
     this.accessories,
     this.categoryId,
+    this.uom,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
+    final uomValue = json['uom'];
+    print('🏷️ Product.fromJson - UOM value: $uomValue');
+    print('🏷️ Product.fromJson - UOM type: ${uomValue.runtimeType}');
+
     return Product(
       id: json['id'] ?? 0,
       name: json['name'] ?? '',
@@ -60,6 +66,7 @@ class Product {
       selfcare: json['selfcare'],
       accessories: json['accessories'],
       categoryId: json['category_id'],
+      uom: uomValue,
     );
   }
 }

@@ -136,6 +136,15 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   void _addToCart(BuildContext context, Product product) async {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
+    print('🔍 ADDING TO CART ===');
+    print('Product ID: ${product.id}');
+    print('Product Name: ${product.name}');
+    print('Batch Number: ${product.batch_no}');
+    print('Price: ${product.price}');
+    print('Quantity: $quantity');
+    print('URL Name: ${product.urlName}');
+    print('========================');
+
     try {
       final cartItem = CartItem(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -199,6 +208,9 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Future<Product> fetchProductDetails(String urlName) async {
+    print('🔍 FETCHING PRODUCT DETAILS ===');
+    print('URL Name: $urlName');
+
     try {
       final response = await http
           .get(
@@ -212,9 +224,33 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         },
       );
 
+      print('🔍 HTTP RESPONSE RECEIVED ===');
+      print('Status Code: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+
       if (response.statusCode == 200) {
         try {
           final Map<String, dynamic> data = json.decode(response.body);
+
+          // Debug print to see the full API response structure
+          print('🔍 PRODUCT DETAILS API RESPONSE ===');
+          print(
+              'URL: https://eclcommerce.ernestchemists.com.gh/api/product-details/$urlName');
+          print('Response Status: ${response.statusCode}');
+          print('Response Body: ${response.body}');
+          print('  data keys: ${data.keys.toList()}');
+          if (data.containsKey('data')) {
+            print('  data.data keys: ${data['data'].keys.toList()}');
+            if (data['data'].containsKey('product')) {
+              print(
+                  '  data.data.product keys: ${data['data']['product'].keys.toList()}');
+            }
+            if (data['data'].containsKey('inventory')) {
+              print(
+                  '  data.data.inventory keys: ${data['data']['inventory'].keys.toList()}');
+            }
+          }
+          print('=====================================');
 
           if (data.containsKey('data')) {
             final productData = data['data']['product'] ?? {};
@@ -236,12 +272,39 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               throw Exception('Invalid product ID');
             }
 
+            // Log the extracted product details
+            print('🔍 EXTRACTED PRODUCT DETAILS ===');
+            print('Product ID: $productId');
+            print('Product Name: ${inventoryData['url_name']}');
+            print('Batch Number: ${inventoryData['batch_no']}');
+            print('Price: ${inventoryData['price']}');
+            print('Status: ${inventoryData['status']}');
+            print('Quantity: ${inventoryData['quantity']}');
+            print('================================');
+
             // Check all possible locations for otcpom
             final otcpom = productData['otcpom'] ??
                 inventoryData['otcpom'] ??
                 productData['route'] ??
                 inventoryData['route'] ??
                 '';
+
+            // Extract UOM (Unit of Measure) from possible locations
+            final uom = productData['uom'] ??
+                inventoryData['uom'] ??
+                productData['unit_of_measure'] ??
+                inventoryData['unit_of_measure'] ??
+                '';
+
+            // Debug print to see what UOM data we're getting
+            print('🔍 UOM Debug Info:');
+            print('  productData uom: ${productData['uom']}');
+            print('  inventoryData uom: ${inventoryData['uom']}');
+            print(
+                '  productData unit_of_measure: ${productData['unit_of_measure']}');
+            print(
+                '  inventoryData unit_of_measure: ${inventoryData['unit_of_measure']}');
+            print('  Final UOM value: $uom');
 
             List<String> tags = [];
             if (productData['tags'] != null && productData['tags'] is List) {
@@ -277,6 +340,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               'otcpom': otcpom,
               'route': productData['route'] ?? '',
               'batch_no': inventoryData['batch_no'] ?? '',
+              'uom': uom,
             });
 
             return product;
@@ -359,6 +423,13 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                           '',
                       category: item['category'] ?? '',
                       route: '',
+                      uom: item['uom'] ??
+                          item['unit_of_measure'] ??
+                          (item['product'] != null
+                              ? item['product']['uom'] ??
+                                  item['product']['unit_of_measure'] ??
+                                  ''
+                              : ''),
                     );
                   } catch (e) {
                     return null;
@@ -484,7 +555,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             final product = snapshot.data!;
             return SingleChildScrollView(
               physics: AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.only(bottom: 78),
+              padding: EdgeInsets.only(bottom: 60),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -495,7 +566,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   _buildProductInfoCard(product, theme),
 
                   // Quantity Selector
-                  _buildQuantitySelector(),
+                  _buildQuantitySelector(product),
 
                   // Action Buttons
                   _buildActionButtons(product),
@@ -519,63 +590,63 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       baseColor: Colors.grey[300]!,
       highlightColor: Colors.grey[100]!,
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: EdgeInsets.all(12),
         child: Column(
           children: [
             // Image skeleton
             Container(
-              height: 250,
-              width: 250,
+              height: 240,
+              width: 240,
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
-            SizedBox(height: 20),
+            SizedBox(height: 16),
 
             // Product info skeleton
             Container(
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(height: 20, width: 150, color: Colors.white),
-                  SizedBox(height: 8),
-                  Container(height: 24, width: 100, color: Colors.white),
-                  SizedBox(height: 16),
+                  Container(height: 18, width: 140, color: Colors.white),
+                  SizedBox(height: 6),
+                  Container(height: 22, width: 90, color: Colors.white),
+                  SizedBox(height: 12),
                   Container(
-                      height: 16, width: double.infinity, color: Colors.white),
-                  SizedBox(height: 8),
-                  Container(height: 16, width: 200, color: Colors.white),
+                      height: 14, width: double.infinity, color: Colors.white),
+                  SizedBox(height: 6),
+                  Container(height: 14, width: 180, color: Colors.white),
                 ],
               ),
             ),
 
-            SizedBox(height: 20),
+            SizedBox(height: 16),
 
             // Quantity selector skeleton
             Container(
-              height: 40,
-              width: 120,
+              height: 36,
+              width: 110,
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
 
-            SizedBox(height: 20),
+            SizedBox(height: 16),
 
             // Button skeleton
             Container(
-              height: 50,
+              height: 48,
               width: double.infinity,
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(25),
+                borderRadius: BorderRadius.circular(24),
               ),
             ),
           ],
@@ -587,35 +658,35 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   Widget _buildErrorState(String error) {
     return Center(
       child: Padding(
-        padding: EdgeInsets.all(24),
+        padding: EdgeInsets.all(20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               _getErrorIcon(error),
-              size: 64,
+              size: 56,
               color: _getErrorColor(error),
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 12),
             Text(
               'Oops! Something went wrong',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: Colors.grey[800],
               ),
               textAlign: TextAlign.center,
             ),
-            SizedBox(height: 8),
+            SizedBox(height: 6),
             Text(
               _getErrorMessage(error),
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 13,
                 color: Colors.grey[600],
               ),
               textAlign: TextAlign.center,
             ),
-            SizedBox(height: 24),
+            SizedBox(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -628,12 +699,12 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                           _fetchRelatedProductsWithCache(widget.urlName);
                     });
                   },
-                  icon: Icon(Icons.refresh),
+                  icon: Icon(Icons.refresh, size: 18),
                   label: Text('Try Again'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green.shade600,
                     foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -641,11 +712,11 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 ),
                 OutlinedButton.icon(
                   onPressed: () => Navigator.pop(context),
-                  icon: Icon(Icons.arrow_back),
+                  icon: Icon(Icons.arrow_back, size: 18),
                   label: Text('Go Back'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.grey[600],
-                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -666,8 +737,8 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         SlideEffect(duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
       ],
       child: Container(
-        height: 260,
-        margin: EdgeInsets.symmetric(vertical: 4),
+        height: 220,
+        margin: EdgeInsets.symmetric(vertical: 2),
         child: Stack(
           children: [
             // Image PageView
@@ -686,20 +757,20 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
                 return Center(
                   child: Container(
-                    height: 240,
-                    width: 240,
+                    height: 200,
+                    width: 200,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.08),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(12),
                       child: Hero(
                         tag: 'product-image-${product.id}',
                         child: imageUrl.isNotEmpty
@@ -721,7 +792,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                   color: Colors.grey[200],
                                   child: Icon(
                                     Icons.medical_services,
-                                    size: 60,
+                                    size: 50,
                                     color: Colors.grey[400],
                                   ),
                                 ),
@@ -730,7 +801,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                 color: Colors.grey[200],
                                 child: Icon(
                                   Icons.medical_services,
-                                  size: 60,
+                                  size: 50,
                                   color: Colors.grey[400],
                                 ),
                               ),
@@ -744,7 +815,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             // Image indicators
             if (_productImages.length > 1)
               Positioned(
-                bottom: 12,
+                bottom: 8,
                 left: 0,
                 right: 0,
                 child: Row(
@@ -752,9 +823,9 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   children: List.generate(
                     _productImages.length,
                     (index) => Container(
-                      width: 8,
-                      height: 8,
-                      margin: EdgeInsets.symmetric(horizontal: 4),
+                      width: 6,
+                      height: 6,
+                      margin: EdgeInsets.symmetric(horizontal: 3),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: _currentImageIndex == index
@@ -782,38 +853,38 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             delay: 100.ms)
       ],
       child: Container(
-        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        margin: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Padding(
-          padding: EdgeInsets.all(16),
+          padding: EdgeInsets.all(10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Category chip
               if (product.category.isNotEmpty)
                 Container(
-                  margin: EdgeInsets.only(bottom: 12),
+                  margin: EdgeInsets.only(bottom: 6),
                   child: Chip(
                     label: Text(
                       product.category,
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w500,
-                        fontSize: 12,
+                        fontSize: 11,
                       ),
                     ),
                     backgroundColor: Colors.green.shade600,
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   ),
                 ),
 
@@ -821,13 +892,13 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               Text(
                 product.name,
                 style: GoogleFonts.poppins(
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
                   color: Colors.black87,
                 ),
               ),
 
-              SizedBox(height: 8),
+              SizedBox(height: 4),
 
               // Price
               Row(
@@ -835,15 +906,34 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   Text(
                     'GHS ${double.parse(product.price).toStringAsFixed(2)}',
                     style: GoogleFonts.poppins(
-                      fontSize: 18,
+                      fontSize: 17,
                       fontWeight: FontWeight.bold,
                       color: Colors.green.shade800,
                     ),
                   ),
+                  if (product.uom != null && product.uom!.isNotEmpty) ...[
+                    SizedBox(width: 6),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Text(
+                        'per ${product.uom}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.green.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
 
-              SizedBox(height: 16),
+              SizedBox(height: 8),
 
               // Description
               if (!widget.isPrescribed && product.description.isNotEmpty)
@@ -855,7 +945,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildQuantitySelector() {
+  Widget _buildQuantitySelector(Product product) {
     return Animate(
       effects: [
         FadeEffect(duration: 400.ms, delay: 300.ms),
@@ -866,38 +956,53 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             delay: 300.ms)
       ],
       child: Container(
-        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        padding: EdgeInsets.all(16),
+        margin: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Quantity',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
+            Row(
+              children: [
+                Text(
+                  'Quantity',
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                if (product.uom != null && product.uom!.isNotEmpty) ...[
+                  SizedBox(width: 4),
+                  Text(
+                    '(${product.uom})',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ],
             ),
-            SizedBox(height: 12),
+            SizedBox(height: 6),
             Row(
               children: [
                 // Quantity controls
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: Colors.grey.shade200),
                   ),
                   child: Row(
@@ -905,7 +1010,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                     children: [
                       IconButton(
                         icon: Icon(Icons.remove,
-                            color: Colors.grey.shade700, size: 20),
+                            color: Colors.grey.shade700, size: 16),
                         onPressed: () {
                           setState(() {
                             if (quantity > 1) {
@@ -919,11 +1024,11 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                       ),
                       Container(
                         padding:
-                            EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         child: Text(
                           quantity.toString(),
                           style: GoogleFonts.poppins(
-                            fontSize: 16,
+                            fontSize: 15,
                             fontWeight: FontWeight.bold,
                             color: Colors.black87,
                           ),
@@ -931,7 +1036,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                       ),
                       IconButton(
                         icon: Icon(Icons.add,
-                            color: Colors.green.shade600, size: 20),
+                            color: Colors.green.shade600, size: 16),
                         onPressed: () {
                           setState(() {
                             quantity++;
@@ -944,10 +1049,10 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 Spacer(),
                 // Total price
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: Colors.green.shade200),
                   ),
                   child: FutureBuilder<Product>(
@@ -959,7 +1064,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         return Text(
                           'Total: GHS ${totalPrice.toStringAsFixed(2)}',
                           style: GoogleFonts.poppins(
-                            fontSize: 14,
+                            fontSize: 13,
                             fontWeight: FontWeight.bold,
                             color: Colors.green.shade800,
                           ),
@@ -968,7 +1073,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                       return Text(
                         'Total: GHS 0.00',
                         style: GoogleFonts.poppins(
-                          fontSize: 14,
+                          fontSize: 13,
                           fontWeight: FontWeight.bold,
                           color: Colors.green.shade800,
                         ),
@@ -995,10 +1100,10 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             delay: 400.ms)
       ],
       child: Container(
-        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        margin: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         child: SizedBox(
           width: double.infinity,
-          height: 50,
+          height: 44,
           child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -1006,12 +1111,12 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(25),
+              borderRadius: BorderRadius.circular(22),
               boxShadow: [
                 BoxShadow(
                   color: Colors.green.shade200.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
@@ -1045,9 +1150,9 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 }
               },
               style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(horizontal: 16),
+                padding: EdgeInsets.symmetric(horizontal: 10),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
+                  borderRadius: BorderRadius.circular(22),
                 ),
                 elevation: 0,
                 backgroundColor:
@@ -1059,14 +1164,14 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 children: [
                   if (widget.isPrescribed) ...[
                     Icon(Icons.medical_services_outlined,
-                        color: Colors.white, size: 20),
-                    SizedBox(width: 8),
+                        color: Colors.white, size: 16),
+                    SizedBox(width: 4),
                   ],
                   Text(
                     widget.isPrescribed ? 'Upload Prescription' : 'Add to Cart',
                     style: GoogleFonts.poppins(
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                      fontSize: 14,
                       color: Colors.white,
                     ),
                   ),
@@ -1089,88 +1194,141 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             end: Offset(0, 0),
             delay: 500.ms)
       ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Icon(Icons.local_offer, color: Colors.green.shade600, size: 20),
-                SizedBox(width: 8),
-                Text(
-                  'Related Products',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+      child: Container(
+        margin: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Enhanced header with background
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.green.shade50, Colors.green.shade100],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+                border: Border(
+                  bottom: BorderSide(color: Colors.green.shade200, width: 1),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade600,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(
+                      Icons.local_offer,
+                      color: Colors.white,
+                      size: 14,
+                    ),
                   ),
-                ),
-              ],
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Related Products',
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green.shade800,
+                          ),
+                        ),
+                        Text(
+                          'You might also like these',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: Colors.green.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    color: Colors.green.shade600,
+                    size: 14,
+                  ),
+                ],
+              ),
             ),
-          ),
-          SizedBox(height: 8),
-          FutureBuilder<List<Product>>(
-            future: _relatedProductsFuture,
-            builder: (context, relatedSnapshot) {
-              if (relatedSnapshot.connectionState == ConnectionState.waiting) {
-                return _buildRelatedProductsSkeleton();
-              }
+            SizedBox(height: 6),
+            FutureBuilder<List<Product>>(
+              future: _relatedProductsFuture,
+              builder: (context, relatedSnapshot) {
+                if (relatedSnapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return _buildRelatedProductsSkeleton();
+                }
 
-              if (relatedSnapshot.hasError) {
-                return _buildEmptyState(
-                  icon: Icons.error_outline,
-                  title: 'Failed to load related products',
-                  message: 'Please try again later',
-                  color: Colors.red.shade400,
+                if (relatedSnapshot.hasError) {
+                  return _buildEmptyState(
+                    icon: Icons.error_outline,
+                    title: 'Failed to load related products',
+                    message: 'Please try again later',
+                    color: Colors.red.shade400,
+                  );
+                }
+
+                final relatedProducts = relatedSnapshot.data ?? [];
+                if (relatedProducts.isEmpty) {
+                  return _buildEmptyState(
+                    icon: Icons.local_offer_outlined,
+                    title: 'No related products',
+                    message:
+                        'We couldn\'t find any related products at the moment',
+                    color: Colors.grey.shade400,
+                  );
+                }
+
+                return Container(
+                  height: 160,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: EdgeInsets.symmetric(horizontal: 10),
+                    itemCount: relatedProducts.length,
+                    itemBuilder: (context, index) => _buildRelatedProductCard(
+                        relatedProducts[index], context),
+                  ),
                 );
-              }
-
-              final relatedProducts = relatedSnapshot.data ?? [];
-              if (relatedProducts.isEmpty) {
-                return _buildEmptyState(
-                  icon: Icons.local_offer_outlined,
-                  title: 'No related products',
-                  message:
-                      'We couldn\'t find any related products at the moment',
-                  color: Colors.grey.shade400,
-                );
-              }
-
-              return SizedBox(
-                height: 200,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: relatedProducts.length,
-                  itemBuilder: (context, index) =>
-                      _buildRelatedProductCard(relatedProducts[index], context),
-                ),
-              );
-            },
-          ),
-        ],
+              },
+            ),
+            SizedBox(height: 6),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildRelatedProductsSkeleton() {
     return SizedBox(
-      height: 200,
+      height: 160,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: 16),
+        padding: EdgeInsets.symmetric(horizontal: 10),
         itemCount: 3,
         itemBuilder: (context, index) => Container(
-          width: 150,
-          margin: EdgeInsets.only(right: 12),
+          width: 130,
+          margin: EdgeInsets.only(right: 8),
           child: Shimmer.fromColors(
             baseColor: Colors.grey[300]!,
             highlightColor: Colors.grey[100]!,
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
           ),
@@ -1186,31 +1344,31 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     required Color color,
   }) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      padding: EdgeInsets.all(24),
+      margin: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         children: [
-          Icon(icon, size: 48, color: color),
-          SizedBox(height: 12),
+          Icon(icon, size: 36, color: color),
+          SizedBox(height: 6),
           Text(
             title,
             style: GoogleFonts.poppins(
-              fontSize: 16,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
               color: Colors.black87,
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: 4),
+          SizedBox(height: 1),
           Text(
             message,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 11,
               color: Colors.grey.shade600,
             ),
             textAlign: TextAlign.center,
@@ -1277,11 +1435,11 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           ),
         ],
         child: Container(
-          width: 150,
-          margin: EdgeInsets.only(right: 12),
+          width: 140,
+          margin: EdgeInsets.only(right: 10),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.08),
@@ -1295,9 +1453,9 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             children: [
               // Image section
               SizedBox(
-                height: 100,
+                height: 90,
                 child: ClipRRect(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
                   child: product.thumbnail.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: imageUrl,
@@ -1317,7 +1475,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                             color: Colors.grey[200],
                             child: Icon(
                               Icons.medical_services,
-                              size: 40,
+                              size: 36,
                               color: Colors.grey[400],
                             ),
                           ),
@@ -1326,7 +1484,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                           color: Colors.grey[200],
                           child: Icon(
                             Icons.medical_services,
-                            size: 40,
+                            size: 36,
                             color: Colors.grey[400],
                           ),
                         ),
@@ -1335,7 +1493,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               // Content section
               Expanded(
                 child: Padding(
-                  padding: EdgeInsets.all(8),
+                  padding: EdgeInsets.all(6),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1343,23 +1501,36 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         product.name,
                         style: GoogleFonts.poppins(
                           fontWeight: FontWeight.w600,
-                          fontSize: 12,
+                          fontSize: 11,
                           color: Colors.black87,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      SizedBox(height: 4),
+                      SizedBox(height: 2),
                       Text(
                         'GHS ${product.price}',
                         style: GoogleFonts.poppins(
                           color: Colors.green.shade800,
                           fontWeight: FontWeight.bold,
-                          fontSize: 11,
+                          fontSize: 10,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (product.uom != null && product.uom!.isNotEmpty) ...[
+                        SizedBox(height: 2),
+                        Text(
+                          'per ${product.uom}',
+                          style: GoogleFonts.poppins(
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 9,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ],
                   ),
                 ),

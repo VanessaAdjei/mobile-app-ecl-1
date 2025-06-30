@@ -787,24 +787,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
                     letterSpacing: 0.5,
                   ),
                 ),
-                const Spacer(),
-                if (isLoadingRegions)
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(Colors.green[600]!),
-                    ),
-                  )
-                else
-                  IconButton(
-                    onPressed: _refreshRegions,
-                    icon:
-                        Icon(Icons.refresh, color: Colors.green[600], size: 20),
-                    tooltip: 'Refresh locations',
-                  ),
               ],
             ),
             const SizedBox(height: 16),

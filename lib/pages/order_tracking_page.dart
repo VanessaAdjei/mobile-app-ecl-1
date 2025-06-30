@@ -101,6 +101,11 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
     });
   }
 
+  // Helper method to format quantity text
+  String formatQuantityText(int quantity) {
+    return quantity == 1 ? '1 item' : '$quantity items';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -235,7 +240,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                   style: TextStyle(color: Colors.grey[600]),
                 ),
                 Text(
-                  '$totalQuantity items',
+                  formatQuantityText(totalQuantity),
                   style: TextStyle(fontWeight: FontWeight.w500),
                 ),
               ],
