@@ -2682,19 +2682,19 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
 
   Future<void> fetchBanners() async {
     if (!mounted) return;
-    
+
     setState(() => _isLoadingBanners = true);
-    
+
     try {
       // Use cached banners if available
       final cachedBanners = await _bannerCacheService.getBanners();
-      
+
       if (mounted) {
         setState(() {
           banners = cachedBanners;
           _isLoadingBanners = false;
         });
-        
+
         // Preload banner images in background
         _bannerCacheService.preloadBannerImages(context);
       }
@@ -2721,8 +2721,6 @@ String getProductImageUrl(String? url) {
   // Use the correct path 'product' (singular) instead of 'products'
   return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
 }
-
-
 
 // Helper to build a modern section heading with enhanced design
 Widget buildSectionHeading(String title, Color color) {
