@@ -1,0 +1,97 @@
+name: eclapp
+description: "A new Flutter project."
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+# The following defines the version and build number for your application.
+# A version number is three numbers separated by dots, like 1.2.43
+# followed by an optional build number separated by a +.
+# Both the version and the builder number may be overridden in flutter
+# build by specifying --build-name and --build-number, respectively.
+# In Android, build-name is used as versionName while build-number used as versionCode.
+# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+# Read more about iOS versioning at
+# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+# In Windows, build-name is used as the major, minor, and patch parts
+# of the product and file versions while build-number is used as the build suffix.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.1
+
+# Dependencies specify other packages that your package needs in order to work.
+# To automatically upgrade your package dependencies to the latest versions
+# consider running `flutter pub upgrade --major-versions`. Alternatively,
+# dependencies can be manually updated by changing the version numbers below to
+# the latest version available on pub.dev. To see which dependencies have newer
+# versions available, run `flutter pub outdated`.
+dependencies:
+  flutter:
+    sdk: flutter
+
+
+  carousel_slider: ^5.0.0
+  intl: ^0.20.2
+  image_picker: ^1.1.2
+  permission_handler: ^11.3.1
+  google_fonts: ^6.2.1
+  shared_preferences: ^2.5.2
+  provider: ^6.1.2
+  google_maps_flutter: ^2.1.1
+  uuid: ^4.5.1
+  url_launcher: ^6.1.14
+  path_provider: ^2.1.2
+  crypto: ^3.0.6
+  flutter_html: ^3.0.0-alpha.6
+  pull_to_refresh: ^2.0.0
+  shimmer: ^2.0.0
+  skeleton_text: ^3.0.1
+  geocoding: ^2.1.1
+  geolocator: ^10.1.0
+  webview_flutter: ^4.7.0
+  cached_network_image: ^3.4.1
+  flutter_animate: ^4.2.0
+  flutter_typeahead: ^4.1.0
+  flutter_keyboard_visibility: ^5.4.1
+  dotted_border: ^2.1.0
+  font_awesome_flutter: ^10.8.0
+  share_plus: ^7.2.1
+
+
+
+
+
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.8
+  http: ^1.3.0
+  flutter_secure_storage: ^9.2.4
+  jwt_decoder: ^2.0.1
+
+  html: any
+  dio: ^5.8.0+1
+  cookie_jar: ^4.0.8
+  dio_cookie_manager: ^3.2.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_launcher_icons: ^0.14.3
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/images/prescriptionsample.png
+    
+
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700
+

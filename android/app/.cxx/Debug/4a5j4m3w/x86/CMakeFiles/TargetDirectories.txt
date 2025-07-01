@@ -1,0 +1,2 @@
+/Users/macbookpro/Documents/mobileappecl/android/app/.cxx/Debug/4a5j4m3w/x86/CMakeFiles/edit_cache.dir
+/Users/macbookpro/Documents/mobileappecl/android/app/.cxx/Debug/4a5j4m3w/x86/CMakeFiles/rebuild_cache.dir

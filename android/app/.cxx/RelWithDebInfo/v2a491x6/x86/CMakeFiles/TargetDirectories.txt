@@ -1,0 +1,2 @@
+/Users/macbookpro/Downloads/eclmobile/android/app/.cxx/RelWithDebInfo/v2a491x6/x86/CMakeFiles/edit_cache.dir
+/Users/macbookpro/Downloads/eclmobile/android/app/.cxx/RelWithDebInfo/v2a491x6/x86/CMakeFiles/rebuild_cache.dir
