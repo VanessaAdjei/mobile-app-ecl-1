@@ -25,6 +25,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 // Import the new health tips service and model
 import '../services/health_tips_service.dart';
 import '../models/health_tip.dart';
+import '../services/banner_cache_service.dart';
 
 // Image preloading service for better performance
 class ImagePreloader {
@@ -556,7 +557,6 @@ class _HomePageState extends State<HomePage>
       // Use the new MyHealthfinder API service with random parameters for variety
       final tips = await HealthTipsService.fetchHealthTips(
         limit: 6,
-     
       );
       print('HomePage: Received ${tips.length} tips from service');
 
@@ -2514,6 +2514,7 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
   bool _isLoadingBanners = false;
   Timer? _timer;
   late final PageController _pageController;
+  final BannerCacheService _bannerCacheService = BannerCacheService();
 
   void showTopSnackBar(BuildContext context, String message,
       {Duration? duration}) {
@@ -2565,7 +2566,7 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
   void initState() {
     super.initState();
     _pageController = PageController(viewportFraction: 1.0);
-    fetchBanners();
+    _initializeBannerCache();
     _timer = Timer.periodic(Duration(seconds: 10), (timer) {
       if (_pageController.hasClients && banners.isNotEmpty) {
         int nextPage = (_pageController.page?.round() ?? 0) + 1;
@@ -2577,6 +2578,11 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
         );
       }
     });
+  }
+
+  Future<void> _initializeBannerCache() async {
+    await _bannerCacheService.initialize();
+    await fetchBanners();
   }
 
   @override
@@ -2676,48 +2682,27 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
 
   Future<void> fetchBanners() async {
     if (!mounted) return;
+    
     setState(() => _isLoadingBanners = true);
+    
     try {
-      final response = await http
-          .get(
-            Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/banner'),
-          )
-          .timeout(Duration(seconds: 15));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final List bannersData = data['data'] ?? [];
-        if (mounted) {
-          setState(() {
-            banners = bannersData
-                .map<BannerModel>((item) => BannerModel.fromJson(item))
-                .toList();
-          });
-        }
-      } else {
-        throw Exception('Server error');
-      }
-    } on TimeoutException {
+      // Use cached banners if available
+      final cachedBanners = await _bannerCacheService.getBanners();
+      
       if (mounted) {
         setState(() {
+          banners = cachedBanners;
           _isLoadingBanners = false;
         });
-      }
-    } on http.ClientException {
-      if (mounted) {
-        setState(() {
-          _isLoadingBanners = false;
-        });
+        
+        // Preload banner images in background
+        _bannerCacheService.preloadBannerImages(context);
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isLoadingBanners = false;
         });
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingBanners = false);
       }
     }
   }
@@ -2737,21 +2722,7 @@ String getProductImageUrl(String? url) {
   return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
 }
 
-class BannerModel {
-  final int id;
-  final String img;
-  final String? urlName;
 
-  BannerModel({required this.id, required this.img, this.urlName});
-
-  factory BannerModel.fromJson(Map<String, dynamic> json) {
-    return BannerModel(
-      id: json['id'],
-      img: json['img'],
-      urlName: json['inventory']?['url_name'],
-    );
-  }
-}
 
 // Helper to build a modern section heading with enhanced design
 Widget buildSectionHeading(String title, Color color) {

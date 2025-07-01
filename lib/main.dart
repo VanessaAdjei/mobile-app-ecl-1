@@ -19,6 +19,7 @@ import 'pages/cartprovider.dart';
 import 'pages/theme_provider.dart';
 import 'services/app_optimization_service.dart';
 import 'services/optimized_api_service.dart';
+import 'services/banner_cache_service.dart';
 import 'dart:async';
 
 void main() async {
@@ -33,6 +34,9 @@ void main() async {
 
   // Initialize optimized API service
   await OptimizedApiService().initialize();
+
+  // Initialize banner cache service
+  await BannerCacheService().initialize();
 
   // Start auth initialization in background, don't wait for it
   AuthService.init().catchError((e) {
