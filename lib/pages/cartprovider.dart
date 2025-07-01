@@ -145,14 +145,40 @@ class CartProvider with ChangeNotifier {
         print('============================');
 
         if (data['cart_items'] != null) {
-          final items = (data['cart_items'] as List)
-              .map((item) => CartItem.fromServerJson(item))
-              .toList();
+          final rawItems = data['cart_items'] as List;
+
+          // Merge duplicate items by product_id
+          Map<String, CartItem> mergedItems = {};
+
+          for (final rawItem in rawItems) {
+            final cartItem = CartItem.fromServerJson(rawItem);
+            final productId = cartItem.productId;
+
+            if (mergedItems.containsKey(productId)) {
+              // Item already exists, add quantities
+              final existingItem = mergedItems[productId]!;
+              final newQuantity = existingItem.quantity + cartItem.quantity;
+              existingItem.updateQuantity(newQuantity);
+              print('🔍 MERGED DUPLICATE ITEM ===');
+              print('Product: ${cartItem.name}');
+              print('Old Quantity: ${cartItem.quantity}');
+              print('New Total Quantity: $newQuantity');
+              print('===========================');
+            } else {
+              // New item, add to map
+              mergedItems[productId] = cartItem;
+            }
+          }
+
+          final items = mergedItems.values.toList();
+
           print('=== SYNC CART PROCESSED ITEMS ===');
-          print('Number of items synced: ${items.length}');
+          print('Raw items from server: ${rawItems.length}');
+          print('Merged items: ${items.length}');
           print(
               'Items: ${items.map((item) => '${item.name} (${item.quantity})').toList()}');
           print('==================================');
+
           _cartItems = items;
           await _saveUserCarts();
           notifyListeners();
@@ -206,28 +232,6 @@ class CartProvider with ChangeNotifier {
   }
 
   Future<void> addToCart(CartItem item) async {
-    // Check if item already exists in cart
-    final existingItemIndex = _cartItems.indexWhere((cartItem) =>
-        cartItem.productId == item.productId &&
-        cartItem.batchNo == item.batchNo);
-
-    if (existingItemIndex != -1) {
-      // Item already exists, update quantity
-      _cartItems[existingItemIndex].updateQuantity(
-          _cartItems[existingItemIndex].quantity + item.quantity);
-      await _saveUserCarts();
-      notifyListeners();
-      return;
-    }
-
-    // For non-logged-in users, add to local cart only
-    if (!await AuthService.isLoggedIn()) {
-      _cartItems.add(item);
-      await _saveUserCarts();
-      notifyListeners();
-      return;
-    }
-
     // For logged-in users, try to sync with server
     _currentUserId ??= await AuthService.getCurrentUserID();
 
@@ -284,33 +288,102 @@ class CartProvider with ChangeNotifier {
           // Use the actual cart items returned from the API
           if (data['items'] != null && data['items'] is List) {
             final List<dynamic> itemsData = data['items'];
-            _cartItems.clear(); // Clear existing items
+
+            // Find the newest item (the one we just added)
+            DateTime? latestTime;
+            Map<String, dynamic>? newestItem;
+
+            print('🔍 SEARCHING FOR NEWEST ITEM ===');
+            print('Total items in API response: ${itemsData.length}');
 
             for (final itemData in itemsData) {
-              try {
-                // Use the fromServerJson factory method which handles API response format
-                final cartItem = CartItem.fromServerJson(itemData);
-                _cartItems.add(cartItem);
-              } catch (e) {
-                debugPrint('Error parsing cart item: $e');
-                // Fallback to manual parsing if fromServerJson fails
+              final createdAt = DateTime.parse(itemData['created_at']);
+              print('Item: ${itemData['product_name']} - Created: $createdAt');
+              if (latestTime == null || createdAt.isAfter(latestTime)) {
+                latestTime = createdAt;
+                newestItem = itemData;
+                print('  -> This is the newest so far');
+              }
+            }
+
+            // Get the server's product_id for the item we just added
+            int? serverProductId;
+            if (newestItem != null) {
+              serverProductId = newestItem['product_id'];
+              print('🔍 FOUND NEWEST ITEM ===');
+              print('Product Name: ${newestItem['product_name']}');
+              print('Server Product ID: $serverProductId');
+              print('Created At: ${newestItem['created_at']}');
+              print('========================');
+            } else {
+              print('❌ NO NEWEST ITEM FOUND!');
+            }
+
+            // Check if this product already exists in the current cart
+            bool productExists = false;
+            int existingItemIndex = -1;
+
+            print('🔍 CHECKING EXISTING CART ITEMS ===');
+            print('Current cart items count: ${_cartItems.length}');
+
+            if (serverProductId != null) {
+              for (int i = 0; i < _cartItems.length; i++) {
+                final cartItem = _cartItems[i];
+                print(
+                    'Cart item $i: ${cartItem.name} (ID: ${cartItem.productId})');
+                if (cartItem.productId == serverProductId.toString()) {
+                  productExists = true;
+                  existingItemIndex = i;
+                  print('  -> MATCH FOUND! Product exists at index $i');
+                  break;
+                }
+              }
+            }
+
+            print('Product exists: $productExists, Index: $existingItemIndex');
+            print('=====================================');
+
+            if (productExists && existingItemIndex != -1) {
+              // Product already exists, update quantity instead of adding duplicate
+              print('🔍 UPDATING EXISTING ITEM ===');
+              print('App Product ID: ${item.productId}');
+              print('Server Product ID: $serverProductId');
+              print('Product Name: ${item.name}');
+              print('Old Quantity: ${_cartItems[existingItemIndex].quantity}');
+              print(
+                  'New Quantity: ${_cartItems[existingItemIndex].quantity + item.quantity}');
+              print('===========================');
+
+              _cartItems[existingItemIndex].updateQuantity(
+                  _cartItems[existingItemIndex].quantity + item.quantity);
+            } else {
+              // Product doesn't exist, clear cart and rebuild from API response
+              _cartItems.clear();
+
+              for (final itemData in itemsData) {
                 try {
-                  final cartItem = CartItem(
-                    id: itemData['id'].toString(),
-                    productId: itemData['productID'].toString(),
-                    name: itemData['product']['name'] ?? 'Unknown Product',
-                    price: (itemData['product']['price'] ?? 0.0).toDouble(),
-                    quantity: itemData['quantity'] ?? 1,
-                    image: itemData['product']['image'] ?? '',
-                    batchNo: itemData['batch_no'] ?? '',
-                    urlName: itemData['url_name'] ?? '',
-                    totalPrice:
-                        ((itemData['product']['price'] ?? 0.0).toDouble() *
-                            (itemData['quantity'] ?? 1)),
-                  );
+                  // Use the fromServerJson factory method which handles API response format
+                  final cartItem = CartItem.fromServerJson(itemData);
                   _cartItems.add(cartItem);
-                } catch (fallbackError) {
-                  debugPrint('Fallback parsing also failed: $fallbackError');
+                } catch (e) {
+                  debugPrint('Error parsing cart item: $e');
+                  // Fallback to manual parsing if fromServerJson fails
+                  try {
+                    final cartItem = CartItem(
+                      id: itemData['id'].toString(),
+                      productId: itemData['product_id'].toString(),
+                      name: itemData['product_name'] ?? 'Unknown Product',
+                      price: (itemData['price'] ?? 0.0).toDouble(),
+                      quantity: itemData['qty'] ?? 1,
+                      image: itemData['product_img'] ?? '',
+                      batchNo: itemData['batch_no'] ?? '',
+                      urlName: itemData['url_name'] ?? '',
+                      totalPrice: (itemData['total_price'] ?? 0.0).toDouble(),
+                    );
+                    _cartItems.add(cartItem);
+                  } catch (fallbackError) {
+                    debugPrint('Fallback parsing also failed: $fallbackError');
+                  }
                 }
               }
             }

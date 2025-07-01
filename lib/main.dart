@@ -59,7 +59,8 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    _initializeAuthState();
+    // Remove auth initialization to start app immediately
+    // _initializeAuthState();
     // Set up the global callback
     _MyAppState.setRefreshAuthStateCallback(_refreshAuthState);
   }

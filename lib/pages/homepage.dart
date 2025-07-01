@@ -1729,10 +1729,6 @@ class _HomePageState extends State<HomePage>
                       imageHeight: cardImageHeight,
                     ),
                   ),
-                  // Health Tips Section
-                  SliverToBoxAdapter(
-                    child: _buildHealthTips(),
-                  ),
                   // Popular Products Section
                   SliverToBoxAdapter(
                     child: _buildPopularProducts(),
