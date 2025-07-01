@@ -17,6 +17,8 @@ import 'package:eclapp/pages/tandc.dart';
 import 'package:provider/provider.dart';
 import 'pages/cartprovider.dart';
 import 'pages/theme_provider.dart';
+import 'services/app_optimization_service.dart';
+import 'services/optimized_api_service.dart';
 import 'dart:async';
 
 void main() async {
@@ -25,6 +27,12 @@ void main() async {
   // Configure image cache for better performance
   PaintingBinding.instance.imageCache.maximumSize = 1000;
   PaintingBinding.instance.imageCache.maximumSizeBytes = 100 << 20; // 100 MB
+
+  // Initialize optimization service
+  await AppOptimizationService().initialize();
+
+  // Initialize optimized API service
+  await OptimizedApiService().initialize();
 
   // Start auth initialization in background, don't wait for it
   AuthService.init().catchError((e) {
@@ -41,7 +49,7 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool _isLoggedIn = false;
   bool _isInitialized = false;
 
@@ -59,10 +67,38 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    // Register for app lifecycle changes
+    WidgetsBinding.instance.addObserver(this);
+
     // Remove auth initialization to start app immediately
     // _initializeAuthState();
     // Set up the global callback
     _MyAppState.setRefreshAuthStateCallback(_refreshAuthState);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        AppOptimizationService().onAppBackgrounded();
+        break;
+      case AppLifecycleState.resumed:
+        AppOptimizationService().onAppForegrounded();
+        break;
+      case AppLifecycleState.inactive:
+        break;
+      case AppLifecycleState.hidden:
+        break;
+    }
   }
 
   Future<void> _initializeAuthState() async {
