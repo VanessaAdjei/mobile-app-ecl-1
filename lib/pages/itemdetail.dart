@@ -7,7 +7,6 @@ import 'package:uuid/uuid.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
-import 'Cart.dart';
 import 'CartItem.dart';
 import 'package:eclapp/pages/ProductModel.dart';
 import 'package:eclapp/pages/auth_service.dart';
@@ -21,13 +20,17 @@ import 'AppBackButton.dart';
 import 'package:eclapp/pages/homepage.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'dart:ui';
-import 'package:eclapp/pages/cart.dart' as cart;
+import 'package:eclapp/pages/cart.dart';
 import 'package:eclapp/pages/upload_prescription.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 
-// Cache for product details
+// Import optimization service
+import '../services/item_detail_optimization_service.dart';
+import '../widgets/optimized_item_detail_widget.dart';
+
+// Cache for product details (legacy - will be replaced by optimization service)
 final Map<String, Product> _productCache = {};
 final Map<String, List<Product>> _relatedProductsCache = {};
 
@@ -459,129 +462,18 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.green.shade700,
-                Colors.green.shade800,
-              ],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-        ),
-        leading: AppBackButton(
-          backgroundColor: Colors.white.withOpacity(0.2),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: FutureBuilder<Product>(
-          future: _productFuture,
-          builder: (context, snapshot) {
-            if (snapshot.hasData) {
-              return Text(
-                snapshot.data!.name,
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                  letterSpacing: 0.3,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              );
-            }
-            return Text(
-              'Product Details',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-                letterSpacing: 0.3,
-              ),
-            );
-          },
-        ),
-        actions: [
-          // Cart button
-          Container(
-            margin: EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: CartIconButton(
-              iconColor: Colors.white,
-              iconSize: 24,
-              backgroundColor: Colors.transparent,
-            ),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          setState(() {
-            _productFuture = _fetchProductDetailsWithCache(widget.urlName);
-            _relatedProductsFuture =
-                _fetchRelatedProductsWithCache(widget.urlName);
-          });
-          await _productFuture;
-          await _relatedProductsFuture;
-        },
-        child: FutureBuilder<Product>(
-          future: _productFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return _buildLoadingSkeleton();
-            }
-
-            if (snapshot.hasError) {
-              return _buildErrorState(snapshot.error.toString());
-            }
-
-            final product = snapshot.data!;
-            return SingleChildScrollView(
-              physics: AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.only(bottom: 60),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Enhanced Product Image Gallery
-                  _buildProductImageGallery(product),
-
-                  // Product Info Card
-                  _buildProductInfoCard(product, theme),
-
-                  // Quantity Selector
-                  _buildQuantitySelector(product),
-
-                  // Action Buttons
-                  _buildActionButtons(product),
-
-                  // Related Products
-                  _buildRelatedProductsSection(product),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-      bottomNavigationBar: const CustomBottomNav(
-        initialIndex: 0,
-      ),
+    // Use the optimized widget for better performance
+    return OptimizedItemDetailWidget(
+      urlName: widget.urlName,
+      isPrescribed: widget.isPrescribed,
+      onBackPressed: () => Navigator.pop(context),
+      onCartPressed: () {
+        // Navigate to cart
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => Cart()),
+        );
+      },
     );
   }
 
