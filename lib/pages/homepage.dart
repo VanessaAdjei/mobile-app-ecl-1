@@ -26,6 +26,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../services/health_tips_service.dart';
 import '../models/health_tip.dart';
 import '../services/banner_cache_service.dart';
+import '../services/homepage_optimization_service.dart';
 
 // Image preloading service for better performance
 class ImagePreloader {
@@ -209,6 +210,10 @@ class _HomePageState extends State<HomePage>
 
   // Image preloading controller
   final Map<String, bool> _preloadedImages = {};
+
+  // Optimization service
+  final HomepageOptimizationService _optimizationService =
+      HomepageOptimizationService();
 
   _launchPhoneDialer(String phoneNumber) async {
     final permissionStatus = await Permission.phone.request();
@@ -1050,6 +1055,7 @@ class _HomePageState extends State<HomePage>
     WidgetsBinding.instance.addObserver(this);
     // Clear any old cached data to prevent type mismatches
     HealthTipsService.clearCache();
+    _initializeOptimizationService();
     _loadContentOptimized();
     _scrollController.addListener(() {
       if (_scrollController.offset > 100 && !_isScrolled) {
@@ -1062,6 +1068,20 @@ class _HomePageState extends State<HomePage>
         });
       }
     });
+  }
+
+  Future<void> _initializeOptimizationService() async {
+    await _optimizationService.initialize();
+
+    // Load cached data immediately if available
+    if (_optimizationService.hasCachedProducts) {
+      setState(() {
+        _products = _optimizationService.cachedProducts;
+        filteredProducts = _optimizationService.cachedProducts;
+        _isLoading = false;
+        _error = null;
+      });
+    }
   }
 
   @override

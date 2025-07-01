@@ -69,4 +69,28 @@ class Product {
       uom: uomValue,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'url_name': urlName,
+      'status': status,
+      'price': price,
+      'thumbnail': thumbnail,
+      'quantity': quantity,
+      'batch_no': batch_no,
+      'category': category,
+      'route': route,
+      'tags': tags,
+      'otcpom': otcpom,
+      'drug': drug,
+      'wellness': wellness,
+      'selfcare': selfcare,
+      'accessories': accessories,
+      'category_id': categoryId,
+      'uom': uom,
+    };
+  }
 }

@@ -12,6 +12,7 @@ import 'package:eclapp/pages/AppBackButton.dart';
 import 'package:eclapp/widgets/cart_icon_button.dart';
 import 'package:eclapp/pages/bulk_purchase_page.dart';
 import 'package:eclapp/pages/bottomnav.dart';
+import '../services/category_optimization_service.dart';
 
 // Cache for categories and products
 class CategoryCache {
@@ -93,19 +94,13 @@ class _CategoryPageState extends State<CategoryPage> {
   List<dynamic> _searchResults = [];
   final FocusNode _searchFocusNode = FocusNode();
   Timer? _searchDebounceTimer;
+  final CategoryOptimizationService _categoryService =
+      CategoryOptimizationService();
 
   @override
   void initState() {
     super.initState();
-    // Load cached data immediately if available
-    if (CategoryCache.isCacheValid) {
-      setState(() {
-        _categories = CategoryCache.cachedCategories;
-        _filteredCategories = CategoryCache.cachedCategories;
-        _isLoading = false;
-        _errorMessage = '';
-      });
-    }
+    _initializeCategoryService();
     _loadCategoriesOptimized();
 
     _searchFocusNode.addListener(() {
@@ -115,6 +110,20 @@ class _CategoryPageState extends State<CategoryPage> {
         });
       }
     });
+  }
+
+  Future<void> _initializeCategoryService() async {
+    _categoryService.initialize();
+
+    // Load cached data immediately if available
+    if (_categoryService.hasCachedCategories) {
+      setState(() {
+        _categories = _categoryService.cachedCategories;
+        _filteredCategories = _categoryService.cachedCategories;
+        _isLoading = false;
+        _errorMessage = '';
+      });
+    }
   }
 
   @override
@@ -127,10 +136,9 @@ class _CategoryPageState extends State<CategoryPage> {
 
   // Optimized loading that checks cache first
   Future<void> _loadCategoriesOptimized() async {
-        if (CategoryCache.isCacheValid &&
-        CategoryCache.cachedCategories.isNotEmpty) {
-      final cachedCategories = CategoryCache.cachedCategories;
-      _processCategories(cachedCategories);
+    try {
+      final categories = await _categoryService.getCategories();
+      _processCategories(categories);
 
       if (mounted) {
         setState(() {
@@ -140,20 +148,15 @@ class _CategoryPageState extends State<CategoryPage> {
       }
 
       // Preload images in background
-      _preloadCategoryImages(cachedCategories);
-      return;
+      _categoryService.preloadCategoryImages(context, categories);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load categories. Please try again.';
+          _isLoading = false;
+        });
+      }
     }
-
-    // Only show loading if we don't have cached data
-    if (mounted) {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = '';
-      });
-    }
-
-    // Otherwise, load normally
-    await _fetchTopCategories();
   }
 
   // Process categories and update state
@@ -202,10 +205,7 @@ class _CategoryPageState extends State<CategoryPage> {
         orElse: () => null,
       );
 
-      if (subcategory != null) {
-        // Remove the call to onSubcategorySelected as it doesn't exist in this class
-        // This method is only available in SubcategoryPageState
-      }
+      if (subcategory != null) {}
     }
   }
 
@@ -261,53 +261,14 @@ class _CategoryPageState extends State<CategoryPage> {
   Future<List<dynamic>> _getAllProductsFromCategories({
     bool forceRefresh = false,
   }) async {
-    // Check if we have cached products and don't need to force refresh
-    if (CategoryCache.cachedAllProducts.isNotEmpty && !forceRefresh) {
-      _allProducts = CategoryCache.cachedAllProducts;
-      return _allProducts;
-    }
-
-    if (_isLoadingProducts) {
+    try {
+      final products =
+          await _categoryService.getProducts(forceRefresh: forceRefresh);
+      _allProducts = products;
+      return products;
+    } catch (e) {
       return [];
     }
-
-    setState(() {
-      _isLoadingProducts = true;
-    });
-
-    List<dynamic> allProducts = [];
-
-    try {
-      // Use concurrent requests for better performance
-      final futures = <Future<void>>[];
-
-      for (var category in _categories) {
-        futures.add(_fetchProductsForCategory(category, allProducts));
-      }
-
-      // Wait for all requests to complete with timeout
-      await Future.wait(futures).timeout(
-        Duration(seconds: 30),
-        onTimeout: () {
-          // Continue with what we have
-          return <void>[];
-        },
-      );
-
-      // Cache the products
-      CategoryCache.cacheAllProducts(allProducts);
-      _allProducts = allProducts;
-    } catch (e) {
-      // Continue with other categories even if one fails
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingProducts = false;
-        });
-      }
-    }
-
-    return allProducts;
   }
 
   Future<void> _fetchProductsForCategory(
@@ -381,8 +342,9 @@ class _CategoryPageState extends State<CategoryPage> {
 
   void _showSearch(BuildContext context) async {
     // Check if we already have products cached
-    if (CategoryCache.cachedAllProducts.isNotEmpty) {
-      _showSearchWithProducts(context, CategoryCache.cachedAllProducts);
+    if (_categoryService.hasCachedProducts) {
+      final products = await _categoryService.getProducts();
+      _showSearchWithProducts(context, products);
       return;
     }
 
@@ -647,10 +609,6 @@ class _CategoryPageState extends State<CategoryPage> {
             iconColor: Colors.white,
             iconSize: 24,
           ),
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () => _showSearch(context),
-          ),
         ],
       ),
       backgroundColor: Colors.grey[50],
@@ -660,13 +618,15 @@ class _CategoryPageState extends State<CategoryPage> {
           children: [
             // Search Section
             Container(
-              padding: EdgeInsets.fromLTRB(12, 8, 12, 12),
+              padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   // Search Bar with Dropdown
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
                         decoration: BoxDecoration(
@@ -710,7 +670,7 @@ class _CategoryPageState extends State<CategoryPage> {
                       if (_showSearchDropdown)
                         Container(
                           margin: EdgeInsets.only(top: 4),
-                          constraints: BoxConstraints(maxHeight: 300),
+                          constraints: BoxConstraints(maxHeight: 200),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(8),
@@ -721,6 +681,7 @@ class _CategoryPageState extends State<CategoryPage> {
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               // Debug header
                               Container(
@@ -754,7 +715,7 @@ class _CategoryPageState extends State<CategoryPage> {
                                 ),
                               ),
                               // Results
-                              Expanded(
+                              Flexible(
                                 child: _isLoadingProducts
                                     ? Container(
                                         padding: EdgeInsets.all(16),
@@ -784,20 +745,20 @@ class _CategoryPageState extends State<CategoryPage> {
                                       )
                                     : _searchResults.isEmpty
                                         ? Container(
-                                            padding: EdgeInsets.all(24),
+                                            padding: EdgeInsets.all(16),
                                             child: Column(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 Icon(
                                                   Icons.search_off,
-                                                  size: 48,
+                                                  size: 32,
                                                   color: Colors.grey.shade400,
                                                 ),
-                                                SizedBox(height: 12),
+                                                SizedBox(height: 8),
                                                 Text(
-                                                  'There is no product available currently',
+                                                  'No products found',
                                                   style: TextStyle(
-                                                    fontSize: 14,
+                                                    fontSize: 12,
                                                     color: Colors.grey.shade600,
                                                     fontWeight: FontWeight.w500,
                                                   ),
@@ -865,74 +826,62 @@ class _CategoryPageState extends State<CategoryPage> {
     return InkWell(
       onTap: () => _onSearchItemTap(item),
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
           children: [
             // Product thumbnail
             Container(
-              width: 50,
-              height: 50,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(6),
                 color: Colors.grey.shade100,
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(6),
                 child: CachedNetworkImage(
                   imageUrl: item['thumbnail'] ?? '',
                   fit: BoxFit.cover,
                   placeholder: (context, url) =>
-                      Center(child: CircularProgressIndicator()),
+                      Center(child: CircularProgressIndicator(strokeWidth: 2)),
                   errorWidget: (context, url, error) =>
-                      Icon(Icons.broken_image),
+                      Icon(Icons.broken_image, size: 20),
                 ),
               ),
             ),
-            SizedBox(width: 12),
+            SizedBox(width: 10),
             // Product content
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     item['name'],
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: Colors.black87,
                     ),
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  SizedBox(height: 4),
+                  SizedBox(height: 2),
                   Text(
                     'GHS ${_formatPrice(item['price'])}',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 12,
                       color: Colors.green.shade700,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   if (item['category_name'] != null) ...[
-                    SizedBox(height: 2),
+                    SizedBox(height: 1),
                     Text(
                       item['category_name'],
                       style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey.shade600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                  if (item['subcategory_name'] != null) ...[
-                    SizedBox(height: 1),
-                    Text(
-                      '→ ${item['subcategory_name']}',
-                      style: TextStyle(
                         fontSize: 10,
-                        color: Colors.green.shade600,
-                        fontWeight: FontWeight.w500,
+                        color: Colors.grey.shade600,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -942,7 +891,7 @@ class _CategoryPageState extends State<CategoryPage> {
               ),
             ),
             // Arrow
-            Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 20),
+            Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 16),
           ],
         ),
       ),
