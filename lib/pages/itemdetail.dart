@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'CartItem.dart';
 import 'package:eclapp/pages/ProductModel.dart';
 import 'package:eclapp/pages/auth_service.dart';
@@ -57,6 +58,9 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   PageController? _imagePageController;
   int _currentImageIndex = 0;
   List<String> _productImages = [];
+
+  // Key for storing quantity preferences
+  static const String _quantityPrefsKey = 'product_quantities';
 
   // Animation controllers
   late AnimationController _fadeController;
@@ -137,6 +141,11 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   void _addToCart(BuildContext context, Product product) async {
+    _addToCartWithQuantity(context, product, 1);
+  }
+
+  void _addToCartWithQuantity(
+      BuildContext context, Product product, int quantity) async {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
     print('🔍 ADDING TO CART ===');
@@ -144,8 +153,8 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     print('Product Name: ${product.name}');
     print('Batch Number: ${product.batch_no}');
     print('Price: ${product.price}');
-    print('Quantity: $quantity');
     print('URL Name: ${product.urlName}');
+    print('Quantity: $quantity');
     print('========================');
 
     try {
@@ -161,10 +170,17 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         totalPrice: (double.tryParse(product.price) ?? 0.0) * quantity,
       );
 
+      print('🔍 CREATED CART ITEM ===');
+      print('Cart Item ID: ${cartItem.id}');
+      print('Cart Item Quantity: ${cartItem.quantity}');
+      print('Cart Item Total Price: ${cartItem.totalPrice}');
+      print('========================');
+
       cartProvider.addToCart(cartItem);
 
       if (mounted) {
-        _showSuccessSnackBar(context, '${product.name} has been added to cart');
+        _showSuccessSnackBar(
+            context, '${quantity}x ${product.name} has been added to cart');
         _scaleController.forward().then((_) => _scaleController.reverse());
       }
     } catch (e) {
@@ -172,6 +188,84 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         _showErrorSnackBar(context, 'Error adding item to cart: $e');
       }
     }
+  }
+
+  void _removeFromCart(BuildContext context, Product product) async {
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+
+    print('🔍 REMOVING FROM CART ===');
+    print('Product ID: ${product.id}');
+    print('Product Name: ${product.name}');
+    print('Batch Number: ${product.batch_no}');
+    print('URL Name: ${product.urlName}');
+    print('========================');
+
+    try {
+      // Find the cart item to remove
+      final cartItems = cartProvider.cartItems;
+      final itemToRemove = cartItems.firstWhere(
+        (item) =>
+            item.productId == product.id.toString() &&
+            item.batchNo == product.batch_no,
+        orElse: () => CartItem(
+          id: '',
+          productId: product.id.toString(),
+          name: product.name,
+          price: 0.0,
+          quantity: 0,
+          image: '',
+          batchNo: product.batch_no,
+          urlName: product.urlName,
+          totalPrice: 0.0,
+        ),
+      );
+
+      if (itemToRemove.id.isNotEmpty) {
+        await cartProvider.removeFromCart(itemToRemove.id);
+
+        if (mounted) {
+          _showSuccessSnackBar(
+              context, '${product.name} has been removed from cart');
+          // Update the quantity display
+          setState(() {
+            quantity = _getCartQuantity(product);
+          });
+        }
+      } else {
+        if (mounted) {
+          _showErrorSnackBar(context, 'Item not found in cart');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackBar(context, 'Error removing item from cart: $e');
+      }
+    }
+  }
+
+  // Get current quantity of this product in cart
+  int _getCartQuantity(Product product) {
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    final cartItems = cartProvider.cartItems;
+
+    final cartItem = cartItems.firstWhere(
+      (item) =>
+          item.productId == product.id.toString() &&
+          item.batchNo == product.batch_no,
+      orElse: () => CartItem(
+        id: '',
+        productId: product.id.toString(),
+        name: product.name,
+        price: 0.0,
+        quantity: 0,
+        image: '',
+        batchNo: product.batch_no,
+        urlName: product.urlName,
+        totalPrice: 0.0,
+      ),
+    );
+
+    return cartItem.quantity;
   }
 
   void _showSuccessSnackBar(BuildContext context, String message) {
@@ -317,15 +411,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
             final product = Product.fromJson({
               'id': productId,
-              'name': inventoryData['url_name']
-                      ?.toString()
-                      .replaceAll('-', ' ')
-                      .split(' ')
-                      .map((word) => word.isNotEmpty
-                          ? word[0].toUpperCase() + word.substring(1)
-                          : '')
-                      .join(' ') ??
-                  'Unknown Product',
+              'name': _extractProductName(inventoryData['url_name'] ?? ''),
               'description': productData['description'] ?? '',
               'url_name': inventoryData['url_name'] ?? '',
               'status': inventoryData['status'] ?? '',
@@ -369,6 +455,101 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           'No internet connection. Please check your network settings.');
     } catch (e) {
       throw Exception('Could not load product: $e');
+    }
+  }
+
+  // Helper method to extract clean product name from URL name
+  String _extractProductName(String urlName) {
+    if (urlName.isEmpty) return 'Unknown Product';
+
+    // Remove common suffixes that are not part of the product name
+    String cleanName = urlName;
+
+    // Remove random alphanumeric suffixes (like a8cfddbcd6)
+    cleanName = cleanName.replaceAll(RegExp(r'-[a-f0-9]{8,}$'), '');
+
+    // Remove trailing numbers that are not part of the name
+    cleanName = cleanName.replaceAll(RegExp(r'-\d+$'), '');
+
+    // Convert kebab-case to title case
+    return cleanName
+        .replaceAll('-', ' ')
+        .split(' ')
+        .map((word) => word.isNotEmpty
+            ? word[0].toUpperCase() + word.substring(1).toLowerCase()
+            : '')
+        .join(' ');
+  }
+
+  // Load saved quantity for this product
+  Future<void> _loadSavedQuantity() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final quantityPrefs = prefs.getString(_quantityPrefsKey);
+
+      if (quantityPrefs != null) {
+        final Map<String, dynamic> prefsMap = json.decode(quantityPrefs);
+        final savedQuantity = prefsMap[widget.urlName];
+
+        if (savedQuantity != null &&
+            savedQuantity is int &&
+            savedQuantity > 0) {
+          setState(() {
+            quantity = savedQuantity;
+          });
+          print('🔍 LOADED SAVED QUANTITY ===');
+          print('Product: ${widget.urlName}');
+          print('Saved Quantity: $quantity');
+          print('==========================');
+        }
+      }
+    } catch (e) {
+      print('Error loading saved quantity: $e');
+    }
+  }
+
+  // Save quantity for this product
+  Future<void> _saveQuantity() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final quantityPrefs = prefs.getString(_quantityPrefsKey);
+
+      Map<String, dynamic> prefsMap = {};
+      if (quantityPrefs != null) {
+        prefsMap = json.decode(quantityPrefs);
+      }
+
+      prefsMap[widget.urlName] = quantity;
+
+      await prefs.setString(_quantityPrefsKey, json.encode(prefsMap));
+
+      print('🔍 SAVED QUANTITY ===');
+      print('Product: ${widget.urlName}');
+      print('Quantity: $quantity');
+      print('====================');
+    } catch (e) {
+      print('Error saving quantity: $e');
+    }
+  }
+
+  // Clear saved quantity for this product
+  Future<void> _clearSavedQuantity() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final quantityPrefs = prefs.getString(_quantityPrefsKey);
+
+      if (quantityPrefs != null) {
+        Map<String, dynamic> prefsMap = json.decode(quantityPrefs);
+        prefsMap.remove(widget.urlName);
+
+        await prefs.setString(_quantityPrefsKey, json.encode(prefsMap));
+
+        print('🔍 CLEARED SAVED QUANTITY ===');
+        print('Product: ${widget.urlName}');
+        print('============================');
+      }
+    } catch (e) {
+      print('Error clearing saved quantity: $e');
     }
   }
 
@@ -462,18 +643,135 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    // Use the optimized widget for better performance
-    return OptimizedItemDetailWidget(
-      urlName: widget.urlName,
-      isPrescribed: widget.isPrescribed,
-      onBackPressed: () => Navigator.pop(context),
-      onCartPressed: () {
-        // Navigate to cart
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => Cart()),
-        );
-      },
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.green.shade700,
+                Colors.green.shade800,
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
+        leading: AppBackButton(
+          backgroundColor: Colors.white.withOpacity(0.2),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: FutureBuilder<Product>(
+          future: _productFuture,
+          builder: (context, snapshot) {
+            if (snapshot.hasData) {
+              return Text(
+                snapshot.data!.urlName
+                    .replaceAll('-', ' ')
+                    .split(' ')
+                    .map((word) => word.isNotEmpty
+                        ? word[0].toUpperCase() + word.substring(1)
+                        : '')
+                    .join(' '),
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  letterSpacing: 0.3,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              );
+            }
+            return Text(
+              'Product Details',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+                letterSpacing: 0.3,
+              ),
+            );
+          },
+        ),
+        actions: [
+          // Cart button
+          Container(
+            margin: EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: CartIconButton(
+              iconColor: Colors.white,
+              iconSize: 24,
+              backgroundColor: Colors.transparent,
+            ),
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          setState(() {
+            _productFuture = _fetchProductDetailsWithCache(widget.urlName);
+            _relatedProductsFuture =
+                _fetchRelatedProductsWithCache(widget.urlName);
+          });
+          await _productFuture;
+          await _relatedProductsFuture;
+        },
+        child: FutureBuilder<Product>(
+          future: _productFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return _buildLoadingSkeleton();
+            }
+
+            if (snapshot.hasError) {
+              return _buildErrorState(snapshot.error.toString());
+            }
+
+            final product = snapshot.data!;
+            return SingleChildScrollView(
+              physics: AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.only(bottom: 60),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Enhanced Product Image Gallery
+                  _buildProductImageGallery(product),
+
+                  // Product Info Card
+                  _buildProductInfoCard(product, theme),
+
+                  // Quantity Selector
+                  _buildQuantitySelector(product),
+
+                  // Action Buttons
+                  _buildActionButtons(product),
+
+                  // Related Products
+                  _buildRelatedProductsSection(product),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+      bottomNavigationBar: const CustomBottomNav(
+        initialIndex: 0,
+      ),
     );
   }
 
@@ -653,13 +951,6 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                     width: 200,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
@@ -782,7 +1073,13 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
               // Product name
               Text(
-                product.name,
+                product.urlName
+                    .replaceAll('-', ' ')
+                    .split(' ')
+                    .map((word) => word.isNotEmpty
+                        ? word[0].toUpperCase() + word.substring(1)
+                        : '')
+                    .join(' '),
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
@@ -907,9 +1204,6 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                           setState(() {
                             if (quantity > 1) {
                               quantity--;
-                            } else {
-                              _showErrorSnackBar(
-                                  context, 'Quantity cannot be less than 1');
                             }
                           });
                         },
@@ -947,30 +1241,13 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: Colors.green.shade200),
                   ),
-                  child: FutureBuilder<Product>(
-                    future: _productFuture,
-                    builder: (context, snapshot) {
-                      if (snapshot.hasData) {
-                        final totalPrice =
-                            double.parse(snapshot.data!.price) * quantity;
-                        return Text(
-                          'Total: GHS ${totalPrice.toStringAsFixed(2)}',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green.shade800,
-                          ),
-                        );
-                      }
-                      return Text(
-                        'Total: GHS 0.00',
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green.shade800,
-                        ),
-                      );
-                    },
+                  child: Text(
+                    'Total: GHS ${(double.parse(product.price) * quantity).toStringAsFixed(2)}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green.shade800,
+                    ),
                   ),
                 ),
               ],
@@ -983,97 +1260,106 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
   Widget _buildActionButtons(Product product) {
     return Animate(
-      effects: [
-        FadeEffect(duration: 400.ms, delay: 400.ms),
-        SlideEffect(
-            duration: 400.ms,
-            begin: Offset(0, 0.1),
-            end: Offset(0, 0),
-            delay: 400.ms)
-      ],
-      child: Container(
-        margin: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: SizedBox(
-          width: double.infinity,
-          height: 44,
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.green.shade600, Colors.green.shade800],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(22),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.green.shade200.withOpacity(0.3),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: ElevatedButton(
-              onPressed: () async {
-                if (widget.isPrescribed) {
-                  final token = await AuthService.getToken();
-                  if (token == null) {
-                    _showErrorSnackBar(context, "Please log in to continue");
-                    return;
-                  }
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => PrescriptionUploadPage(
-                        token: token,
-                        item: {
-                          'product': {
-                            'name': product.name,
-                            'thumbnail': product.thumbnail,
-                            'id': product.id,
-                          },
-                          'price': product.price,
-                          'batch_no': product.batch_no,
-                        },
-                      ),
-                    ),
-                  );
-                } else {
-                  _addToCart(context, product);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(horizontal: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                elevation: 0,
-                backgroundColor:
-                    widget.isPrescribed ? Colors.red[600] : Colors.transparent,
-                shadowColor: Colors.transparent,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (widget.isPrescribed) ...[
-                    Icon(Icons.medical_services_outlined,
-                        color: Colors.white, size: 16),
-                    SizedBox(width: 4),
-                  ],
-                  Text(
-                    widget.isPrescribed ? 'Upload Prescription' : 'Add to Cart',
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Colors.white,
-                    ),
+        effects: [
+          FadeEffect(duration: 400.ms, delay: 400.ms),
+          SlideEffect(
+              duration: 400.ms,
+              begin: Offset(0, 0.1),
+              end: Offset(0, 0),
+              delay: 400.ms)
+        ],
+        child: Container(
+            margin: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.green.shade600, Colors.green.shade800],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                ],
+                  borderRadius: BorderRadius.circular(22),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green.shade200.withOpacity(0.3),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Consumer<CartProvider>(
+                  builder: (context, cartProvider, child) {
+                    final cartQuantity = _getCartQuantity(product);
+                    final isInCart = cartQuantity > 0;
+
+                    return ElevatedButton(
+                      onPressed: () async {
+                        if (widget.isPrescribed) {
+                          final token = await AuthService.getToken();
+                          if (token == null) {
+                            _showErrorSnackBar(
+                                context, "Please log in to continue");
+                            return;
+                          }
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PrescriptionUploadPage(
+                                token: token,
+                                item: {
+                                  'product': {
+                                    'name': product.name,
+                                    'thumbnail': product.thumbnail,
+                                    'id': product.id,
+                                  },
+                                  'price': product.price,
+                                  'batch_no': product.batch_no,
+                                },
+                              ),
+                            ),
+                          );
+                        } else {
+                          _addToCartWithQuantity(context, product, quantity);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(horizontal: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        elevation: 0,
+                        backgroundColor: widget.isPrescribed
+                            ? Colors.red[600]
+                            : Colors.transparent,
+                        shadowColor: Colors.transparent,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (widget.isPrescribed) ...[
+                            Icon(Icons.medical_services_outlined,
+                                color: Colors.white, size: 16),
+                            SizedBox(width: 4),
+                          ],
+                          Text(
+                            widget.isPrescribed
+                                ? 'Upload Prescription'
+                                : 'Add to Cart',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-          ),
-        ),
-      ),
-    );
+            )));
   }
 
   Widget _buildRelatedProductsSection(Product product) {
@@ -1390,7 +1676,13 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        product.name,
+                        product.urlName
+                            .replaceAll('-', ' ')
+                            .split(' ')
+                            .map((word) => word.isNotEmpty
+                                ? word[0].toUpperCase() + word.substring(1)
+                                : '')
+                            .join(' '),
                         style: GoogleFonts.poppins(
                           fontWeight: FontWeight.w600,
                           fontSize: 11,

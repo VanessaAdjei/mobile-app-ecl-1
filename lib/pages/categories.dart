@@ -110,19 +110,31 @@ class _CategoryPageState extends State<CategoryPage> {
         });
       }
     });
+
+    // Print performance summary after initialization
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _categoryService.printPerformanceSummary();
+    });
   }
 
   Future<void> _initializeCategoryService() async {
-    _categoryService.initialize();
+    await _categoryService.initialize();
 
     // Load cached data immediately if available
-    if (_categoryService.hasCachedCategories) {
+    if (_categoryService.hasCachedCategories &&
+        _categoryService.isCategoriesCacheValid) {
+      print(
+          'Using cached categories from initialization: ${_categoryService.cachedCategories.length} categories');
       setState(() {
         _categories = _categoryService.cachedCategories;
         _filteredCategories = _categoryService.cachedCategories;
         _isLoading = false;
         _errorMessage = '';
       });
+
+      // Preload images in background
+      _categoryService.preloadCategoryImages(
+          context, _categoryService.cachedCategories);
     }
   }
 
@@ -136,7 +148,16 @@ class _CategoryPageState extends State<CategoryPage> {
 
   // Optimized loading that checks cache first
   Future<void> _loadCategoriesOptimized() async {
+    // Skip loading if we already have valid cached data from initialization
+    if (_categoryService.hasCachedCategories &&
+        _categoryService.isCategoriesCacheValid &&
+        _categories.isNotEmpty) {
+      print('Skipping category loading - using existing cached data');
+      return;
+    }
+
     try {
+      print('Loading categories from service...');
       final categories = await _categoryService.getCategories();
       _processCategories(categories);
 
@@ -150,6 +171,7 @@ class _CategoryPageState extends State<CategoryPage> {
       // Preload images in background
       _categoryService.preloadCategoryImages(context, categories);
     } catch (e) {
+      print('Category loading error: $e');
       if (mounted) {
         setState(() {
           _errorMessage = 'Failed to load categories. Please try again.';

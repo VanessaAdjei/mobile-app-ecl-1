@@ -3,6 +3,7 @@ import 'package:eclapp/pages/signinpage.dart';
 import 'package:eclapp/pages/storelocation.dart';
 import 'package:eclapp/pages/categories.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -1004,37 +1005,309 @@ class _HomePageState extends State<HomePage>
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      backgroundColor: Colors.white,
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
+        return Container(
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ListTile(
-                leading: Icon(Icons.call, color: Colors.green),
-                title: Text('Call'),
+              // Handle bar
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Title
+              Text(
+                'Contact Us',
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              Text(
+                'Choose how you\'d like to reach us',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Call option
+              _buildContactOption(
+                icon: Icons.phone_rounded,
+                title: 'Call Us',
+                subtitle: '+233 000 000 0000',
+                color: Colors.green.shade600,
                 onTap: () {
-                  if (Navigator.canPop(context)) {
-                    Navigator.pop(context);
-                  }
+                  Navigator.pop(context);
                   _launchPhoneDialer(phoneNumber);
                   makePhoneCall(phoneNumber);
                 },
               ),
-              ListTile(
-                leading:
-                    FaIcon(FontAwesomeIcons.whatsapp, color: Color(0xFF25D366)),
-                title: Text('WhatsApp'),
+
+              const SizedBox(height: 12),
+
+              // WhatsApp option
+              _buildContactOption(
+                icon: Icons.message_rounded,
+                title: 'WhatsApp',
+                subtitle: 'Chat with us instantly',
+                color: const Color(0xFF25D366),
                 onTap: () {
-                  if (Navigator.canPop(context)) {
-                    Navigator.pop(context);
-                  }
+                  Navigator.pop(context);
                   _launchWhatsApp(
                       phoneNumber, "Hello, I'm interested in your products!");
                 },
               ),
+
+              const SizedBox(height: 12),
+
+              // Email option
+              _buildContactOption(
+                icon: Icons.email_rounded,
+                title: 'Email Us',
+                subtitle: 'support@ernestchemists.com',
+                color: Colors.blue.shade600,
+                onTap: () {
+                  Navigator.pop(context);
+                  _launchEmail(
+                      'support@ernestchemists.com', 'ECL Support Request');
+                },
+              ),
+
+              const SizedBox(height: 20),
             ],
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildContactOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                color: color,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.grey.shade400,
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _launchEmail(String email, String subject) async {
+    try {
+      final String emailBody =
+          'Hello,\n\nI would like to contact Ernest Chemists Limited for support.\n\nBest regards,';
+      final Uri emailUri = Uri.parse(
+          'mailto:$email?subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(emailBody)}');
+
+      final bool launched = await launchUrl(
+        emailUri,
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!launched) {
+        _showEmailAlternatives(email);
+      }
+    } catch (e) {
+      _showEmailAlternatives(email);
+    }
+  }
+
+  void _showEmailAlternatives(String email) {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.email_outlined, color: Colors.green.shade600),
+              const SizedBox(width: 8),
+              Text(
+                'Email Not Available',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'No email app found on your device. Here are alternative ways to contact us:',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Email Address:',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        email,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.green.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: email));
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Row(
+                              children: [
+                                Icon(Icons.check_circle,
+                                    color: Colors.white, size: 20),
+                                const SizedBox(width: 8),
+                                Text('Email copied to clipboard'),
+                              ],
+                            ),
+                            backgroundColor: Colors.green.shade600,
+                            duration: const Duration(seconds: 2),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade600,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.copy,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'You can copy the email address and use it in your preferred email app.',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'OK',
+                style: GoogleFonts.poppins(
+                  color: Colors.green.shade600,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -1791,16 +2064,15 @@ class _HomePageState extends State<HomePage>
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    // Calculate responsive spacing
-    final responsiveMainAxisSpacing =
-        screenHeight * 0.005; // 0.5% of screen height
-    final responsiveCrossAxisSpacing = screenWidth * 0.02; // 2% of screen width
-    final responsivePadding = screenWidth * 0.02; // 2% of screen width
+    // Calculate responsive spacing - absolutely minimal
+    final responsiveMainAxisSpacing = 0.0; // No spacing at all
+    final responsiveCrossAxisSpacing = 0.0; // No spacing at all
+    final responsivePadding = 0.0; // No padding at all
 
-    // Ensure minimum and maximum values
-    final finalMainAxisSpacing = responsiveMainAxisSpacing.clamp(2.0, 6.0);
-    final finalCrossAxisSpacing = responsiveCrossAxisSpacing.clamp(6.0, 16.0);
-    final finalPadding = responsivePadding.clamp(6.0, 16.0);
+    // Ensure minimum and maximum values - absolutely minimal spacing
+    final finalMainAxisSpacing = 0.0; // No spacing between rows
+    final finalCrossAxisSpacing = 0.0; // No spacing between columns
+    final finalPadding = 0.0; // No padding around grid
 
     return Shimmer.fromColors(
       baseColor: Colors.grey[300]!,
@@ -1850,13 +2122,13 @@ class _HomePageState extends State<HomePage>
             GridView.builder(
               physics: NeverScrollableScrollPhysics(),
               shrinkWrap: true,
-              padding: EdgeInsets.symmetric(horizontal: finalPadding),
+              padding: EdgeInsets.zero,
               itemCount: 4,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.7,
-                mainAxisSpacing: finalMainAxisSpacing,
-                crossAxisSpacing: finalCrossAxisSpacing,
+                childAspectRatio: 1.0,
+                mainAxisSpacing: 0.0,
+                crossAxisSpacing: 0.0,
               ),
               itemBuilder: (context, index) => _buildProductSkeleton(),
             ),
@@ -1868,13 +2140,13 @@ class _HomePageState extends State<HomePage>
             GridView.builder(
               physics: NeverScrollableScrollPhysics(),
               shrinkWrap: true,
-              padding: EdgeInsets.symmetric(horizontal: finalPadding),
+              padding: EdgeInsets.zero,
               itemCount: 4,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.7,
-                mainAxisSpacing: finalMainAxisSpacing,
-                crossAxisSpacing: finalCrossAxisSpacing,
+                childAspectRatio: 1.0,
+                mainAxisSpacing: 0.0,
+                crossAxisSpacing: 0.0,
               ),
               itemBuilder: (context, index) => _buildProductSkeleton(),
             ),
@@ -1907,13 +2179,13 @@ class _HomePageState extends State<HomePage>
             GridView.builder(
               physics: NeverScrollableScrollPhysics(),
               shrinkWrap: true,
-              padding: EdgeInsets.symmetric(horizontal: finalPadding),
+              padding: EdgeInsets.zero,
               itemCount: 4,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.7,
-                mainAxisSpacing: finalMainAxisSpacing,
-                crossAxisSpacing: finalCrossAxisSpacing,
+                childAspectRatio: 1.0,
+                mainAxisSpacing: 0.0,
+                crossAxisSpacing: 0.0,
               ),
               itemBuilder: (context, index) => _buildProductSkeleton(),
             ),
@@ -1924,49 +2196,51 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildProductSkeleton() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AspectRatio(
-            aspectRatio: 1,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
+    return AspectRatio(
+      aspectRatio: 1.0,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: double.infinity,
-                  height: 16,
-                  color: Colors.white,
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  width: 100,
-                  height: 14,
-                  color: Colors.white,
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  width: 60,
-                  height: 16,
-                  color: Colors.white,
-                ),
-              ],
+            Padding(
+              padding: const EdgeInsets.all(4.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    height: 12,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(height: 2),
+                  Container(
+                    width: 80,
+                    height: 10,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    width: 50,
+                    height: 12,
+                    color: Colors.white,
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2122,13 +2396,12 @@ class _HomePageState extends State<HomePage>
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min, // Prevent overflow
       children: [
         // Card is only the image (square) - more compact
         Container(
           width: cardWidth,
-          margin: EdgeInsets.symmetric(
-              horizontal: screenWidth * 0.004,
-              vertical: 0), // Reduced from 0.008 to 0.004
+          margin: EdgeInsets.zero, // No margins at all
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
@@ -2207,32 +2480,39 @@ class _HomePageState extends State<HomePage>
           ),
         ),
         // Name and price beneath the card - minimal spacing
-        SizedBox(
+        Container(
           width: cardWidth,
+          constraints: BoxConstraints(
+              maxHeight: 38), // Increased from 34 to 38 for bigger text
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 0), // Removed spacing completely
-              Text(
-                product.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize:
-                      fontSize * 0.85, // Reduced from 0.9 for smaller text
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+              const SizedBox(height: 1), // Small spacing for better readability
+              Flexible(
+                child: Text(
+                  product.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: fontSize *
+                        0.8, // Increased from 0.65 to 0.8 for bigger text
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
                 ),
               ),
-              const SizedBox(height: 0), // No spacing between name and price
-              Text(
-                'GHS ${product.price}',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize:
-                      fontSize * 0.85, // Reduced from 0.9 for smaller text
-                  fontWeight: FontWeight.w700,
-                  color: Colors.green[700],
+              const SizedBox(height: 1), // Small spacing
+              Flexible(
+                child: Text(
+                  'GHS ${product.price}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: fontSize *
+                        0.8, // Increased from 0.65 to 0.8 for bigger text
+                    fontWeight: FontWeight.w700,
+                    color: Colors.green[700],
+                  ),
                 ),
               ),
             ],
@@ -2256,20 +2536,15 @@ class _HomePageState extends State<HomePage>
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    // Calculate responsive spacing - reduced for more compact layout
-    final responsiveMainAxisSpacing =
-        screenHeight * 0.002; // Reduced from 0.005 to 0.002
-    final responsiveCrossAxisSpacing =
-        screenWidth * 0.01; // Reduced from 0.02 to 0.01
-    final responsivePadding = screenWidth * 0.015; // Reduced from 0.02 to 0.015
+    // Calculate responsive spacing - absolutely minimal
+    final responsiveMainAxisSpacing = 0.0; // No spacing at all
+    final responsiveCrossAxisSpacing = 0.0; // No spacing at all
+    final responsivePadding = 0.0; // No padding at all
 
-    // Ensure minimum and maximum values - reduced for tighter spacing
-    final finalMainAxisSpacing =
-        responsiveMainAxisSpacing.clamp(1.0, 4.0); // Reduced from 2.0, 6.0
-    final finalCrossAxisSpacing =
-        responsiveCrossAxisSpacing.clamp(3.0, 12.0); // Reduced from 6.0, 16.0
-    final finalPadding =
-        responsivePadding.clamp(4.0, 12.0); // Reduced from 6.0, 16.0
+    // Ensure minimum and maximum values - absolutely minimal spacing
+    final finalMainAxisSpacing = 0.0; // No spacing between rows
+    final finalCrossAxisSpacing = 0.0; // No spacing between columns
+    final finalPadding = 0.0; // No padding around grid
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2277,7 +2552,7 @@ class _HomePageState extends State<HomePage>
         // Section header with See More button on same row
         Padding(
           padding: const EdgeInsets.symmetric(
-              horizontal: 16.0, vertical: 2.0), // Reduced from 4.0 to 2.0
+              horizontal: 16.0, vertical: 0.0), // No vertical padding
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -2310,26 +2585,26 @@ class _HomePageState extends State<HomePage>
         GridView.builder(
           shrinkWrap: true,
           physics: NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.symmetric(
-              horizontal: finalPadding, vertical: 1), // Reduced from 2 to 1
+          padding: EdgeInsets.zero, // No padding at all
           itemCount: products.length > 6 ? 6 : products.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
             childAspectRatio:
-                1.1, // Increased from 0.75 to 1.1 for shorter cards
-            mainAxisSpacing: 0.0, // Removed spacing completely
-            crossAxisSpacing: finalCrossAxisSpacing,
+                1.0, // Square aspect ratio for maximum compactness
+            mainAxisSpacing: 0.0, // No spacing between rows
+            crossAxisSpacing: 0.0, // No spacing between columns
           ),
           itemBuilder: (context, index) {
             return HomeProductCard(
               product: products[index],
-              fontSize: fontSize * 0.95,
+              fontSize:
+                  fontSize * 1.1, // Increased from 0.95 to 1.1 for bigger text
               padding: padding * 0.8,
               imageHeight: imageHeight * 0.85,
             );
           },
         ),
-        SizedBox(height: 4), // Reduced from 8 to 4
+        SizedBox(height: 0), // No spacing at all
       ],
     );
   }
@@ -2670,8 +2945,9 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
                   borderRadius: BorderRadius.circular(12),
                   child: CachedNetworkImage(
                     imageUrl: imageUrl,
-                    fit: BoxFit
-                        .cover, // Changed back to cover for full-width banner
+                    fit: BoxFit.cover,
+                    fadeInDuration: const Duration(milliseconds: 300),
+                    fadeOutDuration: const Duration(milliseconds: 200),
                     placeholder: (context, url) => Container(
                       color: Colors.grey[200],
                       child: Center(
@@ -2684,10 +2960,23 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
                     ),
                     errorWidget: (context, url, error) => Container(
                       color: Colors.grey[200],
-                      child: Icon(
-                        Icons.broken_image,
-                        size: 40,
-                        color: Colors.grey[400],
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.broken_image,
+                            size: 40,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Image unavailable',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -2717,8 +3006,15 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
 
         // Preload banner images in background
         _bannerCacheService.preloadBannerImages(context);
+
+        // Print performance summary periodically
+        if (banners.isNotEmpty) {
+          print('Banner widget loaded ${banners.length} banners successfully');
+          _bannerCacheService.printPerformanceSummary();
+        }
       }
     } catch (e) {
+      print('Banner widget error: $e');
       if (mounted) {
         setState(() {
           _isLoadingBanners = false;

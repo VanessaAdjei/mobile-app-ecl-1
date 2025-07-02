@@ -1359,6 +1359,10 @@ class _PaymentPageState extends State<PaymentPage> {
     final deliveryFee = 0.00;
     final total = subtotal + deliveryFee - _discountAmount;
 
+    print(
+        'Order Summary - Subtotal: $subtotal, Delivery Fee: $deliveryFee, Discount: $_discountAmount, Total: $total');
+    print('Discount amount > 0: ${_discountAmount > 0}');
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
@@ -1580,7 +1584,7 @@ class _PaymentPageState extends State<PaymentPage> {
                         children: [
                           Icon(
                             Icons.check_circle_outline,
-                            // color: Colors.green[600],
+                            color: Colors.green[600],
                             size: 12,
                           ),
                           const SizedBox(width: 4),
@@ -1916,18 +1920,32 @@ class _PaymentPageState extends State<PaymentPage> {
 
       // Mock promo code validation - replace with actual API call
       if (promoCode.toLowerCase() == 'save10' ||
-          promoCode.toLowerCase() == 'discount20') {
-        final discountPercentage =
-            promoCode.toLowerCase() == 'save10' ? 0.10 : 0.20;
+          promoCode.toLowerCase() == 'discount20' ||
+          promoCode.toLowerCase() == 'test50') {
+        final discountPercentage = promoCode.toLowerCase() == 'save10'
+            ? 0.10
+            : promoCode.toLowerCase() == 'discount20'
+                ? 0.20
+                : 0.50; // 50% discount for test50
         final cart = Provider.of<CartProvider>(context, listen: false);
         final subtotal = cart.calculateSubtotal();
         final discountAmount = subtotal * discountPercentage;
+
+        print('Promo code applied: $promoCode');
+        print('Subtotal: $subtotal');
+        print('Discount percentage: $discountPercentage');
+        print('Discount amount: $discountAmount');
 
         setState(() {
           _appliedPromoCode = promoCode;
           _discountAmount = discountAmount;
           _promoError = null;
         });
+
+        // Force rebuild of the order summary
+        if (mounted) {
+          setState(() {});
+        }
       } else {
         setState(() {
           _promoError = 'Invalid promo code. Please try again.';

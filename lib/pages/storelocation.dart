@@ -630,8 +630,8 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
 
   Widget _buildHeaderSection() {
     return Container(
-      margin: EdgeInsets.fromLTRB(0, 0, 0, 16),
-      padding: EdgeInsets.fromLTRB(0, 0, 0, 24),
+      margin: EdgeInsets.fromLTRB(0, 0, 0, 8),
+      padding: EdgeInsets.fromLTRB(0, 0, 0, 12),
       width: double.infinity,
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -643,40 +643,29 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
           ],
         ),
         borderRadius: BorderRadius.vertical(
-          bottom: Radius.circular(32),
+          bottom: Radius.circular(16),
         ),
       ),
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 32, 16, 0),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.location_on, color: Colors.green.shade600, size: 28),
-                SizedBox(width: 8),
+                Icon(Icons.location_on, color: Colors.green.shade600, size: 20),
+                SizedBox(width: 6),
                 Text(
-                  'Find a Store Near You',
+                  'Find a Store',
                   style: GoogleFonts.poppins(
-                    fontSize: 24,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.grey.shade800,
                   ),
                 ),
               ],
             ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.2, end: 0),
-            SizedBox(height: 4),
-            Text(
-              'Select your region and city to find the nearest store',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.grey.shade600,
-              ),
-            )
-                .animate()
-                .fadeIn(duration: 400.ms, delay: 100.ms)
-                .slideX(begin: -0.2, end: 0),
-            SizedBox(height: 16),
+            SizedBox(height: 8),
             _buildSearchAndFilterCard(),
           ],
         ),
@@ -686,15 +675,15 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
 
   Widget _buildSearchAndFilterCard() {
     return Card(
-      elevation: 2,
+      elevation: 1,
       shadowColor: Colors.green.shade100,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Container(
-        padding: EdgeInsets.all(16),
+        padding: EdgeInsets.all(8),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -704,109 +693,109 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
             ],
           ),
         ),
-        child: Column(
+        child: Row(
           children: [
             // Search Bar
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.green.shade100,
-                    blurRadius: 6,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: TextField(
-                decoration: InputDecoration(
-                  hintText: 'Search stores by name or address...',
-                  hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                  prefixIcon: Container(
-                    margin: EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.green.shade400, Colors.green.shade600],
-                      ),
-                      borderRadius: BorderRadius.circular(8),
+            Expanded(
+              flex: 2,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green.shade100,
+                      blurRadius: 2,
+                      offset: Offset(0, 1),
                     ),
-                    child: Icon(Icons.search, color: Colors.white, size: 20),
-                  ),
-                  suffixIcon: searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(Icons.clear,
-                              color: Colors.grey[400], size: 18),
-                          onPressed: () {
-                            setState(() {
-                              searchQuery = '';
-                            });
-                          },
-                        )
-                      : null,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        BorderSide(color: Colors.green.shade300, width: 2),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding:
-                      EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  ],
                 ),
-                onChanged: (value) {
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search...',
+                    hintStyle: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    prefixIcon: Container(
+                      margin: EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.green.shade400,
+                            Colors.green.shade600
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Icon(Icons.search, color: Colors.white, size: 14),
+                    ),
+                    suffixIcon: searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(Icons.clear,
+                                color: Colors.grey[400], size: 14),
+                            onPressed: () {
+                              setState(() {
+                                searchQuery = '';
+                              });
+                            },
+                          )
+                        : null,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide:
+                          BorderSide(color: Colors.green.shade300, width: 1),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding:
+                        EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      searchQuery = value;
+                    });
+                  },
+                ),
+              ),
+            ),
+            SizedBox(width: 8),
+            // Filter Dropdowns
+            Expanded(
+              flex: 1,
+              child: _buildCompactDropdown(
+                value: selectedRegion,
+                hint: 'Region',
+                items: regions,
+                onChanged: (String? newValue) {
                   setState(() {
-                    searchQuery = value;
+                    selectedRegion = newValue;
+                    selectedCity = null;
                   });
                 },
               ),
             ),
-            SizedBox(height: 16),
-
-            // Filter Dropdowns
-            Row(
-              children: [
-                Expanded(
-                  child: _buildDropdown(
-                    value: selectedRegion,
-                    hint: 'Select Region',
-                    icon: Icons.map,
-                    items: regions,
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        selectedRegion = newValue;
-                        selectedCity = null;
-                      });
-                    },
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _buildDropdown(
-                    value: selectedCity,
-                    hint: 'Select City',
-                    icon: Icons.location_city,
-                    items: cities
-                        .where((city) =>
-                            selectedRegion == null ||
-                            city.region == selectedRegion)
-                        .map((city) => city.name)
-                        .toList(),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        selectedCity = newValue;
-                      });
-                    },
-                  ),
-                ),
-              ],
+            SizedBox(width: 6),
+            Expanded(
+              flex: 1,
+              child: _buildCompactDropdown(
+                value: selectedCity,
+                hint: 'City',
+                items: cities
+                    .where((city) =>
+                        selectedRegion == null || city.region == selectedRegion)
+                    .map((city) => city.name)
+                    .toList(),
+                onChanged: (String? newValue) {
+                  setState(() {
+                    selectedCity = newValue;
+                  });
+                },
+              ),
             ),
           ],
         ),
@@ -815,6 +804,62 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
         .animate()
         .fadeIn(duration: 400.ms, delay: 200.ms)
         .slideY(begin: 0.2, end: 0);
+  }
+
+  Widget _buildCompactDropdown({
+    required String? value,
+    required String hint,
+    required List<String> items,
+    required Function(String?) onChanged,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.shade100,
+            blurRadius: 2,
+            offset: Offset(0, 1),
+          ),
+        ],
+      ),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        decoration: InputDecoration(
+          labelText: hint,
+          labelStyle: TextStyle(color: Colors.grey[600], fontSize: 10),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(color: Colors.green.shade300, width: 1),
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+        ),
+        hint: Text(hint,
+            overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10)),
+        isExpanded: true,
+        items: items.map((String item) {
+          return DropdownMenuItem<String>(
+            value: item,
+            child: Text(
+              item,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 10),
+            ),
+          );
+        }).toList(),
+        onChanged: onChanged,
+      ),
+    );
   }
 
   Widget _buildDropdown({
@@ -826,12 +871,12 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
   }) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
             color: Colors.green.shade100,
-            blurRadius: 6,
-            offset: Offset(0, 2),
+            blurRadius: 4,
+            offset: Offset(0, 1),
           ),
         ],
       ),
@@ -839,35 +884,35 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
         value: value,
         decoration: InputDecoration(
           prefixIcon: Container(
-            margin: EdgeInsets.all(8),
+            margin: EdgeInsets.all(6),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [Colors.green.shade400, Colors.green.shade600],
               ),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6),
             ),
-            child: Icon(icon, color: Colors.white, size: 20),
+            child: Icon(icon, color: Colors.white, size: 16),
           ),
           labelText: hint,
-          labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
+          labelStyle: TextStyle(color: Colors.grey[600], fontSize: 12),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide.none,
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide.none,
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.green.shade300, width: 2),
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.green.shade300, width: 1.5),
           ),
           filled: true,
           fillColor: Colors.white,
-          contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         ),
         hint: Text(hint,
-            overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14)),
+            overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
         isExpanded: true,
         items: items.map((String item) {
           return DropdownMenuItem<String>(
@@ -875,7 +920,7 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
             child: Text(
               item,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 14),
+              style: TextStyle(fontSize: 12),
             ),
           );
         }).toList(),

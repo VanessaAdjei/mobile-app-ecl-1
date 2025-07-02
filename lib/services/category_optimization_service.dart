@@ -21,11 +21,10 @@ class CategoryOptimizationService {
   static const String _productsCacheKey = 'products_cache';
   static const String _productsCacheTimeKey = 'products_cache_time';
 
-  // Cache configuration
   static const Duration _categoriesCacheDuration =
-      Duration(minutes: 60); // 1 hour
+      Duration(hours: 4); // Extended from 1 hour to 4 hours
   static const Duration _productsCacheDuration =
-      Duration(minutes: 30); // 30 minutes
+      Duration(hours: 2); // Extended from 30 minutes to 2 hours
   static const int _maxCachedProducts = 1000;
 
   // In-memory cache
@@ -65,23 +64,46 @@ class CategoryOptimizationService {
 
   // Initialize service
   Future<void> initialize() async {
-    // Load from storage in background without blocking
-    _loadFromStorage();
-    _optimizationService.startTimer('CategoryService_Initialize');
+    print('Initializing CategoryOptimizationService...');
+    final stopwatch = Stopwatch()..start();
+
+    // Load from storage immediately without blocking
+    await _loadFromStorage();
+
+    stopwatch.stop();
+    print(
+        'CategoryOptimizationService initialized in ${stopwatch.elapsedMilliseconds}ms with ${_cachedCategories.length} categories and ${_cachedProducts.length} products');
+    print('Categories cache valid: $isCategoriesCacheValid');
+    print('Products cache valid: $isProductsCacheValid');
   }
 
-  // Get categories with caching
+  // Get categories with optimized caching
   Future<List<dynamic>> getCategories({bool forceRefresh = false}) async {
     _optimizationService.startTimer('CategoryService_GetCategories');
 
     // Return cached categories if valid and not forcing refresh
     if (isCategoriesCacheValid && hasCachedCategories && !forceRefresh) {
       _optimizationService.endTimer('CategoryService_GetCategories');
+      print(
+          'Category cache hit: ${_cachedCategories.length} categories returned from cache');
+      return cachedCategories;
+    }
+
+    // If we have stale cache, return it immediately and refresh in background
+    if (hasCachedCategories && !forceRefresh) {
+      _optimizationService.endTimer('CategoryService_GetCategories');
+      print(
+          'Category cache expired but returning cached data while refreshing in background');
+
+      // Refresh in background without blocking
+      _refreshCategoriesInBackground();
+
       return cachedCategories;
     }
 
     // If already loading, wait for current request
     if (_isLoadingCategories) {
+      print('Category request already in progress, waiting...');
       while (_isLoadingCategories) {
         await Future.delayed(const Duration(milliseconds: 50));
       }
@@ -89,25 +111,43 @@ class CategoryOptimizationService {
       return cachedCategories;
     }
 
-    // If we have stale cache, return it immediately and refresh in background
-    if (hasCachedCategories && !forceRefresh) {
-      _optimizationService.endTimer('CategoryService_GetCategories');
-      // Refresh in background
-      _fetchCategoriesFromAPI();
-      return cachedCategories;
-    }
-
     // Fetch fresh categories
     return await _fetchCategoriesFromAPI();
   }
 
-  // Get products with caching
+  // Refresh categories in background without blocking UI
+  Future<void> _refreshCategoriesInBackground() async {
+    if (_isLoadingCategories) return; // Don't start multiple refreshes
+
+    try {
+      await _fetchCategoriesFromAPI();
+    } catch (e) {
+      print('Background category refresh failed: $e');
+      // Keep using old cache data
+    }
+  }
+
+  // Get products with optimized caching
   Future<List<dynamic>> getProducts({bool forceRefresh = false}) async {
     _optimizationService.startTimer('CategoryService_GetProducts');
 
     // Return cached products if valid and not forcing refresh
     if (isProductsCacheValid && hasCachedProducts && !forceRefresh) {
       _optimizationService.endTimer('CategoryService_GetProducts');
+      print(
+          'Product cache hit: ${_cachedProducts.length} products returned from cache');
+      return cachedProducts;
+    }
+
+    // If we have stale cache, return it immediately and refresh in background
+    if (hasCachedProducts && !forceRefresh) {
+      _optimizationService.endTimer('CategoryService_GetProducts');
+      print(
+          'Product cache expired but returning cached data while refreshing in background');
+
+      // Refresh in background without blocking
+      _refreshProductsInBackground();
+
       return cachedProducts;
     }
 
@@ -124,18 +164,37 @@ class CategoryOptimizationService {
     return await _fetchProductsFromAPI();
   }
 
-  // Fetch categories from API
+  // Refresh products in background without blocking UI
+  Future<void> _refreshProductsInBackground() async {
+    if (_isLoadingProducts) return; // Don't start multiple refreshes
+
+    try {
+      await _fetchProductsFromAPI();
+    } catch (e) {
+      print('Background product refresh failed: $e');
+      // Keep using old cache data
+    }
+  }
+
+  // Fetch categories from API with optimized timeout
   Future<List<dynamic>> _fetchCategoriesFromAPI() async {
     _isLoadingCategories = true;
 
     try {
-      // Direct API call without additional caching overhead
+      print('Fetching categories from API...');
+      final stopwatch = Stopwatch()..start();
+
+      // Reduced timeout for faster failure detection
       final response = await http
           .get(
             Uri.parse(
                 'https://eclcommerce.ernestchemists.com.gh/api/top-categories'),
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 8)); // Reduced from 10 to 8 seconds
+
+      stopwatch.stop();
+      print(
+          'Category API call completed in ${stopwatch.elapsedMilliseconds}ms');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -146,6 +205,8 @@ class CategoryOptimizationService {
           await _cacheCategories(categories);
 
           _optimizationService.endTimer('CategoryService_GetCategories');
+          print(
+              'Successfully fetched ${categories.length} categories from API');
           return categories;
         } else {
           throw Exception('API returned success: false');
@@ -155,21 +216,25 @@ class CategoryOptimizationService {
       }
     } catch (e) {
       _optimizationService.endTimer('CategoryService_GetCategories');
+      print('Category API error: $e');
       rethrow;
     } finally {
       _isLoadingCategories = false;
     }
   }
 
-  // Fetch products from API with concurrent loading
+  // Fetch products from API with optimized concurrent loading
   Future<List<dynamic>> _fetchProductsFromAPI() async {
     _isLoadingProducts = true;
 
     try {
+      print('Fetching products from API...');
+      final stopwatch = Stopwatch()..start();
+
       // First get categories if not available
       final categories = await getCategories();
 
-      // Fetch products for all categories concurrently
+      // Fetch products for all categories concurrently with optimized timeouts
       final allProducts = <dynamic>[];
       final futures = <Future<List<dynamic>>>[];
 
@@ -177,11 +242,11 @@ class CategoryOptimizationService {
         futures.add(_fetchProductsForCategory(category));
       }
 
-      // Wait for all requests with timeout
+      // Wait for all requests with shorter timeout
       final results = await Future.wait(futures).timeout(
-        const Duration(seconds: 45),
+        const Duration(seconds: 30), // Reduced from 45 to 30 seconds
         onTimeout: () {
-          // Return what we have so far
+          print('Product fetch timeout, returning partial results');
           return <List<dynamic>>[];
         },
       );
@@ -199,26 +264,32 @@ class CategoryOptimizationService {
       // Cache the products
       await _cacheProducts(allProducts);
 
+      stopwatch.stop();
+      print(
+          'Product API calls completed in ${stopwatch.elapsedMilliseconds}ms');
+
       _optimizationService.endTimer('CategoryService_GetProducts');
+      print('Successfully fetched ${allProducts.length} products from API');
       return allProducts;
     } catch (e) {
       _optimizationService.endTimer('CategoryService_GetProducts');
+      print('Product API error: $e');
       rethrow;
     } finally {
       _isLoadingProducts = false;
     }
   }
 
-  // Fetch products for a specific category
+  // Fetch products for a specific category with optimized timeouts
   Future<List<dynamic>> _fetchProductsForCategory(dynamic category) async {
     try {
-      // Get subcategories first
+      // Get subcategories first with shorter timeout
       final subcategoriesResponse = await http
           .get(
             Uri.parse(
                 'https://eclcommerce.ernestchemists.com.gh/api/categories/${category['id']}'),
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 6)); // Reduced from 10 to 6 seconds
 
       if (subcategoriesResponse.statusCode == 200) {
         final subcategoriesData = json.decode(subcategoriesResponse.body);
@@ -243,12 +314,13 @@ class CategoryOptimizationService {
         }
       }
     } catch (e) {
+      print('Failed to fetch products for category ${category['name']}: $e');
       // Continue with other categories
     }
     return <dynamic>[];
   }
 
-  // Fetch products for a specific subcategory
+  // Fetch products for a specific subcategory with optimized timeout
   Future<List<dynamic>> _fetchProductsForSubcategory(
       dynamic category, dynamic subcategory) async {
     try {
@@ -258,7 +330,7 @@ class CategoryOptimizationService {
       final response = await http
           .get(Uri.parse(
               'https://eclcommerce.ernestchemists.com.gh/api/product-categories/$subcategoryId'))
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 6)); // Reduced from 10 to 6 seconds
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -278,6 +350,8 @@ class CategoryOptimizationService {
         }
       }
     } catch (e) {
+      print(
+          'Failed to fetch products for subcategory ${subcategory['name']}: $e');
       // Continue with other subcategories
     }
     return <dynamic>[];
@@ -289,6 +363,7 @@ class CategoryOptimizationService {
     _categoriesCacheTime = DateTime.now();
     // Save to storage in background without blocking
     _saveCategoriesToStorage();
+    print('Categories cached successfully: ${categories.length} categories');
   }
 
   // Cache products
@@ -297,6 +372,7 @@ class CategoryOptimizationService {
     _productsCacheTime = DateTime.now();
     // Save to storage in background without blocking
     _saveProductsToStorage();
+    print('Products cached successfully: ${products.length} products');
   }
 
   // Save categories to persistent storage
@@ -336,6 +412,8 @@ class CategoryOptimizationService {
       if (categoriesJson != null && categoriesTimeString != null) {
         _cachedCategories = json.decode(categoriesJson) as List;
         _categoriesCacheTime = DateTime.parse(categoriesTimeString);
+        print(
+            'Loaded ${_cachedCategories.length} categories from storage cache');
       }
 
       // Load products
@@ -345,6 +423,7 @@ class CategoryOptimizationService {
       if (productsJson != null && productsTimeString != null) {
         _cachedProducts = json.decode(productsJson) as List;
         _productsCacheTime = DateTime.parse(productsTimeString);
+        print('Loaded ${_cachedProducts.length} products from storage cache');
       }
     } catch (e) {
       print('Failed to load category cache: $e');
@@ -355,7 +434,7 @@ class CategoryOptimizationService {
     }
   }
 
-  // Preload category images
+  // Preload category images with optimization
   Future<void> preloadCategoryImages(
       BuildContext context, List<dynamic> categories) async {
     final imageUrls = categories
@@ -364,12 +443,20 @@ class CategoryOptimizationService {
         .where((url) => url.isNotEmpty)
         .toList();
 
+    print('Preloading ${imageUrls.length} category images...');
+
     for (final imageUrl in imageUrls) {
       if (!_preloadedImages.containsKey(imageUrl)) {
         _preloadedImages[imageUrl] = true;
-        precacheImage(CachedNetworkImageProvider(imageUrl), context);
+        try {
+          precacheImage(CachedNetworkImageProvider(imageUrl), context);
+        } catch (e) {
+          print('Failed to preload category image: $imageUrl - $e');
+        }
       }
     }
+
+    print('Category image preloading completed');
   }
 
   // Get category image URL
@@ -409,6 +496,7 @@ class CategoryOptimizationService {
 
   // Clear all caches
   Future<void> clearAllCaches() async {
+    print('Clearing all category caches...');
     _cachedCategories.clear();
     _cachedProducts.clear();
     _categoriesCacheTime = null;
@@ -421,9 +509,17 @@ class CategoryOptimizationService {
       await prefs.remove(_categoriesCacheTimeKey);
       await prefs.remove(_productsCacheKey);
       await prefs.remove(_productsCacheTimeKey);
+      print('Category cache cleared successfully');
     } catch (e) {
       print('Failed to clear category cache: $e');
     }
+  }
+
+  // Force refresh cache for testing
+  Future<void> forceRefreshCache() async {
+    print('Forcing category cache refresh...');
+    await clearAllCaches();
+    await getCategories(forceRefresh: true);
   }
 
   // Get cache statistics
@@ -438,9 +534,25 @@ class CategoryOptimizationService {
       'is_loading_categories': _isLoadingCategories,
       'is_loading_products': _isLoadingProducts,
       'preloaded_images_count': _preloadedImages.length,
-      'categories_cache_duration_minutes': _categoriesCacheDuration.inMinutes,
-      'products_cache_duration_minutes': _productsCacheDuration.inMinutes,
+      'categories_cache_duration_hours': _categoriesCacheDuration.inHours,
+      'products_cache_duration_hours': _productsCacheDuration.inHours,
     };
+  }
+
+  // Print performance summary
+  void printPerformanceSummary() {
+    final stats = getCacheStats();
+    print('=== Category Service Performance Summary ===');
+    print('Cached Categories: ${stats['categories_count']}');
+    print('Cached Products: ${stats['products_count']}');
+    print('Categories Cache Valid: ${stats['categories_cache_valid']}');
+    print('Products Cache Valid: ${stats['products_cache_valid']}');
+    print(
+        'Categories Cache Duration: ${stats['categories_cache_duration_hours']} hours');
+    print(
+        'Products Cache Duration: ${stats['products_cache_duration_hours']} hours');
+    print('Preloaded Images: ${stats['preloaded_images_count']}');
+    print('============================================');
   }
 
   // Refresh all data

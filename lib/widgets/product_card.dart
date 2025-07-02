@@ -32,125 +32,124 @@ class HomeProductCard extends StatelessWidget {
     final defaultFontSize =
         fontSize ?? (screenWidth < 400 ? 11 : (screenWidth < 600 ? 13 : 15));
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Card is only the image (square) - more compact
-        Container(
-          width: defaultCardWidth,
-          margin: EdgeInsets.symmetric(
-              horizontal: screenWidth * 0.004, vertical: 0),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              InkWell(
+    return AspectRatio(
+      aspectRatio: 1.0,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Container(
+              margin: EdgeInsets.zero,
+              decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
-                onTap: onTap ??
-                    () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ItemPage(
-                            urlName: product.urlName,
-                            isPrescribed:
-                                product.otcpom?.toLowerCase() == 'pom',
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: onTap ??
+                        () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ItemPage(
+                                urlName: product.urlName,
+                                isPrescribed:
+                                    product.otcpom?.toLowerCase() == 'pom',
+                              ),
+                            ),
+                          );
+                        },
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        color: Colors.grey[100],
+                        child: CachedNetworkImage(
+                          imageUrl: getProductImageUrl(product.thumbnail),
+                          fit: BoxFit.cover,
+                          memCacheWidth: 300,
+                          memCacheHeight: 300,
+                          maxWidthDiskCache: 300,
+                          maxHeightDiskCache: 300,
+                          fadeInDuration: Duration(milliseconds: 100),
+                          fadeOutDuration: Duration(milliseconds: 100),
+                          placeholder: (context, url) => Center(
+                            child: CircularProgressIndicator(strokeWidth: 1),
                           ),
-                        ),
-                      );
-                    },
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: Container(
-                      color: Colors.grey[100],
-                      child: CachedNetworkImage(
-                        imageUrl: getProductImageUrl(product.thumbnail),
-                        fit: BoxFit.cover,
-                        memCacheWidth: 300,
-                        memCacheHeight: 300,
-                        maxWidthDiskCache: 300,
-                        maxHeightDiskCache: 300,
-                        fadeInDuration: Duration(milliseconds: 100),
-                        fadeOutDuration: Duration(milliseconds: 100),
-                        placeholder: (context, url) => Center(
-                          child: CircularProgressIndicator(strokeWidth: 1),
-                        ),
-                        errorWidget: (_, __, ___) => Container(
-                          color: Colors.grey[200],
-                          child: Center(
-                            child: Icon(Icons.broken_image, size: 16),
+                          errorWidget: (_, __, ___) => Container(
+                            color: Colors.grey[200],
+                            child: Center(
+                              child: Icon(Icons.broken_image, size: 16),
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ),
-              if (showPrescriptionBadge &&
-                  product.otcpom?.toLowerCase() == 'pom')
-                Positioned(
-                  bottom: 8,
-                  left: 2,
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: Colors.red[700],
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    child: Text(
-                      'Prescribed',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w600,
+                  if (showPrescriptionBadge &&
+                      product.otcpom?.toLowerCase() == 'pom')
+                    Positioned(
+                      bottom: 8,
+                      left: 2,
+                      child: Container(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.red[700],
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: Text(
+                          'Prescribed',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 2.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  product.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: defaultFontSize * 0.8,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
                   ),
                 ),
-            ],
-          ),
-        ),
-        // Name and price beneath the card - minimal spacing
-        SizedBox(
-          width: defaultCardWidth,
-          child: Column(
-            children: [
-              const SizedBox(height: 0),
-              Text(
-                product.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: defaultFontSize * 0.85,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+                SizedBox(height: 1),
+                Text(
+                  'GHS ${product.price}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: defaultFontSize * 0.8,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.green[700],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 0),
-              Text(
-                'GHS ${product.price}',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: defaultFontSize * 0.85,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.green[700],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

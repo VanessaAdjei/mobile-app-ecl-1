@@ -189,7 +189,7 @@ class AuthService {
             headers: {"Content-Type": "application/json"},
             body: jsonEncode(payload),
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 201) {
         return true;

@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 class CartItem {
   final String id;
   final String productId;
+  final int? serverProductId;
   final String name;
   final double price;
   final double? originalPrice;
@@ -18,6 +19,7 @@ class CartItem {
   CartItem({
     required this.id,
     required this.productId,
+    this.serverProductId,
     required this.name,
     required this.price,
     this.originalPrice,
@@ -60,6 +62,7 @@ class CartItem {
     return {
       'id': id,
       'productId': productId,
+      if (serverProductId != null) 'serverProductId': serverProductId,
       'name': name,
       'price': price,
       if (originalPrice != null) 'originalPrice': originalPrice,
@@ -77,6 +80,9 @@ class CartItem {
       id: json['id']?.toString() ?? '',
       productId:
           json['productId']?.toString() ?? json['product_id']?.toString() ?? '',
+      serverProductId: json['serverProductId'] != null
+          ? int.tryParse(json['serverProductId'].toString())
+          : null,
       name: json['name']?.toString() ?? 'Unknown Item',
       price: _parseDouble(json['price']),
       originalPrice: json['originalPrice'] != null
@@ -96,13 +102,17 @@ class CartItem {
     return CartItem(
       id: json['id']?.toString() ?? '',
       productId: json['product_id']?.toString() ?? '',
+      serverProductId: json['product_id'] is int
+          ? json['product_id']
+          : int.tryParse(json['product_id']?.toString() ?? ''),
       name: json['product_name']?.toString() ?? 'Unknown Item',
       price: _parseDouble(json['price']),
       quantity: _parseInt(json['qty']),
       image: json['product_img']?.toString() ?? '',
       batchNo: json['batch_no']?.toString() ?? '',
       urlName: json['url_name']?.toString() ?? '',
-      totalPrice: _parseDouble(json['totalPrice']),
+      totalPrice: _parseDouble(
+          json['total_price']), // Fixed: use total_price instead of totalPrice
     );
   }
 
@@ -115,6 +125,7 @@ class CartItem {
   CartItem copyWith({
     String? id,
     String? productId,
+    int? serverProductId,
     String? name,
     double? price,
     double? originalPrice,
@@ -129,6 +140,7 @@ class CartItem {
     return CartItem(
       id: id ?? this.id,
       productId: productId ?? this.productId,
+      serverProductId: serverProductId ?? this.serverProductId,
       name: name ?? this.name,
       price: price ?? this.price,
       originalPrice: originalPrice ?? this.originalPrice,

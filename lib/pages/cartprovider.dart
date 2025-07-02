@@ -14,6 +14,9 @@ class CartProvider with ChangeNotifier {
   List<CartItem> _purchasedItems = [];
   String? _currentUserId;
 
+  // Track recently corrected items to prevent sync override
+  Map<String, int> _recentlyCorrectedItems = {};
+
   List<CartItem> get cartItems => _cartItems;
   List<CartItem> get purchasedItems => _purchasedItems;
   String? get currentUserId => _currentUserId;
@@ -147,26 +150,43 @@ class CartProvider with ChangeNotifier {
         if (data['cart_items'] != null) {
           final rawItems = data['cart_items'] as List;
 
-          // Merge duplicate items by product_id
+          // Merge duplicate items by product_id and batch number
           Map<String, CartItem> mergedItems = {};
 
           for (final rawItem in rawItems) {
             final cartItem = CartItem.fromServerJson(rawItem);
             final productId = cartItem.productId;
+            final batchNo = cartItem.batchNo;
+            final key = '$productId-$batchNo'; // Use product ID + batch as key
 
-            if (mergedItems.containsKey(productId)) {
+            if (mergedItems.containsKey(key)) {
               // Item already exists, add quantities
-              final existingItem = mergedItems[productId]!;
+              final existingItem = mergedItems[key]!;
               final newQuantity = existingItem.quantity + cartItem.quantity;
               existingItem.updateQuantity(newQuantity);
               print('🔍 MERGED DUPLICATE ITEM ===');
               print('Product: ${cartItem.name}');
+              print('Batch: $batchNo');
               print('Old Quantity: ${cartItem.quantity}');
               print('New Total Quantity: $newQuantity');
               print('===========================');
             } else {
               // New item, add to map
-              mergedItems[productId] = cartItem;
+              mergedItems[key] = cartItem;
+            }
+          }
+
+          for (final key in mergedItems.keys) {
+            if (_recentlyCorrectedItems.containsKey(key)) {
+              final localQuantity = _recentlyCorrectedItems[key]!;
+              final item = mergedItems[key]!;
+              print('🔄 OVERRIDING MERGED QUANTITY - PROTECTED ITEM ===');
+              print('Product: ${item.name}');
+              print('Merged Qty: ${item.quantity}');
+              print('Local Qty: $localQuantity');
+              print('Using Local Qty: $localQuantity');
+              print('=================================================');
+              item.updateQuantity(localQuantity);
             }
           }
 
@@ -177,11 +197,120 @@ class CartProvider with ChangeNotifier {
           print('Merged items: ${items.length}');
           print(
               'Items: ${items.map((item) => '${item.name} (${item.quantity})').toList()}');
+
+          // Debug total price calculation
+          double calculatedTotal = items.fold(
+              0.0, (sum, item) => sum + (item.price * item.quantity));
+          double apiTotal = (data['total_price'] ?? 0.0).toDouble();
+          print('Calculated Total: $calculatedTotal');
+          print('API Total: $apiTotal');
+          print('Total Match: ${calculatedTotal == apiTotal}');
+
+          // If totals don't match, try to correct quantities based on total price
+          if (calculatedTotal != apiTotal) {
+            print('🔍 CORRECTING QUANTITIES ===');
+            print('Calculated Total: $calculatedTotal');
+            print('API Total: $apiTotal');
+
+            if (items.length == 1) {
+              // Single item - correct its quantity
+              final item = items.first;
+              final key = '${item.productId}-${item.batchNo}';
+
+              // Check if this item was recently corrected
+              if (_recentlyCorrectedItems.containsKey(key)) {
+                final trackedQuantity = _recentlyCorrectedItems[key]!;
+                if (item.quantity != trackedQuantity) {
+                  print('Single Item - Using Tracked Quantity:');
+                  print('Product: ${item.name}');
+                  print('API Qty: ${item.quantity}');
+                  print('Tracked Qty: $trackedQuantity');
+                  item.updateQuantity(trackedQuantity);
+                }
+              } else {
+                // Use total price calculation
+                final correctQuantity = (apiTotal / item.price).round();
+                if (correctQuantity > 0 && correctQuantity != item.quantity) {
+                  print('Single Item Correction:');
+                  print('Product: ${item.name}');
+                  print('API Qty: ${item.quantity}');
+                  print('Calculated Qty: $correctQuantity');
+                  print('API Total: $apiTotal');
+                  print('Item Price: ${item.price}');
+                  item.updateQuantity(correctQuantity);
+                }
+              }
+            } else {
+              // Multiple items - try to identify which one needs correction
+              for (final item in items) {
+                final key = '${item.productId}-${item.batchNo}';
+
+                // Check if this item was recently corrected
+                if (_recentlyCorrectedItems.containsKey(key)) {
+                  final trackedQuantity = _recentlyCorrectedItems[key]!;
+                  if (item.quantity != trackedQuantity) {
+                    print('Multi-Item - Using Tracked Quantity:');
+                    print('Product: ${item.name}');
+                    print('API Qty: ${item.quantity}');
+                    print('Tracked Qty: $trackedQuantity');
+                    item.updateQuantity(trackedQuantity);
+                  }
+                } else {
+                  // Use total price calculation
+                  final itemTotal = item.price * item.quantity;
+                  final itemApiTotal = item.totalPrice;
+
+                  if (itemTotal != itemApiTotal) {
+                    final correctQuantity = (itemApiTotal / item.price).round();
+                    if (correctQuantity > 0 &&
+                        correctQuantity != item.quantity) {
+                      print('Multi-Item Correction:');
+                      print('Product: ${item.name}');
+                      print('API Qty: ${item.quantity}');
+                      print('Calculated Qty: $correctQuantity');
+                      print('Item Total: $itemTotal');
+                      print('API Item Total: $itemApiTotal');
+                      print('Item Price: ${item.price}');
+                      item.updateQuantity(correctQuantity);
+                    }
+                  }
+                }
+              }
+            }
+            print('==========================');
+          }
           print('==================================');
 
-          _cartItems = items;
-          await _saveUserCarts();
+          // Merge server items with local changes, preserving recently updated quantities
+          final finalItems = <CartItem>[];
+
+          for (final serverItem in items) {
+            final key = '${serverItem.productId}-${serverItem.batchNo}';
+
+            // Check if this item was recently updated locally
+            if (_recentlyCorrectedItems.containsKey(key)) {
+              final localQuantity = _recentlyCorrectedItems[key]!;
+              print('🔄 MERGING ITEM - PRESERVING LOCAL QUANTITY ===');
+              print('Product: ${serverItem.name}');
+              print('Server Qty: ${serverItem.quantity}');
+              print('Local Qty: $localQuantity');
+              print('Using Local Qty: $localQuantity');
+              print('===============================================');
+
+              // Use local quantity instead of server quantity
+              serverItem.updateQuantity(localQuantity);
+            }
+
+            finalItems.add(serverItem);
+          }
+
+          _cartItems = finalItems;
+
+          // Immediately notify listeners so UI updates with preserved quantities
           notifyListeners();
+
+          // Save to local storage after UI update
+          await _saveUserCarts();
         } else {
           debugPrint('No cart items in API response');
           print('=== SYNC CART - NO ITEMS FOUND ===');
@@ -232,6 +361,13 @@ class CartProvider with ChangeNotifier {
   }
 
   Future<void> addToCart(CartItem item) async {
+    print('=== ADD TO CART - SIMPLIFIED ===');
+    print('Product: ${item.name}');
+    print('Quantity: ${item.quantity}');
+    print('Product ID: ${item.productId}');
+    print('Batch: ${item.batchNo}');
+    print('===============================');
+
     // For logged-in users, try to sync with server
     _currentUserId ??= await AuthService.getCurrentUserID();
 
@@ -242,22 +378,73 @@ class CartProvider with ChangeNotifier {
         // Fallback to local cart if no token
         debugPrint(
             'Cannot add to cart - missing auth token, adding to local cart');
+        _addToLocalCart(item);
+        return;
+      }
+
+      // Check if item already exists in local cart
+      final existingIndex = _cartItems.indexWhere((cartItem) =>
+          cartItem.productId == item.productId &&
+          cartItem.batchNo == item.batchNo);
+
+      if (existingIndex != -1) {
+        // Item exists, update quantity
+        print('🔍 ITEM EXISTS - UPDATING QUANTITY ===');
+        print('Product: ${item.name}');
+        print('Old Quantity: ${_cartItems[existingIndex].quantity}');
+        print('New Quantity: ${item.quantity}');
+        print('=====================================');
+
+        _cartItems[existingIndex].updateQuantity(item.quantity);
+        await _saveUserCarts();
+        notifyListeners();
+
+        // Try to sync with server in background
+        _syncAddToServer(item);
+      } else {
+        // Item doesn't exist, add it locally first
+        print('🔍 NEW ITEM - ADDING TO CART ===');
+        print('Product: ${item.name}');
+        print('Quantity: ${item.quantity}');
+        print('===============================');
+
         _cartItems.add(item);
         await _saveUserCarts();
         notifyListeners();
+
+        // Try to sync with server in background
+        _syncAddToServer(item);
+      }
+    } catch (e) {
+      // Any exception, fallback to local cart
+      debugPrint('Error adding to cart: $e, adding to local cart');
+      _addToLocalCart(item);
+    }
+  }
+
+  // Background sync for adding to server
+  Future<void> _syncAddToServer(CartItem item) async {
+    try {
+      final token = await AuthService.getToken();
+      if (token == null) {
+        debugPrint('Cannot sync add to server - missing auth token');
         return;
       }
+
+      print('🔄 SYNC ADD TO SERVER ===');
+      print('Product: ${item.name}');
+      print('Quantity: ${item.quantity}');
+      print('========================');
 
       final requestBody = {
         'productID': int.parse(item.productId),
         'quantity': item.quantity,
       };
 
-      final url = 'https://eclcommerce.ernestchemists.com.gh/api/check-auth';
-
       final response = await http
           .post(
-            Uri.parse(url),
+            Uri.parse(
+                'https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
             headers: {
               'Authorization': 'Bearer $token',
               'Accept': 'application/json',
@@ -265,165 +452,56 @@ class CartProvider with ChangeNotifier {
             },
             body: jsonEncode(requestBody),
           )
-          .timeout(const Duration(seconds: 10)); // Add timeout
+          .timeout(const Duration(seconds: 10));
 
-      print('=== ADD TO CART API RESPONSE ===');
-      print('URL: $url');
-      print('Request Body: ${jsonEncode(requestBody)}');
+      print('=== SYNC ADD API RESPONSE ===');
       print('Response Status: ${response.statusCode}');
-      print('Response Headers: ${response.headers}');
       print('Response Body: ${response.body}');
-      print('================================');
+      print('=============================');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = json.decode(response.body);
-        print('=== PARSED RESPONSE DATA ===');
-        print('Status: ${data['status']}');
-        print('Added: ${data['added']}');
-        print('Items: ${data['items']}');
-        print('Data Keys: ${data.keys.toList()}');
-        print('===========================');
-
-        if (data['status'] == 'success') {
-          // Use the actual cart items returned from the API
-          if (data['items'] != null && data['items'] is List) {
-            final List<dynamic> itemsData = data['items'];
-
-            // Find the newest item (the one we just added)
-            DateTime? latestTime;
-            Map<String, dynamic>? newestItem;
-
-            print('🔍 SEARCHING FOR NEWEST ITEM ===');
-            print('Total items in API response: ${itemsData.length}');
-
-            for (final itemData in itemsData) {
-              final createdAt = DateTime.parse(itemData['created_at']);
-              print('Item: ${itemData['product_name']} - Created: $createdAt');
-              if (latestTime == null || createdAt.isAfter(latestTime)) {
-                latestTime = createdAt;
-                newestItem = itemData;
-                print('  -> This is the newest so far');
-              }
-            }
-
-            // Get the server's product_id for the item we just added
-            int? serverProductId;
-            if (newestItem != null) {
-              serverProductId = newestItem['product_id'];
-              print('🔍 FOUND NEWEST ITEM ===');
-              print('Product Name: ${newestItem['product_name']}');
-              print('Server Product ID: $serverProductId');
-              print('Created At: ${newestItem['created_at']}');
-              print('========================');
-            } else {
-              print('❌ NO NEWEST ITEM FOUND!');
-            }
-
-            // Check if this product already exists in the current cart
-            bool productExists = false;
-            int existingItemIndex = -1;
-
-            print('🔍 CHECKING EXISTING CART ITEMS ===');
-            print('Current cart items count: ${_cartItems.length}');
-
-            if (serverProductId != null) {
-              for (int i = 0; i < _cartItems.length; i++) {
-                final cartItem = _cartItems[i];
-                print(
-                    'Cart item $i: ${cartItem.name} (ID: ${cartItem.productId})');
-                if (cartItem.productId == serverProductId.toString()) {
-                  productExists = true;
-                  existingItemIndex = i;
-                  print('  -> MATCH FOUND! Product exists at index $i');
-                  break;
-                }
-              }
-            }
-
-            print('Product exists: $productExists, Index: $existingItemIndex');
-            print('=====================================');
-
-            if (productExists && existingItemIndex != -1) {
-              // Product already exists, update quantity instead of adding duplicate
-              print('🔍 UPDATING EXISTING ITEM ===');
-              print('App Product ID: ${item.productId}');
-              print('Server Product ID: $serverProductId');
-              print('Product Name: ${item.name}');
-              print('Old Quantity: ${_cartItems[existingItemIndex].quantity}');
-              print(
-                  'New Quantity: ${_cartItems[existingItemIndex].quantity + item.quantity}');
-              print('===========================');
-
-              _cartItems[existingItemIndex].updateQuantity(
-                  _cartItems[existingItemIndex].quantity + item.quantity);
-            } else {
-              // Product doesn't exist, clear cart and rebuild from API response
-              _cartItems.clear();
-
-              for (final itemData in itemsData) {
-                try {
-                  // Use the fromServerJson factory method which handles API response format
-                  final cartItem = CartItem.fromServerJson(itemData);
-                  _cartItems.add(cartItem);
-                } catch (e) {
-                  debugPrint('Error parsing cart item: $e');
-                  // Fallback to manual parsing if fromServerJson fails
-                  try {
-                    final cartItem = CartItem(
-                      id: itemData['id'].toString(),
-                      productId: itemData['product_id'].toString(),
-                      name: itemData['product_name'] ?? 'Unknown Product',
-                      price: (itemData['price'] ?? 0.0).toDouble(),
-                      quantity: itemData['qty'] ?? 1,
-                      image: itemData['product_img'] ?? '',
-                      batchNo: itemData['batch_no'] ?? '',
-                      urlName: itemData['url_name'] ?? '',
-                      totalPrice: (itemData['total_price'] ?? 0.0).toDouble(),
-                    );
-                    _cartItems.add(cartItem);
-                  } catch (fallbackError) {
-                    debugPrint('Fallback parsing also failed: $fallbackError');
-                  }
-                }
-              }
-            }
-
-            await _saveUserCarts();
-            notifyListeners();
-            print('=== CART UPDATED FROM API ===');
-            print('Cart items count: ${_cartItems.length}');
-            for (final item in _cartItems) {
-              print(
-                  'Item: ${item.name} (ID: ${item.productId}, Batch: ${item.batchNo}, Qty: ${item.quantity})');
-            }
-            print('=============================');
-          } else {
-            // Fallback to adding the item locally if API doesn't return items
-            _cartItems.add(item);
-            await _saveUserCarts();
-            notifyListeners();
-          }
-        } else {
-          // API returned status other than success, fallback to local cart
-          debugPrint('API returned status: ${data['status']}');
-          _cartItems.add(item);
-          await _saveUserCarts();
-          notifyListeners();
-        }
+        print('✅ Add to server successful');
+        // Sync cart to get updated server data
+        await syncWithApi();
       } else {
-        // HTTP error, fallback to local cart
-        debugPrint('HTTP error ${response.statusCode}, adding to local cart');
-        _cartItems.add(item);
-        await _saveUserCarts();
-        notifyListeners();
+        print('⚠️ Add to server failed: ${response.statusCode}');
+        print('Local changes preserved - will sync during checkout');
       }
     } catch (e) {
-      // Any exception, fallback to local cart
-      debugPrint('Error adding to cart: $e, adding to local cart');
-      _cartItems.add(item);
-      await _saveUserCarts();
-      notifyListeners();
+      debugPrint('Error syncing add to server: $e');
+      print('⚠️ Add to server failed - local changes preserved');
     }
+  }
+
+  // Helper method to add item to local cart with proper quantity handling
+  void _addToLocalCart(CartItem item) async {
+    // Check if item already exists in local cart by product ID, batch number, and name
+    final existingIndex = _cartItems.indexWhere((cartItem) =>
+        (cartItem.productId == item.productId &&
+            cartItem.batchNo == item.batchNo) ||
+        (cartItem.batchNo == item.batchNo && cartItem.name == item.name));
+
+    if (existingIndex != -1) {
+      // Item exists, replace quantity with the new quantity from item detail page
+      print('🔍 UPDATING LOCAL CART ITEM ===');
+      print('Product: ${item.name}');
+      print('Old Quantity: ${_cartItems[existingIndex].quantity}');
+      print('New Quantity: ${item.quantity}');
+      print('==============================');
+
+      _cartItems[existingIndex].updateQuantity(item.quantity);
+    } else {
+      // Item doesn't exist, add it
+      print('🔍 ADDING NEW ITEM TO LOCAL CART ===');
+      print('Product: ${item.name}');
+      print('Quantity: ${item.quantity}');
+      print('===================================');
+
+      _cartItems.add(item);
+    }
+
+    await _saveUserCarts();
+    notifyListeners();
   }
 
   // Helper method to update cart item quantity on server
@@ -537,17 +615,75 @@ class CartProvider with ChangeNotifier {
       final item = _cartItems[index];
       final currentQuantity = item.quantity;
 
-      if (newQuantity > currentQuantity) {
-        // Increment: Update local state
-        _cartItems[index].updateQuantity(newQuantity);
-        await _saveUserCarts();
-        notifyListeners();
-      } else if (newQuantity < currentQuantity) {
-        // Decrement: Update local state
-        _cartItems[index].updateQuantity(newQuantity);
-        await _saveUserCarts();
-        notifyListeners();
+      print('=== UPDATE QUANTITY - BACKGROUND SYNC ===');
+      print('Product Name: ${item.name}');
+      print('Old Quantity: $currentQuantity');
+      print('New Quantity: $newQuantity');
+
+      // Track this item as recently updated to prevent sync override
+      final key = '${item.productId}-${item.batchNo}';
+      _recentlyCorrectedItems[key] = newQuantity;
+
+      // Update local state immediately for UI responsiveness
+      _cartItems[index].updateQuantity(newQuantity);
+      await _saveUserCarts();
+      notifyListeners();
+
+      print('✅ Quantity updated locally - item stays in UI');
+      print('🔒 Protected from sync override with key: $key');
+
+      // Try to sync with server in the background (non-blocking)
+      if (await AuthService.isLoggedIn()) {
+        _syncQuantityWithServer(item, newQuantity);
       }
+    }
+  }
+
+  // Background sync method that doesn't affect the UI
+  Future<void> _syncQuantityWithServer(CartItem item, int newQuantity) async {
+    try {
+      final token = await AuthService.getToken();
+      if (token == null) {
+        debugPrint('Cannot sync quantity - missing auth token');
+        return;
+      }
+
+      print('🔄 Background sync: Attempting to update server...');
+
+      // Try to update the server without removing the item from UI
+      final requestBody = {
+        'productID': item.serverProductId ?? int.parse(item.productId),
+        'quantity': newQuantity,
+        'batch_no': item.batchNo,
+      };
+
+      final response = await http
+          .post(
+            Uri.parse(
+                'https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(requestBody),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('✅ Background sync successful');
+        // Clear protection after successful sync
+        final key = '${item.productId}-${item.batchNo}';
+        _recentlyCorrectedItems.remove(key);
+        print('🔓 Removed protection for key: $key');
+      } else {
+        print('⚠️ Background sync failed: ${response.statusCode}');
+        print('Local changes preserved - will sync during checkout');
+        // Keep protection for failed syncs
+      }
+    } catch (e) {
+      debugPrint('Background sync error: $e');
+      print('⚠️ Background sync failed - local changes preserved');
     }
   }
 

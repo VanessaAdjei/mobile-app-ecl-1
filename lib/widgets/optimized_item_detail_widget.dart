@@ -39,9 +39,9 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
   late final ItemDetailOptimizationService _itemDetailService;
   late final PerformanceService _performanceService;
 
-  late Future<Product> _productFuture;
-  late Future<List<Product>> _relatedProductsFuture;
-  late Future<List<String>> _imagesFuture;
+  Future<Product>? _productFuture;
+  Future<List<Product>>? _relatedProductsFuture;
+  Future<List<String>>? _imagesFuture;
 
   int quantity = 1;
   bool isDescriptionExpanded = false;
@@ -125,7 +125,12 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
           forceRefresh: true);
     });
 
-    await Future.wait([_productFuture, _relatedProductsFuture, _imagesFuture]);
+    if (_productFuture != null &&
+        _relatedProductsFuture != null &&
+        _imagesFuture != null) {
+      await Future.wait(
+          [_productFuture!, _relatedProductsFuture!, _imagesFuture!]);
+    }
   }
 
   void _addToCart(BuildContext context, Product product) async {
@@ -310,33 +315,43 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
         icon: Icon(Icons.arrow_back, color: Colors.white),
         onPressed: widget.onBackPressed ?? () => Navigator.pop(context),
       ),
-      title: FutureBuilder<Product>(
-        future: _productFuture,
-        builder: (context, snapshot) {
-          if (snapshot.hasData) {
-            return Text(
-              snapshot.data!.name,
+      title: _productFuture != null
+          ? FutureBuilder<Product>(
+              future: _productFuture!,
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  return Text(
+                    snapshot.data!.name,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      letterSpacing: 0.3,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  );
+                }
+                return Text(
+                  'Product Details',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    letterSpacing: 0.3,
+                  ),
+                );
+              },
+            )
+          : Text(
+              'Product Details',
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: Colors.white,
                 letterSpacing: 0.3,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            );
-          }
-          return Text(
-            'Product Details',
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-              letterSpacing: 0.3,
             ),
-          );
-        },
-      ),
       actions: [
         IconButton(
           icon: Icon(Icons.shopping_cart, color: Colors.white),
@@ -422,7 +437,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
 
   Widget _buildProductImageGallery(Product product) {
     return FutureBuilder<List<String>>(
-      future: _imagesFuture,
+      future: _imagesFuture ?? Future.value([]),
       builder: (context, snapshot) {
         final images = snapshot.data ?? [product.thumbnail];
 
@@ -888,7 +903,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
 
   Widget _buildRelatedProductsSection(Product product) {
     return FutureBuilder<List<Product>>(
-      future: _relatedProductsFuture,
+      future: _relatedProductsFuture ?? Future.value([]),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildRelatedProductsSkeleton();

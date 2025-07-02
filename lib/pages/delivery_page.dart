@@ -170,6 +170,24 @@ class _DeliveryPageState extends State<DeliveryPage> {
     });
   }
 
+  // Enhanced scroll to error function
+  void _scrollToError(GlobalKey key, {String? errorType}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (key.currentContext != null && mounted) {
+        try {
+          Scrollable.ensureVisible(
+            key.currentContext!,
+            alignment: 0.3, // Slightly higher alignment for better visibility
+            duration: Duration(milliseconds: 600), // Slightly longer duration
+            curve: Curves.easeInOutCubic, // Smoother curve
+          );
+        } catch (e) {
+          print('Error scrolling to $errorType: $e');
+        }
+      }
+    });
+  }
+
   void _updateDeliveryFee() {
     if (_regionController.text.isNotEmpty && _cityController.text.isNotEmpty) {
       setState(() {
@@ -313,6 +331,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
                                 ),
                               if (deliveryOption == 'pickup')
                                 Animate(
+                                  key: pickupSectionKey,
                                   effects: [
                                     FadeEffect(duration: 400.ms),
                                     SlideEffect(
@@ -1628,14 +1647,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   _highlightNameField = true;
                   isValid = false;
                 });
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  Scrollable.ensureVisible(
-                    nameSectionKey.currentContext!,
-                    alignment: 0.5,
-                    duration: Duration(milliseconds: 500),
-                    curve: Curves.easeInOut,
-                  );
-                });
+                _scrollToError(nameSectionKey, errorType: 'name');
               }
 
               // Validate email
@@ -1644,28 +1656,14 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   _highlightEmailField = true;
                   isValid = false;
                 });
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  Scrollable.ensureVisible(
-                    emailSectionKey.currentContext!,
-                    alignment: 0.5,
-                    duration: Duration(milliseconds: 500),
-                    curve: Curves.easeInOut,
-                  );
-                });
+                _scrollToError(emailSectionKey, errorType: 'email');
               } else if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
                   .hasMatch(_emailController.text.trim())) {
                 setState(() {
                   _highlightEmailField = true;
                   isValid = false;
                 });
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  Scrollable.ensureVisible(
-                    emailSectionKey.currentContext!,
-                    alignment: 0.5,
-                    duration: Duration(milliseconds: 500),
-                    curve: Curves.easeInOut,
-                  );
-                });
+                _scrollToError(emailSectionKey, errorType: 'email');
               }
 
               // Validate region
@@ -1675,14 +1673,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   _highlightRegionField = true;
                   isValid = false;
                 });
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  Scrollable.ensureVisible(
-                    regionSectionKey.currentContext!,
-                    alignment: 0.5,
-                    duration: Duration(milliseconds: 500),
-                    curve: Curves.easeInOut,
-                  );
-                });
+                _scrollToError(regionSectionKey, errorType: 'region');
               }
 
               // Validate city
@@ -1692,14 +1683,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   _highlightCityField = true;
                   isValid = false;
                 });
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  Scrollable.ensureVisible(
-                    citySectionKey.currentContext!,
-                    alignment: 0.5,
-                    duration: Duration(milliseconds: 500),
-                    curve: Curves.easeInOut,
-                  );
-                });
+                _scrollToError(citySectionKey, errorType: 'city');
               }
 
               // Validate address
@@ -1709,14 +1693,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   _highlightAddressField = true;
                   isValid = false;
                 });
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  Scrollable.ensureVisible(
-                    addressSectionKey.currentContext!,
-                    alignment: 0.5,
-                    duration: Duration(milliseconds: 500),
-                    curve: Curves.easeInOut,
-                  );
-                });
+                _scrollToError(addressSectionKey, errorType: 'address');
               }
 
               // Validate phone number
@@ -1725,70 +1702,25 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   _highlightPhoneField = true;
                   isValid = false;
                 });
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  Scrollable.ensureVisible(
-                    phoneSectionKey.currentContext!,
-                    alignment: 0.5,
-                    duration: Duration(milliseconds: 500),
-                    curve: Curves.easeInOut,
-                  );
-                });
+                _scrollToError(phoneSectionKey, errorType: 'phone');
               } else if (_phoneController.text.length != 10) {
                 setState(() {
                   _highlightPhoneField = true;
                   isValid = false;
                 });
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  Scrollable.ensureVisible(
-                    phoneSectionKey.currentContext!,
-                    alignment: 0.5,
-                    duration: Duration(milliseconds: 500),
-                    curve: Curves.easeInOut,
-                  );
-                });
+                _scrollToError(phoneSectionKey, errorType: 'phone');
               }
 
               // Validate pickup fields
               if (deliveryOption == 'pickup') {
-                if (selectedRegion == null) {
+                if (selectedRegion == null ||
+                    selectedCity == null ||
+                    selectedPickupSite == null) {
                   setState(() {
                     _highlightPickupField = true;
                     isValid = false;
                   });
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    Scrollable.ensureVisible(
-                      pickupSectionKey.currentContext!,
-                      alignment: 0.5,
-                      duration: Duration(milliseconds: 500),
-                      curve: Curves.easeInOut,
-                    );
-                  });
-                } else if (selectedCity == null) {
-                  setState(() {
-                    _highlightPickupField = true;
-                    isValid = false;
-                  });
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    Scrollable.ensureVisible(
-                      pickupSectionKey.currentContext!,
-                      alignment: 0.5,
-                      duration: Duration(milliseconds: 500),
-                      curve: Curves.easeInOut,
-                    );
-                  });
-                } else if (selectedPickupSite == null) {
-                  setState(() {
-                    _highlightPickupField = true;
-                    isValid = false;
-                  });
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    Scrollable.ensureVisible(
-                      pickupSectionKey.currentContext!,
-                      alignment: 0.5,
-                      duration: Duration(milliseconds: 500),
-                      curve: Curves.easeInOut,
-                    );
-                  });
+                  _scrollToError(pickupSectionKey, errorType: 'pickup');
                 }
               }
 
@@ -1914,11 +1846,12 @@ class _DeliveryPageState extends State<DeliveryPage> {
 
                 await prefs.setString('delivery_address', deliveryAddress);
 
-                // Show success message in the middle of the screen
+                // Show success message at the top of the screen
                 if (mounted) {
                   OverlayEntry overlayEntry = OverlayEntry(
                     builder: (context) => Positioned(
-                      top: MediaQuery.of(context).size.height / 2 - 50,
+                      top: MediaQuery.of(context).padding.top +
+                          16, // Top with safe area padding
                       left: 16,
                       right: 16,
                       child: Material(
