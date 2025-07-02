@@ -101,8 +101,8 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
       _performanceService.stopTimer('item_detail_widget_init');
     } catch (e) {
       _performanceService.stopTimer('item_detail_widget_init');
-      _performanceService.trackError(
-          'item_detail_widget_init_error', e.toString());
+      _performanceService.trackError('item_detail_widget_init_error',
+          context: e.toString());
     }
   }
 
@@ -159,7 +159,8 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
         _scaleController.forward().then((_) => _scaleController.reverse());
       }
     } catch (e) {
-      _performanceService.trackError('add_to_cart_error', e.toString());
+      _performanceService.trackError('add_to_cart_error',
+          context: e.toString());
       if (mounted) {
         _showErrorSnackBar('Error adding item to cart: $e');
       }
@@ -346,75 +347,76 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
   }
 
   Widget _buildLoadingSkeleton() {
-    return LoadingSkeleton(
-      child: Column(
-        children: [
-          // Image skeleton
-          Container(
-            height: 240,
-            width: 240,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
+    return Column(
+      children: [
+        // Image skeleton
+        Container(
+          height: 240,
+          width: 240,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
           ),
-          SizedBox(height: 16),
+        ),
+        SizedBox(height: 16),
 
-          // Product info skeleton
-          Container(
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(height: 18, width: 140, color: Colors.white),
-                SizedBox(height: 6),
-                Container(height: 22, width: 90, color: Colors.white),
-                SizedBox(height: 12),
-                Container(
-                    height: 14, width: double.infinity, color: Colors.white),
-                SizedBox(height: 6),
-                Container(height: 14, width: 180, color: Colors.white),
-              ],
-            ),
+        // Product info skeleton
+        Container(
+          padding: EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
           ),
-
-          SizedBox(height: 16),
-
-          // Quantity selector skeleton
-          Container(
-            height: 36,
-            width: 110,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(height: 18, width: 140, color: Colors.white),
+              SizedBox(height: 6),
+              Container(height: 22, width: 90, color: Colors.white),
+              SizedBox(height: 12),
+              Container(
+                  height: 14, width: double.infinity, color: Colors.white),
+              SizedBox(height: 6),
+              Container(height: 14, width: 180, color: Colors.white),
+            ],
           ),
+        ),
 
-          SizedBox(height: 16),
+        SizedBox(height: 16),
 
-          // Button skeleton
-          Container(
-            height: 48,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-            ),
+        // Quantity selector skeleton
+        Container(
+          height: 36,
+          width: 110,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
           ),
-        ],
-      ),
+        ),
+
+        SizedBox(height: 16),
+
+        // Button skeleton
+        Container(
+          height: 48,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildErrorState(String error) {
     return ErrorDisplay(
-      error: error,
+      title: 'Error Loading Product',
+      message: error,
+      showRetry: true,
       onRetry: _refreshData,
-      onBack: widget.onBackPressed ?? () => Navigator.pop(context),
+      onAction: widget.onBackPressed ?? () => Navigator.pop(context),
+      actionText: 'Go Back',
     );
   }
 
@@ -655,7 +657,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
             // Product details
             if (product.category.isNotEmpty ||
                 product.batch_no.isNotEmpty ||
-                product.uom.isNotEmpty) ...[
+                (product.uom?.isNotEmpty ?? false)) ...[
               Text(
                 'Product Details',
                 style: GoogleFonts.poppins(
@@ -668,7 +670,8 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
               _buildDetailRow('Category', product.category),
               if (product.batch_no.isNotEmpty)
                 _buildDetailRow('Batch Number', product.batch_no),
-              if (product.uom.isNotEmpty) _buildDetailRow('Unit', product.uom),
+              if (product.uom?.isNotEmpty ?? false)
+                _buildDetailRow('Unit', product.uom!),
               if (product.quantity.isNotEmpty)
                 _buildDetailRow('Stock', product.quantity),
             ],
