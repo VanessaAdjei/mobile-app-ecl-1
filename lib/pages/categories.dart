@@ -958,7 +958,7 @@ class _CategoryPageState extends State<CategoryPage> {
               categoryName: category['name'],
               subcategories: _subcategoriesMap[category['id']] ?? [],
               hasSubcategories: category['has_subcategories'],
-              imageUrl: _getCategoryImageUrl(category['image_url']),
+              imageUrl: '', // No longer used but keeping for compatibility
               onTap: () {
                 if (category['has_subcategories']) {
                   Navigator.push(
@@ -1146,6 +1146,146 @@ class CategoryGridItem extends StatefulWidget {
 class _CategoryGridItemState extends State<CategoryGridItem> {
   bool _isPressed = false;
 
+  // Map category names to appropriate icons
+  IconData _getCategoryIcon(String categoryName) {
+    final name = categoryName.toLowerCase();
+
+    // Pharmacy and Medicine categories
+    if (name.contains('drug') ||
+        name.contains('medicine') ||
+        name.contains('medication')) {
+      return Icons.medication;
+    } else if (name.contains('otc') || name.contains('over the counter')) {
+      return Icons.local_pharmacy;
+    } else if (name.contains('prescription') || name.contains('pom')) {
+      return Icons.medical_services;
+    }
+
+    // Health and Wellness categories
+    else if (name.contains('health') || name.contains('wellness')) {
+      return Icons.health_and_safety;
+    } else if (name.contains('vitamin') || name.contains('supplement')) {
+      return Icons.medication;
+    } else if (name.contains('nutrition') || name.contains('diet')) {
+      return Icons.restaurant;
+    }
+
+    // Personal Care categories
+    else if (name.contains('personal') || name.contains('care')) {
+      return Icons.person;
+    } else if (name.contains('beauty') || name.contains('cosmetic')) {
+      return Icons.face;
+    } else if (name.contains('skin') || name.contains('dermatology')) {
+      return Icons.face_retouching_natural;
+    } else if (name.contains('hair') || name.contains('shampoo')) {
+      return Icons.content_cut;
+    }
+
+    // Hygiene and Sanitation
+    else if (name.contains('sanitary') || name.contains('hygiene')) {
+      return Icons.cleaning_services;
+    } else if (name.contains('soap') || name.contains('wash')) {
+      return Icons.cleaning_services;
+    } else if (name.contains('toilet') || name.contains('bathroom')) {
+      return Icons.bathroom;
+    }
+
+    // Maternal and Child Care
+    else if (name.contains('baby') ||
+        name.contains('infant') ||
+        name.contains('child')) {
+      return Icons.child_care;
+    } else if (name.contains('mother') ||
+        name.contains('maternal') ||
+        name.contains('pregnancy')) {
+      return Icons.pregnant_woman;
+    } else if (name.contains('diaper') || name.contains('nappy')) {
+      return Icons.child_care;
+    }
+
+    // Sexual Health
+    else if (name.contains('sexual') ||
+        name.contains('intimate') ||
+        name.contains('condom')) {
+      return Icons.favorite;
+    }
+
+    // Fitness and Sports
+    else if (name.contains('sports') ||
+        name.contains('fitness') ||
+        name.contains('exercise')) {
+      return Icons.sports;
+    }
+
+    // Medical Equipment and Accessories
+    else if (name.contains('accessory') ||
+        name.contains('equipment') ||
+        name.contains('device')) {
+      return Icons.medical_services;
+    } else if (name.contains('thermometer') || name.contains('temperature')) {
+      return Icons.thermostat;
+    } else if (name.contains('bandage') || name.contains('plaster')) {
+      return Icons.healing;
+    }
+
+    // Specific Health Conditions
+    else if (name.contains('diabetes') || name.contains('blood')) {
+      return Icons.monitor_heart;
+    } else if (name.contains('heart') || name.contains('cardio')) {
+      return Icons.favorite;
+    } else if (name.contains('eye') ||
+        name.contains('vision') ||
+        name.contains('glasses')) {
+      return Icons.visibility;
+    } else if (name.contains('dental') ||
+        name.contains('oral') ||
+        name.contains('tooth')) {
+      return Icons.medical_services;
+    } else if (name.contains('ear') ||
+        name.contains('nose') ||
+        name.contains('throat')) {
+      return Icons.hearing;
+    }
+
+    // Pain and Relief
+    else if (name.contains('pain') ||
+        name.contains('ache') ||
+        name.contains('relief')) {
+      return Icons.healing;
+    } else if (name.contains('cough') ||
+        name.contains('cold') ||
+        name.contains('flu')) {
+      return Icons.air;
+    } else if (name.contains('fever') || name.contains('temperature')) {
+      return Icons.thermostat;
+    }
+
+    // Self Care and Wellness
+    else if (name.contains('self care') || name.contains('selfcare')) {
+      return Icons.spa;
+    } else if (name.contains('mental') || name.contains('stress')) {
+      return Icons.psychology;
+    }
+
+    // Sports Nutrition (specific category - must come before general nutrition)
+    else if (name.contains('sports nutrition') ||
+        name.contains('sportsnutrition')) {
+      return Icons.sports;
+    }
+
+    // Food and Nutrition
+    else if (name.contains('food') ||
+        name.contains('nutrition') ||
+        name.contains('diet')) {
+      return Icons.restaurant;
+    }
+
+    // Default fallback
+    else {
+      return Icons.category;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -1164,52 +1304,18 @@ class _CategoryGridItemState extends State<CategoryGridItem> {
               width: double.infinity,
               height: 140,
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                color: Colors.green.shade50,
                 borderRadius: BorderRadius.circular(widget.imageRadius),
+                border: Border.all(
+                  color: Colors.green.shade200,
+                  width: 1,
+                ),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(widget.imageRadius),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CachedNetworkImage(
-                      imageUrl: widget.imageUrl,
-                      fit: BoxFit.fill,
-                      width: double.infinity,
-                      height: double.infinity,
-                      memCacheWidth: 300,
-                      memCacheHeight: 300,
-                      maxWidthDiskCache: 300,
-                      maxHeightDiskCache: 300,
-                      fadeInDuration: Duration(milliseconds: 100),
-                      fadeOutDuration: Duration(milliseconds: 100),
-                      placeholder: (context, url) => Container(
-                        color: Colors.grey.shade100,
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        color: Colors.grey.shade100,
-                        child: Icon(
-                          Icons.image_not_supported_outlined,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-                    // Gradient overlay
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withAlpha((0.2 * 255).toInt()),
-                          ],
-                          stops: [0.7, 1.0],
-                        ),
-                      ),
-                    ),
-                  ],
+              child: Center(
+                child: Icon(
+                  _getCategoryIcon(widget.categoryName),
+                  size: 60,
+                  color: Colors.green.shade700,
                 ),
               ),
             ),
@@ -1530,16 +1636,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           }
         });
       }
-
-      // Remove highlight after 8 seconds
-      highlightTimer?.cancel();
-      highlightTimer = Timer(Duration(seconds: 8), () {
-        if (mounted) {
-          setState(() {
-            highlightedProductId = null;
-          });
-        }
-      });
+      // Do NOT remove highlight after a timer; keep it until the page is left.
     }
   }
 
@@ -2210,16 +2307,7 @@ class _ProductListPageState extends State<ProductListPage> {
           }
         });
       }
-
-      // Remove highlight after 8 seconds
-      highlightTimer?.cancel();
-      highlightTimer = Timer(Duration(seconds: 8), () {
-        if (mounted) {
-          setState(() {
-            highlightedProductId = null;
-          });
-        }
-      });
+      // Do NOT remove highlight after a timer; keep it until the page is left.
     }
   }
 

@@ -976,7 +976,13 @@ class AuthService {
 
   // Add this to your AuthService class
   static Future<String?> getToken() async {
-    return await _secureStorage.read(key: authTokenKey);
+    final loggedIn = await isLoggedIn();
+    if (loggedIn) {
+      // Use your existing logic to get the real token
+      return await _secureStorage.read(key: authTokenKey);
+    }
+    // TEMP: Return a guest token for non-logged-in users
+    return "guest-temp-token";
   }
 
   static Future<void> syncCartOnLogin(String userId) async {

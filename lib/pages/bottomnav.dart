@@ -148,7 +148,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
                 clipBehavior: Clip.none,
                 children: [
                   const Icon(Icons.shopping_cart),
-                  if (_userLoggedIn && cart.totalItems > 0)
+                  if (cart.totalItems > 0)
                     Positioned(
                       right: -6,
                       top: -3,

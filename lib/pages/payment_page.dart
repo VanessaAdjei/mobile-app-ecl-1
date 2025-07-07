@@ -410,7 +410,12 @@ class _PaymentPageState extends State<PaymentPage> {
       // Online Payment Flow
       final authToken = await AuthService.getToken();
       if (authToken == null) {
-        throw Exception('Authentication required. Please log in again.');
+        // If not logged in, treat as guest or show a user-friendly message, but do not throw a sign-in warning
+        setState(() {
+          _paymentError =
+              'You must be logged in to use online payment. Please choose Cash on Delivery or log in.';
+        });
+        return;
       }
 
       final response = await http

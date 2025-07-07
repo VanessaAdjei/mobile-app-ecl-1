@@ -409,9 +409,20 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   productData['tags'].map((tag) => tag.toString()));
             }
 
+            final extractedName =
+                _extractProductName(inventoryData['url_name'] ?? '');
+            print('🔍 CREATING PRODUCT OBJECT ===');
+            print('Extracted Name: $extractedName');
+            print('Product ID: $productId');
+            print('Price: ${inventoryData['price']?.toString() ?? '0.00'}');
+            print('Batch No: ${inventoryData['batch_no'] ?? ''}');
+            print(
+                'Category: ${(productData['categories'] != null && productData['categories'].isNotEmpty) ? productData['categories'][0]['description'] ?? '' : ''}');
+            print('UOM: $uom');
+
             final product = Product.fromJson({
               'id': productId,
-              'name': _extractProductName(inventoryData['url_name'] ?? ''),
+              'name': extractedName,
               'description': productData['description'] ?? '',
               'url_name': inventoryData['url_name'] ?? '',
               'status': inventoryData['status'] ?? '',
@@ -431,6 +442,12 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               'batch_no': inventoryData['batch_no'] ?? '',
               'uom': uom,
             });
+
+            print('🔍 PRODUCT OBJECT CREATED ===');
+            print('Final Product Name: ${product.name}');
+            print('Final Product Price: ${product.price}');
+            print('Final Product Category: ${product.category}');
+            print('=====================================');
 
             return product;
           } else {
@@ -462,23 +479,33 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   String _extractProductName(String urlName) {
     if (urlName.isEmpty) return 'Unknown Product';
 
+    print('🔍 EXTRACTING PRODUCT NAME ===');
+    print('Original URL Name: $urlName');
+
     // Remove common suffixes that are not part of the product name
     String cleanName = urlName;
 
     // Remove random alphanumeric suffixes (like a8cfddbcd6)
     cleanName = cleanName.replaceAll(RegExp(r'-[a-f0-9]{8,}$'), '');
+    print('After removing alphanumeric suffix: $cleanName');
 
     // Remove trailing numbers that are not part of the name
     cleanName = cleanName.replaceAll(RegExp(r'-\d+$'), '');
+    print('After removing trailing numbers: $cleanName');
 
     // Convert kebab-case to title case
-    return cleanName
+    final finalName = cleanName
         .replaceAll('-', ' ')
         .split(' ')
         .map((word) => word.isNotEmpty
             ? word[0].toUpperCase() + word.substring(1).toLowerCase()
             : '')
         .join(' ');
+
+    print('Final extracted name: $finalName');
+    print('================================');
+
+    return finalName;
   }
 
   // Load saved quantity for this product
@@ -734,12 +761,28 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         child: FutureBuilder<Product>(
           future: _productFuture,
           builder: (context, snapshot) {
+            print('🔍 FUTUREBUILDER STATE ===');
+            print('Connection State: ${snapshot.connectionState}');
+            print('Has Data: ${snapshot.hasData}');
+            print('Has Error: ${snapshot.hasError}');
+            if (snapshot.hasError) {
+              print('Error: ${snapshot.error}');
+            }
+            if (snapshot.hasData) {
+              print('Product Data: ${snapshot.data!.name}');
+            }
+            print('==========================');
+
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildLoadingSkeleton();
             }
 
             if (snapshot.hasError) {
               return _buildErrorState(snapshot.error.toString());
+            }
+
+            if (!snapshot.hasData) {
+              return _buildErrorState('No product data available');
             }
 
             final product = snapshot.data!;
@@ -1026,6 +1069,14 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildProductInfoCard(Product product, ThemeData theme) {
+    print('🔍 BUILDING PRODUCT INFO CARD ===');
+    print('Product Name: ${product.name}');
+    print('Product URL Name: ${product.urlName}');
+    print('Product Price: ${product.price}');
+    print('Product Category: ${product.category}');
+    print('Product UOM: ${product.uom}');
+    print('==================================');
+
     return Animate(
       effects: [
         FadeEffect(duration: 400.ms, delay: 100.ms),
@@ -1071,15 +1122,17 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   ),
                 ),
 
-              // Product name
+              // Product name - Use the extracted name instead of urlName
               Text(
-                product.urlName
-                    .replaceAll('-', ' ')
-                    .split(' ')
-                    .map((word) => word.isNotEmpty
-                        ? word[0].toUpperCase() + word.substring(1)
-                        : '')
-                    .join(' '),
+                product.name.isNotEmpty
+                    ? product.name
+                    : product.urlName
+                        .replaceAll('-', ' ')
+                        .split(' ')
+                        .map((word) => word.isNotEmpty
+                            ? word[0].toUpperCase() + word.substring(1)
+                            : '')
+                        .join(' '),
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
@@ -1110,7 +1163,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         border: Border.all(color: Colors.green.shade200),
                       ),
                       child: Text(
-                        'per ${product.uom}',
+                        '${product.uom}',
                         style: GoogleFonts.poppins(
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
@@ -1296,11 +1349,12 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
                     return ElevatedButton(
                       onPressed: () async {
+                        print('DEBUG: ItemPage urlName = \\${widget.urlName}');
+                        print('DEBUG: isPrescribed = \\${widget.isPrescribed}');
                         if (widget.isPrescribed) {
                           final token = await AuthService.getToken();
-                          if (token == null) {
-                            _showErrorSnackBar(
-                                context, "Please log in to continue");
+                          if (token == null || token == "guest-temp-token") {
+                            _showSignInRequiredDialog(context);
                             return;
                           }
                           Navigator.push(
@@ -1433,11 +1487,6 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         ),
                       ],
                     ),
-                  ),
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    color: Colors.green.shade600,
-                    size: 14,
                   ),
                 ],
               ),
@@ -1723,6 +1772,108 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           ),
         ),
       ),
+    );
+  }
+
+  void _showSignInRequiredDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  padding: const EdgeInsets.all(18),
+                  child: Icon(
+                    Icons.lock_outline,
+                    color: Colors.green.shade700,
+                    size: 38,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Sign In Required',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green.shade800,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'This feature is only for signed up users.\nSign in to upload a prescription, get refillable drugs, and track your order.',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Colors.grey,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 28),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.green.shade700,
+                          side: BorderSide(
+                              color: Colors.green.shade700, width: 1.2),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 10, horizontal: 8),
+                        ),
+                        child: Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SignInScreen(
+                                onSuccess: () {
+                                  Navigator.pop(context);
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade700,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 10, horizontal: 8),
+                          elevation: 1,
+                          shadowColor: Colors.transparent,
+                        ),
+                        child: Text('Sign In'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

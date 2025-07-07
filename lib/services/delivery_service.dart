@@ -341,23 +341,27 @@ class DeliveryService {
   /// Fetch all regions from API
   static Future<Map<String, dynamic>> getRegions() async {
     try {
-      print('Fetching regions from API...');
+      print('=== DELIVERY SERVICE: Fetching regions ===');
       print('API URL: https://eclcommerce.ernestchemists.com.gh/api/regions');
 
       final response = await http.get(
         Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/regions'),
         headers: {
           'Accept': 'application/json',
+          'Content-Type': 'application/json',
         },
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(const Duration(seconds: 10));
 
       print('Get regions response status: ${response.statusCode}');
+      print('Get regions response headers: ${response.headers}');
       print('Get regions response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         print('=== API GET REGIONS SUCCESS ===');
         print('Regions data: ${json.encode(data)}');
+        print('Data type: ${data.runtimeType}');
+        print('Data keys: ${data.keys.toList()}');
         print('===============================');
 
         return {
@@ -378,6 +382,7 @@ class DeliveryService {
       }
     } catch (e) {
       print('Error getting regions: $e');
+      print('Error type: ${e.runtimeType}');
       return {
         'success': false,
         'message': 'Network error. Please check your connection and try again.',
@@ -476,6 +481,96 @@ class DeliveryService {
       }
     } catch (e) {
       print('Error getting stores: $e');
+      return {
+        'success': false,
+        'message': 'Network error. Please check your connection and try again.',
+      };
+    }
+  }
+
+  /// Fetch all stores from all cities in parallel for better performance
+  static Future<Map<String, dynamic>> getAllStores() async {
+    try {
+      print('=== DELIVERY SERVICE: Fetching all stores in parallel ===');
+
+      // First get all regions
+      final regionsResult = await getRegions();
+      if (!regionsResult['success']) {
+        return regionsResult;
+      }
+
+      final regionsData = regionsResult['data'] ?? [];
+      List<Future<Map<String, dynamic>>> cityFutures = [];
+      Map<int, String> regionNames = {};
+
+      // Create a map of region IDs to region names
+      for (var region in regionsData) {
+        final regionId = int.tryParse(region['id'].toString()) ?? 0;
+        final regionName = region['description']?.toString() ?? '';
+        regionNames[regionId] = regionName;
+      }
+
+      // Get all cities for all regions in parallel
+      for (var region in regionsData) {
+        final regionId = int.tryParse(region['id'].toString()) ?? 0;
+        cityFutures.add(getCitiesByRegion(regionId));
+      }
+
+      // Wait for all city requests to complete
+      final cityResults = await Future.wait(cityFutures);
+
+      List<Future<Map<String, dynamic>>> storeFutures = [];
+      Map<int, Map<String, String>> cityInfo = {};
+
+      // Process city results and create store futures
+      for (int i = 0; i < cityResults.length; i++) {
+        if (cityResults[i]['success']) {
+          final citiesData = cityResults[i]['data'] ?? [];
+          final regionId = int.tryParse(regionsData[i]['id'].toString()) ?? 0;
+          final regionName = regionNames[regionId] ?? '';
+
+          for (var city in citiesData) {
+            final cityId = int.tryParse(city['id'].toString()) ?? 0;
+            cityInfo[cityId] = {
+              'region_name': regionName,
+              'city_name': city['description']?.toString() ?? '',
+            };
+            storeFutures.add(getStoresByCity(cityId));
+          }
+        }
+      }
+
+      // Wait for all store requests to complete
+      final storeResults = await Future.wait(storeFutures);
+
+      List<dynamic> allStores = [];
+      int storeIndex = 0;
+
+      // Process store results and add region/city info
+      for (var storeResult in storeResults) {
+        if (storeResult['success']) {
+          final storesData = storeResult['data'] ?? [];
+          for (var store in storesData) {
+            // Find the corresponding city info
+            final cityId = store['city_id'];
+            if (cityInfo.containsKey(cityId)) {
+              store['region_name'] = cityInfo[cityId]!['region_name'];
+              store['city_name'] = cityInfo[cityId]!['city_name'];
+            }
+            allStores.add(store);
+          }
+        }
+        storeIndex++;
+      }
+
+      print('All stores loaded successfully: ${allStores.length} stores');
+      return {
+        'success': true,
+        'data': allStores,
+        'message': 'All stores fetched successfully',
+      };
+    } catch (e) {
+      print('Error getting all stores: $e');
       return {
         'success': false,
         'message': 'Network error. Please check your connection and try again.',

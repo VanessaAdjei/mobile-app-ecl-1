@@ -1,4 +1,5 @@
 // pages/homepage.dart
+import 'package:eclapp/pages/pharmacists.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:eclapp/pages/storelocation.dart';
 import 'package:eclapp/pages/categories.dart';
@@ -140,9 +141,9 @@ class ErrorDisplayWidget extends StatelessWidget {
 }
 
 class SliverSearchBarDelegate extends SliverPersistentHeaderDelegate {
-  final Widget child;
+  final Widget Function(double shrinkOffset) builder;
 
-  SliverSearchBarDelegate({required this.child});
+  SliverSearchBarDelegate({required this.builder});
 
   @override
   Widget build(
@@ -151,19 +152,19 @@ class SliverSearchBarDelegate extends SliverPersistentHeaderDelegate {
       color: shrinkOffset > 0
           ? Theme.of(context).appBarTheme.backgroundColor
           : Colors.white,
-      child: child,
+      child: builder(shrinkOffset),
     );
   }
 
   @override
-  double get maxExtent => 70;
+  double get maxExtent => 86.0;
 
   @override
-  double get minExtent => 70;
+  double get minExtent => 86.0;
 
   @override
   bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) {
-    return false;
+    return true;
   }
 }
 
@@ -181,7 +182,7 @@ class _HomePageState extends State<HomePage>
   bool _isLoading = true;
   bool _isLoadingPopular = true;
   bool _isLoadingHealthTips = true;
-  bool _isFetchingHealthTips = false; // Add flag to prevent multiple calls
+  bool _isFetchingHealthTips = false;
   String? _error;
   String? _popularError;
   String? _healthTipsError;
@@ -272,7 +273,7 @@ class _HomePageState extends State<HomePage>
       // Load popular products in background if not cached
       if (ProductCache.cachedPopularProducts.isEmpty) {
         print('HomePage: Loading popular products');
-        _fetchPopularProducts();
+        await _fetchPopularProducts();
       } else {
         print('HomePage: Using cached popular products');
         setState(() {
@@ -284,7 +285,7 @@ class _HomePageState extends State<HomePage>
       // Always load fresh health tips on refresh
       print('HomePage: Loading fresh health tips');
       HealthTipsService.clearCache(); // Clear cache to force fresh fetch
-      _fetchHealthTips();
+      await _fetchHealthTips();
     } catch (e) {
       print('HomePage: Exception in _loadAllContent: $e');
       // Handle error without cache fallback
@@ -1576,7 +1577,7 @@ class _HomePageState extends State<HomePage>
             ),
             title: Text(suggestion.name),
             subtitle: (suggestion.price.isNotEmpty && suggestion.price != '0')
-                ? Text('GHS ${suggestion.price}')
+                ? Text('GH₵ ${suggestion.price}')
                 : null,
           );
         },
@@ -1638,10 +1639,10 @@ class _HomePageState extends State<HomePage>
               title: "Meet Our Pharmacists",
               color: Colors.blue[600]!,
               onTap: () {
-                // Navigator.push(
-                //   context,
-                //   MaterialPageRoute(builder: (context) => PharmacistsPage()),
-                // );
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => PharmacistsPage()),
+                );
               },
             ),
           ),
@@ -1883,11 +1884,35 @@ class _HomePageState extends State<HomePage>
                   SliverPersistentHeader(
                     pinned: true,
                     delegate: SliverSearchBarDelegate(
-                      child: Padding(
-                        padding: const EdgeInsets.only(
-                            top: 20.0, left: 10.0, right: 10.0, bottom: 1.0),
-                        child: _buildSearchBar(),
-                      ),
+                      builder: (shrinkOffset) {
+                        final double searchBarHeight = 56.0;
+                        final double totalPad = 86.0 - searchBarHeight;
+                        if (shrinkOffset > 0) {
+                          // When scrolled: 38 top, 0 bottom
+                          return Padding(
+                            padding: EdgeInsets.only(
+                              top: 38.0,
+                              left: 10.0,
+                              right: 10.0,
+                              bottom: 0.0,
+                            ),
+                            child: _buildSearchBar(),
+                          );
+                        } else {
+                          // When not scrolled: 14 top, 16 bottom
+                          final double topPad = 14.0;
+                          final double bottomPad = 16.0;
+                          return Padding(
+                            padding: EdgeInsets.only(
+                              top: topPad,
+                              left: 10.0,
+                              right: 10.0,
+                              bottom: bottomPad,
+                            ),
+                            child: _buildSearchBar(),
+                          );
+                        }
+                      },
                     ),
                   ),
                   SliverToBoxAdapter(
@@ -1896,105 +1921,7 @@ class _HomePageState extends State<HomePage>
                   SliverToBoxAdapter(
                     child: _buildActionCards(),
                   ),
-                  // Bulk Purchase Card - Commented out for now
-                  /*
-                  SliverToBoxAdapter(
-                    child: Container(
-                      margin: EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 2), // Reduced vertical margin
-                      child: InkWell(
-                        onTap: () async {
-                          final shouldProceed = await showDialog<bool>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('Bulk Purchase Notice'),
-                              content: const Text(
-                                'You will be redirected to our website to complete your bulk purchase. This is required for bulk orders as they need special handling and verification.',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(context, false),
-                                  child: const Text('Cancel'),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () => Navigator.pop(context, true),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blue,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  child: const Text('Continue to Website'),
-                                ),
-                              ],
-                            ),
-                          );
 
-                          if (shouldProceed == true) {
-                            final url = Uri.parse(
-                                'https://eclcommerce.ernestchemists.com.gh/index');
-                            try {
-                              await launchUrl(url,
-                                  mode: LaunchMode.externalApplication);
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                        'Could not open bulk purchase page'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                              }
-                            }
-                          }
-                        },
-                        child: Container(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.blue.shade600,
-                                Colors.blue.shade800
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(6),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.blue.withOpacity(0.2),
-                                blurRadius: 4,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Bulk Purchase',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              Icon(
-                                Icons.shopping_cart,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  */
-                  // Drugs Section
                   SliverToBoxAdapter(
                     child: _buildProductSection(
                       'Drugs',
@@ -2273,6 +2200,9 @@ class _HomePageState extends State<HomePage>
           _isLoadingPopular = false;
         });
       }
+
+      // Load health tips in background
+      _fetchHealthTips();
       return;
     }
 
@@ -2483,38 +2413,48 @@ class _HomePageState extends State<HomePage>
         Container(
           width: cardWidth,
           constraints: BoxConstraints(
-              maxHeight: 38), // Increased from 34 to 38 for bigger text
+              maxHeight: 35,
+              maxWidth: cardWidth), // Constrain both height and width
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 1), // Small spacing for better readability
-              Flexible(
-                child: Text(
-                  product.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: fontSize *
-                        0.8, // Increased from 0.65 to 0.8 for bigger text
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+              const SizedBox(height: 1), // Minimal spacing
+              Expanded(
+                flex: 2,
+                child: Container(
+                  width: cardWidth,
+                  child: Text(
+                    _truncateProductName(product.name),
+                    maxLines: 1, // Only 1 line to make it shorter
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: fontSize * 0.5, // Very small font size
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                      height: 1.0, // Very tight line height
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 1), // Small spacing
-              Flexible(
-                child: Text(
-                  'GHS ${product.price}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: fontSize *
-                        0.8, // Increased from 0.65 to 0.8 for bigger text
-                    fontWeight: FontWeight.w700,
-                    color: Colors.green[700],
+              const SizedBox(height: 1), // Minimal spacing
+              Expanded(
+                flex: 1,
+                child: Container(
+                  width: cardWidth,
+                  child: Text(
+                    'GHS ${product.price}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: fontSize * 0.55, // Very small price font
+                      fontWeight: FontWeight.w700,
+                      color: Colors.green[700],
+                    ),
                   ),
                 ),
               ),
+              const SizedBox(height: 4), // Added margin after price
             ],
           ),
         ),
@@ -2525,6 +2465,12 @@ class _HomePageState extends State<HomePage>
   // Limit products for better performance
   List<Product> _getLimitedProducts(List<Product> products, {int limit = 8}) {
     return products.take(limit).toList();
+  }
+
+  // Truncate product names to keep them short
+  String _truncateProductName(String name) {
+    if (name.length <= 10) return name;
+    return name.substring(0, 7) + '...';
   }
 
   Widget _buildProductSection(
@@ -2592,7 +2538,7 @@ class _HomePageState extends State<HomePage>
             childAspectRatio:
                 1.0, // Square aspect ratio for maximum compactness
             mainAxisSpacing: 0.0, // No spacing between rows
-            crossAxisSpacing: 0.0, // No spacing between columns
+            crossAxisSpacing: 0.0, // Small spacing between columns
           ),
           itemBuilder: (context, index) {
             return HomeProductCard(
@@ -3045,7 +2991,7 @@ Widget buildSectionHeading(String title, Color color) {
       // Decorative line with gradient
       Container(
         width: 3,
-        height: 16,
+        height: 20,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -3068,7 +3014,7 @@ Widget buildSectionHeading(String title, Color color) {
       const SizedBox(width: 8),
       // Icon beside the title
       Container(
-        padding: const EdgeInsets.all(4),
+        padding: const EdgeInsets.all(5),
         decoration: BoxDecoration(
           color: color.withOpacity(0.08),
           borderRadius: BorderRadius.circular(4),
@@ -3076,7 +3022,7 @@ Widget buildSectionHeading(String title, Color color) {
         child: Icon(
           _getIconForSection(title),
           color: color,
-          size: 14,
+          size: 16,
         ),
       ),
       const SizedBox(width: 8),
@@ -3088,14 +3034,14 @@ Widget buildSectionHeading(String title, Color color) {
             Text(
               title,
               style: GoogleFonts.poppins(
-                fontSize: 16,
+                fontSize: 18,
                 fontWeight: FontWeight.w600,
                 color: Colors.black87,
                 letterSpacing: 0.2,
               ),
             ),
             Container(
-              width: 25,
+              width: 30,
               height: 1,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -3140,7 +3086,7 @@ Widget buildCapsuleHeading(String title, Color color) {
     margin: const EdgeInsets.symmetric(vertical: 4),
     child: Center(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -3169,13 +3115,13 @@ Widget buildCapsuleHeading(String title, Color color) {
             Icon(
               _getIconForSection(title),
               color: color,
-              size: 14,
+              size: 16,
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
             Text(
               title,
               style: GoogleFonts.poppins(
-                fontSize: 13,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: color,
                 letterSpacing: 0.3,

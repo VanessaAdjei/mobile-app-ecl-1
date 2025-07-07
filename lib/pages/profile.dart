@@ -197,6 +197,108 @@ class ProfileState extends State<Profile> {
     );
   }
 
+  void _showSignInRequiredDialog(BuildContext context, {String? feature}) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  padding: const EdgeInsets.all(18),
+                  child: Icon(
+                    Icons.lock_outline,
+                    color: Colors.green.shade700,
+                    size: 38,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Sign In Required',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green.shade800,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'This feature is only for signed up users.\nSign in to upload a prescription, get refillable drugs, and track your order.',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Colors.grey,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 28),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.green.shade700,
+                          side: BorderSide(
+                              color: Colors.green.shade700, width: 1.2),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 10, horizontal: 8),
+                        ),
+                        child: Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SignInScreen(
+                                onSuccess: () {
+                                  Navigator.pop(context);
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade700,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 10, horizontal: 8),
+                          elevation: 1,
+                          shadowColor: Colors.transparent,
+                        ),
+                        child: Text('Sign In'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -364,57 +466,68 @@ class ProfileState extends State<Profile> {
 
             const SizedBox(height: 20),
 
-            // Show different options based on login status
-            if (_userLoggedIn) ...[
-              _buildAnimatedProfileOption(
-                context,
-                Icons.notifications_outlined,
-                "Notifications",
-                "Manage your notifications",
-                () => _navigateTo(NotificationsScreen()),
-                primaryColor,
-                cardColor,
-                textColor,
-                subtextColor,
-                0,
-              ),
-              _buildAnimatedProfileOption(
-                context,
-                Icons.person_outline,
-                "Profile Information",
-                "View and edit your profile details",
-                () => _navigateTo(ProfileScreen()),
-                primaryColor,
-                cardColor,
-                textColor,
-                subtextColor,
-                1,
-              ),
-              _buildAnimatedProfileOption(
-                context,
-                Icons.upload_file_outlined,
-                "Uploaded Prescriptions",
-                "View your uploaded prescriptions",
-                () => _navigateTo(PrescriptionHistoryScreen()),
-                primaryColor,
-                cardColor,
-                textColor,
-                subtextColor,
-                2,
-              ),
-              _buildAnimatedProfileOption(
-                context,
-                Icons.shopping_bag_outlined,
-                "Purchases",
-                "View your order history",
-                () => _navigateTo(PurchaseScreen()),
-                primaryColor,
-                cardColor,
-                textColor,
-                subtextColor,
-                3,
-              ),
-            ] else ...[
+            // Always show these options, with tap handler based on login state
+            _buildAnimatedProfileOption(
+              context,
+              Icons.notifications_outlined,
+              "Notifications",
+              "Manage your notifications",
+              _userLoggedIn
+                  ? () => _navigateTo(NotificationsScreen())
+                  : () => _showSignInRequiredDialog(context,
+                      feature: 'notifications'),
+              primaryColor,
+              cardColor,
+              textColor,
+              subtextColor,
+              0,
+            ),
+            _buildAnimatedProfileOption(
+              context,
+              Icons.person_outline,
+              "Profile Information",
+              "View and edit your profile details",
+              _userLoggedIn
+                  ? () => _navigateTo(ProfileScreen())
+                  : () => _showSignInRequiredDialog(context,
+                      feature: 'profile information'),
+              primaryColor,
+              cardColor,
+              textColor,
+              subtextColor,
+              1,
+            ),
+            _buildAnimatedProfileOption(
+              context,
+              Icons.upload_file_outlined,
+              "Uploaded Prescriptions",
+              "View your uploaded prescriptions",
+              _userLoggedIn
+                  ? () => _navigateTo(PrescriptionHistoryScreen())
+                  : () => _showSignInRequiredDialog(context,
+                      feature: 'uploaded prescriptions'),
+              primaryColor,
+              cardColor,
+              textColor,
+              subtextColor,
+              2,
+            ),
+            _buildAnimatedProfileOption(
+              context,
+              Icons.shopping_bag_outlined,
+              "Purchases",
+              "View your order history",
+              _userLoggedIn
+                  ? () => _navigateTo(PurchaseScreen())
+                  : () => _showSignInRequiredDialog(context,
+                      feature: 'order tracking and purchases'),
+              primaryColor,
+              cardColor,
+              textColor,
+              subtextColor,
+              3,
+            ),
+            if (!_userLoggedIn)
               _buildAnimatedProfileOption(
                 context,
                 Icons.login,
@@ -425,9 +538,8 @@ class ProfileState extends State<Profile> {
                 cardColor,
                 textColor,
                 subtextColor,
-                0,
+                4,
               ),
-            ],
 
             const SizedBox(height: 30),
 
@@ -467,7 +579,7 @@ class ProfileState extends State<Profile> {
               cardColor,
               textColor,
               subtextColor,
-              4,
+              5,
             ),
             _buildAnimatedProfileOption(
               context,
@@ -479,7 +591,7 @@ class ProfileState extends State<Profile> {
               cardColor,
               textColor,
               subtextColor,
-              5,
+              6,
             ),
             _buildAnimatedProfileOption(
               context,
@@ -491,7 +603,7 @@ class ProfileState extends State<Profile> {
               cardColor,
               textColor,
               subtextColor,
-              6,
+              7,
             ),
 
             if (_userLoggedIn) ...[
@@ -506,7 +618,7 @@ class ProfileState extends State<Profile> {
                 cardColor,
                 textColor,
                 subtextColor,
-                7,
+                8,
               ),
             ],
 

@@ -61,8 +61,8 @@ class _CartIconButtonState extends State<CartIconButton> {
               color: widget.iconColor ?? Colors.white,
               size: widget.iconSize,
             ),
-            // Only show the counter if user is logged in and has items
-            if (_userLoggedIn && cart.totalItems > 0)
+            // Show the counter if there are items in the cart (for all users)
+            if (cart.totalItems > 0)
               Positioned(
                 right: -6,
                 top: -3,

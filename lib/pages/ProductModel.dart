@@ -47,7 +47,16 @@ class Product {
     print('🏷️ Product.fromJson - UOM value: $uomValue');
     print('🏷️ Product.fromJson - UOM type: ${uomValue.runtimeType}');
 
-    return Product(
+    // Handle UOM properly - extract description if it's a Map
+    String? finalUom;
+    if (uomValue is Map<String, dynamic>) {
+      finalUom = uomValue['description']?.toString();
+      print('🏷️ Product.fromJson - Extracted UOM description: $finalUom');
+    } else if (uomValue is String) {
+      finalUom = uomValue;
+    }
+
+    final product = Product(
       id: json['id'] ?? 0,
       name: json['name'] ?? '',
       description: json['description'] ?? '',
@@ -66,8 +75,17 @@ class Product {
       selfcare: json['selfcare'],
       accessories: json['accessories'],
       categoryId: json['category_id'],
-      uom: uomValue,
+      uom: finalUom,
     );
+
+    print('🏷️ Product.fromJson - Final product created:');
+    print('  Name: ${product.name}');
+    print('  Price: ${product.price}');
+    print('  Category: ${product.category}');
+    print('  UOM: ${product.uom}');
+    print('🏷️ Product.fromJson - END');
+
+    return product;
   }
 
   Map<String, dynamic> toJson() {

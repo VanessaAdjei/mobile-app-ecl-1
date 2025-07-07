@@ -44,8 +44,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
           Navigator.pop(context, false);
         }
       }
-    } catch (e) {
-      }
+    } catch (e) {}
   }
 
   void _navigateToConfirmation(bool success) async {
@@ -135,29 +134,92 @@ class _PaymentWebViewState extends State<PaymentWebView> {
 
         // Show confirmation dialog
         final shouldPop = await showDialog<bool>(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: Text('Cancel Payment'),
-                content: Text('Are you sure you want to cancel this payment?'),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context, false);
-                    },
-                    child: Text('No'),
+          context: context,
+          builder: (context) => Dialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            backgroundColor: Colors.white,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      shape: BoxShape.circle,
+                    ),
+                    padding: const EdgeInsets.all(18),
+                    child: Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.red.shade700,
+                      size: 38,
+                    ),
                   ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context, true);
-                    },
-                    child: Text('Yes'),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Cancel Payment?',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red.shade800,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Are you sure you want to cancel this payment?',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 28),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red.shade700,
+                            side: BorderSide(
+                                color: Colors.red.shade700, width: 1.2),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 10, horizontal: 8),
+                          ),
+                          child: Text('No'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red.shade700,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 10, horizontal: 8),
+                            elevation: 1,
+                            shadowColor: Colors.transparent,
+                          ),
+                          child: Text('Yes, Cancel'),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ) ??
-            false;
+            ),
+          ),
+        );
 
-        if (shouldPop) {
+        if (shouldPop == true) {
           // Simply pop back to the previous screen (payment page)
           Navigator.pop(context, false);
         }
@@ -207,27 +269,119 @@ class _PaymentWebViewState extends State<PaymentWebView> {
                                       color: Colors.white, size: 20),
                                   onPressed: () async {
                                     final shouldPop = await showDialog<bool>(
-                                          context: context,
-                                          builder: (context) => AlertDialog(
-                                            title: Text('Cancel Payment'),
-                                            content: Text(
-                                                'Are you sure you want to cancel this payment?'),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () => Navigator.pop(
-                                                    context, false),
-                                                child: Text('No'),
+                                      context: context,
+                                      builder: (context) => Dialog(
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(20)),
+                                        backgroundColor: Colors.white,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 28, vertical: 32),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Container(
+                                                decoration: BoxDecoration(
+                                                  color: Colors.red.shade50,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.all(18),
+                                                child: Icon(
+                                                  Icons.warning_amber_rounded,
+                                                  color: Colors.red.shade700,
+                                                  size: 38,
+                                                ),
                                               ),
-                                              TextButton(
-                                                onPressed: () => Navigator.pop(
-                                                    context, true),
-                                                child: Text('Yes'),
+                                              const SizedBox(height: 18),
+                                              Text(
+                                                'Cancel Payment?',
+                                                style: TextStyle(
+                                                  fontSize: 20,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.red.shade800,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 10),
+                                              Text(
+                                                'Are you sure you want to cancel this payment?',
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                  color: Colors.grey,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                              const SizedBox(height: 28),
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: OutlinedButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                              context, false),
+                                                      style: OutlinedButton
+                                                          .styleFrom(
+                                                        foregroundColor:
+                                                            Colors.red.shade700,
+                                                        side: BorderSide(
+                                                            color: Colors
+                                                                .red.shade700,
+                                                            width: 1.2),
+                                                        shape:
+                                                            RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(8),
+                                                        ),
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                                vertical: 10,
+                                                                horizontal: 8),
+                                                      ),
+                                                      child: Text('No'),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: ElevatedButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                              context, true),
+                                                      style: ElevatedButton
+                                                          .styleFrom(
+                                                        backgroundColor:
+                                                            Colors.red.shade700,
+                                                        foregroundColor:
+                                                            Colors.white,
+                                                        shape:
+                                                            RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(8),
+                                                        ),
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                                vertical: 10,
+                                                                horizontal: 8),
+                                                        elevation: 1,
+                                                        shadowColor:
+                                                            Colors.transparent,
+                                                      ),
+                                                      child:
+                                                          Text('Yes, Cancel'),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ],
                                           ),
-                                        ) ??
-                                        false;
-                                    if (shouldPop) {
+                                        ),
+                                      ),
+                                    );
+                                    if (shouldPop == true) {
                                       Navigator.pop(context, false);
                                     }
                                   },

@@ -103,6 +103,9 @@ class _SignInScreenState extends State<SignInScreen> {
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
+      print('=== SIGN IN API RESPONSE ===');
+      print(result);
+      print('============================');
       if (result['token'] != null && result['user'] != null) {
         // Add a delay to ensure token is properly saved
         await Future.delayed(const Duration(milliseconds: 200));
@@ -130,24 +133,25 @@ class _SignInScreenState extends State<SignInScreen> {
               .handleUserLogin(userId);
         } else {}
 
-        widget.onSuccess?.call();
-
-        // Final verification - check if user is actually logged in
-        final isActuallyLoggedIn = await AuthService.isLoggedIn();
-        if (!isActuallyLoggedIn) {
-          // If still not logged in, show error
-          _showError('Login failed. Please try again.');
-          return;
-        }
-
-        if (mounted) {
-          if (widget.returnTo != null) {
-            Navigator.pushReplacementNamed(context, widget.returnTo!);
-          } else {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const HomePage()),
-            );
+        if (widget.onSuccess != null) {
+          widget.onSuccess!();
+        } else {
+          // Final verification - check if user is actually logged in
+          final isActuallyLoggedIn = await AuthService.isLoggedIn();
+          if (!isActuallyLoggedIn) {
+            // If still not logged in, show error
+            _showError('Login failed. Please try again.');
+            return;
+          }
+          if (mounted) {
+            if (widget.returnTo != null) {
+              Navigator.pushReplacementNamed(context, widget.returnTo!);
+            } else {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const HomePage()),
+              );
+            }
           }
         }
       } else {

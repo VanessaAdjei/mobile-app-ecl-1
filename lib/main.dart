@@ -21,9 +21,16 @@ import 'services/app_optimization_service.dart';
 import 'services/optimized_api_service.dart';
 import 'services/banner_cache_service.dart';
 import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'pages/onboarding_splash_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  // Force onboarding to show for testing
+  await prefs.setBool('hasLaunchedBefore', false);
+
+  final isFirstLaunch = !(prefs.getBool('hasLaunchedBefore') ?? false);
 
   // Configure image cache for better performance
   PaintingBinding.instance.imageCache.maximumSize = 1000;
@@ -38,12 +45,12 @@ void main() async {
   // Initialize banner cache service
   await BannerCacheService().initialize();
 
-  // Start auth initialization in background, don't wait for it
+  
   AuthService.init().catchError((e) {
     print('Background auth initialization error: $e');
   });
 
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 class MyApp extends StatefulWidget {
@@ -56,6 +63,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool _isLoggedIn = false;
   bool _isInitialized = false;
+  bool? _isFirstLaunch;
 
   // Global function to refresh auth state
   static void Function()? _refreshAuthStateCallback;
@@ -71,12 +79,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    // Register for app lifecycle changes
     WidgetsBinding.instance.addObserver(this);
-
-    // Remove auth initialization to start app immediately
-    // _initializeAuthState();
-    // Set up the global callback
+    _checkFirstLaunch();
     _MyAppState.setRefreshAuthStateCallback(_refreshAuthState);
   }
 
@@ -105,9 +109,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _checkFirstLaunch() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isFirst = !(prefs.getBool('hasLaunchedBefore') ?? false);
+    if (mounted) {
+      setState(() {
+        _isFirstLaunch = isFirst;
+      });
+    }
+  }
+
   Future<void> _initializeAuthState() async {
     try {
-      // Add timeout to prevent long waiting
       final isLoggedIn = await AuthService.isLoggedIn().timeout(
         const Duration(seconds: 2),
         onTimeout: () {
@@ -147,7 +160,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // Remove the loading screen - go directly to the main app
+    if (_isFirstLaunch == null) {
+      // Still loading
+      return const MaterialApp(
+        home: Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => CartProvider()),
@@ -304,26 +324,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   brightness: Brightness.dark,
                 ).copyWith(background: Colors.grey.shade900),
               ),
-              initialRoute: '/home',
-              routes: {
-                '/': (context) => HomePage(),
-                '/home': (context) => HomePage(),
-                '/cart': (context) => ProtectedRoute(child: Cart()),
-                '/categories': (context) => CategoryPage(),
-                '/profile': (context) => Profile(),
-                '/aboutus': (context) => AboutUsScreen(),
-                '/signin': (context) => SignInScreen(),
-                '/signup': (context) => SignUpScreen(),
-                '/upload-prescription': (context) => UploadPrescriptionPage(
-                      product:
-                          ModalRoute.of(context)!.settings.arguments as Product,
-                    ),
-                '/privacypolicy': (context) => PrivacyPolicyScreen(),
-                '/termsandconditions': (context) => TermsAndConditionsScreen(),
-                '/settings': (context) => Profile(),
-                '/payment': (context) => PaymentPage(),
-                '/profile_settings': (context) => Profile(),
-              },
+              home: _isFirstLaunch == true
+                  ? OnboardingSplashPage(
+                      onFinish: () async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setBool('hasLaunchedBefore', true);
+                        setState(() {
+                          _isFirstLaunch = false;
+                        });
+                      },
+                    )
+                  : HomePage(),
             ),
           );
         },

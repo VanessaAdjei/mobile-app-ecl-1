@@ -1780,32 +1780,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
                 );
 
                 if (!saveResult['success']) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            Icon(Icons.warning_amber_rounded,
-                                color: Colors.white),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                  'Warning: ${saveResult['message'] ?? 'Could not save delivery info, but proceeding with order'}'),
-                            ),
-                          ],
-                        ),
-                        backgroundColor: Colors.orange[600],
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        margin: EdgeInsets.all(16),
-                        duration: Duration(seconds: 3),
-                      ),
-                    );
-                  }
-
-                  // Continue with order even if API save fails
+                  // Continue with order even if API save fails (removed warning SnackBar)
                   _proceedToPayment();
                   return;
                 }
@@ -1904,31 +1879,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
                 // Navigate to payment page with delivery details
                 _proceedToPayment();
               } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Row(
-                        children: [
-                          Icon(Icons.warning_amber_rounded,
-                              color: Colors.white),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                                'Warning: Could not save delivery info, but proceeding with order'),
-                          ),
-                        ],
-                      ),
-                      backgroundColor: Colors.orange[600],
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      margin: EdgeInsets.all(16),
-                      duration: Duration(seconds: 3),
-                    ),
-                  );
-                }
-
                 // Continue with order even if there's an exception
                 _proceedToPayment();
               }

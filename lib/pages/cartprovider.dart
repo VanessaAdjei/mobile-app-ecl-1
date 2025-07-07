@@ -15,7 +15,18 @@ class CartProvider with ChangeNotifier {
   String? _currentUserId;
 
   // Track recently corrected items to prevent sync override
+  // Use normalized product name + batch number as key to avoid product ID mismatches
   Map<String, int> _recentlyCorrectedItems = {};
+
+  // Helper method to normalize product names for consistent key generation
+  String _normalizeProductName(String name) {
+    return name
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), '') // Remove special characters
+        .replaceAll(RegExp(r'\s+'), ' ') // Normalize spaces
+        .trim()
+        .replaceAll(' ', ''); // Remove all spaces for exact matching
+  }
 
   List<CartItem> get cartItems => _cartItems;
   List<CartItem> get purchasedItems => _purchasedItems;
@@ -28,10 +39,9 @@ class CartProvider with ChangeNotifier {
   Future<void> _initializeCart() async {
     await _loadUserCarts();
     await _checkCurrentUser();
-    // If logged in, always sync with server
-    if (_currentUserId != null) {
-      await syncWithApi();
-    }
+    // Disable automatic server sync to prevent quantity override
+    // Local cart is now the source of truth
+    // Server sync will happen during checkout
   }
 
   Future<void> _checkCurrentUser() async {
@@ -150,6 +160,20 @@ class CartProvider with ChangeNotifier {
         if (data['cart_items'] != null) {
           final rawItems = data['cart_items'] as List;
 
+          // If server cart is empty but we have local items, preserve local cart
+          if (rawItems.isEmpty && _cartItems.isNotEmpty) {
+            print('⚠️ SERVER CART EMPTY - PRESERVING LOCAL CART ===');
+            print(
+                'Server returned empty cart but local cart has ${_cartItems.length} items');
+            print('Preserving local cart items to prevent data loss');
+            print('Protected items: ${_recentlyCorrectedItems.keys.toList()}');
+            print('================================================');
+
+            // Keep existing cart items and just notify listeners
+            notifyListeners();
+            return;
+          }
+
           // Merge duplicate items by product_id and batch number
           Map<String, CartItem> mergedItems = {};
 
@@ -176,67 +200,66 @@ class CartProvider with ChangeNotifier {
             }
           }
 
-          for (final key in mergedItems.keys) {
-            if (_recentlyCorrectedItems.containsKey(key)) {
-              final localQuantity = _recentlyCorrectedItems[key]!;
-              final item = mergedItems[key]!;
-              print('🔄 OVERRIDING MERGED QUANTITY - PROTECTED ITEM ===');
+          // Apply protection for recently corrected items using product name + batch
+          print('🔍 PROTECTION DEBUG ===');
+          print('Recently corrected items: $_recentlyCorrectedItems');
+          print('Merged items count: ${mergedItems.length}');
+
+          for (final item in mergedItems.values) {
+            final normalizedName = _normalizeProductName(item.name);
+            final protectionKey = '$normalizedName-${item.batchNo}';
+            print('Checking protection for: $protectionKey');
+            print('Item name: ${item.name}');
+            print('Normalized name: $normalizedName');
+            print('Item batch: ${item.batchNo}');
+
+            if (_recentlyCorrectedItems.containsKey(protectionKey)) {
+              final localQuantity = _recentlyCorrectedItems[protectionKey]!;
+              print('🔒 APPLYING PROTECTION ===');
               print('Product: ${item.name}');
-              print('Merged Qty: ${item.quantity}');
-              print('Local Qty: $localQuantity');
-              print('Using Local Qty: $localQuantity');
-              print('=================================================');
+              print('Server Quantity: ${item.quantity}');
+              print('Protected Quantity: $localQuantity');
+              print('Protection Key: $protectionKey');
+              print('==========================');
               item.updateQuantity(localQuantity);
+            } else {
+              print('❌ No protection found for: $protectionKey');
             }
           }
+          print('🔍 END PROTECTION DEBUG ===');
 
           final items = mergedItems.values.toList();
-
-          print('=== SYNC CART PROCESSED ITEMS ===');
-          print('Raw items from server: ${rawItems.length}');
-          print('Merged items: ${items.length}');
-          print(
-              'Items: ${items.map((item) => '${item.name} (${item.quantity})').toList()}');
 
           // Debug total price calculation
           double calculatedTotal = items.fold(
               0.0, (sum, item) => sum + (item.price * item.quantity));
           double apiTotal = (data['total_price'] ?? 0.0).toDouble();
-          print('Calculated Total: $calculatedTotal');
-          print('API Total: $apiTotal');
-          print('Total Match: ${calculatedTotal == apiTotal}');
 
           // If totals don't match, try to correct quantities based on total price
           if (calculatedTotal != apiTotal) {
-            print('🔍 CORRECTING QUANTITIES ===');
-            print('Calculated Total: $calculatedTotal');
-            print('API Total: $apiTotal');
-
             if (items.length == 1) {
               // Single item - correct its quantity
               final item = items.first;
               final key = '${item.productId}-${item.batchNo}';
 
               // Check if this item was recently corrected
-              if (_recentlyCorrectedItems.containsKey(key)) {
-                final trackedQuantity = _recentlyCorrectedItems[key]!;
+              final normalizedName = _normalizeProductName(item.name);
+              final protectionKey = '$normalizedName-${item.batchNo}';
+              if (_recentlyCorrectedItems.containsKey(protectionKey)) {
+                final trackedQuantity = _recentlyCorrectedItems[protectionKey]!;
                 if (item.quantity != trackedQuantity) {
                   print('Single Item - Using Tracked Quantity:');
                   print('Product: ${item.name}');
+                  print('Normalized Name: $normalizedName');
                   print('API Qty: ${item.quantity}');
                   print('Tracked Qty: $trackedQuantity');
+                  print('Protection Key: $protectionKey');
                   item.updateQuantity(trackedQuantity);
                 }
               } else {
                 // Use total price calculation
                 final correctQuantity = (apiTotal / item.price).round();
                 if (correctQuantity > 0 && correctQuantity != item.quantity) {
-                  print('Single Item Correction:');
-                  print('Product: ${item.name}');
-                  print('API Qty: ${item.quantity}');
-                  print('Calculated Qty: $correctQuantity');
-                  print('API Total: $apiTotal');
-                  print('Item Price: ${item.price}');
                   item.updateQuantity(correctQuantity);
                 }
               }
@@ -246,13 +269,18 @@ class CartProvider with ChangeNotifier {
                 final key = '${item.productId}-${item.batchNo}';
 
                 // Check if this item was recently corrected
-                if (_recentlyCorrectedItems.containsKey(key)) {
-                  final trackedQuantity = _recentlyCorrectedItems[key]!;
+                final normalizedName = _normalizeProductName(item.name);
+                final protectionKey = '$normalizedName-${item.batchNo}';
+                if (_recentlyCorrectedItems.containsKey(protectionKey)) {
+                  final trackedQuantity =
+                      _recentlyCorrectedItems[protectionKey]!;
                   if (item.quantity != trackedQuantity) {
-                    print('Multi-Item - Using Tracked Quantity:');
+                    print('Multiple Items - Using Tracked Quantity:');
                     print('Product: ${item.name}');
+                    print('Normalized Name: $normalizedName');
                     print('API Qty: ${item.quantity}');
                     print('Tracked Qty: $trackedQuantity');
+                    print('Protection Key: $protectionKey');
                     item.updateQuantity(trackedQuantity);
                   }
                 } else {
@@ -264,38 +292,31 @@ class CartProvider with ChangeNotifier {
                     final correctQuantity = (itemApiTotal / item.price).round();
                     if (correctQuantity > 0 &&
                         correctQuantity != item.quantity) {
-                      print('Multi-Item Correction:');
-                      print('Product: ${item.name}');
-                      print('API Qty: ${item.quantity}');
-                      print('Calculated Qty: $correctQuantity');
-                      print('Item Total: $itemTotal');
-                      print('API Item Total: $itemApiTotal');
-                      print('Item Price: ${item.price}');
                       item.updateQuantity(correctQuantity);
                     }
                   }
                 }
               }
             }
-            print('==========================');
           }
-          print('==================================');
 
-          // Merge server items with local changes, preserving recently updated quantities
           final finalItems = <CartItem>[];
 
           for (final serverItem in items) {
-            final key = '${serverItem.productId}-${serverItem.batchNo}';
+            final normalizedName = _normalizeProductName(serverItem.name);
+            final protectionKey = '$normalizedName-${serverItem.batchNo}';
 
             // Check if this item was recently updated locally
-            if (_recentlyCorrectedItems.containsKey(key)) {
-              final localQuantity = _recentlyCorrectedItems[key]!;
-              print('🔄 MERGING ITEM - PRESERVING LOCAL QUANTITY ===');
+            if (_recentlyCorrectedItems.containsKey(protectionKey)) {
+              final localQuantity = _recentlyCorrectedItems[protectionKey]!;
+
+              print('🔒 FINAL PROTECTION CHECK ===');
               print('Product: ${serverItem.name}');
-              print('Server Qty: ${serverItem.quantity}');
-              print('Local Qty: $localQuantity');
-              print('Using Local Qty: $localQuantity');
-              print('===============================================');
+              print('Normalized Name: $normalizedName');
+              print('Server Quantity: ${serverItem.quantity}');
+              print('Protected Quantity: $localQuantity');
+              print('Protection Key: $protectionKey');
+              print('=============================');
 
               // Use local quantity instead of server quantity
               serverItem.updateQuantity(localQuantity);
@@ -311,19 +332,9 @@ class CartProvider with ChangeNotifier {
 
           // Save to local storage after UI update
           await _saveUserCarts();
-        } else {
-          debugPrint('No cart items in API response');
-          print('=== SYNC CART - NO ITEMS FOUND ===');
-          print('Available keys: ${data.keys.toList()}');
-          print('Full response: ${json.encode(data)}');
-          print('===================================');
-        }
-      } else {
-        debugPrint('Failed to sync cart: HTTP ${response.statusCode}');
-      }
-    } catch (e) {
-      debugPrint('Error syncing cart with API: $e');
-    }
+        } else {}
+      } else {}
+    } catch (e) {}
   }
 
   Future<bool> _verifyProductExists(String urlName, String batchNo) async {
@@ -361,13 +372,6 @@ class CartProvider with ChangeNotifier {
   }
 
   Future<void> addToCart(CartItem item) async {
-    print('=== ADD TO CART - SIMPLIFIED ===');
-    print('Product: ${item.name}');
-    print('Quantity: ${item.quantity}');
-    print('Product ID: ${item.productId}');
-    print('Batch: ${item.batchNo}');
-    print('===============================');
-
     // For logged-in users, try to sync with server
     _currentUserId ??= await AuthService.getCurrentUserID();
 
@@ -382,33 +386,63 @@ class CartProvider with ChangeNotifier {
         return;
       }
 
-      // Check if item already exists in local cart
+
       final existingIndex = _cartItems.indexWhere((cartItem) =>
-          cartItem.productId == item.productId &&
-          cartItem.batchNo == item.batchNo);
+          (cartItem.productId == item.productId &&
+              cartItem.batchNo == item.batchNo) ||
+          (cartItem.serverProductId?.toString() == item.productId &&
+              cartItem.batchNo == item.batchNo));
 
       if (existingIndex != -1) {
-        // Item exists, update quantity
-        print('🔍 ITEM EXISTS - UPDATING QUANTITY ===');
+        // Item exists, add to existing quantity
+        final oldQuantity = _cartItems[existingIndex].quantity;
+        final newQuantity = oldQuantity + item.quantity;
+
+        print('🔍 ITEM EXISTS - ADDING TO QUANTITY ===');
         print('Product: ${item.name}');
-        print('Old Quantity: ${_cartItems[existingIndex].quantity}');
-        print('New Quantity: ${item.quantity}');
+        print('Old Quantity: $oldQuantity');
+        print('Adding Quantity: ${item.quantity}');
+        print('New Total Quantity: $newQuantity');
         print('=====================================');
 
-        _cartItems[existingIndex].updateQuantity(item.quantity);
+        _cartItems[existingIndex].updateQuantity(newQuantity);
+
+        // Mark this item as recently corrected to prevent sync override
+        // Use normalized product name + batch number as key to avoid product ID mismatches
+        final normalizedName = _normalizeProductName(item.name);
+        final protectionKey = '$normalizedName-${item.batchNo}';
+        _recentlyCorrectedItems[protectionKey] = item.quantity;
+        print('🔒 PROTECTED ITEM FROM SYNC OVERRIDE ===');
+        print('Product: ${item.name}');
+        print('Normalized Name: $normalizedName');
+        print('Quantity: ${item.quantity}');
+        print('App Product ID: ${item.productId}');
+        print('Server Product ID: ${item.serverProductId}');
+        print('Protection Key: $protectionKey');
+        print('========================================');
+
         await _saveUserCarts();
         notifyListeners();
 
         // Try to sync with server in background
         _syncAddToServer(item);
       } else {
-        // Item doesn't exist, add it locally first
-        print('🔍 NEW ITEM - ADDING TO CART ===');
-        print('Product: ${item.name}');
-        print('Quantity: ${item.quantity}');
-        print('===============================');
-
         _cartItems.add(item);
+
+        // Mark this item as recently corrected to prevent sync override
+        // Use normalized product name + batch number as key to avoid product ID mismatches
+        final normalizedName = _normalizeProductName(item.name);
+        final protectionKey = '$normalizedName-${item.batchNo}';
+        _recentlyCorrectedItems[protectionKey] = item.quantity;
+        print('🔒 PROTECTED NEW ITEM FROM SYNC OVERRIDE ===');
+        print('Product: ${item.name}');
+        print('Normalized Name: $normalizedName');
+        print('Quantity: ${item.quantity}');
+        print('App Product ID: ${item.productId}');
+        print('Server Product ID: ${item.serverProductId}');
+        print('Protection Key: $protectionKey');
+        print('============================================');
+
         await _saveUserCarts();
         notifyListeners();
 
@@ -422,55 +456,17 @@ class CartProvider with ChangeNotifier {
     }
   }
 
-  // Background sync for adding to server
+  // Background sync for adding to server - DISABLED
   Future<void> _syncAddToServer(CartItem item) async {
-    try {
-      final token = await AuthService.getToken();
-      if (token == null) {
-        debugPrint('Cannot sync add to server - missing auth token');
-        return;
-      }
+    print('🔄 SYNC ADD TO SERVER - DISABLED ===');
+    print('Product: ${item.name}');
+    print('Quantity: ${item.quantity}');
+    print('Local changes preserved - will sync during checkout');
+    print('==================================================');
 
-      print('🔄 SYNC ADD TO SERVER ===');
-      print('Product: ${item.name}');
-      print('Quantity: ${item.quantity}');
-      print('========================');
-
-      final requestBody = {
-        'productID': int.parse(item.productId),
-        'quantity': item.quantity,
-      };
-
-      final response = await http
-          .post(
-            Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(requestBody),
-          )
-          .timeout(const Duration(seconds: 10));
-
-      print('=== SYNC ADD API RESPONSE ===');
-      print('Response Status: ${response.statusCode}');
-      print('Response Body: ${response.body}');
-      print('=============================');
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        print('✅ Add to server successful');
-        // Sync cart to get updated server data
-        await syncWithApi();
-      } else {
-        print('⚠️ Add to server failed: ${response.statusCode}');
-        print('Local changes preserved - will sync during checkout');
-      }
-    } catch (e) {
-      debugPrint('Error syncing add to server: $e');
-      print('⚠️ Add to server failed - local changes preserved');
-    }
+    // Disable server sync to prevent quantity override
+    // Local cart is now the source of truth
+    // Server sync will happen during checkout
   }
 
   // Helper method to add item to local cart with proper quantity handling
@@ -621,8 +617,10 @@ class CartProvider with ChangeNotifier {
       print('New Quantity: $newQuantity');
 
       // Track this item as recently updated to prevent sync override
-      final key = '${item.productId}-${item.batchNo}';
-      _recentlyCorrectedItems[key] = newQuantity;
+      // Use normalized product name + batch number as key to avoid product ID mismatches
+      final normalizedName = _normalizeProductName(item.name);
+      final protectionKey = '$normalizedName-${item.batchNo}';
+      _recentlyCorrectedItems[protectionKey] = newQuantity;
 
       // Update local state immediately for UI responsiveness
       _cartItems[index].updateQuantity(newQuantity);
@@ -630,7 +628,7 @@ class CartProvider with ChangeNotifier {
       notifyListeners();
 
       print('✅ Quantity updated locally - item stays in UI');
-      print('🔒 Protected from sync override with key: $key');
+      print('🔒 Protected from sync override with key: $protectionKey');
 
       // Try to sync with server in the background (non-blocking)
       if (await AuthService.isLoggedIn()) {
@@ -673,9 +671,10 @@ class CartProvider with ChangeNotifier {
       if (response.statusCode == 200 || response.statusCode == 201) {
         print('✅ Background sync successful');
         // Clear protection after successful sync
-        final key = '${item.productId}-${item.batchNo}';
-        _recentlyCorrectedItems.remove(key);
-        print('🔓 Removed protection for key: $key');
+        final normalizedName = _normalizeProductName(item.name);
+        final protectionKey = '$normalizedName-${item.batchNo}';
+        _recentlyCorrectedItems.remove(protectionKey);
+        print('🔓 Removed protection for key: $protectionKey');
       } else {
         print('⚠️ Background sync failed: ${response.statusCode}');
         print('Local changes preserved - will sync during checkout');
