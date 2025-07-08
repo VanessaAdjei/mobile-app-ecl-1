@@ -552,6 +552,20 @@ class _CartState extends State<Cart> {
                                       setState(() {
                                         _isLoggedIn = isNowLoggedIn;
                                       });
+                                      // Sync cart with backend after login
+                                      if (isNowLoggedIn) {
+                                        final userId = await AuthService
+                                            .getCurrentUserID();
+                                        if (userId != null) {
+                                          await Provider.of<CartProvider>(
+                                                  context,
+                                                  listen: false)
+                                              .mergeGuestCartOnLogin(userId);
+                                        }
+                                        await Provider.of<CartProvider>(context,
+                                                listen: false)
+                                            .syncWithApi();
+                                      }
                                     }
                                     return;
                                   }

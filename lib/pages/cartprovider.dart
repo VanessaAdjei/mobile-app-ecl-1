@@ -386,7 +386,6 @@ class CartProvider with ChangeNotifier {
         return;
       }
 
-
       final existingIndex = _cartItems.indexWhere((cartItem) =>
           (cartItem.productId == item.productId &&
               cartItem.batchNo == item.batchNo) ||
@@ -799,5 +798,32 @@ class CartProvider with ChangeNotifier {
     }
     _cartItems = merged.values.toList();
     notifyListeners();
+  }
+
+  // Merge guest cart into user cart after login
+  Future<void> mergeGuestCartOnLogin(String userId) async {
+    final guestCart = _userCarts['guest'] ?? [];
+    final userCart = _userCarts[userId] ?? [];
+
+    // Merge logic: combine items, summing quantities for duplicates
+    final Map<String, CartItem> merged = {};
+    for (final item in [...userCart, ...guestCart]) {
+      final String uniqueKey = '${item.urlName}_${item.batchNo}';
+      if (merged.containsKey(uniqueKey)) {
+        merged[uniqueKey] = merged[uniqueKey]!.copyWith(
+          quantity: merged[uniqueKey]!.quantity + item.quantity,
+        );
+      } else {
+        merged[uniqueKey] = item;
+      }
+    }
+
+    _userCarts[userId] = merged.values.toList();
+    _cartItems = _userCarts[userId]!;
+    _userCarts.remove('guest');
+    await _saveUserCarts();
+    notifyListeners();
+    // Optionally, push merged cart to server here
+    // await _pushCartToServer();
   }
 }
