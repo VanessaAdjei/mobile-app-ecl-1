@@ -701,7 +701,7 @@ class _PaymentPageState extends State<PaymentPage> {
                                           ),
                                           const SizedBox(height: 1),
                                           Text(
-                                            _paymentError!,
+                                            "Please try again",
                                             style: TextStyle(
                                               fontSize: 11,
                                               color: Colors.red.shade600,

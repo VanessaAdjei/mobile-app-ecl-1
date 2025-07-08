@@ -283,9 +283,9 @@ class _HomePageState extends State<HomePage>
       }
 
       // Always load fresh health tips on refresh
-      print('HomePage: Loading fresh health tips');
-      HealthTipsService.clearCache(); // Clear cache to force fresh fetch
-      await _fetchHealthTips();
+      // print('HomePage: Loading fresh health tips');
+      // HealthTipsService.clearCache(); // Clear cache to force fresh fetch
+      // await _fetchHealthTips();
     } catch (e) {
       print('HomePage: Exception in _loadAllContent: $e');
       // Handle error without cache fallback
@@ -543,64 +543,8 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _fetchHealthTips() async {
-    print('HomePage: _fetchHealthTips called');
-    if (!mounted) return;
-
-    // Prevent multiple simultaneous calls
-    if (_isFetchingHealthTips) {
-      print('HomePage: Health tips fetch already in progress, skipping');
-      return;
-    }
-
-    setState(() {
-      _isLoadingHealthTips = true;
-      _healthTipsError = null;
-      _isFetchingHealthTips = true;
-    });
-
-    try {
-      print(
-          'HomePage: Calling HealthTipsService.fetchHealthTips with random parameters');
-      // Use the new MyHealthfinder API service with random parameters for variety
-      final tips = await HealthTipsService.fetchHealthTips(
-        limit: 6,
-      );
-      print('HomePage: Received ${tips.length} tips from service');
-
-      // Debug: Print the first tip details
-      if (tips.isNotEmpty) {
-        print(
-            'HomePage: First tip - Title: "${tips[0].title}", Category: "${tips[0].category}"');
-        print('HomePage: First tip - Summary: "${tips[0].summary}"');
-        print('HomePage: First tip - Content: "${tips[0].content}"');
-      }
-
-      if (!mounted) return;
-
-      if (tips.isNotEmpty) {
-        print('HomePage: Setting health tips in state');
-        setState(() {
-          healthTips = List<HealthTip>.from(tips); // Ensure correct type
-          _isLoadingHealthTips = false;
-          _isFetchingHealthTips = false;
-        });
-        print(
-            'HomePage: Health tips set successfully. healthTips.length = ${healthTips.length}');
-      } else {
-        print('HomePage: No tips received, loading default tips');
-        _loadDefaultHealthTips();
-      }
-    } catch (e) {
-      print('HomePage: Exception in _fetchHealthTips: $e');
-      if (!mounted) return;
-      _loadDefaultHealthTips();
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isFetchingHealthTips = false;
-        });
-      }
-    }
+    print('Health tips fetching disabled.');
+    return;
   }
 
   void _loadDefaultHealthTips() {
@@ -1048,7 +992,7 @@ class _HomePageState extends State<HomePage>
               _buildContactOption(
                 icon: Icons.phone_rounded,
                 title: 'Call Us',
-                subtitle: '+233 000 000 0000',
+                subtitle: '0302908674',
                 color: Colors.green.shade600,
                 onTap: () {
                   Navigator.pop(context);
@@ -1078,12 +1022,12 @@ class _HomePageState extends State<HomePage>
               _buildContactOption(
                 icon: Icons.email_rounded,
                 title: 'Email Us',
-                subtitle: 'support@ernestchemists.com',
+                subtitle: 'info@ernestchemists.com',
                 color: Colors.blue.shade600,
                 onTap: () {
                   Navigator.pop(context);
                   _launchEmail(
-                      'support@ernestchemists.com', 'ECL Support Request');
+                      'info@ernestchemists.com', 'ECL Support Request');
                 },
               ),
 
@@ -1650,7 +1594,7 @@ class _HomePageState extends State<HomePage>
           Expanded(
             child: _buildActionCard(
               icon: Icons.location_on,
-              title: "Store Locator",
+              title: "Locate A Store Near You",
               color: Colors.green[600]!,
               onTap: () {
                 Navigator.pushReplacement(

@@ -1,6 +1,8 @@
 // pages/onboarding_splash_page.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:video_player/video_player.dart';
 
 // Add a custom clipper for the green curve at the top level
 class BottomCurveClipper extends CustomClipper<Path> {
@@ -35,6 +37,9 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
   late AnimationController _animController;
   Animation<double>? _iconScaleAnim;
   late Animation<double> _fadeAnim;
+  VideoPlayerController? _videoController;
+  Future<void>? _initializeVideoPlayerFuture;
+  bool _videoInitFailed = false;
 
   @override
   void initState() {
@@ -47,11 +52,24 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
         CurvedAnimation(parent: _animController, curve: Curves.elasticOut);
     _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeIn);
     _animController.forward();
+
+    _videoController =
+        VideoPlayerController.asset('assets/images/Mobile browsers.mp4');
+    _initializeVideoPlayerFuture = _videoController!.initialize().then((_) {
+      _videoController!.setLooping(true);
+      _videoController!.setVolume(0);
+      _videoController!.play();
+      setState(() {});
+    }).catchError((e) {
+      _videoInitFailed = true;
+      setState(() {});
+    });
   }
 
   @override
   void dispose() {
     _animController.dispose();
+    _videoController?.dispose();
     super.dispose();
   }
 
@@ -67,6 +85,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       'title': 'Welcome to Enerst Chemists',
       'desc': 'Your trusted pharmacy for health, wellness, and convenience.',
       'button': 'Continue',
+      'iconColor': null,
     },
     {
       'icon': Icons.delivery_dining,
@@ -74,6 +93,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       'desc':
           'Get your medicines and essentials delivered to your door, fast and reliably.',
       'button': 'Next',
+      'iconColor': Colors.green,
     },
     {
       'icon': Icons.shopping_cart,
@@ -81,12 +101,22 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       'desc':
           'Order prescriptions, wellness products, and more—all in one place.',
       'button': 'Next',
+      'iconColor': Colors.orange,
+    },
+    {
+      'icon': Icons.support_agent,
+      'title': 'Speak to a Pharmacist',
+      'desc':
+          'Chat with a licensed pharmacist about your health concerns, anytime.',
+      'button': 'Next',
+      'iconColor': Colors.teal,
     },
     {
       'icon': Icons.verified_user,
       'title': 'Why Sign Up?',
       'desc': '',
       'button': 'Get Started',
+      'iconColor': Colors.green,
     },
   ];
 
@@ -112,235 +142,375 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF43E97B), Color(0xFFd3f9e5), Colors.white],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+      backgroundColor: Colors.white,
+      body: Stack(
+        children: [
+          // Background image (no padding, outside SafeArea)
+          if (_currentPage == 0 ||
+              _currentPage == 1 ||
+              _currentPage == 3 ||
+              _currentPage == 4)
+            Positioned.fill(
+              child: Opacity(
+                opacity: 0.60,
+                child: Image.asset(
+                  'assets/images/onboarding2.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
+            )
+          else if (_currentPage == 2)
+            Positioned.fill(
+              child: Opacity(
+                opacity: 0.60,
+                child: Image.asset(
+                  'assets/images/onboarding3.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          // Gradient overlay for readability
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white,
+                      Color(0xCCF8F9FA),
+                      Color(0xB0E0F2F1),
+                    ],
+                    stops: [0.0, 0.6, 1.0],
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Stack(
-            children: [
-              PageView.builder(
-                controller: _controller,
-                itemCount: _pages.length,
-                onPageChanged: _onPageChanged,
-                itemBuilder: (context, index) {
-                  final page = _pages[index];
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (index == 0) ...[
-                        Image.asset(
-                          'assets/images/png.png',
-                          height: 120,
-                          fit: BoxFit.contain,
-                        ),
-                        const SizedBox(height: 32),
-                        Text(
-                          'Welcome to Enerst Chemists E-Pharmacy!',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                            letterSpacing: 0.3,
+          // Foreground content inside SafeArea
+          SafeArea(
+            child: Stack(
+              children: [
+                // Skip button at top right
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: (_currentPage != _pages.length - 1)
+                      ? TextButton(
+                          onPressed: _onSkip,
+                          child: const Text(
+                            'Skip',
+                            style: TextStyle(
+                              color: Colors.teal,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Your trusted partner for health and wellness.',
-                          style: TextStyle(
-                            fontSize: 17,
-                            color: Colors.green,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ] else if (index == 1) ...[
-                        Icon(
-                          Icons.local_shipping,
-                          size: 100,
-                          color: Colors.green,
-                        ),
-                        const SizedBox(height: 32),
-                        Text(
-                          page['title'],
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          page['desc'],
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Colors.black87,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ] else if (index == 2) ...[
-                        Icon(
-                          Icons.shopping_cart,
-                          size: 100,
-                          color: Colors.orange,
-                        ),
-                        const SizedBox(height: 32),
-                        Text(
-                          page['title'],
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          page['desc'],
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Colors.black87,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ] else ...[
-                        Column(
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                // Main onboarding content
+                PageView.builder(
+                  controller: _controller,
+                  itemCount: _pages.length,
+                  onPageChanged: _onPageChanged,
+                  itemBuilder: (context, index) {
+                    final page = _pages[index];
+                    return SingleChildScrollView(
+                      key: ValueKey(_currentPage),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 28.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Icon(
-                              Icons.verified_user,
-                              size: 100,
-                              color: Colors.green[700],
+                            SizedBox(height: 64),
+                            // Add semantic label for illustration
+                            Semantics(
+                              label: _getHeadlineForIndex(index, page),
+                              child: _getPlaceholderIconForIndex(index),
                             ),
-                            const SizedBox(height: 32),
-                            Text(
-                              'Why Sign Up?',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
+                            SizedBox(height: 16),
+                            // Headline (skip on last page, index 4)
+                            if (index != 4) ...[
+                              Container(
+                                width: double.infinity,
+                                child: Text(
+                                  _getHeadlineForIndex(index, page),
+                                  style: const TextStyle(
+                                    fontSize: 28, // increased for accessibility
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  softWrap: true,
+                                  overflow: TextOverflow.visible,
+                                ),
                               ),
-                              textAlign: TextAlign.center,
+                              const SizedBox(height: 10),
+                            ],
+                            // Subtitle
+                            Container(
+                              width: double.infinity,
+                              child: Text(
+                                _getSubtitleForIndex(index, page),
+                                style: const TextStyle(
+                                  fontSize: 18, // increased for accessibility
+                                  color: Colors.black87, // improved contrast
+                                ),
+                                textAlign: TextAlign.center,
+                                softWrap: true,
+                                overflow: TextOverflow.visible,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            // Spacer replaced with a SizedBox for scrollable layout
+                            // Progress dots
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List.generate(
+                                _pages.length,
+                                (dotIndex) => AnimatedContainer(
+                                  duration: const Duration(milliseconds: 300),
+                                  margin:
+                                      const EdgeInsets.symmetric(horizontal: 4),
+                                  width: _currentPage == dotIndex ? 24 : 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: _currentPage == dotIndex
+                                        ? Colors.teal[700] // improved contrast
+                                        : Colors.teal[100],
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 18),
-                            // Centered bulleted list of benefits
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                _benefitRow(Icons.medical_services,
-                                    'Order prescriptions easily',
-                                    center: true, iconColor: Colors.blue),
-                                _benefitRow(
-                                    Icons.local_shipping, 'Track your orders',
-                                    center: true, iconColor: Colors.green),
-                                _benefitRow(
-                                    Icons.location_on, 'Save your addresses',
-                                    center: true, iconColor: Colors.purple),
-                                _benefitRow(Icons.flash_on, 'Faster checkout',
-                                    center: true, iconColor: Colors.amber),
-                                _benefitRow(Icons.card_giftcard,
-                                    'Exclusive offers & rewards',
-                                    center: true, iconColor: Colors.orange),
-                              ],
+                            // Animated FloatingActionButton for Next/Get Started
+                            Center(
+                              child: TweenAnimationBuilder<double>(
+                                tween: Tween(begin: 1.0, end: 1.0),
+                                duration: const Duration(milliseconds: 200),
+                                builder: (context, scale, child) {
+                                  return GestureDetector(
+                                    onTapDown: (_) => setState(() {}),
+                                    onTapUp: (_) => setState(() {}),
+                                    child: AnimatedScale(
+                                      scale: 1.0,
+                                      duration:
+                                          const Duration(milliseconds: 100),
+                                      child: Semantics(
+                                        button: true,
+                                        label: _currentPage == _pages.length - 1
+                                            ? 'Get Started'
+                                            : 'Next',
+                                        child: SizedBox(
+                                          width: 220,
+                                          height: 52,
+                                          child: ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.teal[700],
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(28),
+                                              ),
+                                              elevation: 2,
+                                            ),
+                                            onPressed: _onNext,
+                                            child: _currentPage ==
+                                                    _pages.length - 1
+                                                ? Text(
+                                                    'Get Started',
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 18,
+                                                    ),
+                                                  )
+                                                : Icon(
+                                                    Icons.arrow_forward,
+                                                    color: Colors.white,
+                                                    size: 28,
+                                                  ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
+                            // Add friendly microcopy on last page
+                            if (_currentPage == _pages.length - 1)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 14.0),
+                                child: Text(
+                                  "Let's get started on your health journey!",
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.teal,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            const SizedBox(height: 16),
                           ],
                         ),
-                      ],
-                      const SizedBox(height: 48),
-                      // Progress dots
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(
-                          _pages.length,
-                          (dotIndex) => AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            width: _currentPage == dotIndex ? 24 : 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: _currentPage == dotIndex
-                                  ? Colors.green[700]
-                                  : Colors.green[200],
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                        ),
                       ),
-                      const SizedBox(height: 24),
-                      // Buttons
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          if (_currentPage != 0)
-                            TextButton(
-                              onPressed: _onSkip,
-                              child: const Text(
-                                'Skip',
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            )
-                          else
-                            const SizedBox(width: 64),
-                          Expanded(
-                            child: Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 8.0),
-                              child: ElevatedButton(
-                                onPressed: _onNext,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green[700],
-                                  shape: const StadiumBorder(),
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 14),
-                                ),
-                                child: Text(
-                                  _currentPage == _pages.length - 1
-                                      ? 'Get Started'
-                                      : _pages[_currentPage]['button']!,
-                                  style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
+  // Helper to get headline for each page
+  String _getHeadlineForIndex(int index, Map<String, dynamic> page) {
+    switch (index) {
+      case 0:
+        return 'Welcome to Enerst Chemists E-Pharmacy!';
+      case 1:
+        return 'Easy to buy your pharmacy products';
+      case 2:
+        return 'All your health needs, one app';
+      case 3:
+        return 'Speak to a pharmacist about your concerns';
+      case 4:
+        return 'Why Sign Up?';
+      default:
+        return page['title'] ?? '';
+    }
+  }
+
+  // Helper to get subtitle for each page
+  String _getSubtitleForIndex(int index, Map<String, dynamic> page) {
+    switch (index) {
+      case 0:
+        return 'Your trusted partner for health and wellness.';
+      case 1:
+        return 'Browse and buy pharmacy products with a few taps.';
+      case 2:
+        return 'Prescriptions, wellness, and more—all in one place.';
+      case 3:
+        return 'Chat with a licensed pharmacist anytime.';
+      case 4:
+        return '';
+      default:
+        return page['desc'] ?? '';
+    }
+  }
+
+  // Helper to get placeholder icon/illustration for each page
+  Widget _getPlaceholderIconForIndex(int index) {
+    switch (index) {
+      case 0:
+        return Center(
+          child: Image.asset(
+            'assets/images/png.png',
+            height: 120,
+            fit: BoxFit.contain,
+          ),
+        );
+      case 1:
+        return _videoInitFailed ||
+                _videoController == null ||
+                !_videoController!.value.isInitialized
+            ? SvgPicture.asset(
+                'assets/images/Mobile browsers-amico.svg',
+                height: 180,
+                fit: BoxFit.contain,
+              )
+            : AspectRatio(
+                aspectRatio: _videoController!.value.aspectRatio,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: VideoPlayer(_videoController!),
+                ),
+              );
+      case 2:
+        return Center(
+          child: SvgPicture.asset(
+            'assets/images/Add to Cart-bro.svg',
+            height: 180,
+            fit: BoxFit.contain,
+          ),
+        );
+      case 3:
+        return SvgPicture.asset(
+          'assets/images/Medical prescription-bro.svg',
+          height: 180,
+          fit: BoxFit.contain,
+        );
+      case 4:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Headline on top for 'Why Sign Up?'
+            Container(
+              width: double.infinity,
+              child: Text(
+                'Why Sign Up?',
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+                textAlign: TextAlign.center,
+                softWrap: true,
+                overflow: TextOverflow.visible,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SvgPicture.asset(
+              'assets/images/signin.svg',
+              height: 80,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(height: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _benefitRow(
+                    Icons.medical_services, 'Order prescriptions easily',
+                    center: true, iconColor: Colors.blue, dense: true),
+                _benefitRow(Icons.local_shipping, 'Track your orders',
+                    center: true, iconColor: Colors.green, dense: true),
+                _benefitRow(Icons.flash_on, 'Faster checkout',
+                    center: true, iconColor: Colors.amber, dense: true),
+                _benefitRow(Icons.card_giftcard, 'Exclusive offers & rewards',
+                    center: true, iconColor: Colors.orange, dense: true),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Divider(thickness: 1, height: 24, color: Colors.tealAccent),
+            const SizedBox(height: 10),
+          ],
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
   Widget _benefitRow(IconData icon, String text,
-      {bool center = false, Color? iconColor}) {
+      {bool center = false, Color? iconColor, bool dense = false}) {
     if (center) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16),
+        padding:
+            EdgeInsets.symmetric(vertical: dense ? 4.0 : 8.0, horizontal: 16),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(icon, color: iconColor ?? Colors.green[700], size: 28),
-            const SizedBox(height: 6),
+            SizedBox(height: dense ? 3 : 6),
             Text(
               text,
               style: TextStyle(

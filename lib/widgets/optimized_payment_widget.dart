@@ -364,7 +364,7 @@ class _OptimizedPaymentWidgetState extends State<OptimizedPaymentWidget> {
               const SizedBox(height: 8),
               ErrorDisplay(
                 title: 'Payment Error',
-                message: _paymentError!,
+                message: "Please try again",
                 showRetry: true,
                 onRetry: () {
                   setState(() {
