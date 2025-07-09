@@ -8,6 +8,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'AppBackButton.dart';
 import '../widgets/cart_icon_button.dart';
 import 'homepage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class PharmacistsPage extends StatefulWidget {
   const PharmacistsPage({Key? key}) : super(key: key);
@@ -22,6 +24,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   final TextEditingController _symptomsController = TextEditingController();
   final TextEditingController _chatController = TextEditingController();
 
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final GlobalKey _nameFieldKey = GlobalKey();
+  final GlobalKey _phoneFieldKey = GlobalKey();
+  final GlobalKey _symptomsFieldKey = GlobalKey();
+
   String _selectedConsultationType = 'WhatsApp';
   String _selectedGenderPreference = 'No Preference';
   DateTime _selectedDate = DateTime.now().add(Duration(days: 1));
@@ -30,6 +37,10 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   bool _isChatOpen = false;
   bool _isTyping = false;
   List<ChatMessage> _chatMessages = [];
+
+  bool _nameInvalid = false;
+  bool _phoneInvalid = false;
+  bool _symptomsInvalid = false;
 
   final List<String> _consultationTypes = [
     'WhatsApp',
@@ -42,6 +53,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     'Female Pharmacist'
   ];
 
+  List<Map<String, dynamic>> _bookings = [];
+
   @override
   void initState() {
     super.initState();
@@ -51,6 +64,34 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           "Hello! I'm your health assistant. I can help you with general health questions and guide you to the right pharmacist. How can I help you today?",
       isUser: false,
     ));
+    _loadBookings();
+  }
+
+  Future<void> _loadBookings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bookingsJson = prefs.getStringList('pharmacist_bookings') ?? [];
+    setState(() {
+      _bookings = bookingsJson
+          .map((e) => Map<String, dynamic>.from(_decodeJson(e)))
+          .toList();
+    });
+  }
+
+  Future<void> _saveBookings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bookingsJson = _bookings.map((e) => _encodeJson(e)).toList();
+    await prefs.setStringList('pharmacist_bookings', bookingsJson);
+  }
+
+  String _encodeJson(Map<String, dynamic> map) => jsonEncode(map);
+  Map<String, dynamic> _decodeJson(String s) => jsonDecode(s);
+
+  Future<void> _clearBookings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('pharmacist_bookings');
+    setState(() {
+      _bookings.clear();
+    });
   }
 
   @override
@@ -267,92 +308,98 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 Expanded(
                   child: SingleChildScrollView(
                     padding: EdgeInsets.all(24),
-                    child: Column(
-                      children: [
-                        // Progress indicator
-                        _buildProgressIndicator(),
-                        SizedBox(height: 24),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        children: [
+                          // Progress indicator
+                          _buildProgressIndicator(),
+                          SizedBox(height: 24),
 
-                        // Form fields with staggered animations
-                        _buildModernDropdownField(
-                          'Consultation Type',
-                          _selectedConsultationType,
-                          _consultationTypes,
-                          (value) => setState(
-                              () => _selectedConsultationType = value!),
-                          Icons.video_call,
-                        ).animate().fadeIn(delay: 600.ms).slideX(begin: 0.2),
-                        SizedBox(height: 20),
+                          // Form fields with staggered animations
+                          _buildModernDropdownField(
+                            'Consultation Type',
+                            _selectedConsultationType,
+                            _consultationTypes,
+                            (value) => setState(
+                                () => _selectedConsultationType = value!),
+                            Icons.video_call,
+                          ).animate().fadeIn(delay: 600.ms).slideX(begin: 0.2),
+                          SizedBox(height: 20),
 
-                        _buildModernDropdownField(
-                          'Pharmacist Gender Preference',
-                          _selectedGenderPreference,
-                          _genderPreferences,
-                          (value) => setState(
-                              () => _selectedGenderPreference = value!),
-                          Icons.person,
-                        ).animate().fadeIn(delay: 700.ms).slideX(begin: 0.2),
-                        SizedBox(height: 20),
+                          _buildModernDropdownField(
+                            'Pharmacist Gender Preference',
+                            _selectedGenderPreference,
+                            _genderPreferences,
+                            (value) => setState(
+                                () => _selectedGenderPreference = value!),
+                            Icons.person,
+                          ).animate().fadeIn(delay: 700.ms).slideX(begin: 0.2),
+                          SizedBox(height: 20),
 
-                        _buildModernTextField(
-                          'Full Name',
-                          _nameController,
-                          Icons.person_outline,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your full name';
-                            }
-                            return null;
-                          },
-                        ).animate().fadeIn(delay: 800.ms).slideX(begin: 0.2),
-                        SizedBox(height: 20),
+                          _buildModernTextField(
+                            'Full Name',
+                            _nameController,
+                            Icons.person_outline,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your full name';
+                              }
+                              return null;
+                            },
+                            fieldKey: _nameFieldKey,
+                          ).animate().fadeIn(delay: 800.ms).slideX(begin: 0.2),
+                          SizedBox(height: 20),
 
-                        _buildModernTextField(
-                          'Phone Number',
-                          _phoneController,
-                          Icons.phone,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your phone number';
-                            }
-                            if (!RegExp(r'^\+?[\d\s-]+$').hasMatch(value)) {
-                              return 'Please enter a valid phone number';
-                            }
-                            return null;
-                          },
-                        ).animate().fadeIn(delay: 900.ms).slideX(begin: 0.2),
-                        SizedBox(height: 20),
+                          _buildModernTextField(
+                            'Phone Number',
+                            _phoneController,
+                            Icons.phone,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your phone number';
+                              }
+                              if (!RegExp(r'^\+?[\d\s-]+$').hasMatch(value)) {
+                                return 'Please enter a valid phone number';
+                              }
+                              return null;
+                            },
+                            fieldKey: _phoneFieldKey,
+                          ).animate().fadeIn(delay: 900.ms).slideX(begin: 0.2),
+                          SizedBox(height: 20),
 
-                        _buildModernTextField(
-                          'Symptoms/Concerns',
-                          _symptomsController,
-                          Icons.medical_services,
-                          maxLines: 3,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please describe your symptoms or concerns';
-                            }
-                            return null;
-                          },
-                        ).animate().fadeIn(delay: 1000.ms).slideX(begin: 0.2),
-                        SizedBox(height: 20),
+                          _buildModernTextField(
+                            'Symptoms/Concerns',
+                            _symptomsController,
+                            Icons.medical_services,
+                            maxLines: 3,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please describe your symptoms or concerns';
+                              }
+                              return null;
+                            },
+                            fieldKey: _symptomsFieldKey,
+                          ).animate().fadeIn(delay: 1000.ms).slideX(begin: 0.2),
+                          SizedBox(height: 20),
 
-                        _buildModernDatePicker()
-                            .animate()
-                            .fadeIn(delay: 1100.ms)
-                            .slideX(begin: 0.2),
-                        SizedBox(height: 20),
+                          _buildModernDatePicker()
+                              .animate()
+                              .fadeIn(delay: 1100.ms)
+                              .slideX(begin: 0.2),
+                          SizedBox(height: 20),
 
-                        _buildModernTimePicker()
-                            .animate()
-                            .fadeIn(delay: 1200.ms)
-                            .slideX(begin: 0.2),
-                        SizedBox(height: 30),
+                          _buildModernTimePicker()
+                              .animate()
+                              .fadeIn(delay: 1200.ms)
+                              .slideX(begin: 0.2),
+                          SizedBox(height: 30),
 
-                        // Enhanced submit button with loading state
-                        _buildEnhancedSubmitButton(),
-                        SizedBox(height: 20),
-                      ],
+                          // Enhanced submit button with loading state
+                          _buildEnhancedSubmitButton(),
+                          SizedBox(height: 20),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -466,45 +513,21 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     ).animate().fadeIn(delay: 1300.ms).scale(begin: Offset(0.8, 0.8));
   }
 
-  void _submitBookingWithValidation() {
-    // Validate all fields
-    String? nameError =
-        _nameController.text.isEmpty ? 'Please enter your full name' : null;
-    String? phoneError =
-        _phoneController.text.isEmpty ? 'Please enter your phone number' : null;
-    String? symptomsError = _symptomsController.text.isEmpty
-        ? 'Please describe your symptoms'
-        : null;
-
-    if (nameError != null || phoneError != null || symptomsError != null) {
+  void _submitBookingWithValidation() async {
+    final isValid = _formKey.currentState?.validate() ?? false;
+    if (!isValid) {
+      // Scroll to the first invalid field
+      if (_nameController.text.isEmpty) {
+        _scrollToField(_nameFieldKey);
+      } else if (_phoneController.text.isEmpty) {
+        _scrollToField(_phoneFieldKey);
+      } else if (_symptomsController.text.isEmpty) {
+        _scrollToField(_symptomsFieldKey);
+      }
       // Show validation errors
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Container(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Please complete all required fields:',
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                if (nameError != null)
-                  Text('• $nameError',
-                      style: GoogleFonts.poppins(fontSize: 12)),
-                if (phoneError != null)
-                  Text('• $phoneError',
-                      style: GoogleFonts.poppins(fontSize: 12)),
-                if (symptomsError != null)
-                  Text('• $symptomsError',
-                      style: GoogleFonts.poppins(fontSize: 12)),
-              ],
-            ),
-          ),
+          content: Text('Please complete all required fields.'),
           backgroundColor: Colors.red[600],
           behavior: SnackBarBehavior.floating,
           shape:
@@ -514,19 +537,44 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       );
       return;
     }
-
+    // Save booking
+    final booking = {
+      'name': _nameController.text,
+      'phone': _phoneController.text,
+      'symptoms': _symptomsController.text,
+      'consultationType': _selectedConsultationType,
+      'genderPreference': _selectedGenderPreference,
+      'date':
+          '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
+      'time': _selectedTime.format(context),
+    };
+    setState(() {
+      _bookings.insert(0, booking);
+    });
+    await _saveBookings();
     // Show loading state
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => _buildLoadingDialog(),
     );
-
     // Simulate API call
     Future.delayed(Duration(seconds: 2), () {
       Navigator.pop(context); // Close loading dialog
       _showSuccessDialog();
     });
+  }
+
+  void _scrollToField(GlobalKey key) {
+    final context = key.currentContext;
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        duration: Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+        alignment: 0.2,
+      );
+    }
   }
 
   Widget _buildLoadingDialog() {
@@ -741,8 +789,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
 
   Widget _buildModernTextField(
       String label, TextEditingController controller, IconData icon,
-      {int maxLines = 1, String? Function(String?)? validator}) {
+      {int maxLines = 1, String? Function(String?)? validator, Key? fieldKey}) {
     return Column(
+      key: fieldKey,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
@@ -760,26 +809,31 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           ],
         ),
         SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey[300]!),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: TextField(
-            controller: controller,
-            maxLines: maxLines,
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              contentPadding:
-                  EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        TextFormField(
+          controller: controller,
+          maxLines: maxLines,
+          validator: validator,
+          decoration: InputDecoration(
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.green[700]!, width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.red, width: 2),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.red, width: 2),
+            ),
+            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           ),
         ),
       ],
@@ -1534,6 +1588,49 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       body: SafeArea(
         child: Column(
           children: [
+            // My Booked Appointments Section
+            if (_bookings.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'My Booked Appointments',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green[800],
+                      ),
+                    ),
+                    if (_bookings.length > 1)
+                      TextButton(
+                        onPressed: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(24)),
+                            ),
+                            builder: (_) => BookingsListSheet(
+                              bookings: _bookings,
+                              onClear: _clearBookings,
+                            ),
+                          );
+                        },
+                        child: Text('See All'),
+                      ),
+                    TextButton(
+                      onPressed: _clearBookings,
+                      child: Text('Clear', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 8),
+              _buildBookingCard(_bookings.first),
+            ],
             // Main Content
             Expanded(
               child: ListView(
@@ -1542,14 +1639,12 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   // Hero Section
                   _buildHeroSection(),
                   SizedBox(height: 20),
-
                   // Virtual Consultation Section
                   _buildModernSectionHeader('Virtual Consultation',
                       Icons.video_call, 'Book your consultation'),
                   SizedBox(height: 12),
                   _buildModernVirtualConsultationCard(),
                   SizedBox(height: 20),
-
                   // Health Blogs Section
                   _buildModernSectionHeader('Health Insights', Icons.article,
                       'Latest health articles'),
@@ -1559,10 +1654,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 ],
               ),
             ),
-
             // Chat Button
             if (!_isChatOpen) _buildModernChatButton(),
-
             // Chat Interface
             if (_isChatOpen) _buildModernChatInterface(),
           ],
@@ -2581,6 +2674,125 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       ),
     );
   }
+
+  Widget _buildBookingCard(Map<String, dynamic> b) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      elevation: 1,
+      margin: EdgeInsets.symmetric(horizontal: 16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.calendar_today,
+                        color: Colors.green[700], size: 15),
+                    SizedBox(width: 6),
+                    Text(
+                      '${b['date']} at ${b['time']}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green[800],
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: getBookingStatus(b) == 'Upcoming'
+                        ? Colors.green[100]
+                        : Colors.grey[300],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    getBookingStatus(b),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: getBookingStatus(b) == 'Upcoming'
+                          ? Colors.green[800]
+                          : Colors.grey[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Icon(Icons.person, color: Colors.green[400], size: 13),
+                SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    b['name'] ?? '',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Icon(Icons.phone, color: Colors.green[400], size: 13),
+                SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    b['phone'] ?? '',
+                    style: GoogleFonts.poppins(fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Icon(Icons.video_call, color: Colors.green[400], size: 13),
+                SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    b['consultationType'] ?? '',
+                    style: GoogleFonts.poppins(fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.medical_services,
+                    color: Colors.green[400], size: 13),
+                SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    b['symptoms'] ?? '',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey[700],
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class ChatMessage {
@@ -2588,4 +2800,221 @@ class ChatMessage {
   final bool isUser;
 
   ChatMessage({required this.text, required this.isUser});
+}
+
+class BookingsListSheet extends StatelessWidget {
+  final List<Map<String, dynamic>> bookings;
+  final VoidCallback onClear;
+  const BookingsListSheet(
+      {required this.bookings, required this.onClear, Key? key})
+      : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 16, left: 0, right: 0, bottom: 0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    'All Booked Appointments',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green[800],
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            Divider(height: 1),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.6,
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                itemCount: bookings.length,
+                separatorBuilder: (_, __) => SizedBox(height: 12),
+                itemBuilder: (context, i) => _BookingCardModal(bookings[i]),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16, top: 8),
+              child: TextButton(
+                onPressed: onClear,
+                child: Text('Clear All', style: TextStyle(color: Colors.red)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BookingCardModal extends StatelessWidget {
+  final Map<String, dynamic> b;
+  const _BookingCardModal(this.b, {Key? key}) : super(key: key);
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      elevation: 1,
+      margin: EdgeInsets.symmetric(horizontal: 16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.calendar_today,
+                        color: Colors.green[700], size: 15),
+                    SizedBox(width: 6),
+                    Text(
+                      '${b['date']} at ${b['time']}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green[800],
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: getBookingStatus(b) == 'Upcoming'
+                        ? Colors.green[100]
+                        : Colors.grey[300],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    getBookingStatus(b),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: getBookingStatus(b) == 'Upcoming'
+                          ? Colors.green[800]
+                          : Colors.grey[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Icon(Icons.person, color: Colors.green[400], size: 13),
+                SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    b['name'] ?? '',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Icon(Icons.phone, color: Colors.green[400], size: 13),
+                SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    b['phone'] ?? '',
+                    style: GoogleFonts.poppins(fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Icon(Icons.video_call, color: Colors.green[400], size: 13),
+                SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    b['consultationType'] ?? '',
+                    style: GoogleFonts.poppins(fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.medical_services,
+                    color: Colors.green[400], size: 13),
+                SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    b['symptoms'] ?? '',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey[700],
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Helper to determine booking status (move to top-level for global access)
+String getBookingStatus(Map<String, dynamic> b) {
+  try {
+    final parts = (b['date'] ?? '').split('/');
+    final timeStr = b['time'] ?? '';
+    if (parts.length == 3 && timeStr.isNotEmpty) {
+      final day = int.tryParse(parts[0]) ?? 1;
+      final month = int.tryParse(parts[1]) ?? 1;
+      final year = int.tryParse(parts[2]) ?? 2000;
+      final now = DateTime.now();
+      // Parse time (e.g., "2:30 PM")
+      final timeParts = timeStr.split(' ');
+      final hm = timeParts[0].split(':');
+      int hour = int.tryParse(hm[0]) ?? 0;
+      int minute = int.tryParse(hm[1]) ?? 0;
+      if (timeParts.length > 1 &&
+          timeParts[1].toUpperCase() == 'PM' &&
+          hour < 12) hour += 12;
+      if (timeParts.length > 1 &&
+          timeParts[1].toUpperCase() == 'AM' &&
+          hour == 12) hour = 0;
+      final bookingDate = DateTime(year, month, day, hour, minute);
+      if (bookingDate.isAfter(now)) return 'Upcoming';
+      return 'Completed';
+    }
+  } catch (_) {
+    // ignore errors and fall through to default
+  }
+  return 'Upcoming';
 }

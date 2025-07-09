@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:video_player/video_player.dart';
+import 'homepage.dart';
 
 // Add a custom clipper for the green curve at the top level
 class BottomCurveClipper extends CustomClipper<Path> {
@@ -134,8 +135,10 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
   }
 
   void _onSkip() async {
+    print('Onboarding: Skip button pressed');
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('hasLaunchedBefore', true);
+    print('Onboarding: Calling widget.onFinish()');
     widget.onFinish();
   }
 
@@ -192,24 +195,6 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
           SafeArea(
             child: Stack(
               children: [
-                // Skip button at top right
-                Positioned(
-                  top: 16,
-                  right: 16,
-                  child: (_currentPage != _pages.length - 1)
-                      ? TextButton(
-                          onPressed: _onSkip,
-                          child: const Text(
-                            'Skip',
-                            style: TextStyle(
-                              color: Colors.teal,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
                 // Main onboarding content
                 PageView.builder(
                   controller: _controller,
@@ -363,6 +348,24 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                       ),
                     );
                   },
+                ),
+                // Skip button at top right (move to end so it's on top)
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: (_currentPage != _pages.length - 1)
+                      ? TextButton(
+                          onPressed: _onSkip,
+                          child: const Text(
+                            'Skip',
+                            style: TextStyle(
+                              color: Colors.teal,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),

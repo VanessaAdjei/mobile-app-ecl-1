@@ -24,11 +24,9 @@ import '../widgets/cart_icon_button.dart';
 import '../widgets/product_card.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-// Import the new health tips service and model
-import '../services/health_tips_service.dart';
-import '../models/health_tip.dart';
 import '../services/banner_cache_service.dart';
 import '../services/homepage_optimization_service.dart';
+import '../widgets/empty_state.dart';
 
 // Image preloading service for better performance
 class ImagePreloader {
@@ -185,11 +183,11 @@ class _HomePageState extends State<HomePage>
   bool _isFetchingHealthTips = false;
   String? _error;
   String? _popularError;
-  String? _healthTipsError;
+
   List<Product> _products = [];
   List<Product> filteredProducts = [];
   List<Product> popularProducts = [];
-  List<HealthTip> healthTips = <HealthTip>[];
+
   final RefreshController _refreshController = RefreshController();
   bool _allContentLoaded = false;
   TextEditingController searchController = TextEditingController();
@@ -197,11 +195,6 @@ class _HomePageState extends State<HomePage>
 
   final ScrollController _scrollController = ScrollController();
   bool _isScrolled = false;
-
-  // Health tips carousel state
-  final PageController _healthTipsPageController =
-      PageController(viewportFraction: 0.92);
-  int _currentHealthTipsPage = 0;
 
   List<Product> otcpomProducts = [];
   List<Product> drugProducts = [];
@@ -216,6 +209,11 @@ class _HomePageState extends State<HomePage>
   // Optimization service
   final HomepageOptimizationService _optimizationService =
       HomepageOptimizationService();
+
+  // Popular products horizontal row
+  final ScrollController _popularScrollController = ScrollController();
+  Timer? _popularScrollTimer;
+  int _highlightedPopularIndex = 0;
 
   _launchPhoneDialer(String phoneNumber) async {
     final permissionStatus = await Permission.phone.request();
@@ -266,7 +264,7 @@ class _HomePageState extends State<HomePage>
     print('HomePage: _loadAllContent called');
     setState(() => _allContentLoaded = false);
     try {
-      // Load products first, then popular products and health tips
+      // Load products first, then popular products
       print('HomePage: Loading products');
       await loadProducts();
 
@@ -281,11 +279,7 @@ class _HomePageState extends State<HomePage>
           _isLoadingPopular = false;
         });
       }
-
-      // Always load fresh health tips on refresh
-      // print('HomePage: Loading fresh health tips');
-      // HealthTipsService.clearCache(); // Clear cache to force fresh fetch
-      // await _fetchHealthTips();
+      // Health tips loading removed
     } catch (e) {
       print('HomePage: Exception in _loadAllContent: $e');
       // Handle error without cache fallback
@@ -294,6 +288,7 @@ class _HomePageState extends State<HomePage>
         setState(() => _allContentLoaded = true);
         print('HomePage: _loadAllContent completed');
       }
+      _refreshController.refreshCompleted();
     }
   }
 
@@ -390,7 +385,7 @@ class _HomePageState extends State<HomePage>
           _isLoading = false;
         });
       }
-      _refreshController.refreshCompleted();
+      // _refreshController.refreshCompleted(); // Remove this line
     }
   }
 
@@ -550,289 +545,7 @@ class _HomePageState extends State<HomePage>
   void _loadDefaultHealthTips() {
     if (!mounted) return;
 
-    setState(() {
-      healthTips = <HealthTip>[
-        HealthTip(
-          title: 'Stay Hydrated',
-          url: '',
-          content: 'Drink 8 glasses of water daily for better health',
-          category: 'Wellness',
-          summary:
-              'Proper hydration helps maintain body temperature, lubricate joints, and transport nutrients throughout your body.',
-        ),
-        HealthTip(
-          title: 'Exercise Regularly',
-          url: '',
-          content: '30 minutes of daily exercise keeps you fit',
-          category: 'Physical Activity',
-          summary:
-              'Regular physical activity strengthens your heart, improves mood, and helps maintain a healthy weight.',
-        ),
-        HealthTip(
-          title: 'Get Enough Sleep',
-          url: '',
-          content: '7-8 hours of sleep is essential for health',
-          category: 'Wellness',
-          summary:
-              'Quality sleep supports immune function, memory consolidation, and overall physical and mental recovery.',
-        ),
-        HealthTip(
-          title: 'Eat Healthy',
-          url: '',
-          content: 'Include fruits and vegetables in your diet',
-          category: 'Nutrition',
-          summary:
-              'A balanced diet rich in fruits, vegetables, and whole grains provides essential nutrients for optimal health.',
-        ),
-        HealthTip(
-          title: 'Wash Hands',
-          url: '',
-          content: 'Regular hand washing prevents infections',
-          category: 'Prevention',
-          summary:
-              'Proper hand hygiene is one of the most effective ways to prevent the spread of germs and infections.',
-        ),
-        HealthTip(
-          title: 'Take Breaks',
-          url: '',
-          content: 'Take regular breaks from screen time',
-          category: 'Wellness',
-          summary:
-              'Regular breaks from digital devices help reduce eye strain, improve posture, and maintain mental well-being.',
-        ),
-      ];
-      _isLoadingHealthTips = false;
-      _isFetchingHealthTips = false;
-    });
-  }
-
-  Widget _buildHealthTips() {
-    print(
-        'HomePage: _buildHealthTips called - healthTips.length = ${healthTips.length}, _isLoadingHealthTips = $_isLoadingHealthTips, _healthTipsError = $_healthTipsError');
-
-    return Container(
-      margin: EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
-              children: [
-                Icon(Icons.health_and_safety,
-                    color: Colors.cyan[700], size: 22),
-                SizedBox(width: 8),
-                Text(
-                  'Health Tips',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[800],
-                  ),
-                ),
-                Spacer(),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.cyan[600],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${healthTips.length}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 8),
-          if (_isLoadingHealthTips)
-            Container(
-              height: 200,
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (_healthTipsError != null)
-            Container(
-              height: 200,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.error_outline,
-                        size: 48, color: Colors.grey[400]),
-                    SizedBox(height: 16),
-                    Text('Could not load health tips',
-                        style:
-                            TextStyle(color: Colors.grey[600], fontSize: 14)),
-                    SizedBox(height: 8),
-                    TextButton(
-                        onPressed: _fetchHealthTips, child: Text('Retry')),
-                  ],
-                ),
-              ),
-            )
-          else if (healthTips.isEmpty)
-            Container(
-              height: 200,
-              child: Center(
-                  child: Text('No health tips available',
-                      style: TextStyle(color: Colors.grey[600]))),
-            )
-          else
-            Column(
-              children: [
-                SizedBox(
-                  height: 200,
-                  child: PageView.builder(
-                    controller: _healthTipsPageController,
-                    itemCount: healthTips.length,
-                    onPageChanged: (index) {
-                      setState(() {
-                        _currentHealthTipsPage = index;
-                      });
-                    },
-                    itemBuilder: (context, index) {
-                      final tip = healthTips[index];
-                      return _buildCarouselHealthTipCard(tip, height: 200);
-                    },
-                  ),
-                ),
-                SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(healthTips.length, (index) {
-                    return Container(
-                      width: 8,
-                      height: 8,
-                      margin: EdgeInsets.symmetric(horizontal: 2),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _currentHealthTipsPage == index
-                            ? Colors.cyan[700]
-                            : Colors.cyan[200],
-                      ),
-                    );
-                  }),
-                ),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCarouselHealthTipCard(HealthTip tip, {double height = 200}) {
-    final color = _getColorFromCategory(tip.category);
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.10),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Stack(
-          children: [
-            // Image
-            tip.imageUrl != null && tip.imageUrl!.isNotEmpty
-                ? Image.network(
-                    tip.imageUrl!,
-                    width: double.infinity,
-                    height: height,
-                    fit: BoxFit.cover,
-                  )
-                : Container(
-                    width: double.infinity,
-                    height: height,
-                    color: color.withOpacity(0.15),
-                    child: Center(
-                      child:
-                          Icon(Icons.health_and_safety, color: color, size: 48),
-                    ),
-                  ),
-            // Gradient overlay
-            Container(
-              width: double.infinity,
-              height: height,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [
-                    Colors.black.withOpacity(0.7),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-            // Category badge
-            Positioned(
-              top: 10,
-              left: 10,
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.85),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  _getShortCategoryName(tip.category),
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 10,
-                  ),
-                ),
-              ),
-            ),
-            // Text overlay
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 12,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    tip.title,
-                    style: GoogleFonts.poppins(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      shadows: [Shadow(blurRadius: 8, color: Colors.black45)],
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    tip.summary ?? tip.content,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.95),
-                      fontSize: 10.5,
-                      height: 1.3,
-                      shadows: [Shadow(blurRadius: 6, color: Colors.black38)],
-                    ),
-                    maxLines: 4,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    setState(() {});
   }
 
   IconData _getIconFromCategory(String category) {
@@ -1261,7 +974,7 @@ class _HomePageState extends State<HomePage>
   Future<void> _clearCacheAndReload() async {
     ProductCache.clearCache();
     ImagePreloader.clearPreloadedImages();
-    HealthTipsService.clearCache(); // Clear health tips cache
+// Clear health tips cache
     _preloadedImages.clear();
     await _loadAllContent();
   }
@@ -1272,7 +985,7 @@ class _HomePageState extends State<HomePage>
     // Register for app lifecycle changes
     WidgetsBinding.instance.addObserver(this);
     // Clear any old cached data to prevent type mismatches
-    HealthTipsService.clearCache();
+
     _initializeOptimizationService();
     _loadContentOptimized();
     _scrollController.addListener(() {
@@ -1284,6 +997,44 @@ class _HomePageState extends State<HomePage>
         setState(() {
           _isScrolled = false;
         });
+      }
+    });
+
+    // Auto-scroll for popular products row
+    _popularScrollTimer = Timer.periodic(Duration(seconds: 3), (timer) {
+      if (_popularScrollController.hasClients && popularProducts.isNotEmpty) {
+        final maxScroll = _popularScrollController.position.maxScrollExtent;
+        final current = _popularScrollController.offset;
+        double next = current + 96; // 80 width + 16 margin
+        int nextIndex = (_highlightedPopularIndex + 1) % popularProducts.length;
+        setState(() {
+          _highlightedPopularIndex = nextIndex;
+        });
+        if (next >= maxScroll) {
+          next = maxScroll;
+        }
+        if (next > maxScroll - 1) {
+          // If at the end, loop back to start after a short pause
+          _popularScrollController
+              .animateTo(
+            maxScroll,
+            duration: Duration(milliseconds: 1200),
+            curve: Curves.easeInOutCubic,
+          )
+              .then((_) {
+            Future.delayed(Duration(milliseconds: 600), () {
+              if (_popularScrollController.hasClients) {
+                _popularScrollController.jumpTo(0);
+              }
+            });
+          });
+        } else {
+          _popularScrollController.animateTo(
+            next,
+            duration: Duration(milliseconds: 1200),
+            curve: Curves.easeInOutCubic,
+          );
+        }
       }
     });
   }
@@ -1306,7 +1057,9 @@ class _HomePageState extends State<HomePage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     searchController.dispose();
-    _healthTipsPageController.dispose();
+
+    _popularScrollTimer?.cancel();
+    _popularScrollController.dispose();
     super.dispose();
   }
 
@@ -1322,9 +1075,7 @@ class _HomePageState extends State<HomePage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     // Refresh health tips when app becomes active
-    if (state == AppLifecycleState.resumed) {
-      _fetchHealthTips();
-    }
+    if (state == AppLifecycleState.resumed) {}
   }
 
   void showTopSnackBar(BuildContext context, String message,
@@ -1478,12 +1229,16 @@ class _HomePageState extends State<HomePage>
         itemBuilder: (context, Product suggestion) {
           if (suggestion.name == '__VIEW_MORE__') {
             return Container(
-              color: Colors.green.withOpacity(0.08),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: ListTile(
                 leading: Icon(Icons.list, color: Colors.green[700]),
                 title: Text(
                   'View All Results',
-                  style: TextStyle(
+                  style: GoogleFonts.poppins(
                     color: Colors.green[700],
                     fontWeight: FontWeight.bold,
                   ),
@@ -1491,7 +1246,6 @@ class _HomePageState extends State<HomePage>
               ),
             );
           }
-          // Try to find the product in the products list by id or name
           final matchingProduct = _products.firstWhere(
             (p) => p.id == suggestion.id || p.name == suggestion.name,
             orElse: () => suggestion,
@@ -1500,29 +1254,120 @@ class _HomePageState extends State<HomePage>
               matchingProduct.thumbnail.isNotEmpty
                   ? matchingProduct.thumbnail
                   : suggestion.thumbnail);
-          return ListTile(
-            leading: CachedNetworkImage(
-              imageUrl: imageUrl,
-              width: 40,
-              height: 40,
-              fit: BoxFit.cover,
-              memCacheWidth: 300,
-              memCacheHeight: 300,
-              maxWidthDiskCache: 300,
-              maxHeightDiskCache: 300,
-              fadeInDuration: Duration(milliseconds: 100),
-              fadeOutDuration: Duration(milliseconds: 100),
-              placeholder: (context, url) => SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              errorWidget: (context, url, error) => Icon(Icons.broken_image),
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(9),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 4,
+                  offset: Offset(0, 1),
+                ),
+              ],
+              border: Border.all(color: Colors.grey.withOpacity(0.06)),
             ),
-            title: Text(suggestion.name),
-            subtitle: (suggestion.price.isNotEmpty && suggestion.price != '0')
-                ? Text('GH₵ ${suggestion.price}')
-                : null,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(9),
+              onTap: () {
+                Navigator.pop(context);
+                final matchingProduct = _products.firstWhere(
+                  (p) => p.id == suggestion.id || p.name == suggestion.name,
+                  orElse: () => suggestion,
+                );
+                final urlName = matchingProduct.urlName.isNotEmpty
+                    ? matchingProduct.urlName
+                    : suggestion.urlName;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (suggestion.name == '__VIEW_MORE__') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SearchResultsPage(
+                          query: _searchController.text,
+                          products: _products,
+                        ),
+                      ),
+                    );
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ItemPage(
+                          urlName: urlName,
+                          isPrescribed:
+                              matchingProduct.otcpom?.toLowerCase() == 'pom',
+                        ),
+                      ),
+                    );
+                  }
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(7),
+                      child: CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        width: 36,
+                        height: 36,
+                        fit: BoxFit.cover,
+                        memCacheWidth: 200,
+                        memCacheHeight: 200,
+                        maxWidthDiskCache: 200,
+                        maxHeightDiskCache: 200,
+                        fadeInDuration: Duration(milliseconds: 100),
+                        fadeOutDuration: Duration(milliseconds: 100),
+                        placeholder: (context, url) => Container(
+                          width: 24,
+                          height: 24,
+                          alignment: Alignment.center,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        errorWidget: (context, url, error) => Icon(
+                            Icons.broken_image,
+                            size: 20,
+                            color: Colors.grey[400]),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            suggestion.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          if (suggestion.price.isNotEmpty &&
+                              suggestion.price != '0')
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2.0),
+                              child: Text(
+                                'GH₵ ${suggestion.price}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.green[700],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           );
         },
         onSuggestionSelected: (Product suggestion) {
@@ -1564,7 +1409,9 @@ class _HomePageState extends State<HomePage>
         hideOnLoading: false,
         debounceDuration: Duration(milliseconds: 10),
         suggestionsBoxDecoration: SuggestionsBoxDecoration(
-          borderRadius: BorderRadius.circular(8),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          elevation: 10,
         ),
         suggestionsBoxVerticalOffset: 0,
         suggestionsBoxController: null,
@@ -1893,6 +1740,45 @@ class _HomePageState extends State<HomePage>
                       imageHeight: cardImageHeight,
                     ),
                   ),
+                  // Popular Products Section Header
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.blueAccent.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(30),
+                              border: Border.all(
+                                  color: Colors.blueAccent.withOpacity(0.18),
+                                  width: 1),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 6),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.trending_up,
+                                    color: Colors.blueAccent, size: 16),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Popular Products',
+                                  style: TextStyle(
+                                    color: Colors.blueAccent,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   // Popular Products Section
                   SliverToBoxAdapter(
                     child: _buildPopularProducts(),
@@ -2145,8 +2031,6 @@ class _HomePageState extends State<HomePage>
         });
       }
 
-      // Load health tips in background
-      _fetchHealthTips();
       return;
     }
 
@@ -2172,89 +2056,44 @@ class _HomePageState extends State<HomePage>
       );
     }
     if (popularProducts.isEmpty) {
-      return Center(
-        child: Text(
-          'No popular products available',
-          style: TextStyle(color: Colors.grey[600]),
-        ),
+      return EmptyStateWidget(
+        message: 'No popular products available',
+        icon: Icons.star_border,
       );
     }
 
-    // Limit popular products for better performance
     final limitedPopularProducts =
         _getLimitedProducts(popularProducts, limit: 8);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        buildCapsuleHeading('Popular Products', Colors.green[700]!),
-        Container(
-          height: 100,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              children: limitedPopularProducts.map((product) {
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ItemPage(
-                          urlName: product.urlName,
-                          isPrescribed: product.otcpom?.toLowerCase() == 'pom',
-                        ),
-                      ),
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ClipOval(
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          CachedNetworkImage(
-                            imageUrl: getProductImageUrl(product.thumbnail),
-                            fit: BoxFit.contain,
-                            height: 80,
-                            width: 80,
-                            memCacheWidth: 160,
-                            memCacheHeight: 160,
-                            maxWidthDiskCache: 160,
-                            maxHeightDiskCache: 160,
-                            fadeInDuration: Duration(milliseconds: 100),
-                            fadeOutDuration: Duration(milliseconds: 100),
-                            placeholder: (context, url) {
-                              return Center(child: CircularProgressIndicator());
-                            },
-                            errorWidget: (context, url, error) {
-                              return Container(
-                                color: Colors.grey[200],
-                                child: Icon(Icons.broken_image, size: 32),
-                              );
-                            },
-                          ),
-                          Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
+    return SizedBox(
+      height: 120,
+      child: ListView.builder(
+        controller: _popularScrollController,
+        scrollDirection: Axis.horizontal,
+        itemCount: limitedPopularProducts.length,
+        padding: const EdgeInsets.only(right: 16),
+        itemBuilder: (context, index) {
+          final product = limitedPopularProducts[index];
+          final isHighlighted = index == _highlightedPopularIndex;
+          return AnimatedScale(
+            scale: isHighlighted ? 1.45 : 1.0,
+            duration: Duration(milliseconds: isHighlighted ? 220 : 350),
+            curve: isHighlighted ? Curves.elasticOut : Curves.easeOutBack,
+            child: Container(
+              width: 80,
+              margin: EdgeInsets.only(right: 16),
+              child: HomeProductCard(
+                product: product,
+                fontSize: 15,
+                padding: 0,
+                imageHeight: 100,
+                showPrice: false,
+                showName: false,
+              ),
             ),
-          ),
-        ),
-        Divider(
-          color: Colors.grey.shade300,
-          thickness: 1.0,
-          height: 16,
-        ),
-      ],
+          );
+        },
+      ),
     );
   }
 
@@ -2495,6 +2334,11 @@ class _HomePageState extends State<HomePage>
           },
         ),
         SizedBox(height: 0), // No spacing at all
+        if (products.isEmpty)
+          EmptyStateWidget(
+            message: 'No products found in this section.',
+            icon: Icons.shopping_bag_outlined,
+          ),
       ],
     );
   }

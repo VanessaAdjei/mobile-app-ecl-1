@@ -420,7 +420,7 @@ class _CartState extends State<Cart> {
                                               ),
                                               const SizedBox(height: 10),
                                               Text(
-                                                'Would you like to continue as a guest or login for a faster checkout experience?',
+                                                'Please login to continue to checkout.',
                                                 style: TextStyle(
                                                   fontSize: 15,
                                                   color: Colors.grey,
@@ -432,51 +432,6 @@ class _CartState extends State<Cart> {
                                                 mainAxisAlignment:
                                                     MainAxisAlignment.center,
                                                 children: [
-                                                  ElevatedButton.icon(
-                                                    icon: Icon(
-                                                      Icons.person_outline,
-                                                      size: 15,
-                                                    ),
-                                                    label: Text(
-                                                      'Guest Checkout',
-                                                      style: TextStyle(
-                                                        fontSize: 13,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        letterSpacing: 0.1,
-                                                      ),
-                                                    ),
-                                                    style: ElevatedButton
-                                                        .styleFrom(
-                                                      backgroundColor:
-                                                          Colors.green.shade700,
-                                                      foregroundColor:
-                                                          Colors.white,
-                                                      elevation: 1,
-                                                      shape:
-                                                          RoundedRectangleBorder(
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(8),
-                                                      ),
-                                                      padding: const EdgeInsets
-                                                          .symmetric(
-                                                        vertical: 8,
-                                                        horizontal: 16,
-                                                      ),
-                                                      minimumSize: Size(0, 0),
-                                                      tapTargetSize:
-                                                          MaterialTapTargetSize
-                                                              .shrinkWrap,
-                                                      shadowColor:
-                                                          Colors.transparent,
-                                                    ),
-                                                    onPressed: () {
-                                                      Navigator.of(context)
-                                                          .pop('guest');
-                                                    },
-                                                  ),
-                                                  const SizedBox(width: 10),
                                                   OutlinedButton.icon(
                                                     icon: Icon(
                                                       Icons.login,
@@ -531,15 +486,7 @@ class _CartState extends State<Cart> {
                                         ),
                                       ),
                                     );
-                                    if (result == 'guest') {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              const DeliveryPage(),
-                                        ),
-                                      );
-                                    } else if (result == 'login') {
+                                    if (result == 'login') {
                                       await Navigator.push(
                                         context,
                                         MaterialPageRoute(

@@ -831,7 +831,8 @@ class _CategoryPageState extends State<CategoryPage> {
                       if (_showSearchDropdown)
                         Container(
                           margin: EdgeInsets.only(top: 4),
-                          constraints: BoxConstraints(maxHeight: 200),
+                          constraints: BoxConstraints(
+                              maxHeight: 320), // Increased height
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(8),
@@ -928,16 +929,21 @@ class _CategoryPageState extends State<CategoryPage> {
                                               ],
                                             ),
                                           )
-                                        : ListView.builder(
-                                            shrinkWrap: true,
-                                            padding: EdgeInsets.zero,
-                                            itemCount: _searchResults.length,
-                                            itemBuilder: (context, index) {
-                                              final item =
-                                                  _searchResults[index];
-                                              return _buildSearchResultItem(
-                                                  item);
-                                            },
+                                        : Scrollbar(
+                                            thumbVisibility: true,
+                                            child: ListView.builder(
+                                              primary:
+                                                  false, // Prevent PrimaryScrollController conflict
+                                              shrinkWrap: true,
+                                              padding: EdgeInsets.zero,
+                                              itemCount: _searchResults.length,
+                                              itemBuilder: (context, index) {
+                                                final item =
+                                                    _searchResults[index];
+                                                return _buildSearchResultItem(
+                                                    item);
+                                              },
+                                            ),
                                           ),
                               ),
                             ],
@@ -1264,6 +1270,12 @@ class _ModernCategoryCard extends StatelessWidget {
   final Color iconColor;
   final VoidCallback onTap;
 
+  static const List<String> _backgroundImages = [
+    'assets/images/Medicines ECL.jpg',
+    'assets/images/Sexual Health ECL.jpg',
+    'assets/images/Sports Nutrition ECL.jpg',
+  ];
+
   const _ModernCategoryCard({
     required this.name,
     required this.icon,
@@ -1273,8 +1285,29 @@ class _ModernCategoryCard extends StatelessWidget {
     Key? key,
   }) : super(key: key);
 
+  static String _getBackgroundImage(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('medicine') ||
+        lower.contains('drug') ||
+        lower.contains('medication')) {
+      return 'assets/images/Medicines ECL.jpg';
+    } else if (lower.contains('sport') ||
+        lower.contains('fitness') ||
+        lower.contains('nutrition')) {
+      return 'assets/images/Sports Nutrition ECL.jpg';
+    } else if (lower.contains('sexual') ||
+        lower.contains('intimate') ||
+        lower.contains('condom')) {
+      return 'assets/images/Sexual Health ECL.jpg';
+    } else {
+      return 'assets/images/Medicines ECL.jpg'; // fallback for now
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final String bgImage = _getBackgroundImage(name);
+
     return Container(
       margin: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -1287,38 +1320,74 @@ class _ModernCategoryCard extends StatelessWidget {
             offset: Offset(0, 2),
           ),
         ],
+        image: DecorationImage(
+          image: AssetImage(bgImage),
+          fit: BoxFit.cover,
+          colorFilter: ColorFilter.mode(
+            Colors.black.withOpacity(0.18),
+            BlendMode.darken,
+          ),
+        ),
       ),
       child: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon, color: iconColor, size: 36),
-                const SizedBox(height: 16),
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                if (available != null)
-                  Text(
-                    '$available Available',
-                    style: TextStyle(
-                      color: Colors.grey[400],
-                      fontSize: 13,
-                    ),
-                  ),
-              ],
+          // Overlay for readability
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: Colors.white.withOpacity(0.08),
+              ),
             ),
           ),
+          // Text at the bottom left
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                16, 16, 48, 3), // extra right padding to avoid arrow
+            child: Align(
+              alignment: Alignment.bottomLeft,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black38,
+                          blurRadius: 4,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  if (available != null)
+                    Text(
+                      '$available Available',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.85),
+                        fontSize: 13,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black26,
+                            blurRadius: 2,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          // Arrow button
           Positioned(
             bottom: 0,
             right: 0,

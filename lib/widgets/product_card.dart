@@ -12,6 +12,8 @@ class HomeProductCard extends StatelessWidget {
   final double? cardWidth;
   final bool showPrescriptionBadge;
   final VoidCallback? onTap;
+  final bool showPrice;
+  final bool showName;
 
   const HomeProductCard({
     Key? key,
@@ -22,6 +24,8 @@ class HomeProductCard extends StatelessWidget {
     this.cardWidth,
     this.showPrescriptionBadge = true,
     this.onTap,
+    this.showPrice = true,
+    this.showName = true,
   }) : super(key: key);
 
   // Truncate product names to keep them short
@@ -50,13 +54,7 @@ class HomeProductCard extends StatelessWidget {
                 margin: EdgeInsets.zero,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
+                  // No boxShadow
                 ),
                 child: Stack(
                   children: [
@@ -132,28 +130,30 @@ class HomeProductCard extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    _truncateProductName(product.name),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: defaultFontSize * 0.8,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                  if (showName)
+                    Text(
+                      _truncateProductName(product.name),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: defaultFontSize * 0.8,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 1),
-                  Text(
-                    'GHS ${product.price}',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: defaultFontSize * 0.8,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.green[700],
+                  if (showPrice) ...[
+                    Text(
+                      'GHS ${product.price}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: defaultFontSize * 0.8,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.green[700],
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 15), // Small margin after price
+                    SizedBox(height: 15), // Small margin after price
+                  ],
                 ],
               ),
             ),
@@ -209,22 +209,15 @@ class GenericProductCard extends StatelessWidget {
       children: [
         Container(
           width: defaultCardWidth,
-          margin: EdgeInsets.symmetric(
-              horizontal: screenWidth * 0.004, vertical: 0),
+          margin: EdgeInsets.zero, // No margin at all
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
+            borderRadius: BorderRadius.zero, // No border radius for flush look
+            boxShadow: [], // Remove shadow for flush look
           ),
           child: Stack(
             children: [
               InkWell(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.zero,
                 onTap: onTap ??
                     () {
                       Navigator.push(
@@ -238,7 +231,7 @@ class GenericProductCard extends StatelessWidget {
                       );
                     },
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.zero,
                   child: AspectRatio(
                     aspectRatio: 1,
                     child: Container(
@@ -246,19 +239,23 @@ class GenericProductCard extends StatelessWidget {
                       child: CachedNetworkImage(
                         imageUrl: getProductImageUrl(productImage),
                         fit: BoxFit.cover,
-                        memCacheWidth: 300,
-                        memCacheHeight: 300,
-                        maxWidthDiskCache: 300,
-                        maxHeightDiskCache: 300,
+                        memCacheWidth: 200,
+                        memCacheHeight: 200,
+                        maxWidthDiskCache: 200,
+                        maxHeightDiskCache: 200,
                         fadeInDuration: Duration(milliseconds: 100),
                         fadeOutDuration: Duration(milliseconds: 100),
                         placeholder: (context, url) => Center(
-                          child: CircularProgressIndicator(strokeWidth: 1),
+                          child: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 1),
+                          ),
                         ),
                         errorWidget: (_, __, ___) => Container(
                           color: Colors.grey[200],
                           child: Center(
-                            child: Icon(Icons.broken_image, size: 16),
+                            child: Icon(Icons.broken_image, size: 14),
                           ),
                         ),
                       ),
@@ -268,38 +265,21 @@ class GenericProductCard extends StatelessWidget {
               ),
               if (showPrescriptionBadge && isPrescribed)
                 Positioned(
-                  bottom: 8,
+                  bottom: 4,
                   left: 2,
                   child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                    padding: EdgeInsets.symmetric(horizontal: 2, vertical: 0.5),
                     decoration: BoxDecoration(
                       color: Colors.red[700],
-                      borderRadius: BorderRadius.circular(3),
+                      borderRadius: BorderRadius.circular(2),
                     ),
                     child: Text(
                       'Prescribed',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 8,
+                        fontSize: 7,
                         fontWeight: FontWeight.w600,
                       ),
-                    ),
-                  ),
-                ),
-              if (showFavoriteButton)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.9),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.favorite_border,
-                      size: 16,
-                      color: Colors.grey[600],
                     ),
                   ),
                 ),
@@ -310,30 +290,27 @@ class GenericProductCard extends StatelessWidget {
           width: defaultCardWidth,
           child: Column(
             children: [
-              const SizedBox(height: 0),
               Text(
                 productName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: defaultFontSize * 0.85,
+                  fontSize: defaultFontSize * 0.7,
                   fontWeight: FontWeight.w600,
                   color: Colors.black87,
                 ),
               ),
-              if (showPrice) ...[
-                const SizedBox(height: 0),
+              if (showPrice)
                 Text(
                   'GHS $productPrice',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: defaultFontSize * 0.85,
+                    fontSize: defaultFontSize * 0.7,
                     fontWeight: FontWeight.w700,
                     color: Colors.green[700],
                   ),
                 ),
-              ],
             ],
           ),
         ),
