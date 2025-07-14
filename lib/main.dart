@@ -27,6 +27,7 @@ import 'pages/onboarding_splash_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
+  final tutorialShown = prefs.getBool('tutorial_shown') ?? false;
   // Force onboarding to show for testing
   await prefs.setBool('hasLaunchedBefore', false);
 
@@ -45,16 +46,20 @@ void main() async {
   // Initialize banner cache service
   await BannerCacheService().initialize();
 
-  
   AuthService.init().catchError((e) {
     print('Background auth initialization error: $e');
   });
 
-  runApp(MyApp());
+  // Print guest token for testing
+  await AuthService.getToken();
+
+  runApp(MyApp(tutorialShown: tutorialShown));
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, this.tutorialShown = false});
+
+  final bool tutorialShown;
 
   @override
   State<MyApp> createState() => _MyAppState();

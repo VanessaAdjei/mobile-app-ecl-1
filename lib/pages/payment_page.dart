@@ -134,6 +134,7 @@ class _PaymentPageState extends State<PaymentPage> {
   Future<Map<String, dynamic>> _verifyPayment(
       String token, String transactionId) async {
     final authToken = await AuthService.getToken();
+    print('[DEBUG] Using token for payment verification: $authToken');
     if (authToken == null) {
       return {
         'verified': false,
@@ -182,6 +183,11 @@ class _PaymentPageState extends State<PaymentPage> {
 
   Future<void> processPayment(CartProvider cart) async {
     if (!mounted) return;
+
+    // Print selected payment method and token at the start
+    final debugToken = await AuthService.getToken();
+    print('[DEBUG] Payment button pressed. Method: '
+        '[32m$selectedPaymentMethod[0m, Token: [34m$debugToken[0m');
 
     setState(() {
       _paymentError = null;
@@ -409,6 +415,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
       // Online Payment Flow
       final authToken = await AuthService.getToken();
+      print('[DEBUG] Using token for payment: $authToken');
       if (authToken == null) {
         // If not logged in, treat as guest or show a user-friendly message, but do not throw a sign-in warning
         setState(() {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:eclapp/pages/auth_service.dart';
 
 // Cache entry class
 class _CacheEntry {
@@ -36,11 +37,9 @@ class ApiService {
 
   // Add auth token if available
   static Future<Map<String, String>> get _authHeaders async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
-
+    final token = await AuthService.getToken();
     Map<String, String> headers = Map.from(_headers);
-    if (token != null) {
+    if (token != null && token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
     }
     return headers;

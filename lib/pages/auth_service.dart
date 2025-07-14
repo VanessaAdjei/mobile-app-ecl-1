@@ -9,6 +9,8 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'ProductModel.dart';
 import 'dart:io';
+import 'package:uuid/uuid.dart';
+import 'dart:math';
 
 class AuthService {
   static const String baseUrl = "https://eclcommerce.ernestchemists.com.gh/api";
@@ -981,8 +983,21 @@ class AuthService {
       // Use your existing logic to get the real token
       return await _secureStorage.read(key: authTokenKey);
     }
-    // TEMP: Return a guest token for non-logged-in users
-    return "guest-temp-token";
+    // Generate or retrieve a persistent guest token for non-logged-in users in the format '0|<random_string>'
+    final prefs = await SharedPreferences.getInstance();
+    String? guestToken = prefs.getString('guest_token');
+    if (guestToken == null) {
+      const loginCount = 0;
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      final rand = Random.secure();
+      final randomString = List.generate(40, (index) => chars[rand.nextInt(chars.length)]).join();
+      guestToken = '$loginCount|$randomString';
+      await prefs.setString('guest_token', guestToken);
+      print('[AuthService] Generated new guest token: ' + guestToken);
+    } else {
+      print('[AuthService] Using existing guest token: ' + guestToken);
+    }
+    return guestToken;
   }
 
   static Future<void> syncCartOnLogin(String userId) async {

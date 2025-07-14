@@ -486,7 +486,7 @@ class ProfileState extends State<Profile> {
               context,
               Icons.person_outline,
               "Profile Information",
-              "View and edit your profile details",
+              "View your profile details",
               _userLoggedIn
                   ? () => _navigateTo(ProfileScreen())
                   : () => _showSignInRequiredDialog(context,

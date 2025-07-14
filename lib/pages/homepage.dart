@@ -23,12 +23,11 @@ import 'dart:convert';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/product_card.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-
 import '../services/banner_cache_service.dart';
 import '../services/homepage_optimization_service.dart';
 import '../widgets/empty_state.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-// Image preloading service for better performance
 class ImagePreloader {
   static final Map<String, bool> _preloadedImages = {};
 
@@ -54,7 +53,6 @@ class ImagePreloader {
   }
 }
 
-// Global cache for products to persist across navigation
 class ProductCache {
   static List<Product> _cachedProducts = [];
   static List<Product> _cachedPopularProducts = [];
@@ -214,6 +212,11 @@ class _HomePageState extends State<HomePage>
   final ScrollController _popularScrollController = ScrollController();
   Timer? _popularScrollTimer;
   int _highlightedPopularIndex = 0;
+
+  // Add these fields to the _HomePageState class:
+  int _popularBaseIndex = 0;
+  int _popularCurrentIndex = 0;
+  int _popularRepeatCount = 1000;
 
   _launchPhoneDialer(String phoneNumber) async {
     final permissionStatus = await Permission.phone.request();
@@ -1000,40 +1003,38 @@ class _HomePageState extends State<HomePage>
       }
     });
 
-    // Auto-scroll for popular products row
+    // Infinite carousel for popular products row
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (popularProducts.isNotEmpty && _popularScrollController.hasClients) {
+        final limitedPopularProducts =
+            _getLimitedProducts(popularProducts, limit: 8);
+        _popularBaseIndex = limitedPopularProducts.length * 10;
+        _popularCurrentIndex = _popularBaseIndex;
+        _highlightedPopularIndex =
+            _popularCurrentIndex % limitedPopularProducts.length;
+        _popularScrollController.jumpTo(_popularCurrentIndex * 96.0);
+      }
+    });
     _popularScrollTimer = Timer.periodic(Duration(seconds: 3), (timer) {
       if (_popularScrollController.hasClients && popularProducts.isNotEmpty) {
-        final maxScroll = _popularScrollController.position.maxScrollExtent;
-        final current = _popularScrollController.offset;
-        double next = current + 96; // 80 width + 16 margin
-        int nextIndex = (_highlightedPopularIndex + 1) % popularProducts.length;
+        final limitedPopularProducts =
+            _getLimitedProducts(popularProducts, limit: 8);
+        final totalItems = limitedPopularProducts.length * _popularRepeatCount;
+        _popularCurrentIndex++;
         setState(() {
-          _highlightedPopularIndex = nextIndex;
+          _highlightedPopularIndex =
+              _popularCurrentIndex % limitedPopularProducts.length;
         });
-        if (next >= maxScroll) {
-          next = maxScroll;
-        }
-        if (next > maxScroll - 1) {
-          // If at the end, loop back to start after a short pause
-          _popularScrollController
-              .animateTo(
-            maxScroll,
-            duration: Duration(milliseconds: 1200),
-            curve: Curves.easeInOutCubic,
-          )
-              .then((_) {
-            Future.delayed(Duration(milliseconds: 600), () {
-              if (_popularScrollController.hasClients) {
-                _popularScrollController.jumpTo(0);
-              }
-            });
-          });
-        } else {
-          _popularScrollController.animateTo(
-            next,
-            duration: Duration(milliseconds: 1200),
-            curve: Curves.easeInOutCubic,
-          );
+        _popularScrollController.animateTo(
+          _popularCurrentIndex * 96.0,
+          duration: Duration(milliseconds: 1200),
+          curve: Curves.easeInOutCubic,
+        );
+        // If near the end, reset to the same item in the middle
+        if (_popularCurrentIndex >
+            totalItems - limitedPopularProducts.length * 5) {
+          _popularCurrentIndex = _popularBaseIndex;
+          _popularScrollController.jumpTo(_popularCurrentIndex * 96.0);
         }
       }
     });
@@ -1430,10 +1431,10 @@ class _HomePageState extends State<HomePage>
               title: "Meet Our Pharmacists",
               color: Colors.blue[600]!,
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => PharmacistsPage()),
-                );
+                // Navigator.push(
+                //   context,
+                //   MaterialPageRoute(builder: (context) => PharmacistsPage()),
+                // );
               },
             ),
           ),
@@ -1595,15 +1596,9 @@ class _HomePageState extends State<HomePage>
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        return true;
-      },
-      child: Scaffold(
-        body:
-            _allContentLoaded ? _buildMainContent() : _buildOptimizedSkeleton(),
-        bottomNavigationBar: CustomBottomNav(),
-      ),
+    return Scaffold(
+      body: _buildMainContent(),
+      bottomNavigationBar: CustomBottomNav(initialIndex: 0),
     );
   }
 
@@ -1619,200 +1614,203 @@ class _HomePageState extends State<HomePage>
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        double screenWidth = constraints.maxWidth;
-        int crossAxisCount = 2;
-        double aspectRatio = 1.2;
-        if (screenWidth > 900) {
-          crossAxisCount = 4;
-          aspectRatio = 1.1;
-        } else if (screenWidth > 600) {
-          crossAxisCount = 3;
-          aspectRatio = 1.15;
-        }
-        double cardFontSize =
-            screenWidth < 400 ? 11 : (screenWidth < 600 ? 13 : 15);
-        double cardPadding =
-            screenWidth < 400 ? 6 : (screenWidth < 600 ? 8 : 12);
-        double cardImageHeight =
-            screenWidth < 400 ? 55 : (screenWidth < 600 ? 75 : 95);
+    return Material(
+      color: Colors.white,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          double screenWidth = constraints.maxWidth;
+          int crossAxisCount = 2;
+          double aspectRatio = 1.2;
+          if (screenWidth > 900) {
+            crossAxisCount = 4;
+            aspectRatio = 1.1;
+          } else if (screenWidth > 600) {
+            crossAxisCount = 3;
+            aspectRatio = 1.15;
+          }
+          double cardFontSize =
+              screenWidth < 400 ? 11 : (screenWidth < 600 ? 13 : 15);
+          double cardPadding =
+              screenWidth < 400 ? 6 : (screenWidth < 600 ? 8 : 12);
+          double cardImageHeight =
+              screenWidth < 400 ? 55 : (screenWidth < 600 ? 75 : 95);
 
-        return Stack(
-          children: [
-            SmartRefresher(
-              controller: _refreshController,
-              onRefresh: _loadAllContent,
-              child: CustomScrollView(
-                controller: _scrollController,
-                slivers: [
-                  SliverAppBar(
-                    automaticallyImplyLeading: false,
-                    backgroundColor:
-                        Theme.of(context).appBarTheme.backgroundColor,
-                    toolbarHeight: 60,
-                    floating: false,
-                    pinned: false,
-                    title: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Padding(
-                          padding: EdgeInsets.only(left: 1),
-                          child: Image.asset(
-                            'assets/images/png.png',
-                            height: 85,
-                          ),
-                        ),
-                        CartIconButton(
-                          iconColor: Colors.white,
-                          iconSize: 24,
-                          backgroundColor: Colors.transparent,
-                        ),
-                      ],
-                    ),
-                  ),
-                  SliverPersistentHeader(
-                    pinned: true,
-                    delegate: SliverSearchBarDelegate(
-                      builder: (shrinkOffset) {
-                        final double searchBarHeight = 56.0;
-                        final double totalPad = 86.0 - searchBarHeight;
-                        if (shrinkOffset > 0) {
-                          // When scrolled: 38 top, 0 bottom
-                          return Padding(
-                            padding: EdgeInsets.only(
-                              top: 38.0,
-                              left: 10.0,
-                              right: 10.0,
-                              bottom: 0.0,
-                            ),
-                            child: _buildSearchBar(),
-                          );
-                        } else {
-                          // When not scrolled: 14 top, 16 bottom
-                          final double topPad = 14.0;
-                          final double bottomPad = 16.0;
-                          return Padding(
-                            padding: EdgeInsets.only(
-                              top: topPad,
-                              left: 10.0,
-                              right: 10.0,
-                              bottom: bottomPad,
-                            ),
-                            child: _buildSearchBar(),
-                          );
-                        }
-                      },
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: buildOrderMedicineCard(),
-                  ),
-                  SliverToBoxAdapter(
-                    child: _buildActionCards(),
-                  ),
-
-                  SliverToBoxAdapter(
-                    child: _buildProductSection(
-                      'Drugs',
-                      Colors.green[700]!,
-                      _getLimitedProducts(drugsSectionProducts),
-                      'drugs',
-                      fontSize: cardFontSize,
-                      padding: cardPadding,
-                      imageHeight: cardImageHeight,
-                    ),
-                  ),
-                  // Special Offers Section
-                  SliverToBoxAdapter(
-                    child: _buildSpecialOffers(),
-                  ),
-                  // Wellness Section
-                  SliverToBoxAdapter(
-                    child: _buildProductSection(
-                      'Wellness',
-                      Colors.purple[700]!,
-                      _getLimitedProducts(wellnessProducts),
-                      'wellness',
-                      fontSize: cardFontSize,
-                      padding: cardPadding,
-                      imageHeight: cardImageHeight,
-                    ),
-                  ),
-                  // Popular Products Section Header
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+          return Stack(
+            children: [
+              SmartRefresher(
+                controller: _refreshController,
+                onRefresh: _loadAllContent,
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  slivers: [
+                    SliverAppBar(
+                      automaticallyImplyLeading: false,
+                      backgroundColor:
+                          Theme.of(context).appBarTheme.backgroundColor,
+                      toolbarHeight: 60,
+                      floating: false,
+                      pinned: false,
+                      title: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.blueAccent.withOpacity(0.10),
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(
-                                  color: Colors.blueAccent.withOpacity(0.18),
-                                  width: 1),
+                          Padding(
+                            padding: EdgeInsets.only(left: 1),
+                            child: Image.asset(
+                              'assets/images/png.png',
+                              height: 85,
                             ),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 6),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.trending_up,
-                                    color: Colors.blueAccent, size: 16),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Popular Products',
-                                  style: TextStyle(
-                                    color: Colors.blueAccent,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
-                                    letterSpacing: 0.2,
-                                  ),
-                                ),
-                              ],
-                            ),
+                          ),
+                          CartIconButton(
+                            iconColor: Colors.white,
+                            iconSize: 24,
+                            backgroundColor: Colors.transparent,
                           ),
                         ],
                       ),
                     ),
-                  ),
-                  // Popular Products Section
-                  SliverToBoxAdapter(
-                    child: _buildPopularProducts(),
-                  ),
-                  // Selfcare Section
-                  SliverToBoxAdapter(
-                    child: _buildProductSection(
-                      'Selfcare',
-                      Colors.orange[700]!,
-                      _getLimitedProducts(selfcareProducts),
-                      'selfcare',
-                      fontSize: cardFontSize,
-                      padding: cardPadding,
-                      imageHeight: cardImageHeight,
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: SliverSearchBarDelegate(
+                        builder: (shrinkOffset) {
+                          final double searchBarHeight = 56.0;
+                          final double totalPad = 86.0 - searchBarHeight;
+                          if (shrinkOffset > 0) {
+                            // When scrolled: 38 top, 0 bottom
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                top: 38.0,
+                                left: 10.0,
+                                right: 10.0,
+                                bottom: 0.0,
+                              ),
+                              child: _buildSearchBar(),
+                            );
+                          } else {
+                            // When not scrolled: 14 top, 16 bottom
+                            final double topPad = 14.0;
+                            final double bottomPad = 16.0;
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                top: topPad,
+                                left: 10.0,
+                                right: 10.0,
+                                bottom: bottomPad,
+                              ),
+                              child: _buildSearchBar(),
+                            );
+                          }
+                        },
+                      ),
                     ),
-                  ),
-                  // Accessories Section
-                  SliverToBoxAdapter(
-                    child: _buildProductSection(
-                      'Accessories',
-                      Colors.teal[700]!,
-                      _getLimitedProducts(accessoriesProducts),
-                      'accessories',
-                      fontSize: cardFontSize,
-                      padding: cardPadding,
-                      imageHeight: cardImageHeight,
+                    SliverToBoxAdapter(
+                      child: buildOrderMedicineCard(),
                     ),
-                  ),
-                ],
+                    SliverToBoxAdapter(
+                      child: _buildActionCards(),
+                    ),
+
+                    SliverToBoxAdapter(
+                      child: _buildProductSection(
+                        'Drugs',
+                        Colors.green[700]!,
+                        _getLimitedProducts(drugsSectionProducts),
+                        'drugs',
+                        fontSize: cardFontSize,
+                        padding: cardPadding,
+                        imageHeight: cardImageHeight,
+                      ),
+                    ),
+                    // Special Offers Section
+                    SliverToBoxAdapter(
+                      child: _buildSpecialOffers(),
+                    ),
+                    // Wellness Section
+                    SliverToBoxAdapter(
+                      child: _buildProductSection(
+                        'Wellness',
+                        Colors.purple[700]!,
+                        _getLimitedProducts(wellnessProducts),
+                        'wellness',
+                        fontSize: cardFontSize,
+                        padding: cardPadding,
+                        imageHeight: cardImageHeight,
+                      ),
+                    ),
+                    // Popular Products Section Header
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.blueAccent.withOpacity(0.10),
+                                borderRadius: BorderRadius.circular(30),
+                                border: Border.all(
+                                    color: Colors.blueAccent.withOpacity(0.18),
+                                    width: 1),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 6),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.trending_up,
+                                      color: Colors.blueAccent, size: 16),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Popular Products',
+                                    style: TextStyle(
+                                      color: Colors.blueAccent,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Popular Products Section
+                    SliverToBoxAdapter(
+                      child: _buildPopularProducts(),
+                    ),
+                    // Selfcare Section
+                    SliverToBoxAdapter(
+                      child: _buildProductSection(
+                        'Selfcare',
+                        Colors.orange[700]!,
+                        _getLimitedProducts(selfcareProducts),
+                        'selfcare',
+                        fontSize: cardFontSize,
+                        padding: cardPadding,
+                        imageHeight: cardImageHeight,
+                      ),
+                    ),
+                    // Accessories Section
+                    SliverToBoxAdapter(
+                      child: _buildProductSection(
+                        'Accessories',
+                        Colors.teal[700]!,
+                        _getLimitedProducts(accessoriesProducts),
+                        'accessories',
+                        fontSize: cardFontSize,
+                        padding: cardPadding,
+                        imageHeight: cardImageHeight,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        );
-      },
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -2064,31 +2062,37 @@ class _HomePageState extends State<HomePage>
 
     final limitedPopularProducts =
         _getLimitedProducts(popularProducts, limit: 8);
+    final int repeatCount = _popularRepeatCount;
+    final int totalItems = limitedPopularProducts.length * repeatCount;
 
     return SizedBox(
       height: 120,
       child: ListView.builder(
         controller: _popularScrollController,
         scrollDirection: Axis.horizontal,
-        itemCount: limitedPopularProducts.length,
+        itemCount: totalItems,
         padding: const EdgeInsets.only(right: 16),
         itemBuilder: (context, index) {
-          final product = limitedPopularProducts[index];
-          final isHighlighted = index == _highlightedPopularIndex;
+          final product =
+              limitedPopularProducts[index % limitedPopularProducts.length];
+          final isHighlighted = (index % limitedPopularProducts.length) ==
+              _highlightedPopularIndex;
           return AnimatedScale(
             scale: isHighlighted ? 1.45 : 1.0,
             duration: Duration(milliseconds: isHighlighted ? 220 : 350),
             curve: isHighlighted ? Curves.elasticOut : Curves.easeOutBack,
-            child: Container(
-              width: 80,
-              margin: EdgeInsets.only(right: 16),
-              child: HomeProductCard(
-                product: product,
-                fontSize: 15,
-                padding: 0,
-                imageHeight: 100,
-                showPrice: false,
-                showName: false,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: SizedBox(
+                width: 80,
+                child: HomeProductCard(
+                  product: product,
+                  fontSize: 15,
+                  padding: 0,
+                  imageHeight: 100,
+                  showPrice: false,
+                  showName: false,
+                ),
               ),
             ),
           );

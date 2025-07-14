@@ -43,8 +43,12 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
   }
 
   void _onItemTapped(int index) async {
-    // Always allow home navigation
+    // Only navigate to Home if not already on Home
     if (index == 0) {
+      if (_selectedIndex == 0) {
+        // Already on Home, do nothing
+        return;
+      }
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(

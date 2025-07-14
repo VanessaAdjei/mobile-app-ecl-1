@@ -420,7 +420,7 @@ class _CartState extends State<Cart> {
                                               ),
                                               const SizedBox(height: 10),
                                               Text(
-                                                'Please login to continue to checkout.',
+                                                'Please login to continue to checkout, or checkout as a guest.',
                                                 style: TextStyle(
                                                   fontSize: 15,
                                                   color: Colors.grey,
@@ -479,6 +479,47 @@ class _CartState extends State<Cart> {
                                                           .pop('login');
                                                     },
                                                   ),
+                                                  const SizedBox(width: 12),
+                                                  ElevatedButton.icon(
+                                                    icon: Icon(
+                                                      Icons.person_outline,
+                                                      color: Colors.white,
+                                                      size: 15,
+                                                    ),
+                                                    label: Text(
+                                                      'Checkout as Guest',
+                                                      style: TextStyle(
+                                                        fontSize: 13,
+                                                        color: Colors.white,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                    style: ElevatedButton
+                                                        .styleFrom(
+                                                      backgroundColor:
+                                                          Colors.green.shade700,
+                                                      shape:
+                                                          RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(8),
+                                                      ),
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                        vertical: 8,
+                                                        horizontal: 16,
+                                                      ),
+                                                      minimumSize: Size(0, 0),
+                                                      tapTargetSize:
+                                                          MaterialTapTargetSize
+                                                              .shrinkWrap,
+                                                    ),
+                                                    onPressed: () {
+                                                      Navigator.of(context)
+                                                          .pop('guest');
+                                                    },
+                                                  ),
                                                 ],
                                               ),
                                             ],
@@ -513,14 +554,25 @@ class _CartState extends State<Cart> {
                                                 listen: false)
                                             .syncWithApi();
                                       }
+                                      return;
+                                    } else if (result == 'guest') {
+                                      // Proceed as guest
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => const DeliveryPage(),
+                                        ),
+                                      );
+                                      return;
+                                    } else {
+                                      // Dialog dismissed, do nothing
+                                      return;
                                     }
-                                    return;
                                   }
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) =>
-                                          const DeliveryPage(),
+                                      builder: (context) => const DeliveryPage(),
                                     ),
                                   );
                                 },
