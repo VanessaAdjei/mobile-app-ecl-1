@@ -309,325 +309,341 @@ class ProfileState extends State<Profile> {
     final textColor = isDark ? Colors.white : Colors.black87;
     final subtextColor = isDark ? Colors.white70 : Colors.black54;
 
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.green.shade700,
-                Colors.green.shade800,
+    return WillPopScope(
+      onWillPop: () async {
+        if (Navigator.canPop(context)) {
+          return true;
+        } else {
+          // Switch to Home tab instead of closing app
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => HomePage()),
+            (route) => false,
+          );
+          return false;
+        }
+      },
+      child: Scaffold(
+        backgroundColor: backgroundColor,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          centerTitle: true,
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.green.shade700,
+                  Colors.green.shade800,
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha((255 * 0.1).toInt()),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
               ],
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha((255 * 0.1).toInt()),
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              ),
-            ],
           ),
-        ),
-        leading: AppBackButton(
-          backgroundColor: Colors.white.withAlpha((255 * 0.2).toInt()),
-          onPressed: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
-            } else {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => HomePage()),
-              );
-            }
-          },
-        ),
-        title: Text(
-          'Your Profile',
-          style: GoogleFonts.poppins(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-            letterSpacing: 0.5,
+          leading: AppBackButton(
+            backgroundColor: Colors.white.withAlpha((255 * 0.2).toInt()),
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => HomePage()),
+                  (route) => false,
+                );
+              }
+            },
           ),
-        ),
-        actions: [
-          Container(
-            margin: EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withAlpha((255 * 0.15).toInt()),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: CartIconButton(
-              iconColor: Colors.white,
-              iconSize: 24,
-              backgroundColor: Colors.transparent,
+          title: Text(
+            'Your Profile',
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+              letterSpacing: 0.5,
             ),
           ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Profile Header
+          actions: [
             Container(
-              width: double.infinity,
+              margin: EdgeInsets.only(right: 8),
               decoration: BoxDecoration(
-                color: primaryColor,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(30),
-                  bottomRight: Radius.circular(30),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: primaryColor.withAlpha((255 * 0.3).toInt()),
-                    blurRadius: 20,
-                    offset: Offset(0, 10),
-                  ),
-                ],
+                color: Colors.white.withAlpha((255 * 0.15).toInt()),
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Column(
-                children: [
-                  const SizedBox(height: 20),
-                  // Profile Avatar
-                  Container(
-                    height: 130,
-                    width: 130,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 4),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withAlpha((255 * 0.2).toInt()),
-                          blurRadius: 10,
-                          offset: Offset(0, 5),
-                        ),
-                      ],
-                      color: Colors.grey[300],
-                    ),
-                    child: Icon(
-                      Icons.person,
-                      size: 80,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    _userLoggedIn ? _userName : "Guest User",
-                    style: GoogleFonts.poppins(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _userLoggedIn ? _userEmail : "Please sign in to continue",
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      color: Colors.white.withAlpha((255 * 0.9).toInt()),
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-                ],
+              child: CartIconButton(
+                iconColor: Colors.white,
+                iconSize: 24,
+                backgroundColor: Colors.transparent,
               ),
             ),
-
-            const SizedBox(height: 30),
-
-            // Account Section Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.account_circle_outlined,
-                    color: primaryColor,
-                    size: 24,
-                  ),
-                  SizedBox(width: 12),
-                  Text(
-                    "Your Account",
-                    style: GoogleFonts.poppins(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // Always show these options, with tap handler based on login state
-            _buildAnimatedProfileOption(
-              context,
-              Icons.notifications_outlined,
-              "Notifications",
-              "Manage your notifications",
-              _userLoggedIn
-                  ? () => _navigateTo(NotificationsScreen())
-                  : () => _showSignInRequiredDialog(context,
-                      feature: 'notifications'),
-              primaryColor,
-              cardColor,
-              textColor,
-              subtextColor,
-              0,
-            ),
-            _buildAnimatedProfileOption(
-              context,
-              Icons.person_outline,
-              "Profile Information",
-              "View your profile details",
-              _userLoggedIn
-                  ? () => _navigateTo(ProfileScreen())
-                  : () => _showSignInRequiredDialog(context,
-                      feature: 'profile information'),
-              primaryColor,
-              cardColor,
-              textColor,
-              subtextColor,
-              1,
-            ),
-            _buildAnimatedProfileOption(
-              context,
-              Icons.upload_file_outlined,
-              "Uploaded Prescriptions",
-              "View your uploaded prescriptions",
-              _userLoggedIn
-                  ? () => _navigateTo(PrescriptionHistoryScreen())
-                  : () => _showSignInRequiredDialog(context,
-                      feature: 'uploaded prescriptions'),
-              primaryColor,
-              cardColor,
-              textColor,
-              subtextColor,
-              2,
-            ),
-            _buildAnimatedProfileOption(
-              context,
-              Icons.shopping_bag_outlined,
-              "Purchases",
-              "View your order history",
-              _userLoggedIn
-                  ? () => _navigateTo(PurchaseScreen())
-                  : () => _showSignInRequiredDialog(context,
-                      feature: 'order tracking and purchases'),
-              primaryColor,
-              cardColor,
-              textColor,
-              subtextColor,
-              3,
-            ),
-            if (!_userLoggedIn)
-              _buildAnimatedProfileOption(
-                context,
-                Icons.login,
-                "Sign In",
-                "Access your account and manage orders",
-                _handleLogin,
-                Colors.blue.shade400,
-                cardColor,
-                textColor,
-                subtextColor,
-                4,
-              ),
-
-            const SizedBox(height: 30),
-
-            // Support Section Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.support_outlined,
-                    color: primaryColor,
-                    size: 24,
-                  ),
-                  SizedBox(width: 12),
-                  Text(
-                    "Support & Information",
-                    style: GoogleFonts.poppins(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // Support Options
-            _buildAnimatedProfileOption(
-              context,
-              Icons.info_outline,
-              "About Us",
-              "Learn more about our company",
-              () => _navigateTo(AboutUsScreen()),
-              primaryColor,
-              cardColor,
-              textColor,
-              subtextColor,
-              5,
-            ),
-            _buildAnimatedProfileOption(
-              context,
-              Icons.privacy_tip_outlined,
-              "Privacy Policy",
-              "Read our privacy policy",
-              () => _navigateTo(PrivacyPolicyScreen()),
-              primaryColor,
-              cardColor,
-              textColor,
-              subtextColor,
-              6,
-            ),
-            _buildAnimatedProfileOption(
-              context,
-              Icons.description_outlined,
-              "Terms and Conditions",
-              "Read our terms of service",
-              () => _navigateTo(TermsAndConditionsScreen()),
-              primaryColor,
-              cardColor,
-              textColor,
-              subtextColor,
-              7,
-            ),
-
-            if (_userLoggedIn) ...[
-              const SizedBox(height: 30),
-              _buildAnimatedProfileOption(
-                context,
-                Icons.logout,
-                "Logout",
-                "Sign out from your account",
-                _showLogoutDialog,
-                Colors.red.shade400,
-                cardColor,
-                textColor,
-                subtextColor,
-                8,
-              ),
-            ],
-
-            const SizedBox(height: 30),
           ],
         ),
-      ),
-      bottomNavigationBar: CustomBottomNav(
-        initialIndex: 3,
+        body: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Profile Header
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: primaryColor,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(30),
+                    bottomRight: Radius.circular(30),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: primaryColor.withAlpha((255 * 0.3).toInt()),
+                      blurRadius: 20,
+                      offset: Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    // Profile Avatar
+                    Container(
+                      height: 130,
+                      width: 130,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 4),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha((255 * 0.2).toInt()),
+                            blurRadius: 10,
+                            offset: Offset(0, 5),
+                          ),
+                        ],
+                        color: Colors.grey[300],
+                      ),
+                      child: Icon(
+                        Icons.person,
+                        size: 80,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      _userLoggedIn ? _userName : "Guest User",
+                      style: GoogleFonts.poppins(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _userLoggedIn ? _userEmail : "Please sign in to continue",
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        color: Colors.white.withAlpha((255 * 0.9).toInt()),
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 30),
+
+              // Account Section Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.account_circle_outlined,
+                      color: primaryColor,
+                      size: 24,
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      "Your Account",
+                      style: GoogleFonts.poppins(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Always show these options, with tap handler based on login state
+              _buildAnimatedProfileOption(
+                context,
+                Icons.notifications_outlined,
+                "Notifications",
+                "Manage your notifications",
+                _userLoggedIn
+                    ? () => _navigateTo(NotificationsScreen())
+                    : () => _showSignInRequiredDialog(context,
+                        feature: 'notifications'),
+                primaryColor,
+                cardColor,
+                textColor,
+                subtextColor,
+                0,
+              ),
+              _buildAnimatedProfileOption(
+                context,
+                Icons.person_outline,
+                "Profile Information",
+                "View your profile details",
+                _userLoggedIn
+                    ? () => _navigateTo(ProfileScreen())
+                    : () => _showSignInRequiredDialog(context,
+                        feature: 'profile information'),
+                primaryColor,
+                cardColor,
+                textColor,
+                subtextColor,
+                1,
+              ),
+              _buildAnimatedProfileOption(
+                context,
+                Icons.upload_file_outlined,
+                "Uploaded Prescriptions",
+                "View your uploaded prescriptions",
+                _userLoggedIn
+                    ? () => _navigateTo(PrescriptionHistoryScreen())
+                    : () => _showSignInRequiredDialog(context,
+                        feature: 'uploaded prescriptions'),
+                primaryColor,
+                cardColor,
+                textColor,
+                subtextColor,
+                2,
+              ),
+              _buildAnimatedProfileOption(
+                context,
+                Icons.shopping_bag_outlined,
+                "Purchases",
+                "View your order history",
+                _userLoggedIn
+                    ? () => _navigateTo(PurchaseScreen())
+                    : () => _showSignInRequiredDialog(context,
+                        feature: 'order tracking and purchases'),
+                primaryColor,
+                cardColor,
+                textColor,
+                subtextColor,
+                3,
+              ),
+              if (!_userLoggedIn)
+                _buildAnimatedProfileOption(
+                  context,
+                  Icons.login,
+                  "Sign In",
+                  "Access your account and manage orders",
+                  _handleLogin,
+                  Colors.blue.shade400,
+                  cardColor,
+                  textColor,
+                  subtextColor,
+                  4,
+                ),
+
+              const SizedBox(height: 30),
+
+              // Support Section Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.support_outlined,
+                      color: primaryColor,
+                      size: 24,
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      "Support & Information",
+                      style: GoogleFonts.poppins(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Support Options
+              _buildAnimatedProfileOption(
+                context,
+                Icons.info_outline,
+                "About Us",
+                "Learn more about our company",
+                () => _navigateTo(AboutUsScreen()),
+                primaryColor,
+                cardColor,
+                textColor,
+                subtextColor,
+                5,
+              ),
+              _buildAnimatedProfileOption(
+                context,
+                Icons.privacy_tip_outlined,
+                "Privacy Policy",
+                "Read our privacy policy",
+                () => _navigateTo(PrivacyPolicyScreen()),
+                primaryColor,
+                cardColor,
+                textColor,
+                subtextColor,
+                6,
+              ),
+              _buildAnimatedProfileOption(
+                context,
+                Icons.description_outlined,
+                "Terms and Conditions",
+                "Read our terms of service",
+                () => _navigateTo(TermsAndConditionsScreen()),
+                primaryColor,
+                cardColor,
+                textColor,
+                subtextColor,
+                7,
+              ),
+
+              if (_userLoggedIn) ...[
+                const SizedBox(height: 30),
+                _buildAnimatedProfileOption(
+                  context,
+                  Icons.logout,
+                  "Logout",
+                  "Sign out from your account",
+                  _showLogoutDialog,
+                  Colors.red.shade400,
+                  cardColor,
+                  textColor,
+                  subtextColor,
+                  8,
+                ),
+              ],
+
+              const SizedBox(height: 30),
+            ],
+          ),
+        ),
+        bottomNavigationBar: CustomBottomNav(
+          initialIndex: 3,
+        ),
       ),
     );
   }

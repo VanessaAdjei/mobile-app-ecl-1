@@ -401,6 +401,12 @@ class AuthService {
           )
           .timeout(const Duration(seconds: 30));
 
+      // Log the full HTTP response for debugging
+      debugPrint('=== SIGN IN API RAW RESPONSE ===');
+      debugPrint('Status: ${response.statusCode}');
+      debugPrint('Body: ${response.body}');
+      debugPrint('===============================');
+
       final responseData = json.decode(response.body);
 
       if (response.statusCode == 200) {
@@ -420,7 +426,6 @@ class AuthService {
           final userData = responseData['user'];
           await storeUserData(userData);
 
-          // Also store individual fields for backward compatibility
           if (userData['name'] != null) {
             await _secureStorage.write(
                 key: userNameKey, value: userData['name']);
@@ -985,7 +990,6 @@ class AuthService {
   static Future<String?> getToken() async {
     final loggedIn = await isLoggedIn();
     if (loggedIn) {
-      // Use your existing logic to get the real token
       return await _secureStorage.read(key: authTokenKey);
     }
     // Only retrieve a persistent guest id for non-logged-in users if it already exists
@@ -994,7 +998,7 @@ class AuthService {
     if (guestId != null) {
       print('[AuthService] Using existing guest_id: ' + guestId);
     }
-    // Do NOT generate a new guest_id here
+
     return guestId;
   }
 
@@ -1008,9 +1012,11 @@ class AuthService {
   static Future<String> generateGuestId() async {
     final prefs = await SharedPreferences.getInstance();
     const loginCount = 0;
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const chars =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     final rand = Random.secure();
-    final randomString = List.generate(40, (index) => chars[rand.nextInt(chars.length)]).join();
+    final randomString =
+        List.generate(40, (index) => chars[rand.nextInt(chars.length)]).join();
     final guestId = '$loginCount|$randomString';
     await prefs.setString('guest_id', guestId);
     print('[AuthService] Generated new guest_id: ' + guestId);

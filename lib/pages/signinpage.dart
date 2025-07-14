@@ -36,7 +36,14 @@ class _SignInScreenState extends State<SignInScreen> {
   String? _errorMessage;
 
   @override
+  void initState() {
+    super.initState();
+    _errorMessage = null;
+  }
+
+  @override
   void dispose() {
+    _errorMessage = null;
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -81,9 +88,10 @@ class _SignInScreenState extends State<SignInScreen> {
 
     // Default error message
     return 'Something went wrong. Please try again.';
-  }
+}
 
   void _showError(String message) {
+    print('SHOW ERROR CALLED: ' + message);
     if (!mounted) return;
 
     // Use optimized SnackBar for faster appearance and disappearance
@@ -105,6 +113,8 @@ class _SignInScreenState extends State<SignInScreen> {
       );
       print('=== SIGN IN API RESPONSE ===');
       print(result);
+      print('Token: ${result['token']}');
+      print('User: ${result['user']}');
       print('============================');
       if (result['token'] != null && result['user'] != null) {
         // Add a delay to ensure token is properly saved
@@ -135,23 +145,29 @@ class _SignInScreenState extends State<SignInScreen> {
 
         if (widget.onSuccess != null) {
           widget.onSuccess!();
-        } else {
-          // Final verification - check if user is actually logged in
-          final isActuallyLoggedIn = await AuthService.isLoggedIn();
-          if (!isActuallyLoggedIn) {
-            // If still not logged in, show error
-            _showError('Login failed. Please try again.');
-            return;
-          }
-          if (mounted) {
-            if (widget.returnTo != null) {
-              Navigator.pushReplacementNamed(context, widget.returnTo!);
-            } else {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const HomePage()),
-              );
-            }
+        }
+        // Final verification - check if user is actually logged in
+        final isActuallyLoggedIn = await AuthService.isLoggedIn();
+        print('Is actually logged in: ${isActuallyLoggedIn}');
+        if (!isActuallyLoggedIn) {
+          // If still not logged in, show error
+          _showError('Login failed. Please try again.');
+          return;
+        }
+        // Clear error message after successful login
+        if (mounted) {
+          setState(() {
+            _errorMessage = null;
+          });
+        }
+        if (mounted) {
+          if (widget.returnTo != null) {
+            Navigator.pushReplacementNamed(context, widget.returnTo!);
+          } else {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const HomePage()),
+            );
           }
         }
       } else {

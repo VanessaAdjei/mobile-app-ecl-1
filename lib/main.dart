@@ -38,8 +38,8 @@ void main() async {
     await prefs.setBool('was_running', true);
   }
   final tutorialShown = prefs.getBool('tutorial_shown') ?? false;
-  // Force onboarding to show for testing
-  await prefs.setBool('hasLaunchedBefore', false);
+  // Remove this line to stop forcing onboarding:
+  // await prefs.setBool('hasLaunchedBefore', false);
 
   final isFirstLaunch = !(prefs.getBool('hasLaunchedBefore') ?? false);
 

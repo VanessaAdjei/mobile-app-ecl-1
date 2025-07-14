@@ -1045,294 +1045,297 @@ class _HomePageState extends State<HomePage>
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: TypeAheadField<Product>(
-        textFieldConfiguration: TextFieldConfiguration(
-          controller: _searchController,
-          decoration: InputDecoration(
-            hintText: 'Search medicines, products...',
-            prefixIcon: Icon(Icons.search, color: Colors.grey),
-            filled: true,
-            fillColor: Colors.grey[100],
-            suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: Icon(Icons.clear),
-                    onPressed: () {
-                      _searchController.clear();
-                      setState(() {});
-                    },
-                  )
-                : null,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(30),
-              borderSide: BorderSide.none,
+      child: SizedBox(
+        height: 48, 
+        child: TypeAheadField<Product>(
+          textFieldConfiguration: TextFieldConfiguration(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search medicines, products...',
+              prefixIcon: Icon(Icons.search, color: Colors.grey),
+              filled: true,
+              fillColor: Colors.grey[100],
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {});
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: EdgeInsets.symmetric(vertical: 12),
             ),
-            contentPadding: EdgeInsets.symmetric(vertical: 12),
+            onSubmitted: (value) {
+              if (value.trim().isNotEmpty) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SearchResultsPage(
+                      query: value.trim(),
+                      products: _products,
+                    ),
+                  ),
+                );
+              }
+            },
           ),
-          onSubmitted: (value) {
-            if (value.trim().isNotEmpty) {
+          suggestionsCallback: (pattern) async {
+            if (pattern.isEmpty) {
+              return [];
+            }
+            try {
+              final response = await http
+                  .get(
+                    Uri.parse(
+                        'https://eclcommerce.ernestchemists.com.gh/api/search/' +
+                            pattern),
+                  )
+                  .timeout(Duration(seconds: 10));
+
+              if (response.statusCode == 200) {
+                final data = json.decode(response.body);
+                final List productsData = data['data'] ?? [];
+                final products = productsData.map<Product>((item) {
+                  return Product(
+                    id: item['id'] ?? 0,
+                    name: item['name'] ?? 'No name',
+                    description: item['tag_description'] ?? '',
+                    urlName: item['url_name'] ?? '',
+                    status: item['status'] ?? '',
+                    batch_no: item['batch_no'] ?? '',
+                    price:
+                        (item['price'] ?? item['selling_price'] ?? 0).toString(),
+                    thumbnail: item['thumbnail'] ?? item['image'] ?? '',
+                    quantity: item['quantity']?.toString() ?? '',
+                    category: item['category'] ?? '',
+                    route: item['route'] ?? '',
+                  );
+                }).toList();
+                if (products.length > 1) {
+                  return [
+                    Product(
+                      id: -1,
+                      name: '__VIEW_MORE__',
+                      description: '',
+                      urlName: '',
+                      status: '',
+                      price: '',
+                      thumbnail: '',
+                      quantity: '',
+                      batch_no: '',
+                      category: '',
+                      route: '',
+                    ),
+                    ...products.take(6),
+                  ];
+                }
+                return products;
+              } else {
+                throw Exception('Server error');
+              }
+            } on TimeoutException {
+              return [];
+            } on http.ClientException {
+              return [];
+            } catch (e) {
+              return [];
+            }
+          },
+          itemBuilder: (context, Product suggestion) {
+            if (suggestion.name == '__VIEW_MORE__') {
+              return Container(
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: ListTile(
+                  leading: Icon(Icons.list, color: Colors.green[700]),
+                  title: Text(
+                    'View All Results',
+                    style: GoogleFonts.poppins(
+                      color: Colors.green[700],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              );
+            }
+            final matchingProduct = _products.firstWhere(
+              (p) => p.id == suggestion.id || p.name == suggestion.name,
+              orElse: () => suggestion,
+            );
+            final imageUrl = getProductImageUrl(
+                matchingProduct.thumbnail.isNotEmpty
+                    ? matchingProduct.thumbnail
+                    : suggestion.thumbnail);
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(9),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 4,
+                    offset: Offset(0, 1),
+                  ),
+                ],
+                border: Border.all(color: Colors.grey.withOpacity(0.06)),
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(9),
+                onTap: () {
+                  Navigator.pop(context);
+                  final matchingProduct = _products.firstWhere(
+                    (p) => p.id == suggestion.id || p.name == suggestion.name,
+                    orElse: () => suggestion,
+                  );
+                  final urlName = matchingProduct.urlName.isNotEmpty
+                      ? matchingProduct.urlName
+                      : suggestion.urlName;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (suggestion.name == '__VIEW_MORE__') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SearchResultsPage(
+                            query: _searchController.text,
+                            products: _products,
+                          ),
+                        ),
+                      );
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ItemPage(
+                            urlName: urlName,
+                            isPrescribed:
+                                matchingProduct.otcpom?.toLowerCase() == 'pom',
+                          ),
+                        ),
+                      );
+                    }
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(7),
+                        child: CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          width: 36,
+                          height: 36,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 200,
+                          memCacheHeight: 200,
+                          maxWidthDiskCache: 200,
+                          maxHeightDiskCache: 200,
+                          fadeInDuration: Duration(milliseconds: 100),
+                          fadeOutDuration: Duration(milliseconds: 100),
+                          placeholder: (context, url) => Container(
+                            width: 24,
+                            height: 24,
+                            alignment: Alignment.center,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          errorWidget: (context, url, error) => Icon(
+                              Icons.broken_image,
+                              size: 20,
+                              color: Colors.grey[400]),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              suggestion.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            if (suggestion.price.isNotEmpty &&
+                                suggestion.price != '0')
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2.0),
+                                child: Text(
+                                  'GH₵ ${suggestion.price}',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.green[700],
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+          onSuggestionSelected: (Product suggestion) {
+            final matchingProduct = _products.firstWhere(
+              (p) => p.id == suggestion.id || p.name == suggestion.name,
+              orElse: () => suggestion,
+            );
+            final urlName = matchingProduct.urlName.isNotEmpty
+                ? matchingProduct.urlName
+                : suggestion.urlName;
+            if (suggestion.name == '__VIEW_MORE__') {
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => SearchResultsPage(
-                    query: value.trim(),
+                    query: _searchController.text,
                     products: _products,
+                  ),
+                ),
+              );
+            } else {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ItemPage(
+                    urlName: urlName,
+                    isPrescribed: matchingProduct.otcpom?.toLowerCase() == 'pom',
                   ),
                 ),
               );
             }
           },
+          noItemsFoundBuilder: (context) => Padding(
+            padding: const EdgeInsets.all(12.0),
+            child:
+                Text('No products found', style: TextStyle(color: Colors.grey)),
+          ),
+          hideOnEmpty: true,
+          hideOnLoading: false,
+          debounceDuration: Duration(milliseconds: 10),
+          suggestionsBoxDecoration: SuggestionsBoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            elevation: 10,
+          ),
+          suggestionsBoxVerticalOffset: 0,
+          suggestionsBoxController: null,
         ),
-        suggestionsCallback: (pattern) async {
-          if (pattern.isEmpty) {
-            return [];
-          }
-          try {
-            final response = await http
-                .get(
-                  Uri.parse(
-                      'https://eclcommerce.ernestchemists.com.gh/api/search/' +
-                          pattern),
-                )
-                .timeout(Duration(seconds: 10));
-
-            if (response.statusCode == 200) {
-              final data = json.decode(response.body);
-              final List productsData = data['data'] ?? [];
-              final products = productsData.map<Product>((item) {
-                return Product(
-                  id: item['id'] ?? 0,
-                  name: item['name'] ?? 'No name',
-                  description: item['tag_description'] ?? '',
-                  urlName: item['url_name'] ?? '',
-                  status: item['status'] ?? '',
-                  batch_no: item['batch_no'] ?? '',
-                  price:
-                      (item['price'] ?? item['selling_price'] ?? 0).toString(),
-                  thumbnail: item['thumbnail'] ?? item['image'] ?? '',
-                  quantity: item['quantity']?.toString() ?? '',
-                  category: item['category'] ?? '',
-                  route: item['route'] ?? '',
-                );
-              }).toList();
-              if (products.length > 1) {
-                return [
-                  Product(
-                    id: -1,
-                    name: '__VIEW_MORE__',
-                    description: '',
-                    urlName: '',
-                    status: '',
-                    price: '',
-                    thumbnail: '',
-                    quantity: '',
-                    batch_no: '',
-                    category: '',
-                    route: '',
-                  ),
-                  ...products.take(6),
-                ];
-              }
-              return products;
-            } else {
-              throw Exception('Server error');
-            }
-          } on TimeoutException {
-            return [];
-          } on http.ClientException {
-            return [];
-          } catch (e) {
-            return [];
-          }
-        },
-        itemBuilder: (context, Product suggestion) {
-          if (suggestion.name == '__VIEW_MORE__') {
-            return Container(
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: ListTile(
-                leading: Icon(Icons.list, color: Colors.green[700]),
-                title: Text(
-                  'View All Results',
-                  style: GoogleFonts.poppins(
-                    color: Colors.green[700],
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            );
-          }
-          final matchingProduct = _products.firstWhere(
-            (p) => p.id == suggestion.id || p.name == suggestion.name,
-            orElse: () => suggestion,
-          );
-          final imageUrl = getProductImageUrl(
-              matchingProduct.thumbnail.isNotEmpty
-                  ? matchingProduct.thumbnail
-                  : suggestion.thumbnail);
-          return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(9),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
-                  blurRadius: 4,
-                  offset: Offset(0, 1),
-                ),
-              ],
-              border: Border.all(color: Colors.grey.withOpacity(0.06)),
-            ),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(9),
-              onTap: () {
-                Navigator.pop(context);
-                final matchingProduct = _products.firstWhere(
-                  (p) => p.id == suggestion.id || p.name == suggestion.name,
-                  orElse: () => suggestion,
-                );
-                final urlName = matchingProduct.urlName.isNotEmpty
-                    ? matchingProduct.urlName
-                    : suggestion.urlName;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (suggestion.name == '__VIEW_MORE__') {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => SearchResultsPage(
-                          query: _searchController.text,
-                          products: _products,
-                        ),
-                      ),
-                    );
-                  } else {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ItemPage(
-                          urlName: urlName,
-                          isPrescribed:
-                              matchingProduct.otcpom?.toLowerCase() == 'pom',
-                        ),
-                      ),
-                    );
-                  }
-                });
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                child: Row(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(7),
-                      child: CachedNetworkImage(
-                        imageUrl: imageUrl,
-                        width: 36,
-                        height: 36,
-                        fit: BoxFit.cover,
-                        memCacheWidth: 200,
-                        memCacheHeight: 200,
-                        maxWidthDiskCache: 200,
-                        maxHeightDiskCache: 200,
-                        fadeInDuration: Duration(milliseconds: 100),
-                        fadeOutDuration: Duration(milliseconds: 100),
-                        placeholder: (context, url) => Container(
-                          width: 24,
-                          height: 24,
-                          alignment: Alignment.center,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                        errorWidget: (context, url, error) => Icon(
-                            Icons.broken_image,
-                            size: 20,
-                            color: Colors.grey[400]),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            suggestion.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          if (suggestion.price.isNotEmpty &&
-                              suggestion.price != '0')
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2.0),
-                              child: Text(
-                                'GH₵ ${suggestion.price}',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.green[700],
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-        onSuggestionSelected: (Product suggestion) {
-          final matchingProduct = _products.firstWhere(
-            (p) => p.id == suggestion.id || p.name == suggestion.name,
-            orElse: () => suggestion,
-          );
-          final urlName = matchingProduct.urlName.isNotEmpty
-              ? matchingProduct.urlName
-              : suggestion.urlName;
-          if (suggestion.name == '__VIEW_MORE__') {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SearchResultsPage(
-                  query: _searchController.text,
-                  products: _products,
-                ),
-              ),
-            );
-          } else {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ItemPage(
-                  urlName: urlName,
-                  isPrescribed: matchingProduct.otcpom?.toLowerCase() == 'pom',
-                ),
-              ),
-            );
-          }
-        },
-        noItemsFoundBuilder: (context) => Padding(
-          padding: const EdgeInsets.all(12.0),
-          child:
-              Text('No products found', style: TextStyle(color: Colors.grey)),
-        ),
-        hideOnEmpty: true,
-        hideOnLoading: false,
-        debounceDuration: Duration(milliseconds: 10),
-        suggestionsBoxDecoration: SuggestionsBoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          elevation: 10,
-        ),
-        suggestionsBoxVerticalOffset: 0,
-        suggestionsBoxController: null,
       ),
     );
   }
@@ -1514,12 +1517,15 @@ class _HomePageState extends State<HomePage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _buildMainContent(),
+      body: _isLoading ? HomePageSkeletonBody() : _buildMainContent(),
       bottomNavigationBar: CustomBottomNav(initialIndex: 0),
     );
   }
 
   Widget _buildMainContent() {
+    if (_isLoading) {
+      return SizedBox.shrink(); // Already handled in build()
+    }
     if (_error != null) {
       return ErrorDisplayWidget(
         onRetry: () {
@@ -2352,108 +2358,110 @@ class _HomePageState extends State<HomePage>
   }
 }
 
-class HomePageSkeleton extends StatelessWidget {
-  const HomePageSkeleton({super.key});
+class HomePageSkeletonBody extends StatelessWidget {
+  const HomePageSkeletonBody({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Shimmer.fromColors(
-        baseColor: Colors.grey[300]!,
-        highlightColor: Colors.grey[100]!,
-        child: CustomScrollView(
-          slivers: [
-            SliverAppBar(
-              expandedHeight: 50.0,
-              floating: false,
-              pinned: true,
-              flexibleSpace: FlexibleSpaceBar(
-                title: Container(
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                ),
-              ),
-            ),
-
-            // Search Bar Skeleton
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Container(
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ),
-
-            // Banner Carousel Skeleton
-            SliverToBoxAdapter(
-              child: Container(
-                height: 150,
-                margin: EdgeInsets.symmetric(horizontal: 16),
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 50.0,
+            floating: false,
+            pinned: true,
+            flexibleSpace: FlexibleSpaceBar(
+              title: Container(
+                height: 40,
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(30),
                 ),
               ),
             ),
-
-            // Action Cards Skeleton
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: List.generate(
-                      3,
-                      (index) => Container(
-                            width: 100,
-                            height: 100,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          )),
-                ),
-              ),
-            ),
-            SliverGrid(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => _buildProductCardSkeleton(),
-                childCount: 4,
-              ),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.7,
-              ),
-            ),
-            SliverToBoxAdapter(
+          ),
+          // Search Bar Skeleton
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.all(16),
               child: Container(
-                height: 120,
-                margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                height: 50,
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
             ),
-            SliverGrid(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => _buildProductCardSkeleton(),
-                childCount: 4,
-              ),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.7,
+          ),
+          // Banner Carousel Skeleton
+          SliverToBoxAdapter(
+            child: Container(
+              height: 150,
+              margin: EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
-            Padding(
+          ),
+          // Action Cards Skeleton
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(
+                  3,
+                  (index) => Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Product grid skeleton
+          SliverGrid(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _buildProductCardSkeleton(),
+              childCount: 4,
+            ),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 0.7,
+            ),
+          ),
+          // Large rectangle skeleton (e.g. for offers)
+          SliverToBoxAdapter(
+            child: Container(
+              height: 120,
+              margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          // Another product grid skeleton
+          SliverGrid(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _buildProductCardSkeleton(),
+              childCount: 4,
+            ),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 0.7,
+            ),
+          ),
+          // Small bar skeleton
+          SliverToBoxAdapter(
+            child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               child: Container(
                 width: 150,
@@ -2461,42 +2469,40 @@ class HomePageSkeleton extends StatelessWidget {
                 color: Colors.white,
               ),
             ),
-            SliverToBoxAdapter(
-              child: Container(
-                height: 120,
-                margin: EdgeInsets.only(left: 16),
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: 5,
-                  itemBuilder: (context, index) => Padding(
-                    padding: EdgeInsets.only(right: 16),
-                    child: Container(
-                      width: 80,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
+          ),
+          // Horizontal list skeleton
+          SliverToBoxAdapter(
+            child: Container(
+              height: 120,
+              margin: EdgeInsets.only(left: 16),
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: 5,
+                itemBuilder: (context, index) => Padding(
+                  padding: EdgeInsets.only(right: 16),
+                  child: Container(
+                    width: 80,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
                     ),
                   ),
                 ),
               ),
             ),
-            SliverGrid(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => _buildProductCardSkeleton(),
-                childCount: 4,
-              ),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.7,
-              ),
+          ),
+          // Final product grid skeleton
+          SliverGrid(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _buildProductCardSkeleton(),
+              childCount: 4,
             ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: Container(
-        height: 60,
-        color: Colors.white,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 0.7,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2505,33 +2511,61 @@ class HomePageSkeleton extends StatelessWidget {
     return Container(
       margin: EdgeInsets.all(8),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-              ),
+            child: Stack(
+              children: [
+                // Image placeholder
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    color: Colors.grey[200],
+                  ),
+                ),
+                // Prescription badge placeholder (bottom left)
+                Positioned(
+                  bottom: 8,
+                  left: 2,
+                  child: Container(
+                    width: 48,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: Colors.red[100],
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            height: 16,
-            color: Colors.white,
-          ),
-          SizedBox(height: 4),
-          Container(
-            width: 80,
-            height: 14,
-            color: Colors.white,
-          ),
-          SizedBox(height: 8),
-          Container(
-            width: 60,
-            height: 16,
-            color: Colors.white,
+          Padding(
+            padding: const EdgeInsets.only(top: 2.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Name line
+                Container(
+                  width: 80,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                SizedBox(height: 4),
+                // Price line
+                Container(
+                  width: 60,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                SizedBox(height: 15),
+              ],
+            ),
           ),
         ],
       ),

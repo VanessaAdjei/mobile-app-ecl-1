@@ -171,6 +171,15 @@ class _CartState extends State<Cart> {
     return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
   }
 
+  Future<bool> _showGuestReminder() async {
+    final prefs = await SharedPreferences.getInstance();
+    final guestId = prefs.getString('guest_id');
+    if (guestId != null && guestId.isNotEmpty && !_isLoggedIn) {
+      return true;
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
@@ -277,6 +286,72 @@ class _CartState extends State<Cart> {
                         ),
                       ],
                     ),
+                  ),
+                  // Guest reminder info bar
+                  FutureBuilder<bool>(
+                    future: _showGuestReminder(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.done && snapshot.data == true) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          child: Card(
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(color: Colors.green.shade100, width: 1.5),
+                            ),
+                            color: Colors.green.shade50,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  // Icon on the left
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade100,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    padding: const EdgeInsets.all(8),
+                                    child: Icon(Icons.person_outline, color: Colors.green.shade700, size: 24),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  // Text in the middle
+                                  Expanded(
+                                    child: Text(
+                                      "You're shopping as a guest.",
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        color: Colors.green.shade900,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  // Login button on the right
+                                  OutlinedButton(
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.green.shade700,
+                                      side: BorderSide(color: Colors.green.shade400),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: Text("Log in"),
+                                    onPressed: () {
+                                      Navigator.push(context, MaterialPageRoute(
+                                        builder: (_) => SignInScreen(),
+                                      ));
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                      return SizedBox.shrink();
+                    },
                   ),
                   Expanded(
                     child: cart.cartItems.isEmpty
