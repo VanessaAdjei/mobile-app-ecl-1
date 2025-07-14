@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../pages/ProductModel.dart';
 import '../pages/itemdetail.dart';
+import '../services/homepage_optimization_service.dart';
 
 class HomeProductCard extends StatelessWidget {
   final Product product;
@@ -78,7 +79,7 @@ class HomeProductCard extends StatelessWidget {
                         child: Container(
                           color: Colors.grey[100],
                           child: CachedNetworkImage(
-                            imageUrl: getProductImageUrl(product.thumbnail),
+                            imageUrl: HomepageOptimizationService().getProductImageUrl(product.thumbnail),
                             fit: BoxFit.cover,
                             memCacheWidth: 300,
                             memCacheHeight: 300,
@@ -237,7 +238,7 @@ class GenericProductCard extends StatelessWidget {
                     child: Container(
                       color: Colors.grey[100],
                       child: CachedNetworkImage(
-                        imageUrl: getProductImageUrl(productImage),
+                        imageUrl: HomepageOptimizationService().getProductImageUrl(productImage),
                         fit: BoxFit.cover,
                         memCacheWidth: 200,
                         memCacheHeight: 200,
@@ -450,7 +451,7 @@ class ProductCard extends StatelessWidget {
                         top: Radius.circular(16),
                       ),
                       child: CachedNetworkImage(
-                        imageUrl: product['thumbnail'] ?? '',
+                        imageUrl: HomepageOptimizationService().getProductImageUrl(product['thumbnail'] ?? ''),
                         fit: BoxFit.cover,
                         width: double.infinity,
                         height: double.infinity,

@@ -83,9 +83,9 @@ class CartProvider with ChangeNotifier {
   void _loadCurrentUserCart() {
     if (_currentUserId != null && _userCarts.containsKey(_currentUserId)) {
       _cartItems = _userCarts[_currentUserId]!;
-    } else if (_currentUserId == null && _userCarts.containsKey('guest')) {
+    } else if (_currentUserId == null && _userCarts.containsKey('guest_id')) {
       // Load guest cart for non-logged-in users
-      _cartItems = _userCarts['guest']!;
+      _cartItems = _userCarts['guest_id']!;
     } else {
       _cartItems = [];
     }
@@ -103,7 +103,7 @@ class CartProvider with ChangeNotifier {
         _userCarts[_currentUserId!] = _cartItems;
       } else {
         // For non-logged-in users, save to a special key
-        _userCarts['guest'] = _cartItems;
+        _userCarts['guest_id'] = _cartItems;
       }
 
       // Convert user carts to JSON
@@ -834,7 +834,7 @@ class CartProvider with ChangeNotifier {
 
   // Merge guest cart into user cart after login
   Future<void> mergeGuestCartOnLogin(String userId) async {
-    final guestCart = _userCarts['guest'] ?? [];
+    final guestCart = _userCarts['guest_id'] ?? [];
     final userCart = _userCarts[userId] ?? [];
 
     // Merge logic: combine items, summing quantities for duplicates
@@ -852,7 +852,7 @@ class CartProvider with ChangeNotifier {
 
     _userCarts[userId] = merged.values.toList();
     _cartItems = _userCarts[userId]!;
-    _userCarts.remove('guest');
+    _userCarts.remove('guest_id');
     await _saveUserCarts();
     notifyListeners();
     // After merging, push each item to the server

@@ -812,9 +812,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           },
         ),
       ),
-      bottomNavigationBar: const CustomBottomNav(
-        initialIndex: 0,
-      ),
+      bottomNavigationBar: const CustomBottomNav(),
     );
   }
 

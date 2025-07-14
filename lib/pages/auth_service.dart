@@ -633,13 +633,18 @@ class AuthService {
       };
     }
 
-    // Otherwise, get fresh token
-    final token = await getBearerToken();
-    return {
+    // Otherwise, get fresh token or guest_id
+    final token = await getToken();
+    final headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'Authorization': token ?? '',
     };
+    if (token != null && token.startsWith('0|')) {
+      headers['X-Guest-Id'] = token;
+    } else if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    return headers;
   }
 
   static Future<void> storeUserData(Map<String, dynamic> user) async {
@@ -983,21 +988,33 @@ class AuthService {
       // Use your existing logic to get the real token
       return await _secureStorage.read(key: authTokenKey);
     }
-    // Generate or retrieve a persistent guest token for non-logged-in users in the format '0|<random_string>'
+    // Only retrieve a persistent guest id for non-logged-in users if it already exists
     final prefs = await SharedPreferences.getInstance();
-    String? guestToken = prefs.getString('guest_token');
-    if (guestToken == null) {
-      const loginCount = 0;
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-      final rand = Random.secure();
-      final randomString = List.generate(40, (index) => chars[rand.nextInt(chars.length)]).join();
-      guestToken = '$loginCount|$randomString';
-      await prefs.setString('guest_token', guestToken);
-      print('[AuthService] Generated new guest token: ' + guestToken);
-    } else {
-      print('[AuthService] Using existing guest token: ' + guestToken);
+    String? guestId = prefs.getString('guest_id');
+    if (guestId != null) {
+      print('[AuthService] Using existing guest_id: ' + guestId);
     }
-    return guestToken;
+    // Do NOT generate a new guest_id here
+    return guestId;
+  }
+
+  /// Clear all guest_id keys from SharedPreferences
+  static Future<void> clearAllGuestIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('guest_id');
+  }
+
+  /// Generate and store a new guest_id in SharedPreferences
+  static Future<String> generateGuestId() async {
+    final prefs = await SharedPreferences.getInstance();
+    const loginCount = 0;
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    final rand = Random.secure();
+    final randomString = List.generate(40, (index) => chars[rand.nextInt(chars.length)]).join();
+    final guestId = '$loginCount|$randomString';
+    await prefs.setString('guest_id', guestId);
+    print('[AuthService] Generated new guest_id: ' + guestId);
+    return guestId;
   }
 
   static Future<void> syncCartOnLogin(String userId) async {

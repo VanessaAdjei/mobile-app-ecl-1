@@ -11,6 +11,7 @@ import 'dart:core';
 import 'AppBackButton.dart';
 import 'auth_service.dart';
 import 'signinpage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Cart extends StatefulWidget {
   const Cart({super.key});
@@ -381,188 +382,206 @@ class _CartState extends State<Cart> {
                               ? null
                               : () async {
                                   if (!_isLoggedIn) {
-                                    final result = await showDialog<String>(
-                                      context: context,
-                                      barrierDismissible: true,
-                                      builder: (context) => Dialog(
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                        ),
-                                        backgroundColor: Colors.white,
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 24, vertical: 28),
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Container(
-                                                decoration: BoxDecoration(
-                                                  color: Colors.green.shade50,
-                                                  shape: BoxShape.circle,
+                                    final prefs = await SharedPreferences.getInstance();
+                                    final guestId = prefs.getString('guest_id');
+                                    if (guestId == null || guestId.isEmpty) {
+                                      final result = await showDialog<String>(
+                                        context: context,
+                                        barrierDismissible: true,
+                                        builder: (context) => Dialog(
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                          ),
+                                          backgroundColor: Colors.white,
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 24, vertical: 28),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Container(
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.green.shade50,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  padding:
+                                                      const EdgeInsets.all(18),
+                                                  child: Icon(
+                                                    Icons.shopping_cart_checkout,
+                                                    color: Colors.green.shade700,
+                                                    size: 38,
+                                                  ),
                                                 ),
-                                                padding:
-                                                    const EdgeInsets.all(18),
-                                                child: Icon(
-                                                  Icons.shopping_cart_checkout,
-                                                  color: Colors.green.shade700,
-                                                  size: 38,
+                                                const SizedBox(height: 18),
+                                                Text(
+                                                  'Proceed to Checkout',
+                                                  style: TextStyle(
+                                                    fontSize: 20,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.green.shade800,
+                                                  ),
                                                 ),
-                                              ),
-                                              const SizedBox(height: 18),
-                                              Text(
-                                                'Proceed to Checkout',
-                                                style: TextStyle(
-                                                  fontSize: 20,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.green.shade800,
+                                                const SizedBox(height: 10),
+                                                Text(
+                                                  'Please login to continue to checkout, or checkout as a guest.',
+                                                  style: TextStyle(
+                                                    fontSize: 15,
+                                                    color: Colors.grey,
+                                                  ),
+                                                  textAlign: TextAlign.center,
                                                 ),
-                                              ),
-                                              const SizedBox(height: 10),
-                                              Text(
-                                                'Please login to continue to checkout, or checkout as a guest.',
-                                                style: TextStyle(
-                                                  fontSize: 15,
-                                                  color: Colors.grey,
-                                                ),
-                                                textAlign: TextAlign.center,
-                                              ),
-                                              const SizedBox(height: 24),
-                                              SingleChildScrollView(
-                                                scrollDirection:
-                                                    Axis.horizontal,
-                                                child: Wrap(
-                                                  spacing: 12,
-                                                  alignment:
-                                                      WrapAlignment.center,
-                                                  children: [
-                                                    OutlinedButton.icon(
-                                                      icon: Icon(
-                                                        Icons.login,
-                                                        color: Colors
-                                                            .green.shade700,
-                                                        size: 15,
-                                                      ),
-                                                      label: Text(
-                                                        'Login',
-                                                        style: TextStyle(
-                                                          fontSize: 13,
+                                                const SizedBox(height: 24),
+                                                SingleChildScrollView(
+                                                  scrollDirection:
+                                                      Axis.horizontal,
+                                                  child: Wrap(
+                                                    spacing: 12,
+                                                    alignment:
+                                                        WrapAlignment.center,
+                                                    children: [
+                                                      OutlinedButton.icon(
+                                                        icon: Icon(
+                                                          Icons.login,
                                                           color: Colors
                                                               .green.shade700,
-                                                          fontWeight:
-                                                              FontWeight.w500,
+                                                          size: 15,
                                                         ),
-                                                      ),
-                                                      style: OutlinedButton
-                                                          .styleFrom(
-                                                        foregroundColor: Colors
-                                                            .green.shade700,
-                                                        side: BorderSide(
-                                                          color: Colors
+                                                        label: Text(
+                                                          'Login',
+                                                          style: TextStyle(
+                                                            fontSize: 13,
+                                                            color: Colors
+                                                                .green.shade700,
+                                                            fontWeight:
+                                                                FontWeight.w500,
+                                                          ),
+                                                        ),
+                                                        style: OutlinedButton
+                                                            .styleFrom(
+                                                          foregroundColor: Colors
                                                               .green.shade700,
-                                                          width: 1.2,
+                                                          side: BorderSide(
+                                                            color: Colors
+                                                                .green.shade700,
+                                                            width: 1.2,
+                                                          ),
+                                                          shape:
+                                                              RoundedRectangleBorder(
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(8),
+                                                          ),
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .symmetric(
+                                                            vertical: 8,
+                                                            horizontal: 16,
+                                                          ),
+                                                          minimumSize: Size(0, 0),
+                                                          tapTargetSize:
+                                                              MaterialTapTargetSize
+                                                                  .shrinkWrap,
                                                         ),
-                                                        shape:
-                                                            RoundedRectangleBorder(
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(8),
-                                                        ),
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .symmetric(
-                                                          vertical: 8,
-                                                          horizontal: 16,
-                                                        ),
-                                                        minimumSize: Size(0, 0),
-                                                        tapTargetSize:
-                                                            MaterialTapTargetSize
-                                                                .shrinkWrap,
+                                                        onPressed: () {
+                                                          Navigator.of(context)
+                                                              .pop('login');
+                                                        },
                                                       ),
-                                                      onPressed: () {
-                                                        Navigator.of(context)
-                                                            .pop('login');
-                                                      },
-                                                    ),
-                                                    ElevatedButton.icon(
-                                                      icon: Icon(
-                                                        Icons.person_outline,
-                                                        color: Colors.white,
-                                                        size: 15,
-                                                      ),
-                                                      label: Text(
-                                                        'Guest checkout',
-                                                        style: TextStyle(
-                                                          fontSize: 13,
+                                                      ElevatedButton.icon(
+                                                        icon: Icon(
+                                                          Icons.person_outline,
                                                           color: Colors.white,
-                                                          fontWeight:
-                                                              FontWeight.w500,
+                                                          size: 15,
                                                         ),
+                                                        label: Text(
+                                                          'Guest checkout',
+                                                          style: TextStyle(
+                                                            fontSize: 13,
+                                                            color: Colors.white,
+                                                            fontWeight:
+                                                                FontWeight.w500,
+                                                          ),
+                                                        ),
+                                                        style: ElevatedButton
+                                                            .styleFrom(
+                                                          backgroundColor: Colors
+                                                              .green.shade700,
+                                                          shape:
+                                                              RoundedRectangleBorder(
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(8),
+                                                          ),
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .symmetric(
+                                                            vertical: 8,
+                                                            horizontal: 16,
+                                                          ),
+                                                          minimumSize: Size(0, 0),
+                                                          tapTargetSize:
+                                                              MaterialTapTargetSize
+                                                                  .shrinkWrap,
+                                                        ),
+                                                        onPressed: () async {
+                                                          await AuthService.generateGuestId();
+                                                          Navigator.of(context)
+                                                              .pop('guest');
+                                                        },
                                                       ),
-                                                      style: ElevatedButton
-                                                          .styleFrom(
-                                                        backgroundColor: Colors
-                                                            .green.shade700,
-                                                        shape:
-                                                            RoundedRectangleBorder(
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(8),
-                                                        ),
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .symmetric(
-                                                          vertical: 8,
-                                                          horizontal: 16,
-                                                        ),
-                                                        minimumSize: Size(0, 0),
-                                                        tapTargetSize:
-                                                            MaterialTapTargetSize
-                                                                .shrinkWrap,
-                                                      ),
-                                                      onPressed: () {
-                                                        Navigator.of(context)
-                                                            .pop('guest');
-                                                      },
-                                                    ),
-                                                  ],
+                                                    ],
+                                                  ),
                                                 ),
-                                              ),
-                                            ],
+                                              ],
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                    );
-                                    if (result == 'login') {
-                                      await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => SignInScreen(),
-                                        ),
                                       );
-                                      // After returning, re-check auth status
-                                      final isNowLoggedIn =
-                                          await AuthService.isLoggedIn();
-                                      setState(() {
-                                        _isLoggedIn = isNowLoggedIn;
-                                      });
-                                      // Sync cart with backend after login
-                                      if (isNowLoggedIn) {
-                                        final userId = await AuthService
-                                            .getCurrentUserID();
-                                        if (userId != null) {
-                                          await Provider.of<CartProvider>(
-                                                  context,
+                                      if (result == 'login') {
+                                        await Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => SignInScreen(),
+                                          ),
+                                        );
+                                        // After returning, re-check auth status
+                                        final isNowLoggedIn =
+                                            await AuthService.isLoggedIn();
+                                        setState(() {
+                                          _isLoggedIn = isNowLoggedIn;
+                                        });
+                                        // Sync cart with backend after login
+                                        if (isNowLoggedIn) {
+                                          final userId = await AuthService
+                                              .getCurrentUserID();
+                                          if (userId != null) {
+                                            await Provider.of<CartProvider>(
+                                                    context,
+                                                    listen: false)
+                                                .mergeGuestCartOnLogin(userId);
+                                          }
+                                          await Provider.of<CartProvider>(context,
                                                   listen: false)
-                                              .mergeGuestCartOnLogin(userId);
+                                              .syncWithApi();
                                         }
-                                        await Provider.of<CartProvider>(context,
-                                                listen: false)
-                                            .syncWithApi();
+                                        return;
+                                      } else if (result == 'guest') {
+                                        // Proceed as guest
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                const DeliveryPage(),
+                                          ),
+                                        );
+                                        return;
+                                      } else {
+                                        // Dialog dismissed, do nothing
+                                        return;
                                       }
-                                      return;
-                                    } else if (result == 'guest') {
-                                      // Proceed as guest
+                                    } else {
+                                      // guest_id exists, proceed directly
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
@@ -570,9 +589,6 @@ class _CartState extends State<Cart> {
                                               const DeliveryPage(),
                                         ),
                                       );
-                                      return;
-                                    } else {
-                                      // Dialog dismissed, do nothing
                                       return;
                                     }
                                   }

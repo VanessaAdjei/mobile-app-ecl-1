@@ -1947,6 +1947,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
 
   /// Load regions from API
   Future<void> _loadRegions() async {
+    if (!mounted) return;
     setState(() {
       isLoadingRegions = true;
     });
@@ -1955,17 +1956,20 @@ class _DeliveryPageState extends State<DeliveryPage> {
       final result = await DeliveryService.getRegions()
           .timeout(const Duration(seconds: 5)); // Reduced timeout
       if (result['success'] && mounted) {
+        if (!mounted) return;
         setState(() {
           regions = List<Map<String, dynamic>>.from(result['data']);
           isLoadingRegions = false;
         });
       } else {
+        if (!mounted) return;
         setState(() {
           isLoadingRegions = false;
         });
         print('Failed to load regions: ${result['message']}');
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         isLoadingRegions = false;
       });
@@ -1977,6 +1981,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
   Future<void> _loadCities(int regionId) async {
     // Check cache first
     if (_citiesCache.containsKey(regionId)) {
+      if (!mounted) return;
       setState(() {
         cities = _citiesCache[regionId]!;
         selectedCity = null;
@@ -1986,6 +1991,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
       return;
     }
 
+    if (!mounted) return;
     setState(() {
       isLoadingCities = true;
       cities = [];
@@ -1999,18 +2005,21 @@ class _DeliveryPageState extends State<DeliveryPage> {
           .timeout(const Duration(seconds: 3)); // Faster timeout
       if (result['success'] && mounted) {
         final citiesData = List<Map<String, dynamic>>.from(result['data']);
+        if (!mounted) return;
         setState(() {
           cities = citiesData;
           _citiesCache[regionId] = citiesData; // Cache the result
           isLoadingCities = false;
         });
       } else {
+        if (!mounted) return;
         setState(() {
           isLoadingCities = false;
         });
         print('Failed to load cities: ${result['message']}');
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         isLoadingCities = false;
       });
@@ -2022,6 +2031,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
   Future<void> _loadStores(int cityId) async {
     // Check cache first
     if (_storesCache.containsKey(cityId)) {
+      if (!mounted) return;
       setState(() {
         stores = _storesCache[cityId]!;
         selectedPickupSite = null;
@@ -2029,6 +2039,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
       return;
     }
 
+    if (!mounted) return;
     setState(() {
       isLoadingStores = true;
       stores = [];
@@ -2040,18 +2051,21 @@ class _DeliveryPageState extends State<DeliveryPage> {
           .timeout(const Duration(seconds: 3)); // Faster timeout
       if (result['success'] && mounted) {
         final storesData = List<Map<String, dynamic>>.from(result['data']);
+        if (!mounted) return;
         setState(() {
           stores = storesData;
           _storesCache[cityId] = storesData; // Cache the result
           isLoadingStores = false;
         });
       } else {
+        if (!mounted) return;
         setState(() {
           isLoadingStores = false;
         });
         print('Failed to load stores: ${result['message']}');
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         isLoadingStores = false;
       });

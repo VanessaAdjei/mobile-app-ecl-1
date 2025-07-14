@@ -312,18 +312,21 @@ class HomepageOptimizationService {
     _cachedProducts = products;
     _productsCacheTime = DateTime.now();
     _saveProductsToStorage();
+    // Optionally preload images if context is available (must be called from widget)
   }
 
   void _cachePopularProducts(List<Product> products) {
     _cachedPopularProducts = products;
     _popularProductsCacheTime = DateTime.now();
     _savePopularProductsToStorage();
+    // Optionally preload images if context is available (must be called from widget)
   }
 
   void _cacheCategorizedProducts(Map<String, List<Product>> products) {
     _cachedCategorizedProducts = products;
     _categorizedProductsCacheTime = DateTime.now();
     _saveCategorizedProductsToStorage();
+    // Optionally preload images if context is available (must be called from widget)
   }
 
   // ==================== STORAGE OPERATIONS ====================
@@ -423,6 +426,57 @@ class HomepageOptimizationService {
         precacheImage(CachedNetworkImageProvider(imageUrl), context);
       }
     }
+  }
+
+  /// Helper to get a valid absolute product image URL
+  String getProductImageUrl(String? url) {
+    if (url == null || url.isEmpty) return '';
+    if (url.startsWith('http')) return url;
+    if (url.startsWith('/uploads/')) {
+      return 'https://adm-ecommerce.ernestchemists.com.gh$url';
+    }
+    if (url.startsWith('/storage/')) {
+      return 'https://eclcommerce.ernestchemists.com.gh$url';
+    }
+    // Otherwise, treat as filename
+    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
+  }
+
+  /// Print product cache performance summary (like banners)
+  void printProductCachePerformanceSummary() {
+    final stats = getCacheStats();
+    print('=== Product Cache Performance Summary ===');
+    print('Products Cache Valid: ${stats['products_cache_valid']}');
+    print('Popular Products Cache Valid: ${stats['popular_products_cache_valid']}');
+    print('Categorized Products Cache Valid: ${stats['categorized_products_cache_valid']}');
+    print('Products Count: ${stats['products_count']}');
+    print('Popular Products Count: ${stats['popular_products_count']}');
+    print('Categorized Products Count: ${stats['categorized_products_count']}');
+    print('Preloaded Images Count: ${stats['preloaded_images_count']}');
+    print('Products Cache Duration: ${stats['products_cache_duration_minutes']} min');
+    print('Popular Products Cache Duration: ${stats['popular_products_cache_duration_minutes']} min');
+    print('Categorized Products Cache Duration: ${stats['categorized_products_cache_duration_minutes']} min');
+    print('========================================');
+  }
+
+  /// Preload all product images in cache (not just 20)
+  Future<void> preloadAllProductImages(BuildContext context) async {
+    final allProducts = <Product>[];
+    allProducts.addAll(_cachedProducts);
+    allProducts.addAll(_cachedPopularProducts);
+    _cachedCategorizedProducts.values.forEach(allProducts.addAll);
+    final imageUrls = allProducts
+        .map((product) => getProductImageUrl(product.thumbnail))
+        .where((url) => url.isNotEmpty)
+        .toSet()
+        .toList();
+    for (final imageUrl in imageUrls) {
+      if (!_preloadedImages.containsKey(imageUrl)) {
+        _preloadedImages[imageUrl] = true;
+        precacheImage(CachedNetworkImageProvider(imageUrl), context);
+      }
+    }
+    print('Preloaded ${imageUrls.length} product images');
   }
 
   // ==================== SEARCH OPTIMIZATION ====================

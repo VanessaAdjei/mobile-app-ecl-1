@@ -62,6 +62,8 @@ class ApiService {
     bool useCache = true,
     Duration? customCacheExpiry,
   }) async {
+    final headers = await _authHeaders;
+    print('[API] Request Headers: $headers');
     final url = _buildUrl(endpoint, queryParams);
     final cacheKey = url;
 
@@ -89,7 +91,7 @@ class ApiService {
         final response = await _client
             .get(
               Uri.parse(url),
-              headers: await _authHeaders,
+              headers: headers,
             )
             .timeout(requestTimeout);
 
@@ -127,7 +129,11 @@ class ApiService {
     String endpoint, {
     Map<String, dynamic>? body,
     Map<String, dynamic>? queryParams,
+    bool useCache = false,
+    Duration? customCacheExpiry,
   }) async {
+    final headers = await _authHeaders;
+    print('[API] Request Headers: $headers');
     final url = _buildUrl(endpoint, queryParams);
 
     if (!await _checkConnectivity()) {
@@ -142,7 +148,7 @@ class ApiService {
         final response = await _client
             .post(
               Uri.parse(url),
-              headers: await _authHeaders,
+              headers: headers,
               body: body != null ? json.encode(body) : null,
             )
             .timeout(requestTimeout);

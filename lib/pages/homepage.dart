@@ -267,29 +267,33 @@ class _HomePageState extends State<HomePage>
     print('HomePage: _loadAllContent called');
     setState(() => _allContentLoaded = false);
     try {
-      // Load products first, then popular products
+      // Load products first
       print('HomePage: Loading products');
       await loadProducts();
 
-      // Load popular products in background if not cached
-      if (ProductCache.cachedPopularProducts.isEmpty) {
-        print('HomePage: Loading popular products');
-        await _fetchPopularProducts();
-      } else {
-        print('HomePage: Using cached popular products');
-        setState(() {
-          popularProducts = ProductCache.cachedPopularProducts;
-          _isLoadingPopular = false;
-        });
-      }
-      // Health tips loading removed
+      // Load popular products using the old method
+      print('HomePage: Loading popular products');
+      await _fetchPopularProducts();
+
+      // Load health tips
+      print('HomePage: Loading health tips');
+      await _fetchHealthTips();
     } catch (e) {
       print('HomePage: Exception in _loadAllContent: $e');
-      // Handle error without cache fallback
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load content';
+        });
+      }
     } finally {
       if (mounted) {
-        setState(() => _allContentLoaded = true);
+        setState(() {
+          _isLoading = false;
+          _allContentLoaded = true;
+        });
         print('HomePage: _loadAllContent completed');
+        // Preload all product images for best UX
+        HomepageOptimizationService().preloadAllProductImages(context);
       }
       _refreshController.refreshCompleted();
     }
@@ -451,93 +455,6 @@ class _HomePageState extends State<HomePage>
         .toList();
 
     ImagePreloader.preloadImages(imageUrls, context);
-  }
-
-  Future<void> _fetchPopularProducts() async {
-    if (!mounted) return;
-
-    // Check if we have cached popular products
-    if (ProductCache.cachedPopularProducts.isNotEmpty) {
-      setState(() {
-        popularProducts = ProductCache.cachedPopularProducts;
-        _isLoadingPopular = false;
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoadingPopular = true;
-      _popularError = null;
-    });
-    try {
-      final response = await http
-          .get(
-            Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/popular-products'),
-          )
-          .timeout(Duration(seconds: 15));
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        final List<dynamic> productsData = data['data'] ?? [];
-        if (!mounted) return;
-
-        final popularProductsList = productsData.map<Product>((item) {
-          final productData = item['product'] as Map<String, dynamic>;
-          return Product(
-            id: productData['id'] ?? 0,
-            name: productData['name'] ?? 'No name',
-            description: productData['description'] ?? '',
-            urlName: productData['url_name'] ?? '',
-            status: productData['status'] ?? '',
-            batch_no: item['batch_no'] ?? '',
-            price: (item['price'] ?? 0).toString(),
-            thumbnail: productData['thumbnail'] ?? '',
-            quantity: item['qty_in_stock']?.toString() ?? '',
-            category: productData['category'] ?? '',
-            route: productData['route'] ?? '',
-            otcpom: productData['otcpom'],
-            drug: productData['drug'],
-            wellness: productData['wellness'],
-            selfcare: productData['selfcare'],
-            accessories: productData['accessories'],
-          );
-        }).toList();
-
-        // Cache popular products
-        ProductCache.cachePopularProducts(popularProductsList);
-
-        if (!mounted) return;
-        setState(() {
-          popularProducts = popularProductsList;
-          _isLoadingPopular = false;
-        });
-      } else {
-        if (!mounted) return;
-        setState(() {
-          _popularError = 'Server error';
-          _isLoadingPopular = false;
-        });
-      }
-    } on TimeoutException {
-      if (!mounted) return;
-      setState(() {
-        _popularError = 'Connection timed out';
-        _isLoadingPopular = false;
-      });
-    } on http.ClientException {
-      if (!mounted) return;
-      setState(() {
-        _popularError = 'No internet connection';
-        _isLoadingPopular = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _popularError = 'Something went wrong';
-        _isLoadingPopular = false;
-      });
-    }
   }
 
   Future<void> _fetchHealthTips() async {
@@ -2345,6 +2262,93 @@ class _HomePageState extends State<HomePage>
           ),
       ],
     );
+  }
+
+  Future<void> _fetchPopularProducts() async {
+    if (!mounted) return;
+
+    // Check if we have cached popular products
+    if (ProductCache.cachedPopularProducts.isNotEmpty) {
+      setState(() {
+        popularProducts = ProductCache.cachedPopularProducts;
+        _isLoadingPopular = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingPopular = true;
+      _popularError = null;
+    });
+    try {
+      final response = await http
+          .get(
+            Uri.parse(
+                'https://eclcommerce.ernestchemists.com.gh/api/popular-products'),
+          )
+          .timeout(Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        final List<dynamic> productsData = data['data'] ?? [];
+        if (!mounted) return;
+
+        final popularProductsList = productsData.map<Product>((item) {
+          final productData = item['product'] as Map<String, dynamic>;
+          return Product(
+            id: productData['id'] ?? 0,
+            name: productData['name'] ?? 'No name',
+            description: productData['description'] ?? '',
+            urlName: productData['url_name'] ?? '',
+            status: productData['status'] ?? '',
+            batch_no: item['batch_no'] ?? '',
+            price: (item['price'] ?? 0).toString(),
+            thumbnail: productData['thumbnail'] ?? '',
+            quantity: item['qty_in_stock']?.toString() ?? '',
+            category: productData['category'] ?? '',
+            route: productData['route'] ?? '',
+            otcpom: productData['otcpom'],
+            drug: productData['drug'],
+            wellness: productData['wellness'],
+            selfcare: productData['selfcare'],
+            accessories: productData['accessories'],
+          );
+        }).toList();
+
+        // Cache popular products
+        ProductCache.cachePopularProducts(popularProductsList);
+
+        if (!mounted) return;
+        setState(() {
+          popularProducts = popularProductsList;
+          _isLoadingPopular = false;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _popularError = 'Server error';
+          _isLoadingPopular = false;
+        });
+      }
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() {
+        _popularError = 'Connection timed out';
+        _isLoadingPopular = false;
+      });
+    } on http.ClientException {
+      if (!mounted) return;
+      setState(() {
+        _popularError = 'No internet connection';
+        _isLoadingPopular = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _popularError = 'Something went wrong';
+        _isLoadingPopular = false;
+      });
+    }
   }
 }
 

@@ -23,10 +23,20 @@ import 'services/banner_cache_service.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'pages/onboarding_splash_page.dart';
+import 'services/homepage_optimization_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AuthService.clearAllGuestIds(); // Clear all guest IDs on app start
   final prefs = await SharedPreferences.getInstance();
+  print('guest_id after clear: \'${prefs.getString('guest_id')}\'');
+
+  // If not previously running, clear guest_id
+  final wasRunning = prefs.getBool('was_running') ?? false;
+  if (!wasRunning) {
+    await prefs.remove('guest_id');
+    await prefs.setBool('was_running', true);
+  }
   final tutorialShown = prefs.getBool('tutorial_shown') ?? false;
   // Force onboarding to show for testing
   await prefs.setBool('hasLaunchedBefore', false);
@@ -46,11 +56,21 @@ void main() async {
   // Initialize banner cache service
   await BannerCacheService().initialize();
 
+  // Prefetch banners on app start
+  BannerCacheService().getBanners();
+  // Prefetch products on app start
+  HomepageOptimizationService().getProducts();
+  // Prefetch categorized products on app start
+  HomepageOptimizationService().getCategorizedProducts();
+  // Prefetch popular products on app start (as early as possible)
+  print('Prefetching popular products as soon as app opens...');
+  HomepageOptimizationService().getPopularProducts();
+
   AuthService.init().catchError((e) {
     print('Background auth initialization error: $e');
   });
 
-  // Print guest token for testing
+  // Print guest id for testing
   await AuthService.getToken();
 
   runApp(MyApp(tutorialShown: tutorialShown));
@@ -87,6 +107,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _checkFirstLaunch();
     _MyAppState.setRefreshAuthStateCallback(_refreshAuthState);
+    // Prefetch banners on app start or hot restart
+    BannerCacheService().getBanners();
+    // Prefetch products on app start or hot restart
+    HomepageOptimizationService().getProducts();
+    // Prefetch popular products on app start or hot restart
+    HomepageOptimizationService().getPopularProducts();
+    // Prefetch categorized products on app start or hot restart
+    HomepageOptimizationService().getCategorizedProducts();
   }
 
   @override
@@ -96,7 +124,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
     super.didChangeAppLifecycleState(state);
 
     switch (state) {
@@ -111,6 +139,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         break;
       case AppLifecycleState.hidden:
         break;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    if (state == AppLifecycleState.detached || state == AppLifecycleState.inactive) {
+      // App is being killed or backgrounded, reset the flag
+      await prefs.setBool('was_running', false);
     }
   }
 
