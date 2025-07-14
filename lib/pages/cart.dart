@@ -428,99 +428,105 @@ class _CartState extends State<Cart> {
                                                 textAlign: TextAlign.center,
                                               ),
                                               const SizedBox(height: 24),
-                                              Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  OutlinedButton.icon(
-                                                    icon: Icon(
-                                                      Icons.login,
-                                                      color:
-                                                          Colors.green.shade700,
-                                                      size: 15,
-                                                    ),
-                                                    label: Text(
-                                                      'Login',
-                                                      style: TextStyle(
-                                                        fontSize: 13,
+                                              SingleChildScrollView(
+                                                scrollDirection:
+                                                    Axis.horizontal,
+                                                child: Wrap(
+                                                  spacing: 12,
+                                                  alignment:
+                                                      WrapAlignment.center,
+                                                  children: [
+                                                    OutlinedButton.icon(
+                                                      icon: Icon(
+                                                        Icons.login,
                                                         color: Colors
                                                             .green.shade700,
-                                                        fontWeight:
-                                                            FontWeight.w500,
+                                                        size: 15,
                                                       ),
-                                                    ),
-                                                    style: OutlinedButton
-                                                        .styleFrom(
-                                                      foregroundColor:
-                                                          Colors.green.shade700,
-                                                      side: BorderSide(
-                                                        color: Colors
+                                                      label: Text(
+                                                        'Login',
+                                                        style: TextStyle(
+                                                          fontSize: 13,
+                                                          color: Colors
+                                                              .green.shade700,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                      style: OutlinedButton
+                                                          .styleFrom(
+                                                        foregroundColor: Colors
                                                             .green.shade700,
-                                                        width: 1.2,
+                                                        side: BorderSide(
+                                                          color: Colors
+                                                              .green.shade700,
+                                                          width: 1.2,
+                                                        ),
+                                                        shape:
+                                                            RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(8),
+                                                        ),
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                          vertical: 8,
+                                                          horizontal: 16,
+                                                        ),
+                                                        minimumSize: Size(0, 0),
+                                                        tapTargetSize:
+                                                            MaterialTapTargetSize
+                                                                .shrinkWrap,
                                                       ),
-                                                      shape:
-                                                          RoundedRectangleBorder(
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(8),
-                                                      ),
-                                                      padding: const EdgeInsets
-                                                          .symmetric(
-                                                        vertical: 8,
-                                                        horizontal: 16,
-                                                      ),
-                                                      minimumSize: Size(0, 0),
-                                                      tapTargetSize:
-                                                          MaterialTapTargetSize
-                                                              .shrinkWrap,
+                                                      onPressed: () {
+                                                        Navigator.of(context)
+                                                            .pop('login');
+                                                      },
                                                     ),
-                                                    onPressed: () {
-                                                      Navigator.of(context)
-                                                          .pop('login');
-                                                    },
-                                                  ),
-                                                  const SizedBox(width: 12),
-                                                  ElevatedButton.icon(
-                                                    icon: Icon(
-                                                      Icons.person_outline,
-                                                      color: Colors.white,
-                                                      size: 15,
-                                                    ),
-                                                    label: Text(
-                                                      'Checkout as Guest',
-                                                      style: TextStyle(
-                                                        fontSize: 13,
+                                                    ElevatedButton.icon(
+                                                      icon: Icon(
+                                                        Icons.person_outline,
                                                         color: Colors.white,
-                                                        fontWeight:
-                                                            FontWeight.w500,
+                                                        size: 15,
                                                       ),
+                                                      label: Text(
+                                                        'Guest checkout',
+                                                        style: TextStyle(
+                                                          fontSize: 13,
+                                                          color: Colors.white,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                      style: ElevatedButton
+                                                          .styleFrom(
+                                                        backgroundColor: Colors
+                                                            .green.shade700,
+                                                        shape:
+                                                            RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(8),
+                                                        ),
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                          vertical: 8,
+                                                          horizontal: 16,
+                                                        ),
+                                                        minimumSize: Size(0, 0),
+                                                        tapTargetSize:
+                                                            MaterialTapTargetSize
+                                                                .shrinkWrap,
+                                                      ),
+                                                      onPressed: () {
+                                                        Navigator.of(context)
+                                                            .pop('guest');
+                                                      },
                                                     ),
-                                                    style: ElevatedButton
-                                                        .styleFrom(
-                                                      backgroundColor:
-                                                          Colors.green.shade700,
-                                                      shape:
-                                                          RoundedRectangleBorder(
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(8),
-                                                      ),
-                                                      padding: const EdgeInsets
-                                                          .symmetric(
-                                                        vertical: 8,
-                                                        horizontal: 16,
-                                                      ),
-                                                      minimumSize: Size(0, 0),
-                                                      tapTargetSize:
-                                                          MaterialTapTargetSize
-                                                              .shrinkWrap,
-                                                    ),
-                                                    onPressed: () {
-                                                      Navigator.of(context)
-                                                          .pop('guest');
-                                                    },
-                                                  ),
-                                                ],
+                                                  ],
+                                                ),
                                               ),
                                             ],
                                           ),
@@ -560,7 +566,8 @@ class _CartState extends State<Cart> {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (context) => const DeliveryPage(),
+                                          builder: (context) =>
+                                              const DeliveryPage(),
                                         ),
                                       );
                                       return;
@@ -572,7 +579,8 @@ class _CartState extends State<Cart> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const DeliveryPage(),
+                                      builder: (context) =>
+                                          const DeliveryPage(),
                                     ),
                                   );
                                 },
@@ -935,7 +943,8 @@ class _CartState extends State<Cart> {
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(4),
                                   onTap: () {
-                                    cart.updateQuantity(index, item.quantity + 1);
+                                    cart.updateQuantity(
+                                        index, item.quantity + 1);
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.all(6),

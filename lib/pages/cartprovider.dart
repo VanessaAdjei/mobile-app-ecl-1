@@ -855,7 +855,9 @@ class CartProvider with ChangeNotifier {
     _userCarts.remove('guest');
     await _saveUserCarts();
     notifyListeners();
-    // Optionally, push merged cart to server here
-    // await _pushCartToServer();
+    // After merging, push each item to the server
+    for (final item in _cartItems) {
+      await _syncAddToServer(item);
+    }
   }
 }

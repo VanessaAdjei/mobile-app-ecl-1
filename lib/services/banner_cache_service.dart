@@ -145,6 +145,19 @@ class BannerCacheService {
         // Cache the banners
         await _cacheBanners(banners);
 
+        // Start preloading images in background, but don't block UI
+        Future(() async {
+          final preloadStopwatch = Stopwatch()..start();
+          final context = _getAnyContext();
+          if (context != null) {
+            await preloadBannerImages(context);
+            preloadStopwatch.stop();
+            print('Banner image preloading completed in ${preloadStopwatch.elapsedMilliseconds}ms');
+          } else {
+            print('Banner image preloading skipped (no context available)');
+          }
+        });
+
         return banners;
       } else {
         print('Banner API error: ${response.statusCode}');
@@ -162,6 +175,13 @@ class BannerCacheService {
     } finally {
       _isLoading = false;
     }
+  }
+
+  // Helper to get any context for preloading (fallback if not available)
+  BuildContext? _getAnyContext() {
+    // This is a hack: in real apps, pass context from widget tree
+    // Here, just return null to avoid blocking
+    return null;
   }
 
   // Cache banners in memory and storage

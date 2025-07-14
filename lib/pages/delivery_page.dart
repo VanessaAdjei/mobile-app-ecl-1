@@ -402,7 +402,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
           ),
         ],
       ),
-      bottomNavigationBar: const CustomBottomNav(),
+      bottomNavigationBar: CustomBottomNav(initialIndex: 1),
     );
   }
 
