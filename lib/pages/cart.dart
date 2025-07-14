@@ -787,180 +787,194 @@ class _CartState extends State<Cart> {
 
   Widget _buildCartItem(CartProvider cart, int index) {
     final item = cart.cartItems[index];
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+    return Dismissible(
+      key: Key(item.id.toString()),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: EdgeInsets.symmetric(horizontal: 20),
+        color: Colors.red,
+        child: Icon(Icons.delete, color: Colors.white),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Row(
-          children: [
-            // Product Image - Compact Design
-            Container(
-              width: 50,
-              height: 50,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: CachedNetworkImage(
-                  imageUrl: getImageUrl(item.image),
-                  fit: BoxFit.cover,
-                  memCacheWidth: 100, // 2x for high DPI
-                  memCacheHeight: 100,
-                  maxWidthDiskCache: 100,
-                  maxHeightDiskCache: 100,
-                  fadeInDuration: Duration(milliseconds: 200),
-                  placeholder: (context, url) => Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Center(
-                      child: SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.green.shade600),
-                        ),
+      onDismissed: (direction) {
+        cart.removeFromCart(item.id);
+        showTopSnackBar(context, '${item.name} removed from cart');
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: [
+              // Product Image - Compact Design
+              Container(
+                width: 50,
+                height: 50,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: CachedNetworkImage(
+                    imageUrl: getImageUrl(item.image),
+                    fit: BoxFit.cover,
+                    memCacheWidth: 100, // 2x for high DPI
+                    memCacheHeight: 100,
+                    maxWidthDiskCache: 100,
+                    maxHeightDiskCache: 100,
+                    fadeInDuration: Duration(milliseconds: 200),
+                    placeholder: (context, url) => Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                    ),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Icon(Icons.image_not_supported,
-                        color: Colors.grey.shade400, size: 20),
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(width: 10),
-
-            // Product Details
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.name,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    'GHS ${item.price.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.green.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-
-                  // Quantity Controls - Compact Design
-                  Row(
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(4),
-                                onTap: () {
-                                  if (item.quantity > 1) {
-                                    cart.updateQuantity(
-                                        index, item.quantity - 1);
-                                  } else {
-                                    cart.removeFromCart(item.id);
-                                  }
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  child: Icon(
-                                    item.quantity > 1
-                                        ? Icons.remove
-                                        : Icons.delete_outline,
-                                    size: 14,
-                                    color: item.quantity > 1
-                                        ? Colors.grey.shade700
-                                        : Colors.red.shade400,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 10),
-                              child: Text(
-                                '${item.quantity}',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(4),
-                                onTap: () {
-                                  cart.updateQuantity(index, item.quantity + 1);
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  child: Icon(
-                                    Icons.add,
-                                    size: 14,
-                                    color: Colors.green.shade600,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade50,
-                          borderRadius: BorderRadius.circular(5),
-                          border: Border.all(color: Colors.green.shade200),
-                        ),
-                        child: Text(
-                          'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.green.shade700,
+                      child: Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.green.shade600),
                           ),
                         ),
                       ),
-                    ],
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(Icons.image_not_supported,
+                          color: Colors.grey.shade400, size: 20),
+                    ),
                   ),
-                ],
+                ),
               ),
-            ),
-          ],
+
+              const SizedBox(width: 10),
+
+              // Product Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.name,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'GHS ${item.price.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.green.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+
+                    // Quantity Controls - Compact Design
+                    Row(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(4),
+                                  onTap: () {
+                                    if (item.quantity > 1) {
+                                      cart.updateQuantity(
+                                          index, item.quantity - 1);
+                                    } else {
+                                      cart.removeFromCart(item.id);
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    child: Icon(
+                                      item.quantity > 1
+                                          ? Icons.remove
+                                          : Icons.delete_outline,
+                                      size: 14,
+                                      color: item.quantity > 1
+                                          ? Colors.grey.shade700
+                                          : Colors.red.shade400,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 10),
+                                child: Text(
+                                  '${item.quantity}',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(4),
+                                  onTap: () {
+                                    cart.updateQuantity(index, item.quantity + 1);
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    child: Icon(
+                                      Icons.add,
+                                      size: 14,
+                                      color: Colors.green.shade600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(5),
+                            border: Border.all(color: Colors.green.shade200),
+                          ),
+                          child: Text(
+                            'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.green.shade700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

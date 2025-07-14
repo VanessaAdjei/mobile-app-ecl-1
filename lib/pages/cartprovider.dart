@@ -457,15 +457,47 @@ class CartProvider with ChangeNotifier {
 
   // Background sync for adding to server - DISABLED
   Future<void> _syncAddToServer(CartItem item) async {
-    print('🔄 SYNC ADD TO SERVER - DISABLED ===');
-    print('Product: ${item.name}');
-    print('Quantity: ${item.quantity}');
-    print('Local changes preserved - will sync during checkout');
-    print('==================================================');
+    try {
+      final token = await AuthService.getToken();
+      if (token == null) {
+        debugPrint('Cannot sync add to server - missing auth token');
+        return;
+      }
 
-    // Disable server sync to prevent quantity override
-    // Local cart is now the source of truth
-    // Server sync will happen during checkout
+      final requestBody = {
+        'productID': item.serverProductId ?? int.parse(item.productId),
+        'quantity': item.quantity,
+      };
+
+      final url = 'https://eclcommerce.ernestchemists.com.gh/api/check-auth';
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      print('=== ADD TO CART API RESPONSE ===');
+      print('URL: $url');
+      print('Request Body: ${jsonEncode(requestBody)}');
+      print('Response Status: ${response.statusCode}');
+      print('Response Headers: ${response.headers}');
+      print('Response Body: ${response.body}');
+      print('================================');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Optionally sync with server to ensure consistency
+        await syncWithApi();
+      } else {
+        debugPrint('Failed to add/update cart item on server: \\${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error adding/updating cart item on server: $e');
+    }
   }
 
   // Helper method to add item to local cart with proper quantity handling
