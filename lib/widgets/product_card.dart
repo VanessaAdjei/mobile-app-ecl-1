@@ -320,51 +320,28 @@ class GenericProductCard extends StatelessWidget {
   }
 
   String _getProductName() {
-    if (product is Product) {
-      return product.name;
-    } else if (product is Map<String, dynamic>) {
-      return product['name'] ?? 'Unknown Product';
-    }
-    return 'Unknown Product';
-  }
-
-  String _getProductImage() {
-    if (product is Product) {
-      return product.thumbnail;
-    } else if (product is Map<String, dynamic>) {
-      return product['thumbnail'] ?? product['image'] ?? '';
-    }
+    if (product is Product) return product.name;
+    if (product is Map) return product['name'] ?? '';
     return '';
   }
-
-  String _getProductPrice() {
-    if (product is Product) {
-      return product.price;
-    } else if (product is Map<String, dynamic>) {
-      return (product['price'] ?? product['selling_price'] ?? 0).toString();
-    }
-    return '0';
+  String _getProductImage() {
+    if (product is Product) return product.thumbnail;
+    if (product is Map) return product['thumbnail'] ?? '';
+    return '';
   }
-
+  String _getProductPrice() {
+    if (product is Product) return product.price.toString();
+    if (product is Map) return product['price']?.toString() ?? '';
+    return '';
+  }
   bool _isPrescribed() {
-    if (product is Product) {
-      return product.otcpom?.toLowerCase() == 'pom';
-    } else if (product is Map<String, dynamic>) {
-      return (product['otcpom'] ?? '').toString().toLowerCase() == 'pom';
-    }
+    if (product is Product) return product.otcpom?.toLowerCase() == 'pom';
+    if (product is Map) return (product['otcpom']?.toLowerCase() ?? '') == 'pom';
     return false;
   }
-
   String _getUrlName() {
-    if (product is Product) {
-      return product.urlName;
-    } else if (product is Map<String, dynamic>) {
-      return product['url_name'] ??
-          product['url'] ??
-          product['inventory']?['urlname'] ??
-          product['route']?.split('/').last ??
-          '';
-    }
+    if (product is Product) return product.urlName;
+    if (product is Map) return product['urlname'] ?? product['urlName'] ?? '';
     return '';
   }
 }
@@ -401,6 +378,22 @@ class ProductCard extends StatelessWidget {
     this.onFavoriteToggle,
   });
 
+  String _getProductName() {
+    if (product is Product) return product.name;
+    if (product is Map) return product['name'] ?? '';
+    return '';
+  }
+  String _getProductImage() {
+    if (product is Product) return product.thumbnail;
+    if (product is Map) return product['thumbnail'] ?? '';
+    return '';
+  }
+  String _getProductPrice() {
+    if (product is Product) return product.price.toString();
+    if (product is Map) return product['price']?.toString() ?? '';
+    return '';
+  }
+
   String _formatPrice(dynamic price) {
     if (price == null) return '0.00';
 
@@ -417,8 +410,14 @@ class ProductCard extends StatelessWidget {
     return numericPrice.toStringAsFixed(2);
   }
 
+  String? _getProductBrand() {
+    // No longer needed, but keep for compatibility if referenced elsewhere
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final imageUrl = HomepageOptimizationService().getProductImageUrl(_getProductImage());
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -427,186 +426,49 @@ class ProductCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 3),
+              color: Colors.black.withOpacity(0.07),
+              blurRadius: 10,
+              offset: Offset(0, 4),
             ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              flex: 3,
-              child: Stack(
-                children: [
-                  Container(
-                    decoration: const BoxDecoration(
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(16),
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(16),
-                      ),
-                      child: CachedNetworkImage(
-                        imageUrl: HomepageOptimizationService().getProductImageUrl(product['thumbnail'] ?? ''),
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
-                        memCacheWidth: 120,
-                        memCacheHeight: 120,
-                        maxWidthDiskCache: 120,
-                        maxHeightDiskCache: 120,
-                        fadeInDuration: const Duration(milliseconds: 200),
-                        fadeOutDuration: const Duration(milliseconds: 100),
-                        placeholder: (context, url) => Container(
-                          color: Colors.grey.shade200,
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.green.shade700,
-                              ),
-                            ),
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => Container(
-                          color: Colors.grey.shade200,
-                          child: Icon(
-                            Icons.image_not_supported_outlined,
-                            color: Colors.grey.shade400,
-                            size: 32,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Favorite button
-                  if (showFavoriteButton)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: GestureDetector(
-                        onTap: onFavoriteToggle,
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.9),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            isFavorite ? Icons.favorite : Icons.favorite_border,
-                            size: 16,
-                            color:
-                                isFavorite ? Colors.red : Colors.grey.shade600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  // Price tag
-                  Positioned(
-                    bottom: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade700.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'GHS ${_formatPrice(product['price'])}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+            Flexible(
+              flex: 7,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  errorBuilder: (context, error, stackTrace) => Icon(Icons.image, size: 48, color: Colors.grey[300]),
+                ),
               ),
             ),
-            // Product Info
-            Expanded(
-              flex: 2,
+            Flexible(
+              flex: 5,
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      product['name'] ?? 'Unknown Product',
+                      _getProductName(),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                        color: Colors.black87,
-                        height: 1.3,
-                      ),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     ),
-                    const SizedBox(height: 4),
-                    if (product['brand'] != null)
-                      Text(
-                        product['brand'],
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey.shade600,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    const SizedBox(height: 6),
+                    Text(
+                      'GHS ${_formatPrice(_getProductPrice())}',
+                      style: TextStyle(
+                        color: Colors.green[700],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
                       ),
-                    const Spacer(),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.star,
-                          size: 12,
-                          color: Colors.amber.shade600,
-                        ),
-                        const SizedBox(width: 2),
-                        Text(
-                          '4.5',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey.shade600,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const Spacer(),
-                        if (product['stock'] != null && product['stock'] > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade50,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'In Stock',
-                              style: TextStyle(
-                                fontSize: 8,
-                                color: Colors.green.shade700,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                      ],
                     ),
                   ],
                 ),

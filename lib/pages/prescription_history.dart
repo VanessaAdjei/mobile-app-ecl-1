@@ -172,7 +172,6 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
               : _prescriptions.isEmpty
                   ? _buildEmptyState()
                   : _buildPrescriptionsList(),
-      bottomNavigationBar: const CustomBottomNav(),
     );
   }
 

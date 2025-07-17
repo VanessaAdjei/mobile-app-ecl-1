@@ -209,137 +209,147 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                     ],
                   ),
                 )
-              : Column(
-                  children: [
-                    // Animated search bar (bigger)
-                    AnimatedContainer(
-                      duration: Duration(milliseconds: 350),
-                      curve: Curves.easeInOut,
-                      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(28),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.06),
-                            blurRadius: 14,
-                            offset: Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.search, color: Colors.grey[500], size: 26),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextField(
-                              controller: _searchController,
-                              style: GoogleFonts.poppins(
-                                  fontSize: 18, fontWeight: FontWeight.w500),
-                              decoration: InputDecoration(
-                                hintText: 'Refine search...',
-                                border: InputBorder.none,
-                                isDense: true,
-                                contentPadding: EdgeInsets.zero,
-                              ),
-                              onChanged: (val) {
-                                setState(() {
-                                  _searchText = val;
-                                });
-                              },
-                              onSubmitted: (_) => _performSearch(),
-                              textInputAction: TextInputAction.search,
+              : Padding(
+                  padding: const EdgeInsets.only(
+                      left: 30.0), // Increased left padding
+                  child: Column(
+                    children: [
+                      // Animated search bar (bigger)
+                      AnimatedContainer(
+                        duration: Duration(milliseconds: 350),
+                        curve: Curves.easeInOut,
+                        margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 20), // Increased vertical padding
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius:
+                              BorderRadius.circular(32), // More pill-like
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black
+                                  .withOpacity(0.10), // More prominent shadow
+                              blurRadius: 18,
+                              offset: Offset(0, 4),
                             ),
-                          ),
-                          if (_searchController.text.isNotEmpty)
-                            GestureDetector(
-                              onTap: () {
-                                _searchController.clear();
-                                setState(() {
-                                  _searchText = '';
-                                });
-                              },
-                              child: Icon(Icons.close,
-                                  color: Colors.grey[400], size: 24),
-                            ),
-                        ],
-                      ),
-                    ),
-                    // (Filter chips row removed)
-                    // Results grid
-                    Expanded(
-                      child: GridView.builder(
-                        padding: EdgeInsets.zero,
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 0,
-                          mainAxisSpacing: 0,
-                          childAspectRatio: 1,
+                          ],
                         ),
-                        itemCount: _filteredProducts!.length,
-                        itemBuilder: (context, index) {
-                          final product = _filteredProducts![index];
-                          return AnimatedOpacity(
-                            opacity: 1.0,
-                            duration: Duration(milliseconds: 350 + index * 40),
-                            curve: Curves.easeIn,
-                            child: GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => ItemPage(
-                                      urlName: product.urlName,
-                                      isPrescribed:
-                                          product.otcpom?.toLowerCase() ==
-                                              'pom',
+                        child: Row(
+                          children: [
+                            Icon(Icons.search,
+                                color: Colors.grey[500], size: 28),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: TextField(
+                                controller: _searchController,
+                                style: GoogleFonts.poppins(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w500), // Larger font
+                                decoration: InputDecoration(
+                                  hintText: 'Refine search...',
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                                onChanged: (val) {
+                                  setState(() {
+                                    _searchText = val;
+                                  });
+                                },
+                                onSubmitted: (_) => _performSearch(),
+                                textInputAction: TextInputAction.search,
+                              ),
+                            ),
+                            if (_searchController.text.isNotEmpty)
+                              GestureDetector(
+                                onTap: () {
+                                  _searchController.clear();
+                                  setState(() {
+                                    _searchText = '';
+                                  });
+                                },
+                                child: Icon(Icons.close,
+                                    color: Colors.grey[400], size: 26),
+                              ),
+                          ],
+                        ),
+                      ),
+                      // (Filter chips row removed)
+                      // Results grid
+                      Expanded(
+                        child: GridView.builder(
+                          padding: EdgeInsets.zero,
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 0,
+                            mainAxisSpacing: 0,
+                            childAspectRatio: 1,
+                          ),
+                          itemCount: _filteredProducts!.length,
+                          itemBuilder: (context, index) {
+                            final product = _filteredProducts![index];
+                            return AnimatedOpacity(
+                              opacity: 1.0,
+                              duration:
+                                  Duration(milliseconds: 350 + index * 40),
+                              curve: Curves.easeIn,
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => ItemPage(
+                                        urlName: product.urlName,
+                                        isPrescribed:
+                                            product.otcpom?.toLowerCase() ==
+                                                'pom',
+                                      ),
                                     ),
-                                  ),
-                                );
-                              },
-                              child: Stack(
-                                children: [
-                                  GenericProductCard(
-                                    product: product,
-                                    showPrice: true,
-                                    showPrescriptionBadge: true,
-                                    // Remove or minimize internal padding if supported
-                                    padding: 0,
-                                  ),
-                                  // Badge for prescribed
-                                  if (product.otcpom?.toLowerCase() == 'pom')
-                                    Positioned(
-                                      left: 8,
-                                      top: 8,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 7, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.red[700],
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                        ),
-                                        child: Text(
-                                          'Prescribed',
-                                          style: GoogleFonts.poppins(
-                                            color: Colors.white,
-                                            fontSize: 9.5,
-                                            fontWeight: FontWeight.w600,
+                                  );
+                                },
+                                child: Stack(
+                                  children: [
+                                    GenericProductCard(
+                                      product: product,
+                                      showPrice: true,
+                                      showPrescriptionBadge: true,
+                                      // Remove or minimize internal padding if supported
+                                      padding: 0,
+                                    ),
+                                    // Badge for prescribed
+                                    if (product.otcpom?.toLowerCase() == 'pom')
+                                      Positioned(
+                                        left: 8,
+                                        top: 8,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 7, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.red[700],
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            'Prescribed',
+                                            style: GoogleFonts.poppins(
+                                              color: Colors.white,
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
     );
   }

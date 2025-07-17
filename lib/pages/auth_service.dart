@@ -1011,16 +1011,31 @@ class AuthService {
   /// Generate and store a new guest_id in SharedPreferences
   static Future<String> generateGuestId() async {
     final prefs = await SharedPreferences.getInstance();
-    const loginCount = 0;
-    const chars =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    final rand = Random.secure();
-    final randomString =
-        List.generate(40, (index) => chars[rand.nextInt(chars.length)]).join();
-    final guestId = '$loginCount|$randomString';
-    await prefs.setString('guest_id', guestId);
-    print('[AuthService] Generated new guest_id: ' + guestId);
-    return guestId;
+    try {
+      final response = await http.get(
+        Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/guest-id'),
+        headers: {'Accept': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final guestId = data['guest_id'] ??
+            data['id'] ??
+            data['guestId'] ??
+            data['guestid'];
+        if (guestId != null && guestId is String && guestId.isNotEmpty) {
+          await prefs.setString('guest_id', guestId);
+          print('[AuthService] Fetched guest_id from API: ' + guestId);
+          return guestId;
+        } else {
+          throw Exception('Invalid guest_id in API response');
+        }
+      } else {
+        throw Exception('Failed to fetch guest_id from API');
+      }
+    } catch (e) {
+      print('[AuthService] Error fetching guest_id: $e');
+      rethrow;
+    }
   }
 
   static Future<void> syncCartOnLogin(String userId) async {
@@ -1548,6 +1563,7 @@ class CODPaymentService {
     required double amount,
     String? authToken,
   }) async {
+    debugPrint('[DEBUG] Entered CODPaymentService.processCODPayment');
     try {
       final url = Uri.parse('$_baseUrl$_codEndpoint');
 
@@ -1559,7 +1575,12 @@ class CODPaymentService {
 
       // Add authorization header if token is provided
       if (authToken != null && authToken.isNotEmpty) {
-        headers['Authorization'] = 'Bearer $authToken';
+        if (authToken.startsWith('guest_')) {
+          headers['Authorization'] = 'Guest $authToken';
+          headers['X-Guest-ID'] = authToken;
+        } else {
+          headers['Authorization'] = 'Bearer $authToken';
+        }
       }
 
       // Prepare request body
@@ -1570,8 +1591,11 @@ class CODPaymentService {
         'amount': amount.toStringAsFixed(2),
       };
 
-      debugPrint('COD Payment Request: ${json.encode(requestBody)}');
-
+      debugPrint('COD Payment Request: \\${json.encode(requestBody)}');
+      debugPrint(
+          '[DEBUG] COD Payment API Request Headers: ' + headers.toString());
+      debugPrint(
+          '[DEBUG] COD Payment API Request Body: ' + json.encode(requestBody));
       // Make the API call
       final response = await http
           .post(
@@ -1586,8 +1610,10 @@ class CODPaymentService {
         },
       );
 
-      debugPrint('COD Payment Response Status: ${response.statusCode}');
-      debugPrint('COD Payment Response Body: ${response.body}');
+      // Print the raw HTTP response for debugging (always)
+      debugPrint(
+          '[DEBUG] COD Payment API HTTP Status: \\${response.statusCode}');
+      debugPrint('[DEBUG] COD Payment API HTTP Body: \\${response.body}');
 
       // Handle different response status codes
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -1612,6 +1638,8 @@ class CODPaymentService {
           'success': false,
           'message': 'Authentication required. Please log in again.',
           'error_code': 'UNAUTHORIZED',
+          'status_code': response.statusCode,
+          'body': response.body,
         };
       } else if (response.statusCode == 422) {
         try {
@@ -1621,12 +1649,16 @@ class CODPaymentService {
             'message': errorData['message'] ?? 'Invalid request parameters',
             'errors': errorData['errors'],
             'error_code': 'VALIDATION_ERROR',
+            'status_code': response.statusCode,
+            'body': response.body,
           };
         } catch (e) {
           return {
             'success': false,
             'message': 'Invalid request parameters',
             'error_code': 'VALIDATION_ERROR',
+            'status_code': response.statusCode,
+            'body': response.body,
           };
         }
       } else if (response.statusCode >= 500) {
@@ -1634,19 +1666,23 @@ class CODPaymentService {
           'success': false,
           'message': 'Server error. Please try again later.',
           'error_code': 'SERVER_ERROR',
+          'status_code': response.statusCode,
+          'body': response.body,
         };
       } else {
         return {
           'success': false,
           'message': 'Payment failed. Please try again.',
           'error_code': 'UNKNOWN_ERROR',
+          'status_code': response.statusCode,
+          'body': response.body,
         };
       }
     } catch (e) {
-      debugPrint('COD Payment Error: $e');
+      debugPrint('COD Payment Error: \\${e.toString()}');
       return {
         'success': false,
-        'message': 'Payment failed: ${e.toString()}',
+        'message': 'Payment failed: \\${e.toString()}',
         'error_code': 'EXCEPTION',
       };
     }

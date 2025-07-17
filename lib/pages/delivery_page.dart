@@ -1749,7 +1749,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
               }
 
               try {
-                // Save delivery information to API
+                // Always save delivery information to API, even for guests
                 final saveResult = await DeliveryService.saveDeliveryInfo(
                   name: _nameController.text.trim(),
                   email: _emailController.text.trim(),
@@ -1784,42 +1784,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   _proceedToPayment();
                   return;
                 }
-
-                // Also save to SharedPreferences for backward compatibility
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setString('userName', _nameController.text.trim());
-                await prefs.setString(
-                    'userEmail', _emailController.text.trim());
-                await prefs.setString('userPhoneNumber', _phoneController.text);
-                await prefs.setString('delivery_option', deliveryOption);
-                await prefs.setString('order_status', 'Processing');
-
-                // Create delivery address based on option
-                String deliveryAddress;
-                if (deliveryOption == 'delivery') {
-                  await prefs.setString(
-                      'userRegion', _regionController.text.trim());
-                  await prefs.setString(
-                      'userCity', _cityController.text.trim());
-                  await prefs.setString(
-                      'userAddress', _addressController.text.trim());
-                  deliveryAddress =
-                      '${_addressController.text.trim()}, ${_cityController.text.trim()}, ${_regionController.text.trim()}';
-                } else {
-                  // For pickup, use the selected pickup location
-                  String pickupLocation = selectedPickupSite != null
-                      ? '${selectedPickupSite!['description']}, ${selectedCity!['description']}, ${selectedRegion!['description']}'
-                      : '${selectedCity?['description'] ?? 'Selected'}, ${selectedRegion?['description'] ?? 'Location'}';
-                  deliveryAddress = 'Pickup at $pickupLocation';
-                  await prefs.setString(
-                      'pickup_region', selectedRegion?['description'] ?? '');
-                  await prefs.setString(
-                      'pickup_city', selectedCity?['description'] ?? '');
-                  await prefs.setString(
-                      'pickup_site', selectedPickupSite?['description'] ?? '');
-                }
-
-                await prefs.setString('delivery_address', deliveryAddress);
 
                 // Show success message at the top of the screen
                 if (mounted) {
@@ -1933,6 +1897,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
     }
 
     // Navigate to payment page with delivery details
+    print('[DEBUG] Passing guestEmail to PaymentPage: "' + _emailController.text.trim() + '"');
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1940,6 +1905,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
           deliveryAddress: deliveryAddress,
           contactNumber: _phoneController.text,
           deliveryOption: deliveryOption,
+          guestEmail: _emailController.text.trim(),
         ),
       ),
     );

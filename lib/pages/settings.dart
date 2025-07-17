@@ -504,7 +504,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: const CustomBottomNav(),
     );
   }
 

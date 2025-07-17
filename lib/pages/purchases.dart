@@ -1168,10 +1168,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
               : _orders.isEmpty
                   ? _buildEmptyState()
                   : _buildOrderList(),
-      bottomNavigationBar: CustomBottomNav(
-        initialIndex:
-            0, // Don't set profile as selected, so tapping profile will navigate
-      ),
+      bottomNavigationBar: CustomBottomNav(initialIndex: 0),
     );
   }
 }

@@ -88,7 +88,7 @@ class _SignInScreenState extends State<SignInScreen> {
 
     // Default error message
     return 'Something went wrong. Please try again.';
-}
+  }
 
   void _showError(String message) {
     print('SHOW ERROR CALLED: ' + message);
@@ -118,7 +118,7 @@ class _SignInScreenState extends State<SignInScreen> {
       print('============================');
       if (result['token'] != null && result['user'] != null) {
         // Add a delay to ensure token is properly saved
-        await Future.delayed(const Duration(milliseconds: 200));
+        await Future.delayed(const Duration(milliseconds: 100));
 
         // Force update AuthService state
         await AuthService.forceUpdateAuthState();

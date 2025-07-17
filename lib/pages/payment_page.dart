@@ -24,6 +24,8 @@ import 'order_tracking_page.dart';
 import 'package:intl/intl.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'cart.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ExpressPayChannel {
   static const MethodChannel _channel =
@@ -49,12 +51,14 @@ class PaymentPage extends StatefulWidget {
   final String? deliveryAddress;
   final String? contactNumber;
   final String deliveryOption;
+  final String? guestEmail;
 
   const PaymentPage({
     super.key,
     this.deliveryAddress,
     this.contactNumber,
     this.deliveryOption = 'Delivery',
+    this.guestEmail,
   });
 
   @override
@@ -100,6 +104,14 @@ class _PaymentPageState extends State<PaymentPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _loadUserData();
+      final isLoggedIn = await AuthService.isLoggedIn();
+      if (!isLoggedIn &&
+          widget.guestEmail != null &&
+          widget.guestEmail!.isNotEmpty) {
+        setState(() {
+          _userEmail = widget.guestEmail!;
+        });
+      }
     });
   }
 
@@ -181,13 +193,30 @@ class _PaymentPageState extends State<PaymentPage> {
     }
   }
 
+  // Helper to get the correct Authorization header (Bearer or Guest)
+  Future<String?> getAuthHeader() async {
+    String? token = await AuthService.getToken();
+    if (token != null && token.isNotEmpty) {
+      if (token.startsWith('guest_')) {
+        return 'Guest $token';
+      } else {
+        return 'Bearer $token';
+      }
+    }
+    final prefs = await SharedPreferences.getInstance();
+    String? guestToken = prefs.getString('guest_id');
+    if (guestToken != null && guestToken.isNotEmpty) return 'Guest $guestToken';
+    return null;
+  }
+
   Future<void> processPayment(CartProvider cart) async {
+    print('[DEBUG] Entered processPayment');
     if (!mounted) return;
 
     // Print selected payment method and token at the start
     final debugToken = await AuthService.getToken();
     print('[DEBUG] Payment button pressed. Method: '
-        '[32m$selectedPaymentMethod[0m, Token: [34m$debugToken[0m');
+        '$selectedPaymentMethod Token:$debugToken');
 
     setState(() {
       _paymentError = null;
@@ -197,28 +226,43 @@ class _PaymentPageState extends State<PaymentPage> {
     try {
       // Validate cart
       if (cart.cartItems.isEmpty) {
+        print('[DEBUG] Returning early: cart is empty');
         throw Exception(
             'Your cart is empty. Please add items before proceeding with payment.');
       }
+      print('[DEBUG] Passed cart empty check');
 
       // Calculate total
       final subtotal = cart.calculateSubtotal();
       if (subtotal <= 0) {
+        print('[DEBUG] Returning early: subtotal <= 0');
         throw Exception('Invalid order amount. Please check your cart items.');
       }
+      print('[DEBUG] Passed subtotal check');
 
       final deliveryFee = 0.00;
       final total = subtotal + deliveryFee - _discountAmount;
 
+      // Determine if user is guest
+      final authHeader = await getAuthHeader();
+      final isGuest = authHeader != null && authHeader.startsWith('Guest ');
+      print('[DEBUG] Passed guest check');
+      print('[DEBUG] isGuest: $isGuest, authHeader: $authHeader');
+
       // Validate user data
-      if (_userEmail.isEmpty || _userEmail == "No email available") {
+      if (!isGuest &&
+          (_userEmail.isEmpty || _userEmail == "No email available")) {
+        print('[DEBUG] Returning early: user email is empty or not available');
         throw Exception(
             'Please update your email address in your profile before making a payment.');
       }
+      print('[DEBUG] Passed user data check');
 
       if (widget.contactNumber?.isEmpty ?? true) {
+        print('[DEBUG] Returning early: contact number is empty');
         throw Exception('Please provide a valid contact number for delivery.');
       }
+      print('[DEBUG] Passed contact number check');
 
       // Create order description
       String orderDesc = cart.cartItems
@@ -250,7 +294,11 @@ class _PaymentPageState extends State<PaymentPage> {
         'email': _userEmail,
         'phone_number': widget.contactNumber ?? _phoneNumber,
         'account_number': widget.contactNumber ?? _phoneNumber,
-        'redirect_url': 'http://eclcommerce.test/complete'
+        'address': widget.deliveryAddress ?? '',
+        'region': '',
+        'city': '',
+        'redirect_url': 'http://eclcommerce.test/complete',
+        'shipping_type': widget.deliveryOption,
       };
 
       final purchasedItems = List<CartItem>.from(cart.cartItems);
@@ -265,12 +313,18 @@ class _PaymentPageState extends State<PaymentPage> {
             : 'Customer';
 
         // Validate COD payment parameters
+        final emailForValidation =
+            isGuest ? (widget.guestEmail ?? '') : _userEmail;
+        print('[DEBUG] Email used for COD validation: "' +
+            emailForValidation +
+            '"');
         final validation = CODPaymentService.validateParameters(
           firstName: firstName,
-          email: _userEmail,
+          email: emailForValidation,
           phone: widget.contactNumber ?? _phoneNumber,
           amount: total,
         );
+        print('[DEBUG] COD validation result: ' + validation.toString());
 
         if (!validation['isValid']) {
           final errors = validation['errors'] as Map<String, String>;
@@ -278,17 +332,37 @@ class _PaymentPageState extends State<PaymentPage> {
           throw Exception(errorMessage);
         }
 
-        // Get auth token for the API call
-        final authToken = await AuthService.getToken();
+        // Get the correct auth header (Bearer or Guest)
+        final authHeader = await getAuthHeader();
+        if (authHeader == null) {
+          setState(() {
+            _paymentError =
+                'You must be logged in or have a guest session to use Cash on Delivery.';
+          });
+          return;
+        }
+
+        // Extract just the token string for CODPaymentService
+        String? tokenString;
+        if (authHeader.startsWith('Bearer ')) {
+          tokenString = authHeader.substring(7);
+        } else if (authHeader.startsWith('Guest ')) {
+          tokenString = authHeader.substring(6);
+        }
+
+        // Debug print for email being sent to COD API
+        print('[DEBUG] COD API call email: "' + emailForValidation + '"');
 
         // Process COD payment through the API
         final codResult = await CODPaymentService.processCODPayment(
           firstName: firstName,
-          email: _userEmail,
+          email: emailForValidation,
           phone: widget.contactNumber ?? _phoneNumber,
           amount: total,
-          authToken: authToken,
+          authToken: tokenString,
         );
+
+        print('[DEBUG] COD Payment API Response: ${codResult.toString()}');
 
         if (!codResult['success']) {
           throw Exception(codResult['message'] ?? 'COD payment failed');
@@ -345,55 +419,8 @@ class _PaymentPageState extends State<PaymentPage> {
             cart.clearCart();
           }
         } catch (e) {
-          // Show warning but still proceed with the order
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded, color: Colors.white),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Warning: Could not save order to server, but proceeding with order',
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.orange[600],
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              margin: EdgeInsets.all(16),
-              duration: Duration(seconds: 3),
-            ),
-          );
+          // Ignore order creation errors for now
         }
-
-        // Show success message for COD payment
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'COD payment processed successfully! You will pay when you receive your order.',
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green[600],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            margin: EdgeInsets.all(16),
-            duration: Duration(seconds: 4),
-          ),
-        );
-
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
@@ -414,35 +441,48 @@ class _PaymentPageState extends State<PaymentPage> {
       }
 
       // Online Payment Flow
-      final authToken = await AuthService.getToken();
-      print('[DEBUG] Using token for payment: $authToken');
-      if (authToken == null) {
-        // If not logged in, treat as guest or show a user-friendly message, but do not throw a sign-in warning
+      if (authHeader == null) {
         setState(() {
           _paymentError =
-              'You must be logged in to use online payment. Please choose Cash on Delivery or log in.';
+              'You must be logged in or have a guest session to use online payment. Please choose Cash on Delivery or log in.';
         });
+        print('[DEBUG] Returning early: authHeader is null');
         return;
       }
 
-      final response = await http
-          .post(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/expresspayment'),
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $authToken',
-        },
-        body: jsonEncode(params),
-      )
-          .timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw TimeoutException(
-              'Payment request timed out. Please try again.');
-        },
-      );
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      };
+      if (isGuest) {
+        // Get the guest token from authHeader (format: 'Guest guest_xxx')
+        String? guestId = authHeader?.replaceFirst('Guest ', '');
+        if (guestId != null && guestId.isNotEmpty) {
+          headers['Authorization'] = 'Guest ' + guestId;
+          headers['X-Guest-ID'] = guestId; // Add X-Guest-ID header for backend
+        }
+      } else if (authHeader != null && authHeader.isNotEmpty) {
+        headers['Authorization'] = authHeader;
+      }
+
+      print('[DEBUG] Payment API Request Headers: ' + headers.toString());
+      print('[DEBUG] Payment API Request Body: ' + jsonEncode(params));
+      print('[DEBUG] About to call expresspay API');
+      http.Response? response;
+      try {
+        response = await http.post(
+          Uri.parse(
+              'https://eclcommerce.ernestchemists.com.gh/api/expresspayment'),
+          headers: headers,
+          body: jsonEncode(params),
+        );
+        print(
+            '[DEBUG] Online Payment API Response: Status: ${response.statusCode}, Body: ${response.body}');
+      } catch (e) {
+        print('[DEBUG] Exception during expresspay API call: $e');
+        rethrow;
+      }
+      print('[DEBUG] Finished expresspay API call');
 
       if (response.statusCode == 200) {
         final redirectUrl = response.body.trim();
@@ -453,7 +493,6 @@ class _PaymentPageState extends State<PaymentPage> {
 
         if (!mounted) return;
 
-        // Launch payment WebView
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -3002,6 +3041,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           ),
         ],
       ),
+      bottomNavigationBar: CustomBottomNav(initialIndex: 1),
     );
   }
 
@@ -3118,7 +3158,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
       final userId = await AuthService.getCurrentUserID();
       if (userId == null) {
-        throw Exception('User ID not found. Please log in again.');
+        // Silently return an error result instead of throwing an exception
+        return {
+          'status': 'error',
+          'message': '', // No warning message
+        };
       }
       // Create request body
       final requestBody = {

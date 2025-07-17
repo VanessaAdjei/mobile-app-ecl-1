@@ -27,6 +27,7 @@ import '../services/banner_cache_service.dart';
 import '../services/homepage_optimization_service.dart';
 import '../widgets/empty_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'section_products_page.dart';
 
 class ImagePreloader {
   static final Map<String, bool> _preloadedImages = {};
@@ -1046,7 +1047,7 @@ class _HomePageState extends State<HomePage>
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: SizedBox(
-        height: 48, 
+        height: 48,
         child: TypeAheadField<Product>(
           textFieldConfiguration: TextFieldConfiguration(
             controller: _searchController,
@@ -1108,8 +1109,8 @@ class _HomePageState extends State<HomePage>
                     urlName: item['url_name'] ?? '',
                     status: item['status'] ?? '',
                     batch_no: item['batch_no'] ?? '',
-                    price:
-                        (item['price'] ?? item['selling_price'] ?? 0).toString(),
+                    price: (item['price'] ?? item['selling_price'] ?? 0)
+                        .toString(),
                     thumbnail: item['thumbnail'] ?? item['image'] ?? '',
                     quantity: item['quantity']?.toString() ?? '',
                     category: item['category'] ?? '',
@@ -1225,7 +1226,8 @@ class _HomePageState extends State<HomePage>
                   });
                 },
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                   child: Row(
                     children: [
                       ClipRRect(
@@ -1314,7 +1316,8 @@ class _HomePageState extends State<HomePage>
                 MaterialPageRoute(
                   builder: (context) => ItemPage(
                     urlName: urlName,
-                    isPrescribed: matchingProduct.otcpom?.toLowerCase() == 'pom',
+                    isPrescribed:
+                        matchingProduct.otcpom?.toLowerCase() == 'pom',
                   ),
                 ),
               );
@@ -2217,11 +2220,31 @@ class _HomePageState extends State<HomePage>
               ),
               TextButton(
                 onPressed: () {
+                  final sectionKey = title.toLowerCase();
+                  final filtered = _products.where((p) {
+                    switch (sectionKey) {
+                      case 'wellness':
+                        return p.wellness?.toLowerCase() == 'wellness';
+                      case 'selfcare':
+                        return p.selfcare?.toLowerCase() == 'selfcare';
+                      case 'accessories':
+                        return p.accessories?.toLowerCase() == 'accessories';
+                      case 'drugs':
+                      case 'drug':
+                        return p.drug?.toLowerCase() == 'drug';
+                      case 'otc':
+                        return p.otcpom?.toLowerCase() == 'otc';
+                      default:
+                        // fallback: match category or other fields if needed
+                        return p.category.toLowerCase() == sectionKey;
+                    }
+                  }).toList();
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => CategoryPage(
-                        isBulkPurchase: false,
+                      builder: (context) => SectionProductsPage(
+                        sectionTitle: title,
+                        products: filtered,
                       ),
                     ),
                   );

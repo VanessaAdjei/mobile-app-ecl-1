@@ -37,31 +37,11 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
       _userLoggedIn = loggedIn;
     });
 
-    // Also refresh the cart provider's login status
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
     await cartProvider.refreshLoginStatus();
   }
 
   void _onItemTapped(int index) async {
-    // Only navigate to Home if not already on Home
-    if (index == 0) {
-      if (_selectedIndex == 0) {
-        // Already on Home, do nothing
-        return;
-      }
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const home.HomePage(),
-        ),
-        (route) {
-          return false;
-        },
-      );
-      return;
-    }
-
-    // For other navigation items, check if we're already on that page
     if (index == _selectedIndex) {
       return;
     }
@@ -71,6 +51,13 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     });
 
     switch (index) {
+      case 0:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const home.HomePage(),
+          ),
+        );
       case 1:
         Navigator.pushReplacement(
           context,

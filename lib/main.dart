@@ -24,6 +24,7 @@ import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'pages/onboarding_splash_page.dart';
 import 'services/homepage_optimization_service.dart';
+import 'pages/main_navigation_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -373,7 +374,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                         });
                       },
                     )
-                  : HomePage(),
+                  : const HomePage(),
             ),
           );
         },

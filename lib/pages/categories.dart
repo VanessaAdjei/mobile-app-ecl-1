@@ -13,6 +13,7 @@ import 'package:eclapp/widgets/cart_icon_button.dart';
 import 'package:eclapp/pages/bulk_purchase_page.dart';
 import 'package:eclapp/pages/bottomnav.dart';
 import '../services/category_optimization_service.dart';
+import 'package:flutter/foundation.dart';
 
 // Cache for categories and products
 class CategoryCache {
@@ -101,6 +102,7 @@ class _CategoryPageState extends State<CategoryPage> {
   void initState() {
     super.initState();
     _initializeCategoryService();
+    _prefetchAllProducts(); // Prefetch all products on page load
     _loadCategoriesOptimized();
 
     _searchFocusNode.addListener(() {
@@ -459,62 +461,43 @@ class _CategoryPageState extends State<CategoryPage> {
     });
   }
 
+  // Move search to a background isolate and limit results
   Future<void> _performSearch(String query) async {
     setState(() {
       _showSearchDropdown = true;
       _searchResults = []; // Clear previous results while searching
     });
 
-    // Search through products, not categories
-    List<dynamic> productResults = [];
-
-    // Use cached products if available, otherwise fetch only if query is long enough
+    List<dynamic> productsToSearch = [];
     if (CategoryCache.cachedAllProducts.isNotEmpty) {
-      // Search through cached products
-      productResults = CategoryCache.cachedAllProducts.where((product) {
-        final productName = product['name']?.toString().toLowerCase() ?? '';
-        final searchQuery = query.toLowerCase();
-        final contains = productName.contains(searchQuery);
-        return contains;
-      }).toList();
+      productsToSearch = CategoryCache.cachedAllProducts;
     } else if (_allProducts.isNotEmpty) {
-      // Search through already loaded products
-      productResults = _allProducts.where((product) {
-        final productName = product['name']?.toString().toLowerCase() ?? '';
-        final searchQuery = query.toLowerCase();
-        final contains = productName.contains(searchQuery);
-        return contains;
-      }).toList();
+      productsToSearch = _allProducts;
     } else if (query.length >= 2) {
-      // Only fetch all products if query is long enough and we don't have cached data
       await _getAllProductsFromCategories(forceRefresh: false);
-      productResults = _allProducts.where((product) {
-        final productName = product['name']?.toString().toLowerCase() ?? '';
-        final searchQuery = query.toLowerCase();
-        final contains = productName.contains(searchQuery);
-        return contains;
-      }).toList();
+      productsToSearch = _allProducts;
     }
 
-    setState(() {
-      _searchResults = productResults
-          .map(
-            (prod) => {
-              'type': 'product',
-              'data': prod,
-              'name': prod['name'],
-              'id': prod['id'],
-              'category_id': prod['category_id'],
-              'category_name': prod['category_name'],
-              'subcategory_id': prod['subcategory_id'],
-              'subcategory_name': prod['subcategory_name'],
-              'price': prod['price'],
-              'thumbnail': prod['thumbnail'],
-              'urlname': prod['urlname'],
-            },
-          )
-          .toList();
+    // Use compute to search in background
+    final productResults = await compute(_filterProducts, {
+      'products': productsToSearch,
+      'query': query,
     });
+
+    setState(() {
+      _searchResults = productResults.take(30).toList(); // Limit to 30 results
+    });
+  }
+
+  // Background search function for compute
+  static List<dynamic> _filterProducts(Map<String, dynamic> args) {
+    final products = args['products'] as List<dynamic>;
+    final query = args['query'] as String;
+    final searchQuery = query.toLowerCase();
+    return products.where((product) {
+      final productName = (product['name'] ?? '').toString().toLowerCase();
+      return productName.contains(searchQuery);
+    }).toList();
   }
 
   void _onSearchItemTap(dynamic item) {
@@ -1261,6 +1244,18 @@ class _CategoryPageState extends State<CategoryPage> {
       _preloadCategoryImages(_categories);
     }
   }
+
+  // Prefetch all products and cache them
+  Future<void> _prefetchAllProducts() async {
+    try {
+      final products = await _categoryService.getProducts(forceRefresh: false);
+      _allProducts = products;
+      CategoryCache.cacheAllProducts(products);
+      print('Prefetched and cached all products: \\${products.length}');
+    } catch (e) {
+      print('Error prefetching products: $e');
+    }
+  }
 }
 
 class _ModernCategoryCard extends StatelessWidget {
@@ -1742,6 +1737,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       ),
       body: _buildMainContent(),
       floatingActionButton: showScrollToTop ? _buildScrollToTopButton() : null,
+      bottomNavigationBar: CustomBottomNav(initialIndex: 2),
     );
   }
 

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import '../config/api_config.dart';
 import 'package:eclapp/pages/auth_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DeliveryService {
   static const String baseUrl = ApiConfig.baseUrl;
@@ -23,8 +24,24 @@ class DeliveryService {
     String? pickupSite,
   }) async {
     try {
-      final token = await AuthService.getToken();
-      if (token == null) {
+      // Determine if user is logged in or guest
+      final isLoggedIn = await AuthService.isLoggedIn();
+      String? token;
+      String? guestId;
+      if (isLoggedIn) {
+        token = await AuthService.getToken();
+      } else {
+        final prefs = await SharedPreferences.getInstance();
+        guestId = prefs.getString('guest_id');
+      }
+
+      if (!isLoggedIn && (guestId == null || guestId.isEmpty)) {
+        return {
+          'success': false,
+          'message': 'Guest authentication required. Please try again.',
+        };
+      }
+      if (isLoggedIn && (token == null || token.isEmpty)) {
         return {
           'success': false,
           'message': 'Authentication required. Please log in again.',
@@ -68,15 +85,19 @@ class DeliveryService {
       print('Is delivery: ${deliveryOption == 'delivery'}');
       print('Is pickup: ${deliveryOption == 'pickup'}');
 
+      // Set headers based on user type
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        if (isLoggedIn) 'Authorization': 'Bearer $token',
+        if (!isLoggedIn && guestId != null) 'Authorization': 'Guest $guestId',
+      };
+
       final response = await http
           .post(
             Uri.parse(
                 'https://eclcommerce.ernestchemists.com.gh/api/save-billing-add'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-            },
+            headers: headers,
             body: json.encode(requestBody),
           )
           .timeout(const Duration(seconds: 10));
@@ -341,9 +362,6 @@ class DeliveryService {
   /// Fetch all regions from API
   static Future<Map<String, dynamic>> getRegions() async {
     try {
-      print('=== DELIVERY SERVICE: Fetching regions ===');
-      print('API URL: https://eclcommerce.ernestchemists.com.gh/api/regions');
-
       final response = await http.get(
         Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/regions'),
         headers: {
@@ -352,17 +370,8 @@ class DeliveryService {
         },
       ).timeout(const Duration(seconds: 10));
 
-      print('Get regions response status: ${response.statusCode}');
-      print('Get regions response headers: ${response.headers}');
-      print('Get regions response body: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('=== API GET REGIONS SUCCESS ===');
-        print('Regions data: ${json.encode(data)}');
-        print('Data type: ${data.runtimeType}');
-        print('Data keys: ${data.keys.toList()}');
-        print('===============================');
 
         return {
           'success': true,
@@ -371,10 +380,7 @@ class DeliveryService {
         };
       } else {
         final errorData = json.decode(response.body);
-        print('=== API GET REGIONS ERROR ===');
-        print('Error status code: ${response.statusCode}');
-        print('Error response: ${json.encode(errorData)}');
-        print('=============================');
+
         return {
           'success': false,
           'message': errorData['message'] ?? 'Failed to fetch regions',

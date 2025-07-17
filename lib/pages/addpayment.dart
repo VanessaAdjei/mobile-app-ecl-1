@@ -247,7 +247,6 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
                 ],
               ),
             ),
-      bottomNavigationBar: const CustomBottomNav(),
     );
   }
 

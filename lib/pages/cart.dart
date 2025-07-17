@@ -1,4 +1,5 @@
 // pages/cart.dart
+// pages/cart.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:eclapp/pages/homepage.dart';
@@ -63,6 +64,11 @@ class _CartState extends State<Cart> {
         setState(() {
           _isLoggedIn = isLoggedIn;
         });
+        if (isLoggedIn) {
+          // Clear guest_info_collected flag on login
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('guest_info_collected', false);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -174,7 +180,8 @@ class _CartState extends State<Cart> {
   Future<bool> _showGuestReminder() async {
     final prefs = await SharedPreferences.getInstance();
     final guestId = prefs.getString('guest_id');
-    if (guestId != null && guestId.isNotEmpty && !_isLoggedIn) {
+    final guestInfoCollected = prefs.getBool('guest_info_collected') ?? false;
+    if (guestId != null && guestId.isNotEmpty && !_isLoggedIn && guestInfoCollected) {
       return true;
     }
     return false;
@@ -291,18 +298,22 @@ class _CartState extends State<Cart> {
                   FutureBuilder<bool>(
                     future: _showGuestReminder(),
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.done && snapshot.data == true) {
+                      if (snapshot.connectionState == ConnectionState.done &&
+                          snapshot.data == true) {
                         return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
                           child: Card(
                             elevation: 2,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
-                              side: BorderSide(color: Colors.green.shade100, width: 1.5),
+                              side: BorderSide(
+                                  color: Colors.green.shade100, width: 1.5),
                             ),
                             color: Colors.green.shade50,
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 12, horizontal: 14),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
@@ -313,7 +324,8 @@ class _CartState extends State<Cart> {
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     padding: const EdgeInsets.all(8),
-                                    child: Icon(Icons.person_outline, color: Colors.green.shade700, size: 24),
+                                    child: Icon(Icons.person_outline,
+                                        color: Colors.green.shade700, size: 24),
                                   ),
                                   const SizedBox(width: 16),
                                   // Text in the middle
@@ -332,16 +344,19 @@ class _CartState extends State<Cart> {
                                   OutlinedButton(
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: Colors.green.shade700,
-                                      side: BorderSide(color: Colors.green.shade400),
+                                      side: BorderSide(
+                                          color: Colors.green.shade400),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                     ),
                                     child: Text("Log in"),
                                     onPressed: () {
-                                      Navigator.push(context, MaterialPageRoute(
-                                        builder: (_) => SignInScreen(),
-                                      ));
+                                      Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => SignInScreen(),
+                                          ));
                                     },
                                   ),
                                 ],
@@ -457,9 +472,14 @@ class _CartState extends State<Cart> {
                               ? null
                               : () async {
                                   if (!_isLoggedIn) {
-                                    final prefs = await SharedPreferences.getInstance();
+                                    final prefs =
+                                        await SharedPreferences.getInstance();
                                     final guestId = prefs.getString('guest_id');
-                                    if (guestId == null || guestId.isEmpty) {
+                                    final guestInfoCollected =
+                                        prefs.getBool('guest_info_collected') ??
+                                            false;
+                                    if ((guestId == null || guestId.isEmpty) ||
+                                        !guestInfoCollected) {
                                       final result = await showDialog<String>(
                                         context: context,
                                         barrierDismissible: true,
@@ -483,8 +503,10 @@ class _CartState extends State<Cart> {
                                                   padding:
                                                       const EdgeInsets.all(18),
                                                   child: Icon(
-                                                    Icons.shopping_cart_checkout,
-                                                    color: Colors.green.shade700,
+                                                    Icons
+                                                        .shopping_cart_checkout,
+                                                    color:
+                                                        Colors.green.shade700,
                                                     size: 38,
                                                   ),
                                                 ),
@@ -494,7 +516,8 @@ class _CartState extends State<Cart> {
                                                   style: TextStyle(
                                                     fontSize: 20,
                                                     fontWeight: FontWeight.bold,
-                                                    color: Colors.green.shade800,
+                                                    color:
+                                                        Colors.green.shade800,
                                                   ),
                                                 ),
                                                 const SizedBox(height: 10),
@@ -534,8 +557,9 @@ class _CartState extends State<Cart> {
                                                         ),
                                                         style: OutlinedButton
                                                             .styleFrom(
-                                                          foregroundColor: Colors
-                                                              .green.shade700,
+                                                          foregroundColor:
+                                                              Colors.green
+                                                                  .shade700,
                                                           side: BorderSide(
                                                             color: Colors
                                                                 .green.shade700,
@@ -545,7 +569,8 @@ class _CartState extends State<Cart> {
                                                               RoundedRectangleBorder(
                                                             borderRadius:
                                                                 BorderRadius
-                                                                    .circular(8),
+                                                                    .circular(
+                                                                        8),
                                                           ),
                                                           padding:
                                                               const EdgeInsets
@@ -553,7 +578,8 @@ class _CartState extends State<Cart> {
                                                             vertical: 8,
                                                             horizontal: 16,
                                                           ),
-                                                          minimumSize: Size(0, 0),
+                                                          minimumSize:
+                                                              Size(0, 0),
                                                           tapTargetSize:
                                                               MaterialTapTargetSize
                                                                   .shrinkWrap,
@@ -580,13 +606,15 @@ class _CartState extends State<Cart> {
                                                         ),
                                                         style: ElevatedButton
                                                             .styleFrom(
-                                                          backgroundColor: Colors
-                                                              .green.shade700,
+                                                          backgroundColor:
+                                                              Colors.green
+                                                                  .shade700,
                                                           shape:
                                                               RoundedRectangleBorder(
                                                             borderRadius:
                                                                 BorderRadius
-                                                                    .circular(8),
+                                                                    .circular(
+                                                                        8),
                                                           ),
                                                           padding:
                                                               const EdgeInsets
@@ -594,13 +622,28 @@ class _CartState extends State<Cart> {
                                                             vertical: 8,
                                                             horizontal: 16,
                                                           ),
-                                                          minimumSize: Size(0, 0),
+                                                          minimumSize:
+                                                              Size(0, 0),
                                                           tapTargetSize:
                                                               MaterialTapTargetSize
                                                                   .shrinkWrap,
                                                         ),
                                                         onPressed: () async {
-                                                          await AuthService.generateGuestId();
+                                                          final prefs =
+                                                              await SharedPreferences
+                                                                  .getInstance();
+                                                          String? guestId =
+                                                              prefs.getString(
+                                                                  'guest_id');
+                                                          if (guestId == null ||
+                                                              guestId.isEmpty) {
+                                                            // generate guest id
+                                                            await AuthService
+                                                                .generateGuestId();
+                                                          }
+                                                          await prefs.setBool(
+                                                              'guest_info_collected',
+                                                              true);
                                                           Navigator.of(context)
                                                               .pop('guest');
                                                         },
@@ -617,7 +660,8 @@ class _CartState extends State<Cart> {
                                         await Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (context) => SignInScreen(),
+                                            builder: (context) =>
+                                                SignInScreen(),
                                           ),
                                         );
                                         // After returning, re-check auth status
@@ -636,7 +680,8 @@ class _CartState extends State<Cart> {
                                                     listen: false)
                                                 .mergeGuestCartOnLogin(userId);
                                           }
-                                          await Provider.of<CartProvider>(context,
+                                          await Provider.of<CartProvider>(
+                                                  context,
                                                   listen: false)
                                               .syncWithApi();
                                         }
@@ -656,7 +701,7 @@ class _CartState extends State<Cart> {
                                         return;
                                       }
                                     } else {
-                                      // guest_id exists, proceed directly
+                                      // guest_id exists and guest info collected, proceed directly
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(

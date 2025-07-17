@@ -200,7 +200,6 @@ class CartProvider with ChangeNotifier {
             }
           }
 
-          // Apply protection for recently corrected items using product name + batch
           print('🔍 PROTECTION DEBUG ===');
           print('Recently corrected items: $_recentlyCorrectedItems');
           print('Merged items count: ${mergedItems.length}');
@@ -221,9 +220,14 @@ class CartProvider with ChangeNotifier {
               print('Protected Quantity: $localQuantity');
               print('Protection Key: $protectionKey');
               print('==========================');
-              item.updateQuantity(localQuantity);
+              if (localQuantity > item.quantity) {
+                item.updateQuantity(localQuantity);
+              } else {
+                // Remove stale protection
+                _recentlyCorrectedItems.remove(protectionKey);
+              }
             } else {
-              print('❌ No protection found for: $protectionKey');
+              print('No protection found for: $protectionKey');
             }
           }
           print('🔍 END PROTECTION DEBUG ===');
@@ -318,8 +322,13 @@ class CartProvider with ChangeNotifier {
               print('Protection Key: $protectionKey');
               print('=============================');
 
-              // Use local quantity instead of server quantity
-              serverItem.updateQuantity(localQuantity);
+              // Only use local quantity if it is greater than server quantity
+              if (localQuantity > serverItem.quantity) {
+                serverItem.updateQuantity(localQuantity);
+              } else {
+                // Remove stale protection
+                _recentlyCorrectedItems.remove(protectionKey);
+              }
             }
 
             finalItems.add(serverItem);
@@ -374,6 +383,20 @@ class CartProvider with ChangeNotifier {
   Future<void> addToCart(CartItem item) async {
     // For logged-in users, try to sync with server
     _currentUserId ??= await AuthService.getCurrentUserID();
+
+    // --- GUEST SESSION LOGIC ---
+    final isLoggedIn = await AuthService.isLoggedIn();
+    if (!isLoggedIn) {
+      // Check if guest_id exists
+      final prefs = await SharedPreferences.getInstance();
+      String? guestId = prefs.getString('guest_id');
+      if (guestId == null || guestId.isEmpty) {
+        // Create guest_id (fetch from backend)
+        guestId = await AuthService.generateGuestId();
+        debugPrint('[CartProvider] Created guest_id: ' + guestId);
+      }
+    }
+    // --- END GUEST SESSION LOGIC ---
 
     try {
       final token = await AuthService.getToken();
@@ -458,9 +481,26 @@ class CartProvider with ChangeNotifier {
   // Background sync for adding to server - DISABLED
   Future<void> _syncAddToServer(CartItem item) async {
     try {
-      final token = await AuthService.getToken();
-      if (token == null) {
-        debugPrint('Cannot sync add to server - missing auth token');
+      String? token = await AuthService.getToken();
+      Map<String, String> headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      };
+      bool isLoggedIn = await AuthService.isLoggedIn();
+      if (token != null) {
+        if (isLoggedIn) {
+          headers['Authorization'] = 'Bearer $token';
+          print('[CartProvider] Using Bearer token for cart sync: $token');
+        } else if (token.startsWith('guest')) {
+          headers['Authorization'] = 'Guest $token';
+          print('[CartProvider] Using Guest token for cart sync: $token');
+        } else {
+          debugPrint('Token present but not logged in and not a guest_id.');
+          return;
+        }
+      } else {
+        debugPrint(
+            'Cannot sync add to server - missing auth token and guest_id');
         return;
       }
 
@@ -473,17 +513,14 @@ class CartProvider with ChangeNotifier {
 
       final response = await http.post(
         Uri.parse(url),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
+        headers: headers,
         body: jsonEncode(requestBody),
       );
 
       print('=== ADD TO CART API RESPONSE ===');
       print('URL: $url');
-      print('Request Body: ${jsonEncode(requestBody)}');
+      print('Request Body:  ${jsonEncode(requestBody)} ');
+      print('Request Headers: $headers');
       print('Response Status: ${response.statusCode}');
       print('Response Headers: ${response.headers}');
       print('Response Body: ${response.body}');
@@ -493,7 +530,8 @@ class CartProvider with ChangeNotifier {
         // Optionally sync with server to ensure consistency
         await syncWithApi();
       } else {
-        debugPrint('Failed to add/update cart item on server: \\${response.statusCode}');
+        debugPrint(
+            'Failed to add/update cart item on server: \\${response.statusCode}');
       }
     } catch (e) {
       debugPrint('Error adding/updating cart item on server: $e');

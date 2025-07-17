@@ -641,9 +641,7 @@ class ProfileState extends State<Profile> {
             ],
           ),
         ),
-        bottomNavigationBar: CustomBottomNav(
-          initialIndex: 3,
-        ),
+        bottomNavigationBar: CustomBottomNav(initialIndex: 3),
       ),
     );
   }

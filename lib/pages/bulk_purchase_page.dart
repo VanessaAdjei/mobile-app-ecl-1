@@ -579,9 +579,6 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
             ),
           ],
         ),
-        bottomNavigationBar: CustomBottomNav(
-          initialIndex: 0,
-        ),
       ),
     );
   }

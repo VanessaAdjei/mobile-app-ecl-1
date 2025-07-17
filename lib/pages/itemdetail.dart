@@ -179,6 +179,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       cartProvider.addToCart(cartItem);
 
       if (mounted) {
+        await _flyToCartAnimation(context);
         _showSuccessSnackBar(
             context, '${quantity}x ${product.name} has been added to cart');
         _scaleController.forward().then((_) => _scaleController.reverse());
@@ -188,6 +189,67 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         _showErrorSnackBar(context, 'Error adding item to cart: $e');
       }
     }
+  }
+
+  Future<void> _flyToCartAnimation(BuildContext context) async {
+    final overlay = Overlay.of(context);
+    if (overlay == null) return;
+
+    // Find the render boxes for the Add to Cart button and the cart icon
+    final addToCartBox = context.findRenderObject() as RenderBox?;
+    final scaffoldBox =
+        Scaffold.maybeOf(context)?.context.findRenderObject() as RenderBox?;
+    final appBarBox = Scaffold.maybeOf(context)?.appBarMaxHeight != null
+        ? Scaffold.maybeOf(context)?.context.findRenderObject() as RenderBox?
+        : null;
+
+    // Fallback: use the center bottom and top right
+    final start = addToCartBox != null && scaffoldBox != null
+        ? addToCartBox.localToGlobal(addToCartBox.size.centerLeft(Offset.zero))
+        : Offset(MediaQuery.of(context).size.width / 2,
+            MediaQuery.of(context).size.height - 80);
+    final end = Offset(MediaQuery.of(context).size.width - 40, 40);
+
+    final animationController = AnimationController(
+      duration: const Duration(milliseconds: 700),
+      vsync: this,
+    );
+    final curvedAnimation = CurvedAnimation(
+      parent: animationController,
+      curve: Curves.easeInOut,
+    );
+
+    final tween = Tween<Offset>(begin: start, end: end);
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (context) {
+        return AnimatedBuilder(
+          animation: curvedAnimation,
+          builder: (context, child) {
+            final pos = tween.evaluate(curvedAnimation);
+            return Positioned(
+              left: pos.dx,
+              top: pos.dy,
+              child: Icon(
+                Icons.add_shopping_cart,
+                color: Colors.green.shade700,
+                size: 36,
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+    overlay.insert(entry);
+    await animationController.forward();
+    entry.remove();
+    animationController.dispose();
   }
 
   void _removeFromCart(BuildContext context, Product product) async {
@@ -559,7 +621,6 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     }
   }
 
-  // Clear saved quantity for this product
   Future<void> _clearSavedQuantity() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -812,7 +873,6 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           },
         ),
       ),
-      bottomNavigationBar: const CustomBottomNav(),
     );
   }
 
@@ -1677,14 +1737,15 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Image section
-              SizedBox(
-                height: 90,
+              Expanded(
                 child: ClipRRect(
                   borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
                   child: product.thumbnail.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: imageUrl,
-                          fit: BoxFit.cover,
+                          fit: BoxFit.contain,
+                          width: double.infinity,
+                          height: double.infinity,
                           placeholder: (context, url) => Container(
                             color: Colors.grey[200],
                             child: Center(
@@ -2109,10 +2170,6 @@ class ItemPageSkeleton extends StatelessWidget {
             ],
           ),
         ),
-      ),
-      bottomNavigationBar: Container(
-        height: 60,
-        color: Colors.white,
       ),
     );
   }

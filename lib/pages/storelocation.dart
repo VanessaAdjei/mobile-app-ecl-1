@@ -331,7 +331,6 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
           ),
         ),
       ),
-      bottomNavigationBar: const CustomBottomNav(),
     );
   }
 
