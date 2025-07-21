@@ -77,7 +77,7 @@ class HomeProductCard extends StatelessWidget {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Hero(
-                          tag: 'product-image- ${product.id}',
+                          tag: 'product-image-${product.id}-${product.urlName}',
                           child: Container(
                             color: Colors.grey[100],
                             child: CachedNetworkImage(

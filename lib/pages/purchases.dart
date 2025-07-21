@@ -20,6 +20,7 @@ class PurchaseScreen extends StatefulWidget {
 }
 
 class _PurchaseScreenState extends State<PurchaseScreen> {
+  final Set<String> _expandedOrders = {};
   bool _isLoading = true;
   String? _error;
   List<dynamic> _orders = [];
@@ -710,6 +711,16 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     final qty = order['qty'] ?? 1;
     final total = order['total_price'] ?? 0.0;
     final status = order['status'] ?? 'Processing';
+    final transactionId = order['transaction_id']?.toString() ?? '';
+    final isExpanded = _expandedOrders.contains(transactionId);
+    List<dynamic> orderItems = [];
+    if (isMultiItem) {
+      if (order['order_items'] is List && (order['order_items'] as List).isNotEmpty) {
+        orderItems = order['order_items'];
+      } else if (order['items'] is List && (order['items'] as List).isNotEmpty) {
+        orderItems = order['items'];
+      }
+    }
 
     print(
         'Building card for: $productName, payment: $paymentMethod, isCOD: $isCashOnDelivery');
@@ -894,6 +905,93 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                             fontSize: 14,
                           ),
                         ),
+                        if (isMultiItem)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              icon: Icon(isExpanded ? Icons.expand_less : Icons.expand_more),
+                              label: Text(isExpanded ? 'Hide Items' : 'View Items'),
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: Size(60, 28),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  if (isExpanded) {
+                                    _expandedOrders.remove(transactionId);
+                                  } else {
+                                    _expandedOrders.add(transactionId);
+                                  }
+                                });
+                              },
+                            ),
+                          ),
+                        if (isMultiItem && isExpanded)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: orderItems.isNotEmpty
+                                ? Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: orderItems.map<Widget>((item) {
+                                      final name = item['product_name'] ?? item['name'] ?? 'Unknown Product';
+                                      final qty = item['qty'] ?? item['quantity'] ?? 1;
+                                      final price = item['price'] ?? 0.0;
+                                      final imgUrl = getImageUrl(item['product_img'] ?? item['image']);
+                                      return Padding(
+                                        padding: const EdgeInsets.only(bottom: 8.0),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          children: [
+                                            ClipRRect(
+                                              borderRadius: BorderRadius.circular(6),
+                                              child: imgUrl.isNotEmpty
+                                                  ? CachedNetworkImage(
+                                                      imageUrl: imgUrl,
+                                                      width: 36,
+                                                      height: 36,
+                                                      fit: BoxFit.cover,
+                                                      placeholder: (context, url) => Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))),
+                                                      errorWidget: (context, url, error) => Icon(Icons.broken_image, size: 18, color: Colors.grey[400]),
+                                                    )
+                                                  : Container(
+                                                      width: 36,
+                                                      height: 36,
+                                                      color: Colors.grey[200],
+                                                      child: Icon(Icons.inventory_2_outlined, color: Colors.grey, size: 18),
+                                                    ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                name,
+                                                style: TextStyle(fontSize: 13, color: Colors.black87),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            Text(
+                                              'x$qty',
+                                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                            ),
+                                            SizedBox(width: 8),
+                                            Text(
+                                              'GHS ${(price * (qty is num ? qty : 1)).toStringAsFixed(2)}',
+                                              style: TextStyle(fontSize: 13, color: Colors.green[700], fontWeight: FontWeight.w500),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                                  )
+                                : Padding(
+                                    padding: const EdgeInsets.only(top: 4.0),
+                                    child: Text(
+                                      'No items found in this order.',
+                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                    ),
+                                  ),
+                          ),
                       ],
                     ),
                   ),

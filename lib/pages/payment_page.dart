@@ -367,11 +367,31 @@ class _PaymentPageState extends State<PaymentPage> {
           throw Exception(codResult['message'] ?? 'COD payment failed');
         }
 
+        // Navigate to OrderConfirmationPage immediately
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OrderConfirmationPage(
+              paymentParams: params,
+              purchasedItems: purchasedItems,
+              initialStatus: 'pending',
+              initialTransactionId: transactionId,
+              paymentSuccess: true,
+              paymentVerified: true,
+              paymentToken: null,
+              paymentMethod: selectedPaymentMethod,
+            ),
+          ),
+          (route) => false,
+        );
+
         // Remove each item from the backend cart after successful COD payment
-        for (final item in List<CartItem>.from(cart.cartItems)) {
-          await cart.removeFromCart(item.id);
-        }
-        cart.clearCart();
+        Future.microtask(() async {
+          for (final item in List<CartItem>.from(cart.cartItems)) {
+            await cart.removeFromCart(item.id);
+          }
+          cart.clearCart();
+        });
 
         // Create the order in the backend for cash on delivery
         try {
@@ -426,22 +446,6 @@ class _PaymentPageState extends State<PaymentPage> {
         } catch (e) {
           // Ignore order creation errors for now
         }
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OrderConfirmationPage(
-              paymentParams: params,
-              purchasedItems: purchasedItems,
-              initialStatus: 'pending',
-              initialTransactionId: transactionId,
-              paymentSuccess: true,
-              paymentVerified: true,
-              paymentToken: null,
-              paymentMethod: selectedPaymentMethod,
-            ),
-          ),
-          (route) => false,
-        );
         return;
       }
 

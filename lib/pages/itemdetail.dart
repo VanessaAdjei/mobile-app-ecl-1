@@ -1056,7 +1056,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: Hero(
-                        tag: 'product-image-${product.id}',
+                        tag: 'product-image-${product.id}-${product.urlName}',
                         child: imageUrl.isNotEmpty
                             ? CachedNetworkImage(
                                 imageUrl: imageUrl,

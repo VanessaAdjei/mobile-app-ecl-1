@@ -3036,6 +3036,7 @@ class _AnimatedVisibilityProductCardState extends State<AnimatedVisibilityProduc
   }
 
   void _onVisibilityChanged(VisibilityInfo info) {
+    if (!mounted) return;
     if (info.visibleFraction > 0.1 && !_visible) {
       setState(() => _visible = true);
       _controller.forward(from: 0);
