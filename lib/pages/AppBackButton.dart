@@ -23,12 +23,12 @@ class AppBackButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(100),
         onTap: onPressed ??
             () {
-              if (Navigator.canPop(context)) {
+              if (Navigator.canPop(context) && !(ModalRoute.of(context)?.isFirst ?? false)) {
                 Navigator.pop(context);
               } else {
-                Navigator.pushReplacement(
-                  context,
+                Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (context) => const HomePage()),
+                  (route) => false,
                 );
               }
             },

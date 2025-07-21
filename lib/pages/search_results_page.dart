@@ -1,10 +1,8 @@
 // pages/search_results_page.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter/services.dart';
 import 'ProductModel.dart';
 import 'itemdetail.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/product_card.dart';
 
 class SearchResultsPage extends StatefulWidget {
@@ -23,18 +21,9 @@ class SearchResultsPage extends StatefulWidget {
 
 class _SearchResultsPageState extends State<SearchResultsPage> {
   List<Product>? _filteredProducts;
-  String? _lastQuery;
   String _searchText = '';
   String _selectedCategory = 'All';
   final TextEditingController _searchController = TextEditingController();
-  final List<String> _categories = [
-    'All',
-    'Drugs',
-    'Wellness',
-    'Selfcare',
-    'Accessories'
-  ];
-  Set<int> _favoriteIds = {};
 
   @override
   void initState() {
@@ -66,7 +55,6 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
     }).toList();
     setState(() {
       _filteredProducts = filtered;
-      _lastQuery = widget.query;
     });
   }
 

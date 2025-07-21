@@ -31,6 +31,7 @@ import 'section_products_page.dart';
 import 'package:animations/animations.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 
 class ImagePreloader {
   static final Map<String, bool> _preloadedImages = {};
@@ -157,10 +158,10 @@ class SliverSearchBarDelegate extends SliverPersistentHeaderDelegate {
   }
 
   @override
-  double get maxExtent => 86.0;
+  double get maxExtent => 64.0;
 
   @override
-  double get minExtent => 86.0;
+  double get minExtent => 64.0;
 
   @override
   bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) {
@@ -169,16 +170,17 @@ class SliverSearchBarDelegate extends SliverPersistentHeaderDelegate {
 }
 
 class HomePage extends StatefulWidget {
-  const HomePage({
-    Key? key,
-  }) : super(key: key);
+  const HomePage({Key? key}) : super(key: key);
 
   @override
   _HomePageState createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
+    with
+        SingleTickerProviderStateMixin,
+        WidgetsBindingObserver,
+        AutomaticKeepAliveClientMixin {
   bool _isLoading = true;
   bool _isLoadingPopular = true;
   bool _isLoadingHealthTips = true;
@@ -221,6 +223,8 @@ class _HomePageState extends State<HomePage>
   int _popularBaseIndex = 0;
   int _popularCurrentIndex = 0;
   int _popularRepeatCount = 1000;
+
+  int _currentTutorialStep = 0;
 
   @override
   bool get wantKeepAlive => true;
@@ -962,6 +966,9 @@ class _HomePageState extends State<HomePage>
         }
       }
     });
+
+    // Only trigger the tutorial in the build method's Builder
+    // ... existing code ...
   }
 
   Future<void> _initializeOptimizationService() async {
@@ -1099,8 +1106,7 @@ class _HomePageState extends State<HomePage>
               final response = await http
                   .get(
                     Uri.parse(
-                        'https://eclcommerce.ernestchemists.com.gh/api/search/' +
-                            pattern),
+                        'https://eclcommerce.ernestchemists.com.gh/api/search/$pattern'),
                   )
                   .timeout(Duration(seconds: 10));
 
@@ -1588,7 +1594,7 @@ class _HomePageState extends State<HomePage>
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Padding(
-                            padding: EdgeInsets.only(left: 1),
+                            padding: const EdgeInsets.only(left: 1),
                             child: Image.asset(
                               'assets/images/png.png',
                               height: 85,
@@ -1606,33 +1612,7 @@ class _HomePageState extends State<HomePage>
                       pinned: true,
                       delegate: SliverSearchBarDelegate(
                         builder: (shrinkOffset) {
-                          final double searchBarHeight = 56.0;
-                          final double totalPad = 86.0 - searchBarHeight;
-                          if (shrinkOffset > 0) {
-                            // When scrolled: 38 top, 0 bottom
-                            return Padding(
-                              padding: EdgeInsets.only(
-                                top: 38.0,
-                                left: 10.0,
-                                right: 10.0,
-                                bottom: 0.0,
-                              ),
-                              child: _buildSearchBar(),
-                            );
-                          } else {
-                            // When not scrolled: 14 top, 16 bottom
-                            final double topPad = 14.0;
-                            final double bottomPad = 16.0;
-                            return Padding(
-                              padding: EdgeInsets.only(
-                                top: topPad,
-                                left: 10.0,
-                                right: 10.0,
-                                bottom: bottomPad,
-                              ),
-                              child: _buildSearchBar(),
-                            );
-                          }
+                          return _buildSearchBar();
                         },
                       ),
                     ),
@@ -1773,14 +1753,13 @@ class _HomePageState extends State<HomePage>
               color: Colors.white,
             ),
             // Search bar
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Container(
-                height: 50,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                ),
+            Container(
+              height: 86.0, // Must match the sliver's minExtent/maxExtent
+              margin: const EdgeInsets.symmetric(
+                  horizontal: 16.0), // Only horizontal margin
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
             Container(
@@ -2025,6 +2004,7 @@ class _HomePageState extends State<HomePage>
                   imageHeight: 100,
                   showPrice: false,
                   showName: false,
+                  showHero: false, // Disable Hero in the grid
                 ),
               ),
             ),
@@ -3010,10 +2990,13 @@ class AnimatedVisibilityProductCard extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<AnimatedVisibilityProductCard> createState() => _AnimatedVisibilityProductCardState();
+  State<AnimatedVisibilityProductCard> createState() =>
+      _AnimatedVisibilityProductCardState();
 }
 
-class _AnimatedVisibilityProductCardState extends State<AnimatedVisibilityProductCard> with SingleTickerProviderStateMixin {
+class _AnimatedVisibilityProductCardState
+    extends State<AnimatedVisibilityProductCard>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fade;
   late Animation<Offset> _slide;
@@ -3022,11 +3005,15 @@ class _AnimatedVisibilityProductCardState extends State<AnimatedVisibilityProduc
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: Duration(milliseconds: 250));
+    _controller =
+        AnimationController(vsync: this, duration: Duration(milliseconds: 250));
     _fade = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _controller, curve: Interval(0.0, 0.2, curve: Curves.easeOut)),
+      CurvedAnimation(
+          parent: _controller,
+          curve: Interval(0.0, 0.2, curve: Curves.easeOut)),
     );
-    _slide = Tween<Offset>(begin: Offset(0, 0.25), end: Offset.zero).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    _slide = Tween<Offset>(begin: Offset(0, 0.25), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
   @override
@@ -3058,7 +3045,8 @@ class _AnimatedVisibilityProductCardState extends State<AnimatedVisibilityProduc
         closedElevation: 0,
         openElevation: 0,
         transitionDuration: Duration(milliseconds: 200),
-        closedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        closedShape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         openBuilder: (context, _) => ItemPage(
           urlName: widget.product.urlName,
           isPrescribed: widget.product.otcpom?.toLowerCase() == 'pom',
@@ -3069,6 +3057,7 @@ class _AnimatedVisibilityProductCardState extends State<AnimatedVisibilityProduc
           padding: widget.padding,
           imageHeight: widget.imageHeight,
           onTap: openContainer,
+          showHero: false, // Disable Hero in closedBuilder
         ),
       ),
     );

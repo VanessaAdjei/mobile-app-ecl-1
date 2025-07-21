@@ -365,6 +365,7 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                         ),
                       );
                     },
+                    showHero: false, // Disable Hero in the section grid
                   );
                 },
               ),

@@ -15,6 +15,8 @@ import 'package:eclapp/pages/notifications.dart';
 import 'package:eclapp/pages/prescription_history.dart';
 import 'package:eclapp/pages/bulk_purchase_page.dart';
 import 'package:provider/provider.dart';
+import 'package:showcaseview/showcaseview.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SignInScreen extends StatefulWidget {
   final String? returnTo;
@@ -34,6 +36,7 @@ class _SignInScreenState extends State<SignInScreen> {
   bool _isLoading = false;
   bool _isResettingPassword = false;
   String? _errorMessage;
+  final GlobalKey _loginKey = GlobalKey();
 
   @override
   void initState() {
@@ -535,36 +538,46 @@ class _SignInScreenState extends State<SignInScreen> {
                           const SizedBox(height: 16),
 
                           // Sign In Button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 44,
-                            child: ElevatedButton(
-                              onPressed: _isLoading ? null : _signIn,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green.shade600,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                          Showcase(
+                            key: _loginKey,
+                            description: 'Tap here to sign in to your account.',
+                            disposeOnTap: true,
+                            onTargetClick: () async {
+                              // Mark tutorial as completed in SharedPreferences
+                              final prefs = await SharedPreferences.getInstance();
+                              await prefs.setBool('hasCompletedTutorial', true);
+                            },
+                            child: SizedBox(
+                              width: double.infinity,
+                              height: 44,
+                              child: ElevatedButton(
+                                onPressed: _isLoading ? null : _signIn,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green.shade600,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  elevation: 2,
                                 ),
-                                elevation: 2,
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text(
+                                        'SIGN IN',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 1.0,
+                                        ),
+                                      ),
                               ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.5,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Text(
-                                      'SIGN IN',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 1.0,
-                                      ),
-                                    ),
                             ),
                           ),
                         ],

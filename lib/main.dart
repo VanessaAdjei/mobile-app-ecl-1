@@ -1,19 +1,10 @@
 // main.dart
 import 'package:eclapp/pages/auth_service.dart';
 import 'package:eclapp/pages/authprovider.dart';
-import 'package:eclapp/pages/categories.dart';
-import 'package:eclapp/pages/createaccount.dart';
-import 'package:eclapp/pages/payment_page.dart';
 import 'package:eclapp/pages/profile.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
 import 'package:eclapp/pages/homepage.dart';
-import 'package:eclapp/pages/cart.dart';
-import 'package:eclapp/pages/ProductModel.dart';
-import 'package:eclapp/pages/upload_prescription.dart';
-import 'package:eclapp/pages/aboutus.dart';
-import 'package:eclapp/pages/privacypolicy.dart';
-import 'package:eclapp/pages/tandc.dart';
 import 'package:provider/provider.dart';
 import 'pages/cartprovider.dart';
 import 'pages/theme_provider.dart';
@@ -26,10 +17,11 @@ import 'pages/onboarding_splash_page.dart';
 import 'services/homepage_optimization_service.dart';
 import 'pages/main_navigation_page.dart';
 import 'package:eclapp/pages/profilescreen.dart';
+import 'package:flutter/foundation.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AuthService.clearAllGuestIds(); // Clear all guest IDs on app start
+  await AuthService.clearAllGuestIds();
   final prefs = await SharedPreferences.getInstance();
   print('guest_id after clear: \'${prefs.getString('guest_id')}\'');
 
@@ -75,129 +67,46 @@ void main() async {
   // Print guest id for testing
   await AuthService.getToken();
 
-  runApp(MyApp(tutorialShown: tutorialShown));
+  runApp(const MyApp());
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key, this.tutorialShown = false});
-
-  final bool tutorialShown;
+  const MyApp({Key? key}) : super(key: key);
 
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  bool _isLoggedIn = false;
-  bool _isInitialized = false;
+class _MyAppState extends State<MyApp> {
   bool? _isFirstLaunch;
-
-  // Global function to refresh auth state
-  static void Function()? _refreshAuthStateCallback;
-
-  static void setRefreshAuthStateCallback(void Function() callback) {
-    _refreshAuthStateCallback = callback;
-  }
-
-  static void refreshAuthState() {
-    _refreshAuthStateCallback?.call();
-  }
+  bool _isLoggedIn = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _checkFirstLaunch();
-    _MyAppState.setRefreshAuthStateCallback(_refreshAuthState);
-    // Prefetch banners on app start or hot restart
-    BannerCacheService().getBanners();
-    // Prefetch products on app start or hot restart
-    HomepageOptimizationService().getProducts();
-    // Prefetch popular products on app start or hot restart
-    HomepageOptimizationService().getPopularProducts();
-    // Prefetch categorized products on app start or hot restart
-    HomepageOptimizationService().getCategorizedProducts();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) async {
-    super.didChangeAppLifecycleState(state);
-
-    switch (state) {
-      case AppLifecycleState.paused:
-      case AppLifecycleState.detached:
-        AppOptimizationService().onAppBackgrounded();
-        break;
-      case AppLifecycleState.resumed:
-        AppOptimizationService().onAppForegrounded();
-        break;
-      case AppLifecycleState.inactive:
-        break;
-      case AppLifecycleState.hidden:
-        break;
-    }
-
-    final prefs = await SharedPreferences.getInstance();
-    if (state == AppLifecycleState.detached ||
-        state == AppLifecycleState.inactive) {
-      // App is being killed or backgrounded, reset the flag
-      await prefs.setBool('was_running', false);
-    }
+    _checkAuthStatus();
   }
 
   Future<void> _checkFirstLaunch() async {
     final prefs = await SharedPreferences.getInstance();
-    final isFirst = !(prefs.getBool('hasLaunchedBefore') ?? false);
-    if (mounted) {
-      setState(() {
-        _isFirstLaunch = isFirst;
-      });
-    }
+    setState(() {
+      _isFirstLaunch = !(prefs.getBool('hasLaunchedBefore') ?? false);
+    });
   }
 
-  Future<void> _initializeAuthState() async {
-    try {
-      final isLoggedIn = await AuthService.isLoggedIn().timeout(
-        const Duration(seconds: 2),
-        onTimeout: () {
-          print('Auth check timeout, defaulting to not logged in');
-          return false;
-        },
-      );
-      if (mounted) {
-        setState(() {
-          _isLoggedIn = isLoggedIn;
-          _isInitialized = true;
-        });
-      }
-    } catch (e) {
-      print('Error initializing auth state: $e');
-      if (mounted) {
-        setState(() {
-          _isLoggedIn = false;
-          _isInitialized = true;
-        });
-      }
-    }
+  Future<void> _checkAuthStatus() async {
+    final isLoggedIn = await AuthService.isLoggedIn();
+    setState(() {
+      _isLoggedIn = isLoggedIn;
+    });
   }
 
-  Future<void> _refreshAuthState() async {
-    try {
-      final isLoggedIn = await AuthService.isLoggedIn();
-      if (mounted) {
-        setState(() {
-          _isLoggedIn = isLoggedIn;
-        });
-      }
-    } catch (e) {
-      print('Error refreshing auth state: $e');
-    }
+  void _refreshAuthState() async {
+    final isLoggedIn = await AuthService.isLoggedIn();
+    setState(() {
+      _isLoggedIn = isLoggedIn;
+    });
   }
 
   @override
@@ -218,7 +127,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         ChangeNotifierProvider(
           create: (context) {
             final authProvider = AuthProvider();
-            // Initialize the auth provider
             authProvider.initialize();
             return authProvider;
           },
@@ -230,8 +138,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             isLoggedIn: _isLoggedIn,
             refreshAuthState: _refreshAuthState,
             child: MaterialApp(
-              debugShowCheckedModeBanner: false,
               title: 'ECL App',
+              debugShowCheckedModeBanner: false,
               themeMode:
                   themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
               theme: ThemeData(

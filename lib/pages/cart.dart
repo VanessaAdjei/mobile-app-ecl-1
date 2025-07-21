@@ -1102,6 +1102,14 @@ class _CartState extends State<Cart> {
                           ),
                         ),
                       ),
+                      // Add delete button
+                      IconButton(
+                        icon: Icon(Icons.delete, color: Colors.red.shade400),
+                        tooltip: 'Remove from cart',
+                        onPressed: () {
+                          cart.removeFromCart(item.id);
+                        },
+                      ),
                     ],
                   ),
                 ],

@@ -18,20 +18,17 @@ import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import 'AppBackButton.dart';
-import 'package:eclapp/pages/homepage.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'dart:ui';
 import 'package:eclapp/pages/cart.dart';
-import 'package:eclapp/pages/upload_prescription.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:share_plus/share_plus.dart';
 
 // Import optimization service
 import '../services/item_detail_optimization_service.dart';
 import '../widgets/optimized_item_detail_widget.dart';
 
-// Cache for product details (legacy - will be replaced by optimization service)
+
 final Map<String, Product> _productCache = {};
 final Map<String, List<Product>> _relatedProductsCache = {};
 
