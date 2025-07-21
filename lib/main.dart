@@ -25,6 +25,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'pages/onboarding_splash_page.dart';
 import 'services/homepage_optimization_service.dart';
 import 'pages/main_navigation_page.dart';
+import 'package:eclapp/pages/profilescreen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -143,7 +144,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    if (state == AppLifecycleState.detached || state == AppLifecycleState.inactive) {
+    if (state == AppLifecycleState.detached ||
+        state == AppLifecycleState.inactive) {
       // App is being killed or backgrounded, reset the flag
       await prefs.setBool('was_running', false);
     }
@@ -375,6 +377,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       },
                     )
                   : const HomePage(),
+              routes: {
+                '/profile': (context) => Profile(),
+              },
             ),
           );
         },

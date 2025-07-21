@@ -195,17 +195,16 @@ class _PaymentPageState extends State<PaymentPage> {
 
   // Helper to get the correct Authorization header (Bearer or Guest)
   Future<String?> getAuthHeader() async {
+    final isLoggedIn = await AuthService.isLoggedIn();
     String? token = await AuthService.getToken();
-    if (token != null && token.isNotEmpty) {
-      if (token.startsWith('guest_')) {
-        return 'Guest $token';
-      } else {
-        return 'Bearer $token';
-      }
+    if (isLoggedIn &&
+        token != null &&
+        token.isNotEmpty &&
+        !token.startsWith('guest_')) {
+      return 'Bearer $token';
+    } else if (!isLoggedIn && token != null && token.startsWith('guest_')) {
+      return 'Guest $token';
     }
-    final prefs = await SharedPreferences.getInstance();
-    String? guestToken = prefs.getString('guest_id');
-    if (guestToken != null && guestToken.isNotEmpty) return 'Guest $guestToken';
     return null;
   }
 
@@ -368,6 +367,12 @@ class _PaymentPageState extends State<PaymentPage> {
           throw Exception(codResult['message'] ?? 'COD payment failed');
         }
 
+        // Remove each item from the backend cart after successful COD payment
+        for (final item in List<CartItem>.from(cart.cartItems)) {
+          await cart.removeFromCart(item.id);
+        }
+        cart.clearCart();
+
         // Create the order in the backend for cash on delivery
         try {
           // Convert cart items to the format expected by the API
@@ -441,28 +446,29 @@ class _PaymentPageState extends State<PaymentPage> {
       }
 
       // Online Payment Flow
-      if (authHeader == null) {
-        setState(() {
-          _paymentError =
-              'You must be logged in or have a guest session to use online payment. Please choose Cash on Delivery or log in.';
-        });
-        print('[DEBUG] Returning early: authHeader is null');
-        return;
-      }
-
+      final isLoggedIn = await AuthService.isLoggedIn();
+      final token = await AuthService.getToken();
       final headers = <String, String>{
         'Accept': 'application/json',
         'Content-Type': 'application/json',
       };
-      if (isGuest) {
-        // Get the guest token from authHeader (format: 'Guest guest_xxx')
-        String? guestId = authHeader?.replaceFirst('Guest ', '');
-        if (guestId != null && guestId.isNotEmpty) {
-          headers['Authorization'] = 'Guest ' + guestId;
-          headers['X-Guest-ID'] = guestId; // Add X-Guest-ID header for backend
-        }
-      } else if (authHeader != null && authHeader.isNotEmpty) {
-        headers['Authorization'] = authHeader;
+      if (isLoggedIn &&
+          token != null &&
+          token.isNotEmpty &&
+          !token.startsWith('guest_')) {
+        headers['Authorization'] = 'Bearer $token';
+      } else if (!isLoggedIn && token != null && token.startsWith('guest_')) {
+        final guestId = token;
+        headers['Authorization'] = 'Guest $guestId';
+        headers['X-Guest-ID'] = guestId;
+        print('[DEBUG] Guest payment status check: guest_id = ' + guestId);
+      } else {
+        setState(() {
+          _paymentError =
+              'You must be logged in or have a guest session to use online payment. Please choose Cash on Delivery or log in.';
+        });
+        print('[DEBUG] Returning early: no valid token for payment');
+        return;
       }
 
       print('[DEBUG] Payment API Request Headers: ' + headers.toString());
@@ -916,7 +922,6 @@ class _PaymentPageState extends State<PaymentPage> {
             ),
         ],
       ),
-      bottomNavigationBar: CustomBottomNav(initialIndex: 1),
     );
   }
 
@@ -2271,12 +2276,16 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
   Future<void> _checkPaymentStatus() async {
     try {
+      print('[DEBUG] _checkPaymentStatus called');
       setState(() {
         _isLoading = true;
       });
       final result = await _fetchPaymentStatus();
+      print('[DEBUG] _fetchPaymentStatus result: ' + result.toString());
       if (mounted) {
         setState(() {
+          print('[DEBUG] setState in _checkPaymentStatus: updating status to ' +
+              (result['status']?.toString() ?? 'null'));
           final newStatus = result['status'];
           final currentStatus = _status?.toLowerCase();
 
@@ -2601,7 +2610,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                           ],
                                         ),
                                         child: InkWell(
-                                          onTap: _checkPaymentStatus,
+                                          onTap: () {
+                                            print(
+                                                '[DEBUG] Check Status button pressed');
+                                            _checkPaymentStatus();
+                                          },
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
@@ -3041,7 +3054,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           ),
         ],
       ),
-      bottomNavigationBar: CustomBottomNav(initialIndex: 1),
     );
   }
 
@@ -3151,176 +3163,187 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
   Future<Map<String, dynamic>> _fetchPaymentStatus() async {
     try {
+      // Check if user is logged in
+      final isLoggedIn = await AuthService.isLoggedIn();
       final tokenRaw = await AuthService.getToken();
-      if (tokenRaw == null || tokenRaw.isEmpty) {
-        throw Exception('Please log in to check payment status');
+      String? userId = await AuthService.getCurrentUserID();
+      String? authHeader;
+      Map<String, dynamic> requestBody = {};
+
+      if (isLoggedIn &&
+          tokenRaw != null &&
+          tokenRaw.isNotEmpty &&
+          !tokenRaw.startsWith('guest_')) {
+        // Logged-in user: ONLY use Bearer token, never guest_id
+        authHeader = 'Bearer $tokenRaw';
+        if (userId == null) {
+          return {'status': 'error', 'message': ''};
+        }
+        requestBody = {'user_id': userId};
+      } else if (!isLoggedIn &&
+          tokenRaw != null &&
+          tokenRaw.startsWith('guest_')) {
+        // Guest user: ONLY use guest_id if not logged in
+        final guestId = tokenRaw;
+        authHeader = 'Guest $guestId';
+        requestBody = {'guest_id': guestId};
+        print('[DEBUG] Guest payment status check: guest_id = ' + guestId);
+      } else {
+        return {'status': 'error', 'message': ''};
       }
 
-      final userId = await AuthService.getCurrentUserID();
-      if (userId == null) {
-        // Silently return an error result instead of throwing an exception
-        return {
-          'status': 'error',
-          'message': '', // No warning message
-        };
-      }
-      // Create request body
-      final requestBody = {
-        'user_id': userId,
+      // Make the request with timeout
+      final headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
       };
-      try {
-        // Make the request with timeout
-        final response = await http
-            .post(
-          Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/check-payment'),
-          headers: {
-            'Authorization': 'Bearer $tokenRaw',
-            'Accept': 'application/json',
-          },
-          body: jsonEncode(requestBody),
-        )
-            .timeout(
-          const Duration(seconds: 15),
-          onTimeout: () {
-            throw TimeoutException(
-                'Payment status check timed out. Please try again.');
-          },
-        );
+      if (authHeader != null) {
+        headers['Authorization'] = authHeader;
+      }
+      if (!isLoggedIn && tokenRaw != null && tokenRaw.startsWith('guest_')) {
+        headers['X-Guest-ID'] = tokenRaw;
+      }
+      print('[DEBUG] Payment Status Check - Request Headers: ' +
+          headers.toString());
+      print('[DEBUG] Payment Status Check - Request Body: ' +
+          jsonEncode(requestBody));
+      final response = await http
+          .post(
+        Uri.parse(
+            'https://eclcommerce.ernestchemists.com.gh/api/check-payment'),
+        headers: headers,
+        body: jsonEncode(requestBody),
+      )
+          .timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException(
+              'Payment status check timed out. Please try again.');
+        },
+      );
+      print('[DEBUG] Payment Status Check - Raw Response: ' + response.body);
 
-        if (response.statusCode == 200) {
-          // Handle empty response
-          if (response.body.isEmpty) {
-            // Track empty response time
-            if (_firstEmptyResponseTime == null) {
-              _firstEmptyResponseTime = DateTime.now();
-              _emptyResponseCount = 1;
-            } else {
-              _emptyResponseCount++;
-            }
-
-            // Check if we've been receiving empty responses for 3 minutes
-            if (_firstEmptyResponseTime != null) {
-              final timeSinceFirstEmpty =
-                  DateTime.now().difference(_firstEmptyResponseTime!);
-              final minutesSinceFirstEmpty = timeSinceFirstEmpty.inMinutes;
-
-              if (minutesSinceFirstEmpty >= _maxEmptyResponseTimeMinutes ||
-                  _emptyResponseCount >= _maxEmptyResponseCount) {
-                _statusCheckTimer?.cancel();
-                _buttonShowTimer?.cancel();
-                _emptyResponseTimer?.cancel();
-
-                return {
-                  'status': 'failed',
-                  'message':
-                      'Payment verification failed due to server timeout. Please try again or contact support.',
-                };
-              }
-            }
-
-            // Try to make another request after a short delay
-            await Future.delayed(Duration(seconds: 2));
-            final retryResponse = await http
-                .post(
-              Uri.parse(
-                  'https://eclcommerce.ernestchemists.com.gh/api/check-payment'),
-              headers: {
-                'Authorization': 'Bearer $tokenRaw',
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-              },
-              body: jsonEncode(requestBody),
-            )
-                .timeout(
-              const Duration(seconds: 15),
-              onTimeout: () {
-                throw TimeoutException(
-                    'Payment status check timed out on retry. Please try again.');
-              },
-            );
-
-            if (retryResponse.body.isNotEmpty) {
-              // Reset empty response tracking if we get a valid response
-              _firstEmptyResponseTime = null;
-              _emptyResponseCount = 0;
-
-              try {
-                // Handle malformed JSON responses that might have extra text before JSON
-                String responseBody = retryResponse.body.trim();
-
-                // Try to find JSON object in the response
-                int jsonStartIndex = responseBody.indexOf('{');
-                if (jsonStartIndex != -1) {
-                  // Extract only the JSON part
-                  responseBody = responseBody.substring(jsonStartIndex);
-                }
-
-                final data = json.decode(responseBody);
-                return _processPaymentStatus(data);
-              } catch (e) {
-                throw Exception(
-                    'Invalid response format from server. Please try again.');
-              }
-            } else {
-              // Retry also returned empty response, increment count
-              _emptyResponseCount++;
-            }
-
-            return {
-              'status': 'pending',
-              'message': 'Waiting for payment confirmation...',
-            };
+      if (response.statusCode == 200) {
+        // Handle empty response
+        if (response.body.isEmpty) {
+          // Track empty response time
+          if (_firstEmptyResponseTime == null) {
+            _firstEmptyResponseTime = DateTime.now();
+            _emptyResponseCount = 1;
           } else {
+            _emptyResponseCount++;
+          }
+
+          // Check if we've been receiving empty responses for 3 minutes
+          if (_firstEmptyResponseTime != null) {
+            final timeSinceFirstEmpty =
+                DateTime.now().difference(_firstEmptyResponseTime!);
+            final minutesSinceFirstEmpty = timeSinceFirstEmpty.inMinutes;
+
+            if (minutesSinceFirstEmpty >= _maxEmptyResponseTimeMinutes ||
+                _emptyResponseCount >= _maxEmptyResponseCount) {
+              _statusCheckTimer?.cancel();
+              _buttonShowTimer?.cancel();
+              _emptyResponseTimer?.cancel();
+
+              return {
+                'status': 'failed',
+                'message':
+                    'Payment verification failed due to server timeout. Please try again or contact support.',
+              };
+            }
+          }
+
+          // Try to make another request after a short delay
+          await Future.delayed(Duration(seconds: 2));
+          final retryResponse = await http
+              .post(
+            Uri.parse(
+                'https://eclcommerce.ernestchemists.com.gh/api/check-payment'),
+            headers: headers,
+            body: jsonEncode(requestBody),
+          )
+              .timeout(
+            const Duration(seconds: 15),
+            onTimeout: () {
+              throw TimeoutException(
+                  'Payment status check timed out on retry. Please try again.');
+            },
+          );
+
+          if (retryResponse.body.isNotEmpty) {
             // Reset empty response tracking if we get a valid response
             _firstEmptyResponseTime = null;
             _emptyResponseCount = 0;
-          }
 
-          try {
-            // Handle malformed JSON responses that might have extra text before JSON
-            String responseBody = response.body.trim();
+            try {
+              // Handle malformed JSON responses that might have extra text before JSON
+              String responseBody = retryResponse.body.trim();
 
-            // Try to find JSON object in the response
-            int jsonStartIndex = responseBody.indexOf('{');
-            if (jsonStartIndex != -1) {
-              // Extract only the JSON part
-              responseBody = responseBody.substring(jsonStartIndex);
+              // Try to find JSON object in the response
+              int jsonStartIndex = responseBody.indexOf('{');
+              if (jsonStartIndex != -1) {
+                // Extract only the JSON part
+                responseBody = responseBody.substring(jsonStartIndex);
+              }
+
+              final data = json.decode(responseBody);
+              return _processPaymentStatus(data);
+            } catch (e) {
+              throw Exception(
+                  'Invalid response format from server. Please try again.');
             }
-
-            final data = json.decode(responseBody);
-            return _processPaymentStatus(data);
-          } catch (e) {
-            throw Exception(
-                'Invalid response format from server. Please try again.');
+          } else {
+            // Retry also returned empty response, increment count
+            _emptyResponseCount++;
           }
-        } else if (response.statusCode == 401) {
-          throw Exception('Session expired. Please log in again.');
-        } else if (response.statusCode == 403) {
-          throw Exception(
-              'You do not have permission to check payment status.');
-        } else if (response.statusCode == 404) {
-          throw Exception('Payment record not found. Please contact support.');
-        } else if (response.statusCode >= 500) {
-          throw Exception('Server error. Please try again later.');
+
+          return {
+            'status': 'pending',
+            'message': 'Waiting for payment confirmation...',
+          };
         } else {
-          throw Exception('Failed to verify payment: ${response.statusCode}');
+          // Reset empty response tracking if we get a valid response
+          _firstEmptyResponseTime = null;
+          _emptyResponseCount = 0;
         }
-      } on TimeoutException {
-        throw Exception(
-            'Payment status check timed out. Please check your internet connection and try again.');
-      } on SocketException {
-        throw Exception(
-            'No internet connection. Please check your network and try again.');
-      } on FormatException {
-        throw Exception(
-            'Invalid response format from server. Please try again.');
+
+        try {
+          // Handle malformed JSON responses that might have extra text before JSON
+          String responseBody = response.body.trim();
+
+          // Try to find JSON object in the response
+          int jsonStartIndex = responseBody.indexOf('{');
+          if (jsonStartIndex != -1) {
+            // Extract only the JSON part
+            responseBody = responseBody.substring(jsonStartIndex);
+          }
+
+          final data = json.decode(responseBody);
+          return _processPaymentStatus(data);
+        } catch (e) {
+          throw Exception(
+              'Invalid response format from server. Please try again.');
+        }
+      } else if (response.statusCode == 401) {
+        throw Exception('Session expired. Please log in again.');
+      } else if (response.statusCode == 403) {
+        throw Exception('You do not have permission to check payment status.');
+      } else if (response.statusCode == 404) {
+        throw Exception('Payment record not found. Please contact support.');
+      } else if (response.statusCode >= 500) {
+        throw Exception('Server error. Please try again later.');
+      } else {
+        throw Exception('Failed to verify payment: ${response.statusCode}');
       }
-    } catch (e) {
-      return {
-        'status': 'error',
-        'message': e.toString(),
-      };
+    } on TimeoutException {
+      throw Exception(
+          'Payment status check timed out. Please check your internet connection and try again.');
+    } on SocketException {
+      throw Exception(
+          'No internet connection. Please check your network and try again.');
+    } on FormatException {
+      throw Exception('Invalid response format from server. Please try again.');
     }
   }
 

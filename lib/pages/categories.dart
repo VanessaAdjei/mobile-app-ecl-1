@@ -1092,7 +1092,9 @@ class _CategoryPageState extends State<CategoryPage> {
               iconColor: iconColor,
               available: available is int ? available : null,
               onTap: () {
+                print('[DEBUG] Category card tapped: ${category['name']} (ID: ${category['id']})');
                 if (category['has_subcategories'] == true) {
+                  print('[DEBUG] Navigating to SubcategoryPage for category: ${category['name']}');
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -1103,6 +1105,7 @@ class _CategoryPageState extends State<CategoryPage> {
                     ),
                   );
                 } else {
+                  print('[DEBUG] Navigating to ProductListPage for category: ${category['name']}');
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -1303,104 +1306,108 @@ class _ModernCategoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final String bgImage = _getBackgroundImage(name);
 
-    return Container(
-      margin: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-        image: DecorationImage(
-          image: AssetImage(bgImage),
-          fit: BoxFit.cover,
-          colorFilter: ColorFilter.mode(
-            Colors.black.withOpacity(0.18),
-            BlendMode.darken,
-          ),
-        ),
-      ),
-      child: Stack(
-        children: [
-          // Overlay for readability
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                color: Colors.white.withOpacity(0.08),
-              ),
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+          image: DecorationImage(
+            image: AssetImage(bgImage),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+              Colors.black.withOpacity(0.18),
+              BlendMode.darken,
             ),
           ),
-          // Text at the bottom left
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-                16, 16, 48, 3), // extra right padding to avoid arrow
-            child: Align(
-              alignment: Alignment.bottomLeft,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.white,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black38,
-                          blurRadius: 4,
-                          offset: Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  if (available != null)
+        ),
+        child: Stack(
+          children: [
+            // Overlay for readability
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  color: Colors.white.withOpacity(0.08),
+                ),
+              ),
+            ),
+            // Text at the bottom left
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  16, 16, 48, 3), // extra right padding to avoid arrow
+              child: Align(
+                alignment: Alignment.bottomLeft,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      '$available Available',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.85),
-                        fontSize: 13,
+                      name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.white,
                         shadows: [
                           Shadow(
-                            color: Colors.black26,
-                            blurRadius: 2,
+                            color: Colors.black38,
+                            blurRadius: 4,
                             offset: Offset(0, 1),
                           ),
                         ],
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                ],
-              ),
-            ),
-          ),
-          // Arrow button
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.green,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(20),
+                    const SizedBox(height: 4),
+                    if (available != null)
+                      Text(
+                        '$available Available',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.85),
+                          fontSize: 13,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black26,
+                              blurRadius: 2,
+                              offset: Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              child: IconButton(
-                icon: const Icon(Icons.arrow_forward, color: Colors.white),
-                onPressed: onTap,
+            ),
+            // Arrow button
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    bottomRight: Radius.circular(20),
+                  ),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_forward, color: Colors.white),
+                  onPressed: onTap,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

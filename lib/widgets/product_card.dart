@@ -76,24 +76,27 @@ class HomeProductCard extends StatelessWidget {
                           },
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          color: Colors.grey[100],
-                          child: CachedNetworkImage(
-                            imageUrl: HomepageOptimizationService().getProductImageUrl(product.thumbnail),
-                            fit: BoxFit.cover,
-                            memCacheWidth: 300,
-                            memCacheHeight: 300,
-                            maxWidthDiskCache: 300,
-                            maxHeightDiskCache: 300,
-                            fadeInDuration: Duration(milliseconds: 100),
-                            fadeOutDuration: Duration(milliseconds: 100),
-                            placeholder: (context, url) => Center(
-                              child: CircularProgressIndicator(strokeWidth: 1),
-                            ),
-                            errorWidget: (_, __, ___) => Container(
-                              color: Colors.grey[200],
-                              child: Center(
-                                child: Icon(Icons.broken_image, size: 16),
+                        child: Hero(
+                          tag: 'product-image- ${product.id}',
+                          child: Container(
+                            color: Colors.grey[100],
+                            child: CachedNetworkImage(
+                              imageUrl: HomepageOptimizationService().getProductImageUrl(product.thumbnail),
+                              fit: BoxFit.cover,
+                              memCacheWidth: 300,
+                              memCacheHeight: 300,
+                              maxWidthDiskCache: 300,
+                              maxHeightDiskCache: 300,
+                              fadeInDuration: Duration.zero,
+                              fadeOutDuration: Duration.zero,
+                              placeholder: (context, url) => Center(
+                                child: CircularProgressIndicator(strokeWidth: 1),
+                              ),
+                              errorWidget: (_, __, ___) => Container(
+                                color: Colors.grey[200],
+                                child: Center(
+                                  child: Icon(Icons.broken_image, size: 16),
+                                ),
                               ),
                             ),
                           ),

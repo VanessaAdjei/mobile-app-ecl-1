@@ -444,6 +444,10 @@ class AuthService {
           }
         }
 
+        // Clear guest_id after successful login
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('guest_id');
+
         return {
           'success': true,
           'token': token,
@@ -995,11 +999,11 @@ class AuthService {
     // Only retrieve a persistent guest id for non-logged-in users if it already exists
     final prefs = await SharedPreferences.getInstance();
     String? guestId = prefs.getString('guest_id');
-    if (guestId != null) {
+    if (!loggedIn && guestId != null) {
       print('[AuthService] Using existing guest_id: ' + guestId);
+      return guestId;
     }
-
-    return guestId;
+    return null;
   }
 
   /// Clear all guest_id keys from SharedPreferences
@@ -1281,7 +1285,7 @@ class AuthService {
     try {
       final userId = await getCurrentUserID();
       if (userId == null) {
-        return {'status': 'error', 'message': 'User ID not found'};
+        return {'status': 'error', 'message': ''};
       }
 
       return await _storeCashOnDeliveryOrderLocally(

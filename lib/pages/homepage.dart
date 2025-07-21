@@ -28,6 +28,9 @@ import '../services/homepage_optimization_service.dart';
 import '../widgets/empty_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'section_products_page.dart';
+import 'package:animations/animations.dart';
+import 'package:visibility_detector/visibility_detector.dart';
+import 'package:flutter/cupertino.dart';
 
 class ImagePreloader {
   static final Map<String, bool> _preloadedImages = {};
@@ -175,7 +178,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
   bool _isLoading = true;
   bool _isLoadingPopular = true;
   bool _isLoadingHealthTips = true;
@@ -218,6 +221,9 @@ class _HomePageState extends State<HomePage>
   int _popularBaseIndex = 0;
   int _popularCurrentIndex = 0;
   int _popularRepeatCount = 1000;
+
+  @override
+  bool get wantKeepAlive => true;
 
   _launchPhoneDialer(String phoneNumber) async {
     final permissionStatus = await Permission.phone.request();
@@ -1519,6 +1525,7 @@ class _HomePageState extends State<HomePage>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Scaffold(
       body: _isLoading ? HomePageSkeletonBody() : _buildMainContent(),
       bottomNavigationBar: CustomBottomNav(initialIndex: 0),
@@ -2274,10 +2281,10 @@ class _HomePageState extends State<HomePage>
             crossAxisSpacing: 0.0, // Small spacing between columns
           ),
           itemBuilder: (context, index) {
-            return HomeProductCard(
+            return AnimatedVisibilityProductCard(
+              key: ValueKey(products[index].id),
               product: products[index],
-              fontSize:
-                  fontSize * 1.1, // Increased from 0.95 to 1.1 for bigger text
+              fontSize: fontSize * 1.1,
               padding: padding * 0.8,
               imageHeight: imageHeight * 0.85,
             );
@@ -2985,4 +2992,84 @@ Widget buildCapsuleHeading(String title, Color color) {
       ),
     ),
   );
+}
+
+// YesStyle-style scroll-in animation for product cards
+class AnimatedVisibilityProductCard extends StatefulWidget {
+  final Product product;
+  final double? fontSize;
+  final double? padding;
+  final double? imageHeight;
+
+  const AnimatedVisibilityProductCard({
+    Key? key,
+    required this.product,
+    this.fontSize,
+    this.padding,
+    this.imageHeight,
+  }) : super(key: key);
+
+  @override
+  State<AnimatedVisibilityProductCard> createState() => _AnimatedVisibilityProductCardState();
+}
+
+class _AnimatedVisibilityProductCardState extends State<AnimatedVisibilityProductCard> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fade;
+  late Animation<Offset> _slide;
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: Duration(milliseconds: 250));
+    _fade = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _controller, curve: Interval(0.0, 0.2, curve: Curves.easeOut)),
+    );
+    _slide = Tween<Offset>(begin: Offset(0, 0.25), end: Offset.zero).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onVisibilityChanged(VisibilityInfo info) {
+    if (info.visibleFraction > 0.1 && !_visible) {
+      setState(() => _visible = true);
+      _controller.forward(from: 0);
+    } else if (info.visibleFraction == 0 && _visible) {
+      setState(() => _visible = false);
+      _controller.reset();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return VisibilityDetector(
+      key: widget.key ?? UniqueKey(),
+      onVisibilityChanged: _onVisibilityChanged,
+      child: OpenContainer(
+        transitionType: ContainerTransitionType.fadeThrough,
+        openColor: Theme.of(context).scaffoldBackgroundColor,
+        closedColor: Colors.transparent,
+        closedElevation: 0,
+        openElevation: 0,
+        transitionDuration: Duration(milliseconds: 200),
+        closedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        openBuilder: (context, _) => ItemPage(
+          urlName: widget.product.urlName,
+          isPrescribed: widget.product.otcpom?.toLowerCase() == 'pom',
+        ),
+        closedBuilder: (context, openContainer) => HomeProductCard(
+          product: widget.product,
+          fontSize: widget.fontSize,
+          padding: widget.padding,
+          imageHeight: widget.imageHeight,
+          onTap: openContainer,
+        ),
+      ),
+    );
+  }
 }

@@ -634,8 +634,8 @@ class CartProvider with ChangeNotifier {
     await _saveUserCarts();
     notifyListeners();
 
-    // Only sync with server if user is logged in
-    if (await AuthService.isLoggedIn()) {
+    final isLoggedIn = await AuthService.isLoggedIn();
+    if (isLoggedIn) {
       try {
         final token = await AuthService.getToken();
         if (token == null) {
@@ -656,10 +656,11 @@ class CartProvider with ChangeNotifier {
           }),
         );
 
-        print('=== REMOVE FROM CART API RESPONSE ===');
+        print('=== REMOVE FROM CART API RESPONSE (user) ===');
         print(
             'URL: https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart');
         print('Request Body: ${jsonEncode({'cart_id': cartId})}');
+        print('Request Headers: Bearer $token');
         print('Response Status: ${response.statusCode}');
         print('Response Headers: ${response.headers}');
         print('Response Body: ${response.body}');
@@ -669,6 +670,41 @@ class CartProvider with ChangeNotifier {
         await syncWithApi();
       } catch (e) {
         // Even if there's an error, try to sync with server
+        await syncWithApi();
+      }
+    } else {
+      // Guest user: remove from backend using guest_id
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final guestId = prefs.getString('guest_id');
+        if (guestId == null || guestId.isEmpty) {
+          debugPrint('Cannot remove from cart - missing guest_id');
+          return;
+        }
+        final response = await http.post(
+          Uri.parse(
+              'https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart'),
+          headers: {
+            'Authorization': 'Guest $guestId',
+            'X-Guest-ID': guestId,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'cart_id': cartId,
+          }),
+        );
+        print('=== REMOVE FROM CART API RESPONSE (guest) ===');
+        print(
+            'URL: https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart');
+        print('Request Body: ${jsonEncode({'cart_id': cartId})}');
+        print('Request Headers: Guest $guestId, X-Guest-ID: $guestId');
+        print('Response Status: ${response.statusCode}');
+        print('Response Headers: ${response.headers}');
+        print('Response Body: ${response.body}');
+        print('====================================');
+        await syncWithApi();
+      } catch (e) {
         await syncWithApi();
       }
     }
@@ -685,8 +721,6 @@ class CartProvider with ChangeNotifier {
       print('Old Quantity: $currentQuantity');
       print('New Quantity: $newQuantity');
 
-      // Track this item as recently updated to prevent sync override
-      // Use normalized product name + batch number as key to avoid product ID mismatches
       final normalizedName = _normalizeProductName(item.name);
       final protectionKey = '$normalizedName-${item.batchNo}';
       _recentlyCorrectedItems[protectionKey] = newQuantity;
@@ -699,7 +733,6 @@ class CartProvider with ChangeNotifier {
       print('✅ Quantity updated locally - item stays in UI');
       print('🔒 Protected from sync override with key: $protectionKey');
 
-      // Try to sync with server in the background (non-blocking)
       if (await AuthService.isLoggedIn()) {
         _syncQuantityWithServer(item, newQuantity);
       }
