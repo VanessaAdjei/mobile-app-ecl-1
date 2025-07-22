@@ -28,7 +28,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/item_detail_optimization_service.dart';
 import '../widgets/optimized_item_detail_widget.dart';
 
-
 final Map<String, Product> _productCache = {};
 final Map<String, List<Product>> _relatedProductsCache = {};
 
@@ -870,6 +869,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           },
         ),
       ),
+      bottomNavigationBar: CustomBottomNav(initialIndex: 0),
     );
   }
 
@@ -1469,6 +1469,8 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 ),
               ),
             )));
+    bottomNavigationBar:
+    CustomBottomNav(initialIndex: 0);
   }
 
   Widget _buildRelatedProductsSection(Product product) {

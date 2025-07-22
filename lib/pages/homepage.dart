@@ -910,6 +910,13 @@ class _HomePageState extends State<HomePage>
     await _loadAllContent();
   }
 
+  void _clearSearch() {
+    if (_searchController.text.isNotEmpty) {
+      _searchController.clear();
+      setState(() {});
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1006,8 +1013,10 @@ class _HomePageState extends State<HomePage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    // Refresh health tips when app becomes active
-    if (state == AppLifecycleState.resumed) {}
+    // Clear search when app becomes active
+    if (state == AppLifecycleState.resumed) {
+      _clearSearch();
+    }
   }
 
   void showTopSnackBar(BuildContext context, String message,
@@ -1058,7 +1067,8 @@ class _HomePageState extends State<HomePage>
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16.0, 40.0, 16.0, 8.0), // Further increased top padding
+      padding: const EdgeInsets.fromLTRB(
+          16.0, 40.0, 16.0, 8.0), // Further increased top padding
       child: SizedBox(
         height: 48,
         child: TypeAheadField<Product>(
@@ -1094,7 +1104,7 @@ class _HomePageState extends State<HomePage>
                       products: _products,
                     ),
                   ),
-                );
+                ).then((_) => _clearSearch());
               }
             },
           ),
@@ -1204,7 +1214,6 @@ class _HomePageState extends State<HomePage>
               child: InkWell(
                 borderRadius: BorderRadius.circular(9),
                 onTap: () {
-                  Navigator.pop(context);
                   final matchingProduct = _products.firstWhere(
                     (p) => p.id == suggestion.id || p.name == suggestion.name,
                     orElse: () => suggestion,
@@ -1212,30 +1221,29 @@ class _HomePageState extends State<HomePage>
                   final urlName = matchingProduct.urlName.isNotEmpty
                       ? matchingProduct.urlName
                       : suggestion.urlName;
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (suggestion.name == '__VIEW_MORE__') {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SearchResultsPage(
-                            query: _searchController.text,
-                            products: _products,
-                          ),
+
+                  if (suggestion.name == '__VIEW_MORE__') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SearchResultsPage(
+                          query: _searchController.text,
+                          products: _products,
                         ),
-                      );
-                    } else {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ItemPage(
-                            urlName: urlName,
-                            isPrescribed:
-                                matchingProduct.otcpom?.toLowerCase() == 'pom',
-                          ),
+                      ),
+                    ).then((_) => _clearSearch());
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ItemPage(
+                          urlName: urlName,
+                          isPrescribed:
+                              matchingProduct.otcpom?.toLowerCase() == 'pom',
                         ),
-                      );
-                    }
-                  });
+                      ),
+                    ).then((_) => _clearSearch());
+                  }
                 },
                 child: Padding(
                   padding:
@@ -1321,7 +1329,7 @@ class _HomePageState extends State<HomePage>
                     products: _products,
                   ),
                 ),
-              );
+              ).then((_) => _clearSearch());
             } else {
               Navigator.push(
                 context,
@@ -1332,7 +1340,7 @@ class _HomePageState extends State<HomePage>
                         matchingProduct.otcpom?.toLowerCase() == 'pom',
                   ),
                 ),
-              );
+              ).then((_) => _clearSearch());
             }
           },
           noItemsFoundBuilder: (context) => Padding(

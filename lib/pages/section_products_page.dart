@@ -5,6 +5,7 @@ import '../services/homepage_optimization_service.dart';
 import '../widgets/product_card.dart';
 import 'AppBackButton.dart';
 import 'itemdetail.dart';
+import 'package:animations/animations.dart';
 
 class SectionProductsPage extends StatefulWidget {
   final String sectionTitle;
@@ -292,7 +293,18 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                   letterSpacing: 0.2,
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 2),
+              Text(
+                '${products.length} products',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w400,
+                  fontSize: 12,
+                  letterSpacing: 0.1,
+                ),
+              ),
+              const SizedBox(height: 4),
               Container(
                 width: 40,
                 height: 4,
@@ -343,31 +355,177 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                 itemCount: products.length,
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
-                  crossAxisSpacing: 2,
-                  mainAxisSpacing: 2,
-                  childAspectRatio: 1.1,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: 0.8,
                 ),
                 itemBuilder: (context, index) {
                   final product = products[index];
-                  return HomeProductCard(
-                    product: product,
-                    fontSize: 15,
-                    imageHeight: 70,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ItemPage(
-                            urlName: product.urlName,
-                            isPrescribed:
-                                product.otcpom?.toLowerCase() == 'pom',
+                  return OpenContainer(
+                    transitionType: ContainerTransitionType.fadeThrough,
+                    openColor: Theme.of(context).scaffoldBackgroundColor,
+                    closedColor: Colors.transparent,
+                    closedElevation: 0,
+                    openElevation: 0,
+                    transitionDuration: Duration(milliseconds: 200),
+                    closedShape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    openBuilder: (context, _) => ItemPage(
+                      urlName: product.urlName,
+                      isPrescribed: product.otcpom?.toLowerCase() == 'pom',
+                    ),
+                    closedBuilder: (context, openContainer) => Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.06),
+                            blurRadius: 12,
+                            offset: const Offset(0, 3),
+                            spreadRadius: 0,
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: openContainer,
+                          child: Column(
+                            children: [
+                              // Image Section
+                              Expanded(
+                                flex: 3,
+                                child: Container(
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade50,
+                                  ),
+                                  child: Stack(
+                                    children: [
+                                      // Product Image
+                                      Center(
+                                        child: product.thumbnail.isNotEmpty
+                                            ? Image.network(
+                                                product.thumbnail,
+                                                fit: BoxFit.contain,
+                                                width: double.infinity,
+                                                height: double.infinity,
+                                                errorBuilder: (context, error,
+                                                    stackTrace) {
+                                                  return Container(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                            20),
+                                                    child: const Icon(
+                                                      Icons
+                                                          .image_not_supported_outlined,
+                                                      color: Colors.grey,
+                                                      size: 28,
+                                                    ),
+                                                  );
+                                                },
+                                                loadingBuilder: (context, child,
+                                                    loadingProgress) {
+                                                  if (loadingProgress == null)
+                                                    return child;
+                                                  return const Center(
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      valueColor:
+                                                          AlwaysStoppedAnimation<
+                                                              Color>(
+                                                        Color(0xFF22C55E),
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              )
+                                            : Container(
+                                                padding:
+                                                    const EdgeInsets.all(20),
+                                                child: const Icon(
+                                                  Icons
+                                                      .image_not_supported_outlined,
+                                                  color: Colors.grey,
+                                                  size: 28,
+                                                ),
+                                              ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              // Content Section
+                              Expanded(
+                                flex: 2,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      // Product Name
+                                      Text(
+                                        product.name,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                          height: 1.2,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      // Bottom Row
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          // Price
+                                          Text(
+                                            'GHS ${product.price}',
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF22C55E),
+                                            ),
+                                          ),
+                                          // Simple action button
+                                          Container(
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF22C55E)
+                                                  .withOpacity(0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: const Icon(
+                                              Icons.arrow_forward_ios,
+                                              color: Color(0xFF22C55E),
+                                              size: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      );
-                    },
-                    showHero: false, // Disable Hero in the section grid
-                  );
-                },
+                      ),
+                    ),
+                  ),
+                );
+              },
               ),
       ),
     );

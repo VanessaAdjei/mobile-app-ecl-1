@@ -14,6 +14,7 @@ import 'package:eclapp/pages/bulk_purchase_page.dart';
 import 'package:eclapp/pages/bottomnav.dart';
 import '../services/category_optimization_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:animations/animations.dart';
 
 // Cache for categories and products
 class CategoryCache {
@@ -973,76 +974,125 @@ class _CategoryPageState extends State<CategoryPage> {
   }
 
   Widget _buildSearchResultItem(dynamic item) {
-    return InkWell(
-      onTap: () => _onSearchItemTap(item),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          children: [
-            // Product thumbnail
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
-                color: Colors.grey.shade100,
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: CachedNetworkImage(
-                  imageUrl: item['thumbnail'] ?? '',
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) =>
-                      Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                  errorWidget: (context, url, error) =>
-                      Icon(Icons.broken_image, size: 20),
+    return OpenContainer(
+      transitionType: ContainerTransitionType.fadeThrough,
+      openColor: Theme.of(context).scaffoldBackgroundColor,
+      closedColor: Colors.transparent,
+      closedElevation: 0,
+      openElevation: 0,
+      transitionDuration: Duration(milliseconds: 200),
+      closedShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      openBuilder: (context, _) {
+        // Navigate to the category page where this product belongs
+        final categoryId = item['category_id'] ?? item['data']?['category_id'];
+        final categoryName =
+            item['category_name'] ?? item['data']?['category_name'];
+        final subcategoryId =
+            item['subcategory_id'] ?? item['data']?['subcategory_id'];
+        final searchedProductName = item['name'];
+        final searchedProductId = item['id'];
+
+        if (categoryId != null && categoryName != null) {
+          // Check if the category has subcategories by looking at the original categories data
+          final category = _categories.firstWhere(
+            (cat) => cat['id'] == categoryId,
+            orElse: () => {'has_subcategories': false},
+          );
+
+          if (category['has_subcategories'] == true) {
+            return SubcategoryPage(
+              categoryName: categoryName,
+              categoryId: categoryId,
+              searchedProductName: searchedProductName,
+              searchedProductId: searchedProductId,
+              targetSubcategoryId: subcategoryId,
+            );
+          } else {
+            return ProductListPage(
+              categoryName: categoryName,
+              categoryId: categoryId,
+              searchedProductName: searchedProductName,
+              searchedProductId: searchedProductId,
+            );
+          }
+        } else {
+          // Fallback to categories page if navigation fails
+          return CategoryPage();
+        }
+      },
+      closedBuilder: (context, openContainer) => InkWell(
+        onTap: openContainer,
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              // Product thumbnail
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(6),
+                  color: Colors.grey.shade100,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: CachedNetworkImage(
+                    imageUrl: item['thumbnail'] ?? '',
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) =>
+                        Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    errorWidget: (context, url, error) =>
+                        Icon(Icons.broken_image, size: 20),
+                  ),
                 ),
               ),
-            ),
-            SizedBox(width: 10),
-            // Product content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    item['name'],
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'GHS ${_formatPrice(item['price'])}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.green.shade700,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  if (item['category_name'] != null) ...[
-                    SizedBox(height: 1),
+              SizedBox(width: 10),
+              // Product content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     Text(
-                      item['category_name'],
+                      item['name'],
                       style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey.shade600,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    SizedBox(height: 2),
+                    Text(
+                      'GHS ${_formatPrice(item['price'])}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.green.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (item['category_name'] != null) ...[
+                      SizedBox(height: 1),
+                      Text(
+                        item['category_name'],
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey.shade600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            // Arrow
-            Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 16),
-          ],
+              // Arrow
+              Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 16),
+            ],
+          ),
         ),
       ),
     );
@@ -1086,37 +1136,36 @@ class _CategoryPageState extends State<CategoryPage> {
             final iconColor = Colors.green.shade700;
             final available =
                 category['product_count'] ?? category['available'] ?? null;
-            return _ModernCategoryCard(
-              name: category['name'] ?? '',
-              icon: icon,
-              iconColor: iconColor,
-              available: available is int ? available : null,
-              onTap: () {
-                print('[DEBUG] Category card tapped: ${category['name']} (ID: ${category['id']})');
+            return OpenContainer(
+              transitionType: ContainerTransitionType.fadeThrough,
+              openColor: Theme.of(context).scaffoldBackgroundColor,
+              closedColor: Colors.transparent,
+              closedElevation: 0,
+              openElevation: 0,
+              transitionDuration: Duration(milliseconds: 200),
+              closedShape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              openBuilder: (context, _) {
                 if (category['has_subcategories'] == true) {
-                  print('[DEBUG] Navigating to SubcategoryPage for category: ${category['name']}');
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SubcategoryPage(
-                        categoryName: category['name'],
-                        categoryId: category['id'],
-                      ),
-                    ),
+                  return SubcategoryPage(
+                    categoryName: category['name'],
+                    categoryId: category['id'],
                   );
                 } else {
-                  print('[DEBUG] Navigating to ProductListPage for category: ${category['name']}');
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ProductListPage(
-                        categoryName: category['name'],
-                        categoryId: category['id'],
-                      ),
-                    ),
+                  return ProductListPage(
+                    categoryName: category['name'],
+                    categoryId: category['id'],
                   );
                 }
               },
+              closedBuilder: (context, openContainer) => _ModernCategoryCard(
+                name: category['name'] ?? '',
+                icon: icon,
+                iconColor: iconColor,
+                available: available is int ? available : null,
+                onTap: openContainer,
+              ),
             );
           },
         );
@@ -2005,38 +2054,38 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                   border: Border.all(color: Colors.green.shade700, width: 3),
                 )
               : null,
-          child: ProductCard(
-            product: product,
-            onTap: () async {
+          child: OpenContainer(
+            transitionType: ContainerTransitionType.fadeThrough,
+            openColor: Theme.of(context).scaffoldBackgroundColor,
+            closedColor: Colors.transparent,
+            closedElevation: 0,
+            openElevation: 0,
+            transitionDuration: Duration(milliseconds: 200),
+            closedShape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            openBuilder: (context, _) {
               String? itemDetailURL = product['urlname'] ??
                   product['url'] ??
                   product['inventory']?['urlname'] ??
                   product['route']?.split('/').last;
 
               if (itemDetailURL != null && itemDetailURL.isNotEmpty) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ItemPage(urlName: itemDetailURL!),
-                  ),
-                );
+                return ItemPage(urlName: itemDetailURL!);
               } else {
                 final productId = product['id']?.toString();
                 if (productId != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ItemPage(urlName: productId),
-                    ),
-                  );
+                  return ItemPage(urlName: productId);
                 } else {
-                  SnackBarUtils.showError(
-                    context,
-                    'Could not load product details',
-                  );
+                  // Fallback to a default page if navigation fails
+                  return CategoryPage();
                 }
               }
             },
+            closedBuilder: (context, openContainer) => ProductCard(
+              product: product,
+              onTap: openContainer,
+            ),
           ),
         );
       },
@@ -2511,38 +2560,38 @@ class _ProductListPageState extends State<ProductListPage> {
                     border: Border.all(color: Colors.green.shade700, width: 3),
                   )
                 : null,
-            child: ProductCard(
-              product: product,
-              onTap: () async {
+            child: OpenContainer(
+              transitionType: ContainerTransitionType.fadeThrough,
+              openColor: Theme.of(context).scaffoldBackgroundColor,
+              closedColor: Colors.transparent,
+              closedElevation: 0,
+              openElevation: 0,
+              transitionDuration: Duration(milliseconds: 200),
+              closedShape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              openBuilder: (context, _) {
                 String? itemDetailURL = product['urlname'] ??
                     product['url'] ??
                     product['inventory']?['urlname'] ??
                     product['route']?.split('/').last;
 
                 if (itemDetailURL != null && itemDetailURL.isNotEmpty) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ItemPage(urlName: itemDetailURL!),
-                    ),
-                  );
+                  return ItemPage(urlName: itemDetailURL!);
                 } else {
                   final productId = product['id']?.toString();
                   if (productId != null) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ItemPage(urlName: productId),
-                      ),
-                    );
+                    return ItemPage(urlName: productId);
                   } else {
-                    SnackBarUtils.showError(
-                      context,
-                      'Could not load product details',
-                    );
+                    // Fallback to a default page if navigation fails
+                    return CategoryPage();
                   }
                 }
               },
+              closedBuilder: (context, openContainer) => ProductCard(
+                product: product,
+                onTap: openContainer,
+              ),
             ),
           );
         },

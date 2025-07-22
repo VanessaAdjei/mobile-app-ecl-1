@@ -41,8 +41,17 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     await cartProvider.refreshLoginStatus();
   }
 
-  void _onItemTapped(int index) async {
-    if (index == _selectedIndex) {
+    void _onItemTapped(int index) async {
+    print('🔍 BOTTOM NAV TAPPED ===');
+    print('Index: $index');
+    print('Current Index: $_selectedIndex');
+    print('Can Pop: ${Navigator.canPop(context)}');
+    print('Route Count: ${Navigator.of(context).widget.observers.length}');
+    
+    // Only return early if we're actually on the same page AND it's not the home button
+    // For home button (index 0), we always want to navigate regardless of current index
+    if (index == _selectedIndex && index != 0) {
+      print('🔍 SAME INDEX (NOT HOME) - RETURNING ===');
       return;
     }
 
@@ -52,12 +61,33 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
 
     switch (index) {
       case 0:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const home.HomePage(),
-          ),
-        );
+        print('🔍 HOME BUTTON PRESSED ===');
+        // For home button, clear the entire navigation stack
+        try {
+          // First, try to pop all routes until we can't pop anymore
+          while (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          }
+          
+          // Then push the home page
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const home.HomePage(),
+            ),
+          );
+          print('🔍 HOME NAVIGATION COMPLETED ===');
+        } catch (e) {
+          print('🔍 HOME NAVIGATION ERROR: $e ===');
+          // Final fallback: try simple push replacement
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const home.HomePage(),
+            ),
+          );
+        }
+        break;
       case 1:
         Navigator.pushReplacement(
           context,
@@ -130,7 +160,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
           unselectedFontSize: finalFontSize,
           iconSize: finalIconSize,
           items: [
-            const BottomNavigationBarItem(
+            BottomNavigationBarItem(
               icon: Icon(Icons.home),
               label: 'Home',
             ),
