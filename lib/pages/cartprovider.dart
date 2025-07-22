@@ -20,12 +20,29 @@ class CartProvider with ChangeNotifier {
 
   // Helper method to normalize product names for consistent key generation
   String _normalizeProductName(String name) {
-    return name
+    // First normalize: lowercase, remove special chars, normalize spaces
+    String normalized = name
         .toLowerCase()
         .replaceAll(RegExp(r'[^a-z0-9\s]'), '') // Remove special characters
         .replaceAll(RegExp(r'\s+'), ' ') // Normalize spaces
-        .trim()
-        .replaceAll(' ', ''); // Remove all spaces for exact matching
+        .trim();
+
+    // Split into words and sort alphabetically to handle word order variations
+    List<String> words =
+        normalized.split(' ').where((word) => word.isNotEmpty).toList();
+    words.sort(); // Sort alphabetically
+
+    // Join back together without spaces for exact matching
+    String result = words.join('');
+
+    print('🔤 NORMALIZE PRODUCT NAME ===');
+    print('Original: "$name"');
+    print('Normalized: "$normalized"');
+    print('Words: $words');
+    print('Result: "$result"');
+    print('=============================');
+
+    return result;
   }
 
   List<CartItem> get cartItems => _cartItems;
@@ -220,12 +237,9 @@ class CartProvider with ChangeNotifier {
               print('Protected Quantity: $localQuantity');
               print('Protection Key: $protectionKey');
               print('==========================');
-              if (localQuantity > item.quantity) {
-                item.updateQuantity(localQuantity);
-              } else {
-                // Remove stale protection
-                _recentlyCorrectedItems.remove(protectionKey);
-              }
+              // Always use local quantity when protection is active
+              item.updateQuantity(localQuantity);
+              print('✅ Applied local quantity: $localQuantity');
             } else {
               print('No protection found for: $protectionKey');
             }
@@ -322,19 +336,22 @@ class CartProvider with ChangeNotifier {
               print('Protection Key: $protectionKey');
               print('=============================');
 
-              // Only use local quantity if it is greater than server quantity
-              if (localQuantity > serverItem.quantity) {
-                serverItem.updateQuantity(localQuantity);
-              } else {
-                // Remove stale protection
-                _recentlyCorrectedItems.remove(protectionKey);
-              }
+              // Always use local quantity when protection is active
+              serverItem.updateQuantity(localQuantity);
+              print('✅ Final protection applied: $localQuantity');
             }
 
             finalItems.add(serverItem);
           }
 
           _cartItems = finalItems;
+
+          // Clear protection after a delay to allow background sync to complete
+          Future.delayed(Duration(seconds: 2), () {
+            print('🔓 Clearing protection map: $_recentlyCorrectedItems');
+            _recentlyCorrectedItems.clear();
+            print('🔓 Cleared all protection after delay');
+          });
 
           // Immediately notify listeners so UI updates with preserved quantities
           notifyListeners();
@@ -381,6 +398,11 @@ class CartProvider with ChangeNotifier {
   }
 
   Future<void> addToCart(CartItem item) async {
+    print('🚀 ADD TO CART METHOD CALLED ===');
+    print('Cart items count before adding: ${_cartItems.length}');
+    print('Adding item: ${item.name}');
+    print('================================');
+
     // For logged-in users, try to sync with server
     _currentUserId ??= await AuthService.getCurrentUserID();
 
@@ -409,11 +431,41 @@ class CartProvider with ChangeNotifier {
         return;
       }
 
-      final existingIndex = _cartItems.indexWhere((cartItem) =>
-          (cartItem.productId == item.productId &&
-              cartItem.batchNo == item.batchNo) ||
-          (cartItem.serverProductId?.toString() == item.productId &&
-              cartItem.batchNo == item.batchNo));
+      // Debug: Print current cart items for comparison
+      print('🔍 CHECKING FOR EXISTING ITEM ===');
+      print(
+          'Adding item: ${item.name}, Product ID: ${item.productId}, Batch: ${item.batchNo}');
+      print('Current cart items:');
+      for (int i = 0; i < _cartItems.length; i++) {
+        final cartItem = _cartItems[i];
+        print(
+            '  [$i] ${cartItem.name}, Product ID: ${cartItem.productId}, Server ID: ${cartItem.serverProductId}, Batch: ${cartItem.batchNo}');
+      }
+
+      final existingIndex = _cartItems.indexWhere((cartItem) {
+        // Prioritize name and batch matching since Product IDs can be inconsistent
+        // Use normalized names for more flexible matching
+        String normalizedCartName = _normalizeProductName(cartItem.name);
+        String normalizedItemName = _normalizeProductName(item.name);
+        bool matchByNameAndBatch = (normalizedCartName == normalizedItemName &&
+            cartItem.batchNo == item.batchNo);
+        bool matchById = (cartItem.productId == item.productId &&
+            cartItem.batchNo == item.batchNo);
+        bool matchByServerId =
+            (cartItem.serverProductId?.toString() == item.productId &&
+                cartItem.batchNo == item.batchNo);
+
+        print(
+            '  Checking: ${cartItem.name} - Normalized: $normalizedCartName vs $normalizedItemName');
+        print(
+            '  Match by Name: $matchByNameAndBatch, Match by ID: $matchById, Match by Server ID: $matchByServerId');
+
+        // Return true if any match is found, prioritizing name matching
+        return matchByNameAndBatch || matchById || matchByServerId;
+      });
+
+      print('Existing index found: $existingIndex');
+      print('=====================================');
 
       if (existingIndex != -1) {
         // Item exists, add to existing quantity
@@ -433,14 +485,16 @@ class CartProvider with ChangeNotifier {
         // Use normalized product name + batch number as key to avoid product ID mismatches
         final normalizedName = _normalizeProductName(item.name);
         final protectionKey = '$normalizedName-${item.batchNo}';
-        _recentlyCorrectedItems[protectionKey] = item.quantity;
+        _recentlyCorrectedItems[protectionKey] =
+            newQuantity; // Use newQuantity instead of item.quantity
         print('🔒 PROTECTED ITEM FROM SYNC OVERRIDE ===');
         print('Product: ${item.name}');
         print('Normalized Name: $normalizedName');
-        print('Quantity: ${item.quantity}');
+        print('New Total Quantity: $newQuantity');
         print('App Product ID: ${item.productId}');
         print('Server Product ID: ${item.serverProductId}');
         print('Protection Key: $protectionKey');
+        print('Current protection map: $_recentlyCorrectedItems');
         print('========================================');
 
         await _saveUserCarts();
@@ -463,6 +517,7 @@ class CartProvider with ChangeNotifier {
         print('App Product ID: ${item.productId}');
         print('Server Product ID: ${item.serverProductId}');
         print('Protection Key: $protectionKey');
+        print('Current protection map: $_recentlyCorrectedItems');
         print('============================================');
 
         await _saveUserCarts();
@@ -527,11 +582,12 @@ class CartProvider with ChangeNotifier {
       print('================================');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // Optionally sync with server to ensure consistency
-        await syncWithApi();
+        // Don't sync immediately - let the protection mechanism handle it
+        // The local cart is the source of truth, server sync will happen later
+        debugPrint('Successfully added item to server cart');
       } else {
         debugPrint(
-            'Failed to add/update cart item on server: \\${response.statusCode}');
+            'Failed to add/update cart item on server: ${response.statusCode}');
       }
     } catch (e) {
       debugPrint('Error adding/updating cart item on server: $e');
@@ -547,14 +603,18 @@ class CartProvider with ChangeNotifier {
         (cartItem.batchNo == item.batchNo && cartItem.name == item.name));
 
     if (existingIndex != -1) {
-      // Item exists, replace quantity with the new quantity from item detail page
+      // Item exists, add to existing quantity
+      final oldQuantity = _cartItems[existingIndex].quantity;
+      final newQuantity = oldQuantity + item.quantity;
+
       print('🔍 UPDATING LOCAL CART ITEM ===');
       print('Product: ${item.name}');
-      print('Old Quantity: ${_cartItems[existingIndex].quantity}');
-      print('New Quantity: ${item.quantity}');
+      print('Old Quantity: $oldQuantity');
+      print('Adding Quantity: ${item.quantity}');
+      print('New Total Quantity: $newQuantity');
       print('==============================');
 
-      _cartItems[existingIndex].updateQuantity(item.quantity);
+      _cartItems[existingIndex].updateQuantity(newQuantity);
     } else {
       // Item doesn't exist, add it
       print('🔍 ADDING NEW ITEM TO LOCAL CART ===');
@@ -605,8 +665,8 @@ class CartProvider with ChangeNotifier {
       print('=====================================');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // Sync with server to ensure consistency
-        await syncWithApi();
+        // Don't sync immediately - let the protection mechanism handle it
+        debugPrint('Successfully updated item on server cart');
       } else {
         debugPrint(
             'Failed to update cart item on server: ${response.statusCode}');
@@ -850,8 +910,8 @@ class CartProvider with ChangeNotifier {
 
     // Load purchased items for this user
     await _loadPurchasedItems();
-    // Always sync with server on login
-    await syncWithApi();
+    // Don't sync immediately on login - let the protection mechanism handle it
+    // The local cart is the source of truth
     notifyListeners();
   }
 
@@ -924,6 +984,19 @@ class CartProvider with ChangeNotifier {
     _userCarts[userId] = merged.values.toList();
     _cartItems = _userCarts[userId]!;
     _userCarts.remove('guest_id');
+    
+    // Protect all merged items from sync override
+    for (final item in _cartItems) {
+      final normalizedName = _normalizeProductName(item.name);
+      final protectionKey = '$normalizedName-${item.batchNo}';
+      _recentlyCorrectedItems[protectionKey] = item.quantity;
+      print('🔒 PROTECTED MERGED ITEM ===');
+      print('Product: ${item.name}');
+      print('Quantity: ${item.quantity}');
+      print('Protection Key: $protectionKey');
+      print('===========================');
+    }
+    
     await _saveUserCarts();
     notifyListeners();
     // After merging, push each item to the server

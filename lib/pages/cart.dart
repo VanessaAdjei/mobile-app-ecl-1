@@ -41,20 +41,23 @@ class _CartState extends State<Cart> {
     super.initState();
     _checkAuthStatus();
 
-    // Initial sync with server
+    // Disable automatic server sync to prevent quantity override
+    // Local cart is now the source of truth
+    // Server sync will happen during checkout
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final cart = Provider.of<CartProvider>(context, listen: false);
-      await cart.syncWithApi();
+      // Don't sync immediately - let the protection mechanism handle it
 
-      // Log cart items after sync
+      // Log cart items after initialization
       for (var item in cart.cartItems) {}
     });
 
-    _syncTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
-      if (mounted) {
-        Provider.of<CartProvider>(context, listen: false).syncWithApi();
-      }
-    });
+    // Disable periodic sync to prevent interference with local cart
+    // _syncTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
+    //   if (mounted) {
+    //     Provider.of<CartProvider>(context, listen: false).syncWithApi();
+    //   }
+    // });
   }
 
   Future<void> _checkAuthStatus() async {
@@ -683,10 +686,11 @@ class _CartState extends State<Cart> {
                                                     listen: false)
                                                 .mergeGuestCartOnLogin(userId);
                                           }
-                                          await Provider.of<CartProvider>(
-                                                  context,
-                                                  listen: false)
-                                              .syncWithApi();
+                                          // Don't sync immediately after login - let the protection mechanism handle it
+                                          // await Provider.of<CartProvider>(
+                                          //         context,
+                                          //         listen: false)
+                                          //     .syncWithApi();
                                         }
                                         return;
                                       } else if (result == 'guest') {
