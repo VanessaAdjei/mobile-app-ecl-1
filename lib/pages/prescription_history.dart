@@ -1,20 +1,14 @@
 // pages/prescription_history.dart
-import 'package:eclapp/pages/bottomnav.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eclapp/pages/auth_service.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:intl/intl.dart';
-import 'homepage.dart';
-import 'cart.dart';
-import 'profile.dart';
 import 'AppBackButton.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:eclapp/widgets/error_display.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eclapp/widgets/optimized_image_widget.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class PrescriptionHistoryScreen extends StatefulWidget {
   const PrescriptionHistoryScreen({super.key});
@@ -26,23 +20,42 @@ class PrescriptionHistoryScreen extends StatefulWidget {
 
 class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   List<Map<String, dynamic>> _prescriptions = [];
-  final Map<int, Map<String, dynamic>> _productDetails = {};
   bool _isLoading = true;
+  bool _isRefreshing = false;
   String? _error;
   final ScrollController _scrollController = ScrollController();
+  
+  // Cache for prescription data
+  static List<Map<String, dynamic>>? _cachedPrescriptions;
+  static DateTime? _lastFetchTime;
+  static const Duration _cacheValidDuration = Duration(minutes: 5);
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchPrescriptions();
-    });
+    _loadPrescriptions();
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadPrescriptions() async {
+    // Check if we have valid cached data
+    if (_cachedPrescriptions != null && _lastFetchTime != null) {
+      final timeSinceLastFetch = DateTime.now().difference(_lastFetchTime!);
+      if (timeSinceLastFetch < _cacheValidDuration) {
+        setState(() {
+          _prescriptions = _cachedPrescriptions!;
+          _isLoading = false;
+        });
+        return;
+      }
+    }
+
+    await _fetchPrescriptions();
   }
 
   Future<void> _fetchPrescriptions() async {
@@ -65,16 +78,24 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
+          'Content-Type': 'application/json',
         },
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['data'] != null) {
+          final prescriptions = List<Map<String, dynamic>>.from(data['data']);
+          
+          // Cache the data
+          _cachedPrescriptions = prescriptions;
+          _lastFetchTime = DateTime.now();
+          
           if (mounted) {
             setState(() {
-              _prescriptions = List<Map<String, dynamic>>.from(data['data']);
+              _prescriptions = prescriptions;
               _isLoading = false;
+              _isRefreshing = false;
             });
           }
         } else {
@@ -83,21 +104,35 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
       } else if (response.statusCode == 401) {
         throw Exception('Your session has expired. Please log in again.');
       } else {
-        throw Exception('Unable to connect to the server');
+        throw Exception('Unable to connect to the server (${response.statusCode})');
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = e.toString().replaceAll('Exception: ', '');
           _isLoading = false;
+          _isRefreshing = false;
         });
       }
     }
   }
 
+  Future<void> _refreshPrescriptions() async {
+    setState(() {
+      _isRefreshing = true;
+    });
+    
+    // Clear cache to force fresh data
+    _cachedPrescriptions = null;
+    _lastFetchTime = null;
+    
+    await _fetchPrescriptions();
+  }
+
   void _showPrescriptionImage(String fileUrl) {
     showDialog(
       context: context,
+      barrierDismissible: true,
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent,
@@ -113,9 +148,15 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
               Positioned(
                 top: 8,
                 right: 8,
-                child: IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white),
-                  onPressed: () => Navigator.pop(context),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ),
               ),
             ],
@@ -200,13 +241,7 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
     return ErrorDisplay(
       title: 'Error Loading Prescriptions',
       message: _error ?? 'An error occurred while loading your prescriptions',
-      onRetry: () {
-        setState(() {
-          _isLoading = true;
-          _error = null;
-        });
-        _fetchPrescriptions();
-      },
+      onRetry: _refreshPrescriptions,
     );
   }
 
@@ -248,7 +283,7 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
 
   Widget _buildPrescriptionsList() {
     return RefreshIndicator(
-      onRefresh: _fetchPrescriptions,
+      onRefresh: _refreshPrescriptions,
       child: ListView.builder(
         controller: _scrollController,
         padding: const EdgeInsets.all(16),
@@ -261,6 +296,7 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
+            elevation: 2,
             child: ListTile(
               contentPadding: const EdgeInsets.all(16),
               leading: GestureDetector(
@@ -277,12 +313,27 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                     color: Colors.grey[200],
                   ),
                   child: prescription['file'] != null
-                      ? OptimizedImageWidget.thumbnail(
-                          imageUrl: prescription['file'],
-                          width: 60,
-                          height: 60,
-                          fit: BoxFit.cover,
+                      ? ClipRRect(
                           borderRadius: BorderRadius.circular(8),
+                          child: CachedNetworkImage(
+                            imageUrl: prescription['file'],
+                            width: 60,
+                            height: 60,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                              color: Colors.grey[200],
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Icon(
+                              Icons.medical_services_outlined,
+                              size: 30,
+                              color: Colors.green.shade700,
+                            ),
+                          ),
                         )
                       : Icon(
                           Icons.medical_services_outlined,
@@ -299,11 +350,25 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 4),
-                  Text(
-                    'Status: ${prescription['status'] ?? 'Pending'}',
-                    style: TextStyle(
-                      color: _getStatusColor(prescription['status']),
-                    ),
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(prescription['status']),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Status: ${prescription['status'] ?? 'Pending'}',
+                        style: TextStyle(
+                          color: _getStatusColor(prescription['status']),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   if (prescription['file'] != null)

@@ -158,10 +158,10 @@ class SliverSearchBarDelegate extends SliverPersistentHeaderDelegate {
   }
 
   @override
-  double get maxExtent => 64.0;
+  double get maxExtent => 96.0;
 
   @override
-  double get minExtent => 64.0;
+  double get minExtent => 96.0;
 
   @override
   bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) {
@@ -1058,7 +1058,7 @@ class _HomePageState extends State<HomePage>
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      padding: const EdgeInsets.fromLTRB(16.0, 40.0, 16.0, 8.0), // Further increased top padding
       child: SizedBox(
         height: 48,
         child: TypeAheadField<Product>(
