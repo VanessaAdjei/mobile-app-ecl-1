@@ -55,7 +55,14 @@ class CategoryImagePreloader {
     if (imageUrl.isEmpty || _preloadedImages.containsKey(imageUrl)) return;
 
     _preloadedImages[imageUrl] = true;
-    precacheImage(CachedNetworkImageProvider(imageUrl), context);
+    precacheImage(
+      CachedNetworkImageProvider(
+        imageUrl,
+        maxWidth: 300,
+        maxHeight: 300,
+      ),
+      context,
+    );
   }
 
   static void preloadImages(List<String> imageUrls, BuildContext context) {
@@ -1041,8 +1048,13 @@ class _CategoryPageState extends State<CategoryPage> {
                   child: CachedNetworkImage(
                     imageUrl: item['thumbnail'] ?? '',
                     fit: BoxFit.cover,
-                    placeholder: (context, url) =>
-                        Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    memCacheWidth: 80,
+                    memCacheHeight: 80,
+                    maxWidthDiskCache: 80,
+                    maxHeightDiskCache: 80,
+                    cacheKey: 'search_${item['id']}_${item['thumbnail']}',
+                    placeholder: (context, url) => Center(
+                        child: CircularProgressIndicator(strokeWidth: 2)),
                     errorWidget: (context, url, error) =>
                         Icon(Icons.broken_image, size: 20),
                   ),
@@ -1493,6 +1505,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   String sortOption = 'Latest';
   int? highlightedProductId;
   Timer? highlightTimer;
+  bool isSidebarVisible = true; // New state for sidebar visibility
 
   // Cache for subcategories and products
   static Map<int, List<dynamic>> _subcategoriesCache = {};
@@ -1828,13 +1841,51 @@ class SubcategoryPageState extends State<SubcategoryPage> {
         // Responsive layout based on screen width
         bool isTablet = constraints.maxWidth > 600;
         double sideNavWidth = isTablet ? 280 : constraints.maxWidth * 0.4;
+        // Ensure minimum width for sidebar
+        sideNavWidth = sideNavWidth.clamp(200.0, constraints.maxWidth * 0.5);
+
+        // Auto-hide sidebar on very small screens
+        bool shouldAutoHide = constraints.maxWidth < 400;
+        if (shouldAutoHide && isSidebarVisible) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() {
+                isSidebarVisible = false;
+              });
+            }
+          });
+        }
+
+        // Force hide sidebar if screen is too narrow
+        bool isScreenTooNarrow = constraints.maxWidth < 300;
+        if (isScreenTooNarrow) {
+          isSidebarVisible = false;
+        }
 
         return Row(
           children: [
-            SizedBox(
-              width: sideNavWidth,
-              child: buildSideNavigation(),
-            ),
+            // Sidebar - only render when visible
+            if (isSidebarVisible)
+              SizedBox(
+                width: sideNavWidth,
+                child: buildSideNavigation(),
+              ),
+            // Toggle button when sidebar is hidden
+            if (!isSidebarVisible)
+              Container(
+                margin: EdgeInsets.only(left: 8),
+                child: FloatingActionButton(
+                  mini: true,
+                  backgroundColor: Colors.green.shade700,
+                  child: Icon(Icons.menu, color: Colors.white, size: 20),
+                  onPressed: () {
+                    setState(() {
+                      isSidebarVisible = true;
+                    });
+                  },
+                ),
+              ),
+            // Main content
             Expanded(
               child: Container(
                 color: Color(0xFFF8F9FA),
@@ -1881,6 +1932,23 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                       fontWeight: FontWeight.w600,
                       color: Colors.grey.shade900,
                     ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                // Hide sidebar button
+                SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: IconButton(
+                    icon: Icon(Icons.chevron_left,
+                        size: 18, color: Colors.green.shade700),
+                    onPressed: () {
+                      setState(() {
+                        isSidebarVisible = false;
+                      });
+                    },
+                    padding: EdgeInsets.zero,
+                    constraints: BoxConstraints(minWidth: 24, minHeight: 24),
                   ),
                 ),
               ],
@@ -1949,10 +2017,14 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                             ),
                           ),
                           if (isSelected)
-                            Icon(
-                              Icons.check_circle,
-                              size: 14,
-                              color: Colors.green.shade700,
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: Icon(
+                                Icons.check_circle,
+                                size: 14,
+                                color: Colors.green.shade700,
+                              ),
                             ),
                         ],
                       ),
@@ -1978,6 +2050,21 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       decoration: BoxDecoration(color: Colors.white),
       child: Row(
         children: [
+          // Menu toggle button when sidebar is hidden
+          if (!isSidebarVisible)
+            Container(
+              margin: EdgeInsets.only(right: 8),
+              child: IconButton(
+                icon: Icon(Icons.menu, color: Colors.green.shade700, size: 20),
+                onPressed: () {
+                  setState(() {
+                    isSidebarVisible = true;
+                  });
+                },
+                padding: EdgeInsets.all(4),
+                constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+            ),
           Container(
             padding: EdgeInsets.all(6),
             decoration: BoxDecoration(
@@ -2033,60 +2120,76 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   }
 
   Widget buildProductsGrid() {
-    return GridView.builder(
-      controller: scrollController,
-      padding: EdgeInsets.all(16),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.55,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
-        final isHighlighted = highlightedProductId == product['id'];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Keep 2 columns but adjust aspect ratio based on sidebar visibility
+        double childAspectRatio = 0.55;
 
-        return Container(
-          decoration: isHighlighted
-              ? BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.green.shade700, width: 3),
-                )
-              : null,
-          child: OpenContainer(
-            transitionType: ContainerTransitionType.fadeThrough,
-            openColor: Theme.of(context).scaffoldBackgroundColor,
-            closedColor: Colors.transparent,
-            closedElevation: 0,
-            openElevation: 0,
-            transitionDuration: Duration(milliseconds: 200),
-            closedShape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            openBuilder: (context, _) {
-              String? itemDetailURL = product['urlname'] ??
-                  product['url'] ??
-                  product['inventory']?['urlname'] ??
-                  product['route']?.split('/').last;
+        if (!isSidebarVisible) {
+          // When sidebar is hidden, make images smaller (taller aspect ratio)
+          childAspectRatio = 0.7;
+        } else {
+          // When sidebar is visible, use normal size
+          childAspectRatio = 0.55;
+        }
 
-              if (itemDetailURL != null && itemDetailURL.isNotEmpty) {
-                return ItemPage(urlName: itemDetailURL!);
-              } else {
-                final productId = product['id']?.toString();
-                if (productId != null) {
-                  return ItemPage(urlName: productId);
-                } else {
-                  // Fallback to a default page if navigation fails
-                  return CategoryPage();
-                }
-              }
-            },
-            closedBuilder: (context, openContainer) => ProductCard(
-              product: product,
-              onTap: openContainer,
-            ),
+        return GridView.builder(
+          controller: scrollController,
+          padding: EdgeInsets.all(16),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: childAspectRatio,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
           ),
+          itemCount: products.length,
+          itemBuilder: (context, index) {
+            final product = products[index];
+            final isHighlighted = highlightedProductId == product['id'];
+
+            return Container(
+              decoration: isHighlighted
+                  ? BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border:
+                          Border.all(color: Colors.green.shade700, width: 3),
+                    )
+                  : null,
+              child: OpenContainer(
+                transitionType: ContainerTransitionType.fadeThrough,
+                openColor: Theme.of(context).scaffoldBackgroundColor,
+                closedColor: Colors.transparent,
+                closedElevation: 0,
+                openElevation: 0,
+                transitionDuration: Duration(milliseconds: 200),
+                closedShape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                openBuilder: (context, _) {
+                  String? itemDetailURL = product['urlname'] ??
+                      product['url'] ??
+                      product['inventory']?['urlname'] ??
+                      product['route']?.split('/').last;
+
+                  if (itemDetailURL != null && itemDetailURL.isNotEmpty) {
+                    return ItemPage(urlName: itemDetailURL!);
+                  } else {
+                    final productId = product['id']?.toString();
+                    if (productId != null) {
+                      return ItemPage(urlName: productId);
+                    } else {
+                      // Fallback to a default page if navigation fails
+                      return CategoryPage();
+                    }
+                  }
+                },
+                closedBuilder: (context, openContainer) => ProductCard(
+                  product: product,
+                  onTap: openContainer,
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -2245,12 +2348,14 @@ class ProductCard extends StatelessWidget {
                         fit: BoxFit.cover,
                         width: double.infinity,
                         height: double.infinity,
-                        memCacheWidth: 120,
-                        memCacheHeight: 120,
-                        maxWidthDiskCache: 120,
-                        maxHeightDiskCache: 120,
+                        memCacheWidth: 300,
+                        memCacheHeight: 300,
+                        maxWidthDiskCache: 300,
+                        maxHeightDiskCache: 300,
                         fadeInDuration: Duration(milliseconds: 100),
                         fadeOutDuration: Duration(milliseconds: 100),
+                        cacheKey:
+                            'product_${product['id']}_${product['thumbnail']}',
                         placeholder: (context, url) => Container(
                           color: Colors.grey.shade200,
                           child: Center(child: CircularProgressIndicator()),
@@ -2834,6 +2939,12 @@ class ProductSearchDelegate extends SearchDelegate<String> {
               child: CachedNetworkImage(
                 imageUrl: product['thumbnail'] ?? '',
                 fit: BoxFit.cover,
+                memCacheWidth: 120,
+                memCacheHeight: 120,
+                maxWidthDiskCache: 120,
+                maxHeightDiskCache: 120,
+                cacheKey:
+                    'search_list_${product['id']}_${product['thumbnail']}',
                 errorWidget: (context, url, error) => Icon(
                   Icons.image_not_supported_outlined,
                   color: Colors.grey,
