@@ -679,6 +679,9 @@ class CartProvider with ChangeNotifier {
     }
   }
 
+  // Track ongoing quantity updates to prevent conflicts
+  final Map<String, bool> _ongoingUpdates = {};
+
   Future<void> updateQuantity(int index, int newQuantity) async {
     if (index < 0 || index >= _cartItems.length) {
       print('⚠️ Invalid index for quantity update: $index');
@@ -688,6 +691,13 @@ class CartProvider with ChangeNotifier {
     final item = _cartItems[index];
     final oldQuantity = item.quantity;
     final isIncrease = newQuantity > oldQuantity;
+    final updateKey = '${item.id}_${item.productId}';
+
+    // Check if there's already an ongoing update for this item
+    if (_ongoingUpdates[updateKey] == true) {
+      print('⏳ Update already in progress for ${item.name} - skipping...');
+      return;
+    }
 
     print('=== UPDATE QUANTITY - BACKGROUND SYNC ===');
     print('Product Name: ${item.name}');
@@ -695,6 +705,9 @@ class CartProvider with ChangeNotifier {
     print('New Quantity: $newQuantity');
     print('Cart Item ID: ${item.id}');
     print('Operation: ${isIncrease ? 'INCREASE' : 'DECREASE'}');
+
+    // Mark this item as being updated
+    _ongoingUpdates[updateKey] = true;
 
     // Update local state immediately for UI responsiveness
     _cartItems[index].updateQuantity(newQuantity);
@@ -704,14 +717,23 @@ class CartProvider with ChangeNotifier {
     print('✅ Quantity updated locally - will sync with server');
 
     if (await AuthService.isLoggedIn()) {
-      if (isIncrease) {
-        print(
-            '🔄 Calling _syncQuantityIncreaseWithServer for quantity increase...');
-        _syncQuantityIncreaseWithServer(_cartItems[index], newQuantity);
-      } else {
-        print('🔄 Calling _syncQuantityWithServer for quantity reduction...');
-        _syncQuantityWithServer(_cartItems[index], newQuantity);
+      try {
+        if (isIncrease) {
+          print(
+              '🔄 Calling _syncQuantityIncreaseWithServer for quantity increase...');
+          await _syncQuantityIncreaseWithServer(_cartItems[index], newQuantity);
+        } else {
+          print('🔄 Calling _syncQuantityWithServer for quantity reduction...');
+          await _syncQuantityWithServer(_cartItems[index], newQuantity);
+        }
+      } finally {
+        // Always clear the ongoing update flag
+        _ongoingUpdates[updateKey] = false;
+        print('✅ Update completed for ${item.name}');
       }
+    } else {
+      // Clear the flag if not logged in
+      _ongoingUpdates[updateKey] = false;
     }
   }
 
@@ -729,7 +751,8 @@ class CartProvider with ChangeNotifier {
       // First, sync with server to get current cart state
       print('=== SYNC WITH SERVER FIRST ===');
       final syncResponse = await http.get(
-        Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/check-out/${await AuthService.getHashedLink()}'),
+        Uri.parse(
+            'https://eclcommerce.ernestchemists.com.gh/api/check-out/${await AuthService.getHashedLink()}'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -741,7 +764,7 @@ class CartProvider with ChangeNotifier {
         if (data['cart_items'] != null) {
           final cartItems = data['cart_items'] as List;
           final productId = int.parse(item.originalProductId ?? item.productId);
-          
+
           // Find all cart items for this product
           final itemsToRemove = <String>[];
           for (final cartItem in cartItems) {
@@ -752,16 +775,18 @@ class CartProvider with ChangeNotifier {
             final cartProductName = cartItem['product_name'];
             if (cartProductName == item.name) {
               itemsToRemove.add(cartId.toString());
-              print('Found matching cart item: $cartId for product $cartProductName');
+              print(
+                  'Found matching cart item: $cartId for product $cartProductName');
             }
           }
-          
+
           // Remove all cart items for this product
           print('=== REMOVING ALL ITEMS FOR PRODUCT $productId ===');
           for (final cartId in itemsToRemove) {
             print('Removing cart item: $cartId');
             final removeResponse = await http.post(
-              Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart'),
+              Uri.parse(
+                  'https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart'),
               headers: {
                 'Authorization': 'Bearer $token',
                 'Accept': 'application/json',
@@ -769,12 +794,13 @@ class CartProvider with ChangeNotifier {
               },
               body: jsonEncode({'cart_id': cartId}),
             );
-            print('Remove response: ${removeResponse.statusCode} - ${removeResponse.body}');
+            print(
+                'Remove response: ${removeResponse.statusCode} - ${removeResponse.body}');
           }
-          
+
           // Wait a moment to ensure all removes are processed
           await Future.delayed(Duration(milliseconds: 1000));
-          
+
           // Now add the new quantity
           final addRequestBody = {
             'productID': int.parse(item.originalProductId ?? item.productId),
@@ -782,13 +808,15 @@ class CartProvider with ChangeNotifier {
           };
 
           print('=== QUANTITY UPDATE - ADD NEW QUANTITY ===');
-          print('URL: https://eclcommerce.ernestchemists.com.gh/api/check-auth');
+          print(
+              'URL: https://eclcommerce.ernestchemists.com.gh/api/check-auth');
           print('Request Body: ${jsonEncode(addRequestBody)}');
           print('Request Headers: Bearer $token');
 
           final addResponse = await http
               .post(
-                Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
+                Uri.parse(
+                    'https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
                 headers: {
                   'Authorization': 'Bearer $token',
                   'Accept': 'application/json',

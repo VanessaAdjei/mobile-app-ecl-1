@@ -1879,16 +1879,42 @@ class SubcategoryPageState extends State<SubcategoryPage> {
             // Toggle button when sidebar is hidden
             if (!isSidebarVisible)
               Container(
-                margin: EdgeInsets.only(left: 8),
-                child: FloatingActionButton(
-                  mini: true,
-                  backgroundColor: Colors.green.shade700,
-                  child: Icon(Icons.menu, color: Colors.white, size: 20),
-                  onPressed: () {
-                    setState(() {
-                      isSidebarVisible = true;
-                    });
-                  },
+                margin: EdgeInsets.only(left: 16, top: 16),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.green.shade600, Colors.green.shade800],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.withOpacity(0.4),
+                        blurRadius: 12,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
+                        setState(() {
+                          isSidebarVisible = true;
+                        });
+                      },
+                      child: Container(
+                        padding: EdgeInsets.all(12),
+                        child: Icon(
+                          Icons.grid_view_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             // Main content
@@ -1927,14 +1953,14 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                 Icon(
                   Icons.category_outlined,
                   color: Colors.green.shade700,
-                  size: 18,
+                  size: 13,
                 ),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Categories',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: Colors.grey.shade900,
                     ),
@@ -2009,7 +2035,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                             child: Text(
                               subcategory['name'],
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 12,
                                 fontWeight: isSelected
                                     ? FontWeight.w500
                                     : FontWeight.normal,
@@ -2132,8 +2158,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
         double childAspectRatio = 0.55;
 
         if (!isSidebarVisible) {
-          // When sidebar is hidden, make images smaller (taller aspect ratio)
-          childAspectRatio = 0.7;
+          // When sidebar is hidden, make images smaller (larger aspect ratio = shorter/wider images)
+          childAspectRatio = 0.85;
         } else {
           // When sidebar is visible, use normal size
           childAspectRatio = 0.55;
