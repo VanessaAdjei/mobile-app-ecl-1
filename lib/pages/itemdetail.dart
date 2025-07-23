@@ -1366,21 +1366,24 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                     ],
                   ),
                 ),
-                SizedBox(width: 8),
+                SizedBox(width: 16), // Increased spacing from 8 to 16
                 // Simple Total price display
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.green.shade200),
-                  ),
-                  child: Text(
-                    'Total: GHS ${(double.parse(product.price) * quantity).toStringAsFixed(2)}',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green.shade800,
+                Expanded( // Added Expanded to make it take remaining space
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8), // Increased vertical padding
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(8), // Changed from 6 to 8 for consistency
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Text(
+                      'Total: GHS ${(double.parse(product.price) * quantity).toStringAsFixed(2)}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green.shade800,
+                      ),
+                      textAlign: TextAlign.center, // Center the text
                     ),
                   ),
                 ),
