@@ -65,7 +65,8 @@ class CartItem {
       'id': id,
       'productId': productId,
       if (serverProductId != null) 'serverProductId': serverProductId,
-      if (originalProductId != null) 'originalProductId': originalProductId, // Add to JSON
+      if (originalProductId != null)
+        'originalProductId': originalProductId, // Add to JSON
       'name': name,
       'price': price,
       if (originalPrice != null) 'originalPrice': originalPrice,
@@ -86,7 +87,8 @@ class CartItem {
       serverProductId: json['serverProductId'] != null
           ? int.tryParse(json['serverProductId'].toString())
           : null,
-      originalProductId: json['originalProductId']?.toString(), // Parse from JSON
+      originalProductId:
+          json['originalProductId']?.toString(), // Parse from JSON
       name: json['name']?.toString() ?? 'Unknown Item',
       price: _parseDouble(json['price']),
       originalPrice: json['originalPrice'] != null
@@ -114,6 +116,27 @@ class CartItem {
     print('Batch No: ${json['batch_no']}');
     print('==========================================');
 
+    // Calculate correct quantity from total_price if qty seems wrong
+    final price = _parseDouble(json['price']);
+    final totalPrice = _parseDouble(json['total_price']);
+    final reportedQty = _parseInt(json['qty']);
+
+    // If total_price is greater than price * reported_qty, calculate correct quantity
+    int correctQuantity = reportedQty;
+    if (price > 0 && totalPrice > 0) {
+      final calculatedQty = (totalPrice / price).round();
+      if (calculatedQty != reportedQty) {
+        print('🔧 QUANTITY CORRECTION ===');
+        print('Reported Qty: $reportedQty');
+        print('Price: $price');
+        print('Total Price: $totalPrice');
+        print('Calculated Qty: $calculatedQty');
+        print('Using calculated quantity: $calculatedQty');
+        print('==========================');
+        correctQuantity = calculatedQty;
+      }
+    }
+
     return CartItem(
       id: cartItemId,
       productId: serverProductId, // Keep server product ID as productId
@@ -122,13 +145,12 @@ class CartItem {
           : int.tryParse(json['product_id']?.toString() ?? ''),
       originalProductId: null, // Will be set when merging with existing items
       name: json['product_name']?.toString() ?? 'Unknown Item',
-      price: _parseDouble(json['price']),
-      quantity: _parseInt(json['qty']),
+      price: price,
+      quantity: correctQuantity,
       image: json['product_img']?.toString() ?? '',
       batchNo: json['batch_no']?.toString() ?? '',
       urlName: json['url_name']?.toString() ?? '',
-      totalPrice: _parseDouble(
-          json['total_price']), // Fixed: use total_price instead of totalPrice
+      totalPrice: totalPrice,
     );
   }
 
@@ -158,7 +180,8 @@ class CartItem {
       id: id ?? this.id,
       productId: productId ?? this.productId,
       serverProductId: serverProductId ?? this.serverProductId,
-      originalProductId: originalProductId ?? this.originalProductId, // Add to copyWith
+      originalProductId:
+          originalProductId ?? this.originalProductId, // Add to copyWith
       name: name ?? this.name,
       price: price ?? this.price,
       originalPrice: originalPrice ?? this.originalPrice,

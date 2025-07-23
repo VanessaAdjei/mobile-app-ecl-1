@@ -1,4 +1,5 @@
 // pages/cartprovider.dart
+// pages/cartprovider.dart
 import 'package:flutter/foundation.dart';
 import 'CartItem.dart';
 import 'dart:convert';
@@ -20,12 +21,14 @@ class CartProvider with ChangeNotifier {
 
   // Helper method to normalize product names for consistent key generation
   String _normalizeProductName(String name) {
-    // First normalize: lowercase, remove special chars including hyphens, normalize spaces
+    // First normalize: lowercase, replace hyphens with spaces, remove special chars, normalize spaces
     String normalized = name
         .toLowerCase()
+        .replaceAll('-', ' ') // Replace hyphens with spaces first
         .replaceAll(RegExp(r'[^a-z0-9\s]'),
-            '') // Remove special characters including hyphens
-        .replaceAll(RegExp(r'\s+'), ' ') // Normalize spaces
+            '') // Remove special characters (but keep spaces)
+        .replaceAll(
+            RegExp(r'\s+'), ' ') // Normalize multiple spaces to single space
         .trim();
 
     // Split into words and sort alphabetically to handle word order variations
@@ -793,7 +796,7 @@ class CartProvider with ChangeNotifier {
       // For quantity reduction, we need to update the existing cart item
       // Since the server doesn't have a direct "update quantity" API,
       // we'll remove the current item and add the new quantity
-      
+
       // First, remove the current cart item
       final removeRequestBody = {
         'cart_id': item.id,
@@ -827,7 +830,8 @@ class CartProvider with ChangeNotifier {
       print('Response Status: ${removeResponse.statusCode}');
       print('Response Body: ${removeResponse.body}');
 
-      if (removeResponse.statusCode == 200 || removeResponse.statusCode == 201) {
+      if (removeResponse.statusCode == 200 ||
+          removeResponse.statusCode == 201) {
         // Now add the new quantity
         final addRequestBody = {
           'productID': int.parse(item.originalProductId ?? item.productId),
@@ -858,7 +862,7 @@ class CartProvider with ChangeNotifier {
 
         if (addResponse.statusCode == 200 || addResponse.statusCode == 201) {
           print('✅ Quantity reduction successful - server updated');
-          
+
           // Parse the response to get the new cart item ID
           try {
             final responseData = jsonDecode(addResponse.body);
@@ -866,16 +870,16 @@ class CartProvider with ChangeNotifier {
                 responseData['items'].isNotEmpty) {
               final newCartItem = responseData['items'][0];
               final newCartId = newCartItem['id'].toString();
-              
+
               print('🔄 UPDATING LOCAL CART ITEM ID ===');
               print('Old Cart ID: ${item.id}');
               print('New Cart ID: $newCartId');
-              
+
               // Find and update the local cart item with the new ID
-              final itemIndex = _cartItems.indexWhere((cartItem) => 
-                  cartItem.name == item.name && 
+              final itemIndex = _cartItems.indexWhere((cartItem) =>
+                  cartItem.name == item.name &&
                   cartItem.batchNo == item.batchNo);
-              
+
               if (itemIndex != -1) {
                 // Create a new cart item with the updated ID
                 final updatedCartItem = CartItem(
@@ -894,7 +898,7 @@ class CartProvider with ChangeNotifier {
                   urlName: _cartItems[itemIndex].urlName,
                   totalPrice: _cartItems[itemIndex].totalPrice,
                 );
-                
+
                 // Replace the old item with the new one
                 _cartItems[itemIndex] = updatedCartItem;
                 print('✅ Updated local cart item ID to: $newCartId');
@@ -907,7 +911,7 @@ class CartProvider with ChangeNotifier {
           } catch (e) {
             print('⚠️ Could not parse response to update cart ID: $e');
           }
-          
+
           // Sync with server to get updated cart
           await syncWithApi();
         } else {

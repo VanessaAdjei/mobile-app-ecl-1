@@ -75,13 +75,6 @@ class Product {
       uom: finalUom,
     );
 
-    print('🏷️ Product.fromJson - Final product created:');
-    print('  Name: ${product.name}');
-    print('  Price: ${product.price}');
-    print('  Category: ${product.category}');
-    print('  UOM: ${product.uom}');
-    print('🏷️ Product.fromJson - END');
-
     return product;
   }
 
