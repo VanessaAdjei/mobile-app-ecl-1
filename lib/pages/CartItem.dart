@@ -66,7 +66,7 @@ class CartItem {
       'productId': productId,
       if (serverProductId != null) 'serverProductId': serverProductId,
       if (originalProductId != null)
-        'originalProductId': originalProductId, // Add to JSON
+        'originalProductId': originalProductId, 
       'name': name,
       'price': price,
       if (originalPrice != null) 'originalPrice': originalPrice,
