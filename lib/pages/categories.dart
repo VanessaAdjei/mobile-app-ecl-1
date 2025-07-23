@@ -1840,9 +1840,15 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       builder: (context, constraints) {
         // Responsive layout based on screen width
         bool isTablet = constraints.maxWidth > 600;
-        double sideNavWidth = isTablet ? 280 : constraints.maxWidth * 0.4;
-        // Ensure minimum width for sidebar
-        sideNavWidth = sideNavWidth.clamp(200.0, constraints.maxWidth * 0.5);
+        double sideNavWidth = isTablet ? 260 : constraints.maxWidth * 0.35;
+        // Ensure minimum width for sidebar with proper bounds
+        double minWidth = 200.0;
+        double maxWidth = constraints.maxWidth * 0.45;
+        // Ensure min is not greater than max
+        if (minWidth > maxWidth) {
+          minWidth = maxWidth * 0.8; // Use 80% of max as min
+        }
+        sideNavWidth = sideNavWidth.clamp(minWidth, maxWidth);
 
         // Auto-hide sidebar on very small screens
         bool shouldAutoHide = constraints.maxWidth < 400;
