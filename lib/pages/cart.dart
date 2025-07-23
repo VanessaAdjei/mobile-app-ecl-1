@@ -1,20 +1,15 @@
 // pages/cart.dart
-// pages/cart.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:eclapp/pages/homepage.dart';
-import 'bottomnav.dart';
 import 'cartprovider.dart';
 import 'delivery_page.dart';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'dart:core';
-import 'package:http/http.dart' as http;
 import 'AppBackButton.dart';
 import 'auth_service.dart';
 import 'signinpage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'itemdetail.dart';
 
 class Cart extends StatefulWidget {
   const Cart({super.key});
@@ -46,19 +41,9 @@ class _CartState extends State<Cart> {
     // Local cart is now the source of truth
     // Server sync will happen during checkout
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final cart = Provider.of<CartProvider>(context, listen: false);
       // Don't sync immediately - let the protection mechanism handle it
-
-      // Log cart items after initialization
-      for (var item in cart.cartItems) {}
+      // Cart items loaded successfully
     });
-
-    // Disable periodic sync to prevent interference with local cart
-    // _syncTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
-    //   if (mounted) {
-    //     Provider.of<CartProvider>(context, listen: false).syncWithApi();
-    //   }
-    // });
   }
 
   Future<void> _checkAuthStatus() async {
@@ -137,40 +122,9 @@ class _CartState extends State<Cart> {
     });
   }
 
-  Map<String, Map<String, Map<String, double>>> locationFees = {
-    'Greater Accra': {
-      'Accra': {'Madina': 0.00, 'Osu': 0.50},
-      'Tema': {'Community 1': 0.00, 'Community 2': 0.00},
-    },
-    'Ashanti': {
-      'Kumasi': {'Adum': 0.50, 'Asokwa': 0.50, 'Ahodwo': 0.00},
-      'Ejisu': {'Ejisu Town': 0.00, 'Besease': 0.50},
-    },
-    'Western': {
-      'Takoradi': {'Market Circle': 0.00, 'Anaji': 0.00, 'Effia': 0.00},
-    },
-  };
-
-  List<String> regions = ['Greater Accra', 'Ashanti', 'Western'];
-  Map<String, List<String>> cities = {
-    'Greater Accra': ['Accra', 'Tema'],
-    'Ashanti': ['Kumasi'],
-    'Western': ['Takoradi'],
-  };
-
-  Map<String, List<String>> towns = {
-    'Accra': ['Madina', 'Osu'],
-    'Tema': ['Community 1', 'Community 2'],
-    'Kumasi': ['Adum', 'Asokwa'],
-    'Takoradi': ['Market Circle', 'Anaji'],
-  };
-
-  List<String> pickupLocations = ['Site 1', 'Site 2', 'Site 3', 'Site 4'];
-
   // Improved helper to get the full product image URL for all possible formats
   String getImageUrl(String? url) {
     if (url == null || url.isEmpty) {
-      print('🖼️ IMAGE URL DEBUG: Empty or null URL');
       return '';
     }
 
@@ -374,12 +328,55 @@ class _CartState extends State<Cart> {
                                       ),
                                     ),
                                     child: Text("Log in"),
-                                    onPressed: () {
-                                      Navigator.push(
+                                    onPressed: () async {
+                                      // Navigate to login screen directly (no loading dialog needed)
+                                      await Navigator.push(
                                           context,
                                           MaterialPageRoute(
                                             builder: (_) => SignInScreen(),
                                           ));
+
+                                      // After returning from login, check if user is now logged in
+                                      if (mounted) {
+                                        final isNowLoggedIn =
+                                            await AuthService.isLoggedIn();
+                                        setState(() {
+                                          _isLoggedIn = isNowLoggedIn;
+                                        });
+
+                                        // If user successfully logged in, merge guest cart
+                                        if (isNowLoggedIn) {
+                                          final userId = await AuthService
+                                              .getCurrentUserID();
+                                          if (userId != null) {
+                                            final cart =
+                                                Provider.of<CartProvider>(
+                                                    context,
+                                                    listen: false);
+
+                                            // Show quick merging message
+                                            showTopSnackBar(
+                                              context,
+                                              'Merging cart items...',
+                                              duration: Duration(seconds: 1),
+                                            );
+
+                                            // Fast merge (now non-blocking)
+                                            await cart
+                                                .mergeGuestCartOnLogin(userId);
+
+                                            // Show success message
+                                            showTopSnackBar(
+                                              context,
+                                              'Welcome back!',
+                                              duration: Duration(seconds: 3),
+                                            );
+
+                                            // Refresh the cart display
+                                            setState(() {});
+                                          }
+                                        }
+                                      }
                                     },
                                   ),
                                 ],
@@ -1007,8 +1004,6 @@ class _CartState extends State<Cart> {
                     ),
                   ),
                   errorWidget: (context, url, error) {
-                    print('🖼️ IMAGE ERROR: Failed to load image from $url');
-                    print('🖼️ IMAGE ERROR: Error: $error');
                     return Container(
                       decoration: BoxDecoration(
                         color: Colors.grey.shade100,

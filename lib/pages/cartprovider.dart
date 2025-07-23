@@ -1063,8 +1063,10 @@ class CartProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Merge guest cart into user cart after login
+  // Merge guest cart into user cart after login - OPTIMIZED VERSION
   Future<void> mergeGuestCartOnLogin(String userId) async {
+    debugPrint('🔄 Starting fast cart merge for user: $userId');
+    
     final guestCart = _userCarts['guest_id'] ?? [];
     final userCart = _userCarts[userId] ?? [];
 
@@ -1081,16 +1083,99 @@ class CartProvider with ChangeNotifier {
       }
     }
 
+    // Update local cart immediately for instant UI feedback
     _userCarts[userId] = merged.values.toList();
     _cartItems = _userCarts[userId]!;
     _userCarts.remove('guest_id');
 
+    // Save to local storage and notify UI immediately
     await _saveUserCarts();
     notifyListeners();
 
-    // Sync merged cart with server
-    for (final item in _cartItems) {
-      await _syncAddToServer(item);
+    debugPrint('✅ Local cart merge completed. Items: ${_cartItems.length}');
+
+    // Sync with server in background (non-blocking)
+    _syncMergedCartInBackground();
+  }
+
+  // Fast background sync for merged cart
+  Future<void> _syncMergedCartInBackground() async {
+    try {
+      debugPrint('🔄 Starting background server sync...');
+      
+      // Use batch operations instead of individual calls
+      await _batchSyncCartToServer();
+      
+      debugPrint('✅ Background server sync completed');
+    } catch (e) {
+      debugPrint('⚠️ Background sync failed: $e');
+      // Don't show error to user - cart is already merged locally
+    }
+  }
+
+  // Batch sync cart to server - much faster than individual calls
+  Future<void> _batchSyncCartToServer() async {
+    if (_currentUserId == null || _cartItems.isEmpty) return;
+
+    try {
+      final token = await AuthService.getToken();
+      if (token == null) return;
+
+      // Clear existing server cart first
+      await _clearServerCart(token);
+
+      // Add all items in batch
+      final futures = _cartItems.map((item) => _syncAddToServer(item)).toList();
+      await Future.wait(futures);
+
+      debugPrint('✅ Batch sync completed for ${_cartItems.length} items');
+    } catch (e) {
+      debugPrint('⚠️ Batch sync error: $e');
+      rethrow;
+    }
+  }
+
+  // Clear server cart before adding merged items
+  Future<void> _clearServerCart(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/check-out/${await AuthService.getHashedLink()}'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['cart_items'] != null) {
+          // Remove each item from server
+          final serverItems = data['cart_items'] as List;
+          for (final item in serverItems) {
+            final itemId = item['id']?.toString();
+            if (itemId != null) {
+              await _removeFromServer(itemId, token);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Clear server cart error: $e');
+    }
+  }
+
+  // Remove item from server
+  Future<void> _removeFromServer(String itemId, String token) async {
+    try {
+      await http.delete(
+        Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/check-out/$itemId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 3));
+    } catch (e) {
+      debugPrint('⚠️ Remove from server error: $e');
     }
   }
 }
