@@ -62,7 +62,8 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   // Optimization variables
   bool _showSkeleton = true;
   Timer? _skeletonTimer;
-  final UniversalPageOptimizationService _optimizationService = UniversalPageOptimizationService();
+  final UniversalPageOptimizationService _optimizationService =
+      UniversalPageOptimizationService();
 
   @override
   void initState() {
@@ -86,7 +87,8 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
   void _initializeOptimization() {
     // Start performance monitoring
-    _optimizationService.trackPagePerformance('item_detail_${widget.urlName}', 'load');
+    _optimizationService.trackPagePerformance(
+        'item_detail_${widget.urlName}', 'load');
   }
 
   void _loadDataWithSkeleton() async {
@@ -119,9 +121,10 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       setState(() {
         _showSkeleton = false;
       });
-      
+
       // End performance monitoring
-      _optimizationService.stopPagePerformanceTracking('item_detail_${widget.urlName}', 'load');
+      _optimizationService.stopPagePerformanceTracking(
+          'item_detail_${widget.urlName}', 'load');
     }
   }
 
@@ -141,20 +144,21 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       () => fetchProductDetails(urlName),
       pageName: 'item_detail',
     );
-    return result ?? Product(
-      id: 0,
-      name: 'Product not found',
-      description: '',
-      urlName: urlName,
-      status: '',
-      price: '0.00',
-      thumbnail: '',
-      quantity: '',
-      category: '',
-      route: '',
-      batch_no: '',
-      uom: '',
-    );
+    return result ??
+        Product(
+          id: 0,
+          name: 'Product not found',
+          description: '',
+          urlName: urlName,
+          status: '',
+          price: '0.00',
+          thumbnail: '',
+          quantity: '',
+          category: '',
+          route: '',
+          batch_no: '',
+          uom: '',
+        );
   }
 
   // Enhanced related products fetching with caching and optimization
@@ -501,7 +505,8 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             debugPrint('🔍 CREATING PRODUCT OBJECT ===');
             debugPrint('Extracted Name: $extractedName');
             debugPrint('Product ID: $productId');
-            debugPrint('Price: ${inventoryData['price']?.toString() ?? '0.00'}');
+            debugPrint(
+                'Price: ${inventoryData['price']?.toString() ?? '0.00'}');
             debugPrint('Batch No: ${inventoryData['batch_no'] ?? ''}');
             debugPrint(
                 'Category: ${(productData['categories'] != null && productData['categories'].isNotEmpty) ? productData['categories'][0]['description'] ?? '' : ''}');
@@ -1361,14 +1366,11 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                       ),
                       OptimizedAddButton(
                         onPressed: quantity < maxQuantity
-                            ? () async {
-                                // Optimistic update for instant visual feedback
+                            ? () {
+                                // Only update local quantity state
                                 setState(() {
                                   quantity++;
                                 });
-                                
-                                // Add to cart with new quantity
-                                _addToCartWithQuantity(context, product, quantity);
                               }
                             : null,
                         isEnabled: quantity < maxQuantity,
@@ -1379,12 +1381,16 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 ),
                 SizedBox(width: 16), // Increased spacing from 8 to 16
                 // Simple Total price display
-                Expanded( // Added Expanded to make it take remaining space
+                Expanded(
+                  // Added Expanded to make it take remaining space
                   child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8), // Increased vertical padding
+                    padding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8), // Increased vertical padding
                     decoration: BoxDecoration(
                       color: Colors.green.shade50,
-                      borderRadius: BorderRadius.circular(8), // Changed from 6 to 8 for consistency
+                      borderRadius: BorderRadius.circular(
+                          8), // Changed from 6 to 8 for consistency
                       border: Border.all(color: Colors.green.shade200),
                     ),
                     child: Text(
@@ -1445,8 +1451,10 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         // Add haptic feedback
                         HapticFeedback.mediumImpact();
 
-                        debugPrint('DEBUG: ItemPage urlName = \\${widget.urlName}');
-                        debugPrint('DEBUG: isPrescribed = \\${widget.isPrescribed}');
+                        debugPrint(
+                            'DEBUG: ItemPage urlName = \\${widget.urlName}');
+                        debugPrint(
+                            'DEBUG: isPrescribed = \\${widget.isPrescribed}');
                         if (widget.isPrescribed) {
                           final token = await AuthService.getToken();
                           if (token == null || token == "guest-temp-token") {
