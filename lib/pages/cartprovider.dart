@@ -724,85 +724,97 @@ class CartProvider with ChangeNotifier {
         return;
       }
 
-      print(
-          '🔄 UPDATED _syncQuantityWithServer: Using remove-and-add approach...');
+      print('🔄 UPDATED _syncQuantityWithServer: Using sync-first approach...');
 
-      // For quantity updates, we need to remove the current item and add the new quantity
-      // First, remove the current cart item
-      final removeRequestBody = {
-        'cart_id': item.id,
-      };
+      // First, sync with server to get current cart state
+      print('=== SYNC WITH SERVER FIRST ===');
+      final syncResponse = await http.get(
+        Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/check-out/${await AuthService.getHashedLink()}'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
 
-      print('=== QUANTITY UPDATE - REMOVE CURRENT ITEM ===');
-      print(
-          'URL: https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart');
-      print('Request Body: ${jsonEncode(removeRequestBody)}');
-      print('Request Headers: Bearer $token');
-
-      final removeResponse = await http
-          .post(
-            Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(removeRequestBody),
-          )
-          .timeout(const Duration(seconds: 10));
-
-      print('=== REMOVE RESPONSE ===');
-      print('Response Status: ${removeResponse.statusCode}');
-      print('Response Body: ${removeResponse.body}');
-
-      if (removeResponse.statusCode == 200 ||
-          removeResponse.statusCode == 201) {
-        // Now add the new quantity
-        final addRequestBody = {
-          'productID': int.parse(item.originalProductId ?? item.productId),
-          'quantity': newQuantity,
-        };
-
-        print('=== QUANTITY UPDATE - ADD NEW QUANTITY ===');
-        print('URL: https://eclcommerce.ernestchemists.com.gh/api/check-auth');
-        print('Request Body: ${jsonEncode(addRequestBody)}');
-        print('Request Headers: Bearer $token');
-
-        final addResponse = await http
-            .post(
-              Uri.parse(
-                  'https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
+      if (syncResponse.statusCode == 200) {
+        final data = jsonDecode(syncResponse.body);
+        if (data['cart_items'] != null) {
+          final cartItems = data['cart_items'] as List;
+          final productId = int.parse(item.originalProductId ?? item.productId);
+          
+          // Find all cart items for this product
+          final itemsToRemove = <String>[];
+          for (final cartItem in cartItems) {
+            final cartProductId = cartItem['product_id'];
+            final cartId = cartItem['id'];
+            print('Checking cart item: $cartProductId vs original:$productId');
+            // Check if this cart item matches our product by name
+            final cartProductName = cartItem['product_name'];
+            if (cartProductName == item.name) {
+              itemsToRemove.add(cartId.toString());
+              print('Found matching cart item: $cartId for product $cartProductName');
+            }
+          }
+          
+          // Remove all cart items for this product
+          print('=== REMOVING ALL ITEMS FOR PRODUCT $productId ===');
+          for (final cartId in itemsToRemove) {
+            print('Removing cart item: $cartId');
+            final removeResponse = await http.post(
+              Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart'),
               headers: {
                 'Authorization': 'Bearer $token',
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
               },
-              body: jsonEncode(addRequestBody),
-            )
-            .timeout(const Duration(seconds: 10));
+              body: jsonEncode({'cart_id': cartId}),
+            );
+            print('Remove response: ${removeResponse.statusCode} - ${removeResponse.body}');
+          }
+          
+          // Wait a moment to ensure all removes are processed
+          await Future.delayed(Duration(milliseconds: 1000));
+          
+          // Now add the new quantity
+          final addRequestBody = {
+            'productID': int.parse(item.originalProductId ?? item.productId),
+            'quantity': newQuantity,
+          };
 
-        print('=== ADD RESPONSE ===');
-        print('Response Status: ${addResponse.statusCode}');
-        print('Response Body: ${addResponse.body}');
+          print('=== QUANTITY UPDATE - ADD NEW QUANTITY ===');
+          print('URL: https://eclcommerce.ernestchemists.com.gh/api/check-auth');
+          print('Request Body: ${jsonEncode(addRequestBody)}');
+          print('Request Headers: Bearer $token');
 
-        if (addResponse.statusCode == 200 || addResponse.statusCode == 201) {
-          print('✅ Quantity update successful - server updated');
-          // Sync with server to get the authoritative cart state
-          await syncWithApi();
-        } else {
-          print('⚠️ Quantity update failed: ${addResponse.statusCode}');
-          // Still sync to get current server state
-          await syncWithApi();
+          final addResponse = await http
+              .post(
+                Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
+                headers: {
+                  'Authorization': 'Bearer $token',
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json',
+                },
+                body: jsonEncode(addRequestBody),
+              )
+              .timeout(const Duration(seconds: 10));
+
+          print('=== ADD RESPONSE ===');
+          print('Response Status: ${addResponse.statusCode}');
+          print('Response Body: ${addResponse.body}');
+
+          if (addResponse.statusCode == 200 || addResponse.statusCode == 201) {
+            print('✅ Quantity update successful - server updated');
+            // Sync with server to get the authoritative cart state
+            await syncWithApi();
+          } else {
+            print('⚠️ Quantity update failed: ${addResponse.statusCode}');
+            // Still sync to get current server state
+            await syncWithApi();
+          }
         }
-      } else if (removeResponse.statusCode == 500) {
-        print(
-            '⚠️ Cart item not found on server, syncing to get current state...');
-        // Sync to get current server state
-        await syncWithApi();
       } else {
-        print('⚠️ Failed to remove current item: ${removeResponse.statusCode}');
-        // Still sync to get current server state
+        print('⚠️ Failed to sync with server: ${syncResponse.statusCode}');
+        // Fallback: try to sync anyway
         await syncWithApi();
       }
     } catch (e) {
