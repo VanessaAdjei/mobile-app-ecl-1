@@ -41,17 +41,18 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     await cartProvider.refreshLoginStatus();
   }
 
-    void _onItemTapped(int index) async {
+  void _onItemTapped(int index) async {
     print('🔍 BOTTOM NAV TAPPED ===');
     print('Index: $index');
     print('Current Index: $_selectedIndex');
     print('Can Pop: ${Navigator.canPop(context)}');
     print('Route Count: ${Navigator.of(context).widget.observers.length}');
-    
+
     // Only return early if we're actually on the same page AND it's not the home button
     // For home button (index 0), we always want to navigate regardless of current index
-    if (index == _selectedIndex && index != 0) {
-      print('🔍 SAME INDEX (NOT HOME) - RETURNING ===');
+    // For cart button (index 1), we also want to allow navigation to go back to cart from other pages
+    if (index == _selectedIndex && index != 0 && index != 1) {
+      print('🔍 SAME INDEX (NOT HOME OR CART) - RETURNING ===');
       return;
     }
 
@@ -68,7 +69,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
           while (Navigator.canPop(context)) {
             Navigator.pop(context);
           }
-          
+
           // Then push the home page
           Navigator.pushReplacement(
             context,
