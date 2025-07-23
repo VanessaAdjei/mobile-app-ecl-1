@@ -2,14 +2,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'Cart.dart';
 import 'auth_service.dart';
-import 'bottomnav.dart';
 import 'HomePage.dart';
-import 'AppBackButton.dart';
-import 'package:provider/provider.dart';
-import 'cart.dart';
-import 'cartprovider.dart';
+import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
 
 class AddPaymentPage extends StatefulWidget {
@@ -260,7 +255,7 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -283,7 +278,7 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
               "Add or remove your payment options",
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.green.withOpacity(0.9),
+                color: Colors.green.withValues(alpha: 0.9),
               ),
             ),
           ],
@@ -304,7 +299,7 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             spreadRadius: 1,
           ),
@@ -383,7 +378,7 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             spreadRadius: 1,
           ),

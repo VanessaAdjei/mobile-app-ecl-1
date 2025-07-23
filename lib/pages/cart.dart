@@ -1,15 +1,17 @@
 // pages/cart.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:eclapp/pages/homepage.dart';
 import 'cartprovider.dart';
 import 'delivery_page.dart';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'AppBackButton.dart';
+import 'app_back_button.dart';
 import 'auth_service.dart';
 import 'signinpage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/optimized_quantity_button.dart';
 
 class Cart extends StatefulWidget {
   const Cart({super.key});
@@ -27,7 +29,7 @@ class _CartState extends State<Cart> {
   double deliveryFee = 0.00;
 
   TextEditingController addressController = TextEditingController();
-  TextEditingController _promoController = TextEditingController();
+  final TextEditingController _promoController = TextEditingController();
 
   Timer? _syncTimer;
   bool _isLoggedIn = false;
@@ -96,7 +98,7 @@ class _CartState extends State<Cart> {
               borderRadius: BorderRadius.circular(8),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),
@@ -192,7 +194,7 @@ class _CartState extends State<Cart> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.15),
+                          color: Colors.black.withValues(alpha: 0.15),
                           blurRadius: 12,
                           offset: Offset(0, 4),
                         ),
@@ -207,7 +209,8 @@ class _CartState extends State<Cart> {
                           child: Row(
                             children: [
                               AppBackButton(
-                                backgroundColor: Colors.white.withOpacity(0.2),
+                                backgroundColor:
+                                    Colors.white.withValues(alpha: 0.2),
                                 onPressed: () {
                                   debugPrint("Back tapped");
                                   if (Navigator.canPop(context)) {
@@ -409,7 +412,7 @@ class _CartState extends State<Cart> {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 8,
                   offset: const Offset(0, -2),
                 ),
@@ -478,7 +481,7 @@ class _CartState extends State<Cart> {
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.green.withOpacity(0.3),
+                            color: Colors.green.withValues(alpha: 0.3),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
@@ -780,7 +783,7 @@ class _CartState extends State<Cart> {
     return Container(
       width: 50,
       height: 1,
-      color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
+      color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.3),
     );
   }
 
@@ -790,7 +793,7 @@ class _CartState extends State<Cart> {
         ? Colors.white
         : isActive
             ? Colors.white
-            : Colors.white.withOpacity(0.6);
+            : Colors.white.withValues(alpha: 0.6);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -800,7 +803,7 @@ class _CartState extends State<Cart> {
           height: 24,
           decoration: BoxDecoration(
             color: isCompleted || isActive
-                ? Colors.white.withOpacity(0.2)
+                ? Colors.white.withValues(alpha: 0.2)
                 : Colors.transparent,
             border: Border.all(
               color: color,
@@ -810,7 +813,7 @@ class _CartState extends State<Cart> {
             boxShadow: isCompleted || isActive
                 ? [
                     BoxShadow(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       blurRadius: 4,
                       offset: Offset(0, 2),
                     ),
@@ -901,7 +904,7 @@ class _CartState extends State<Cart> {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.green.withOpacity(0.3),
+                    color: Colors.green.withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: Offset(0, 4),
                   ),
@@ -964,7 +967,7 @@ class _CartState extends State<Cart> {
         child: Row(
           children: [
             // Product Image - Compact Design with Placeholder
-            Container(
+            SizedBox(
               width: 50,
               height: 50,
               child: ClipRRect(
@@ -1078,32 +1081,22 @@ class _CartState extends State<Cart> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(4),
-                                onTap: () {
-                                  if (item.quantity > 1) {
-                                    cart.updateQuantity(
-                                        index, item.quantity - 1);
-                                  } else {
-                                    cart.removeFromCart(item.id);
-                                  }
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  child: Icon(
-                                    item.quantity > 1
-                                        ? Icons.remove
-                                        : Icons.delete_outline,
-                                    size: 14,
-                                    color: item.quantity > 1
-                                        ? Colors.grey.shade700
-                                        : Colors.red.shade400,
+                            item.quantity > 1
+                                ? OptimizedRemoveButton(
+                                    onPressed: () {
+                                      cart.updateQuantity(
+                                          index, item.quantity - 1);
+                                    },
+                                    isEnabled: true,
+                                    size: 32.0,
+                                  )
+                                : OptimizedDeleteButton(
+                                    onPressed: () {
+                                      cart.removeFromCart(item.id);
+                                    },
+                                    isEnabled: true,
+                                    size: 32.0,
                                   ),
-                                ),
-                              ),
-                            ),
                             Container(
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 10),
@@ -1115,22 +1108,12 @@ class _CartState extends State<Cart> {
                                 ),
                               ),
                             ),
-                            Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(4),
-                                onTap: () {
-                                  cart.updateQuantity(index, item.quantity + 1);
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  child: Icon(
-                                    Icons.add,
-                                    size: 14,
-                                    color: Colors.green.shade600,
-                                  ),
-                                ),
-                              ),
+                            OptimizedAddButton(
+                              onPressed: () {
+                                cart.updateQuantity(index, item.quantity + 1);
+                              },
+                              isEnabled: true,
+                              size: 32.0,
                             ),
                           ],
                         ),

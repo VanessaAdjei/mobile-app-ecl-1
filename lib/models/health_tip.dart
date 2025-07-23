@@ -37,7 +37,7 @@ class HealthTip {
       } else {
         // If no good break point, truncate title and keep full content as summary
         title = content.length > 40
-            ? content.substring(0, 40).trim() + '...'
+            ? '${content.substring(0, 40).trim()}...'
             : content;
         summary = content;
       }
@@ -61,7 +61,7 @@ class HealthTip {
   static String _createDescriptiveSummary(String content, String category) {
     // Create more descriptive summaries based on the content and category
     String lowerContent = content.toLowerCase();
-    String lowerCategory = category.toLowerCase();
+    // String lowerCategory = category.toLowerCase(); // Unused variable
 
     if (lowerContent.contains('exercise') ||
         lowerContent.contains('physical activity')) {

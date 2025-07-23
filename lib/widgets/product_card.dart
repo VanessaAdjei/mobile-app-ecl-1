@@ -1,7 +1,7 @@
 // widgets/product_card.dart
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../pages/ProductModel.dart';
+import '../pages/product_model.dart';
 import '../pages/itemdetail.dart';
 import '../services/homepage_optimization_service.dart';
 
@@ -18,7 +18,7 @@ class HomeProductCard extends StatelessWidget {
   final bool showHero;
 
   const HomeProductCard({
-    Key? key,
+    super.key,
     required this.product,
     this.fontSize,
     this.padding,
@@ -29,12 +29,12 @@ class HomeProductCard extends StatelessWidget {
     this.showPrice = true,
     this.showName = true,
     this.showHero = true,
-  }) : super(key: key);
+  });
 
   // Truncate product names to keep them short
   String _truncateProductName(String name) {
     if (name.length <= 18) return name;
-    return name.substring(0, 20) + '...';
+    return '${name.substring(0, 20)}...';
   }
 
   @override
@@ -206,7 +206,7 @@ class GenericProductCard extends StatelessWidget {
   final bool showFavoriteButton;
 
   const GenericProductCard({
-    Key? key,
+    super.key,
     required this.product,
     this.fontSize,
     this.padding,
@@ -216,7 +216,7 @@ class GenericProductCard extends StatelessWidget {
     this.onTap,
     this.showPrice = true,
     this.showFavoriteButton = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -454,7 +454,7 @@ class ProductCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.07),
+              color: Colors.black.withValues(alpha: 0.07),
               blurRadius: 10,
               offset: Offset(0, 4),
             ),

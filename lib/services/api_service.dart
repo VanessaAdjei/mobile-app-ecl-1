@@ -1,8 +1,8 @@
 // services/api_service.dart
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eclapp/pages/auth_service.dart';
 
 // Cache entry class
@@ -63,7 +63,7 @@ class ApiService {
     Duration? customCacheExpiry,
   }) async {
     final headers = await _authHeaders;
-    print('[API] Request Headers: $headers');
+    debugPrint('[API] Request Headers: $headers');
     final url = _buildUrl(endpoint, queryParams);
     final cacheKey = url;
 
@@ -133,7 +133,7 @@ class ApiService {
     Duration? customCacheExpiry,
   }) async {
     final headers = await _authHeaders;
-    print('[API] Request Headers: $headers');
+    debugPrint('[API] Request Headers: $headers');
     final url = _buildUrl(endpoint, queryParams);
 
     if (!await _checkConnectivity()) {

@@ -1,7 +1,7 @@
 // pages/search_results_page.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'ProductModel.dart';
+import 'product_model.dart';
 import 'itemdetail.dart';
 import '../widgets/product_card.dart';
 
@@ -22,7 +22,7 @@ class SearchResultsPage extends StatefulWidget {
 class _SearchResultsPageState extends State<SearchResultsPage> {
   List<Product>? _filteredProducts;
   String _searchText = '';
-  String _selectedCategory = 'All';
+  final String _selectedCategory = 'All';
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -81,7 +81,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 10,
                   offset: Offset(0, 2),
                 ),
@@ -217,7 +217,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black
-                                  .withOpacity(0.10), // More prominent shadow
+                                  .withValues(alpha: 0.10), // More prominent shadow
                               blurRadius: 18,
                               offset: Offset(0, 4),
                             ),

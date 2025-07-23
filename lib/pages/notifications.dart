@@ -4,13 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'bottomnav.dart';
-import 'cart.dart';
 import 'homepage.dart';
-import 'AppBackButton.dart';
+import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'auth_service.dart';
-import 'package:provider/provider.dart';
-import 'cartprovider.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -380,12 +377,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
         if (Navigator.canPop(context)) {
           Navigator.pop(context);
         }
-        return Future.value(false);
       },
       child: Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
@@ -405,7 +402,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 8,
                   offset: Offset(0, 2),
                 ),
@@ -413,7 +410,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
           ),
           leading: AppBackButton(
-            backgroundColor: Colors.white.withOpacity(0.2),
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
             onPressed: () {
               if (Navigator.canPop(context)) {
                 Navigator.pop(context);
@@ -438,7 +435,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             Container(
               margin: const EdgeInsets.only(right: 8.0),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
+                color: Colors.white.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: IconButton(
@@ -449,7 +446,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             Container(
               margin: EdgeInsets.only(right: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
+                color: Colors.white.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: CartIconButton(
@@ -625,14 +622,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
           ],
           border: isRead
               ? null
-              : Border.all(color: Colors.green.withOpacity(0.3), width: 1),
+              : Border.all(
+                  color: Colors.green.withValues(alpha: 0.3), width: 1),
         ),
         child: InkWell(
           onTap: () {
@@ -650,7 +648,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: iconColor.withOpacity(0.1),
+                        color: iconColor.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(iconData, color: iconColor, size: 22),

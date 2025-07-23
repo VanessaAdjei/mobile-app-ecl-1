@@ -2,9 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'ProductModel.dart';
+import 'product_model.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'AppBackButton.dart';
+import 'app_back_button.dart';
 import 'auth_service.dart';
 import 'signinpage.dart';
 
@@ -12,9 +12,9 @@ class UploadPrescriptionPage extends StatefulWidget {
   final Product product;
 
   const UploadPrescriptionPage({
-    Key? key,
+    super.key,
     required this.product,
-  }) : super(key: key);
+  });
 
   @override
   State<UploadPrescriptionPage> createState() => _UploadPrescriptionPageState();
@@ -160,7 +160,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 8,
                 offset: Offset(0, 2),
               ),
@@ -177,7 +177,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
           ),
         ),
         leading: AppBackButton(
-          backgroundColor: Colors.white.withOpacity(0.2),
+          backgroundColor: Colors.white.withValues(alpha: 0.2),
           onPressed: () => Navigator.pop(context),
         ),
       ),

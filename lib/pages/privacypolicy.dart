@@ -5,7 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'Cart.dart';
 import 'HomePage.dart';
-import 'AppBackButton.dart';
+import 'app_back_button.dart';
 
 class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key});
@@ -30,7 +30,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 8,
                 offset: Offset(0, 2),
               ),
@@ -38,7 +38,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           ),
         ),
         leading: AppBackButton(
-          backgroundColor: Colors.white.withOpacity(0.2),
+          backgroundColor: Colors.white.withValues(alpha: 0.2),
           onPressed: () {
             if (Navigator.canPop(context)) {
               Navigator.pop(context);
@@ -63,7 +63,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           Container(
             margin: EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
             child: IconButton(

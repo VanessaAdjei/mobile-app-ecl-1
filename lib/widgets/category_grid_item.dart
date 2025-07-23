@@ -94,7 +94,7 @@ class _CategoryGridItemState extends State<CategoryGridItem>
                     borderRadius: BorderRadius.circular(widget.imageRadius),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
+                        color: Colors.black.withValues(alpha: 0.08),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -144,7 +144,7 @@ class _CategoryGridItemState extends State<CategoryGridItem>
                               end: Alignment.bottomCenter,
                               colors: [
                                 Colors.transparent,
-                                Colors.black.withOpacity(0.3),
+                                Colors.black.withValues(alpha: 0.3),
                               ],
                               stops: const [0.6, 1.0],
                             ),
@@ -161,7 +161,7 @@ class _CategoryGridItemState extends State<CategoryGridItem>
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.green.shade700.withOpacity(0.9),
+                                color: Colors.green.shade700.withValues(alpha: 0.9),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(

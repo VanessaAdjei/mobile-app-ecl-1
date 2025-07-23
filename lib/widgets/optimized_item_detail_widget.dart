@@ -1,19 +1,16 @@
 // widgets/optimized_item_detail_widget.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
-import '../pages/ProductModel.dart';
+import '../pages/product_model.dart';
 import '../pages/cartprovider.dart';
-import '../pages/CartItem.dart';
+import '../pages/cart_item.dart';
 import '../services/item_detail_optimization_service.dart';
 import '../services/performance_service.dart';
 import 'error_display.dart';
-import 'loading_skeleton.dart';
-import 'performance_monitor.dart';
 
 class OptimizedItemDetailWidget extends StatefulWidget {
   final String urlName;
@@ -47,7 +44,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
   bool isDescriptionExpanded = false;
   PageController? _imagePageController;
   int _currentImageIndex = 0;
-  List<String> _productImages = [];
+  final List<String> _productImages = [];
 
   // Animation controllers
   late AnimationController _fadeController;
@@ -55,8 +52,8 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
   late AnimationController _quantityController;
 
   // Loading states
-  bool _isLoadingProduct = false;
-  bool _isLoadingRelated = false;
+  final bool _isLoadingProduct = false;
+  final bool _isLoadingRelated = false;
   bool _isAddingToCart = false;
 
   @override
@@ -304,7 +301,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 8,
               offset: Offset(0, 2),
             ),
@@ -473,7 +470,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.08),
+                              color: Colors.black.withValues(alpha: 0.08),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -574,7 +571,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: Offset(0, 2),
             ),
@@ -747,7 +744,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: Offset(0, 2),
             ),
@@ -776,7 +773,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
                     icon: Icon(Icons.remove, size: 20),
                     constraints: BoxConstraints(minWidth: 40, minHeight: 40),
                   ),
-                  Container(
+                  SizedBox(
                     width: 50,
                     child: Center(
                       child: Text(
@@ -979,7 +976,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: Offset(0, 2),
             ),
@@ -991,7 +988,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
             // Product image
             ClipRRect(
               borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-              child: Container(
+              child: SizedBox(
                 height: 120,
                 width: double.infinity,
                 child: product.thumbnail.isNotEmpty

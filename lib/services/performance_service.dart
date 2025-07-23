@@ -20,8 +20,8 @@ class PerformanceService {
   bool _isEnabled = true;
   bool _shouldLogToConsole = true;
   bool _shouldSaveToStorage = true;
-  int _maxEvents = 1000;
-  int _maxMetrics = 100;
+  final int _maxEvents = 1000;
+  final int _maxMetrics = 100;
 
   // Cache configuration
   static const String _cacheKey = 'image_cache_settings';

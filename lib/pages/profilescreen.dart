@@ -7,7 +7,7 @@ import 'auth_service.dart';
 import 'bottomnav.dart';
 import 'loggedout.dart';
 import 'homepage.dart';
-import 'AppBackButton.dart';
+import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -153,7 +153,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 8,
                   offset: Offset(0, 2),
                 ),
@@ -161,7 +161,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           leading: AppBackButton(
-            backgroundColor: Colors.white.withOpacity(0.2),
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
             onPressed: () {
               if (Navigator.canPop(context)) {
                 Navigator.pop(context);
@@ -186,7 +186,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               margin: EdgeInsets.only(right: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
+                color: Colors.white.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: CartIconButton(
@@ -238,7 +238,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 border: Border.all(color: Colors.white, width: 4),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     blurRadius: 10,
                     spreadRadius: 2,
                   ),
@@ -269,7 +269,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _userEmail,
               style: TextStyle(
                 fontSize: 16,
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
               ),
             ),
           ],
@@ -287,7 +287,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             spreadRadius: 1,
           ),

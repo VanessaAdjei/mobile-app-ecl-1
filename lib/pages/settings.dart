@@ -1,6 +1,5 @@
 // pages/settings.dart
 import 'dart:io';
-import 'package:eclapp/pages/changepassword.dart';
 import 'package:eclapp/pages/privacypolicy.dart';
 import 'package:eclapp/pages/profile.dart';
 import 'package:eclapp/pages/tandc.dart';
@@ -14,15 +13,12 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'aboutus.dart';
-import 'bottomnav.dart';
-import 'cart.dart';
 import 'loggedout.dart';
 import 'notifications.dart';
 import 'homepage.dart';
-import 'AppBackButton.dart';
+import 'app_back_button.dart';
 import 'package:eclapp/pages/auth_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'cartprovider.dart';
 import '../widgets/cart_icon_button.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -180,12 +176,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               end: Alignment.bottomRight,
               colors: [
                 primaryColor,
-                primaryColor.withOpacity(0.8),
+                primaryColor.withValues(alpha: 0.8),
               ],
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 8,
                 offset: Offset(0, 2),
               ),
@@ -193,7 +189,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         leading: AppBackButton(
-          backgroundColor: Colors.white.withOpacity(0.2),
+          backgroundColor: Colors.white.withValues(alpha: 0.2),
           onPressed: () {
             if (Navigator.canPop(context)) {
               Navigator.pop(context);
@@ -218,7 +214,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Container(
             margin: EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
             child: CartIconButton(
@@ -301,7 +297,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 _userEmail,
                                 style: GoogleFonts.poppins(
                                   fontSize: 14,
-                                  color: Colors.white.withOpacity(0.8),
+                                  color: Colors.white.withValues(alpha: 0.8),
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -315,7 +311,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   padding: EdgeInsets.symmetric(
                                       horizontal: 12, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
+                                    color: Colors.white.withValues(alpha: 0.2),
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                   child: Text(
@@ -516,7 +512,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -583,7 +579,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
+                  color: iconColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(

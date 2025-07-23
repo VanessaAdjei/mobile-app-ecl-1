@@ -1,12 +1,8 @@
 // pages/forgot_password.dart
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'AppBackButton.dart';
+import 'app_back_button.dart';
 import 'HomePage.dart';
-import 'Cart.dart';
-import 'package:provider/provider.dart';
-import 'cart.dart';
-import 'cartprovider.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -58,7 +54,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: PreferredSize(
@@ -80,7 +75,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 8,
                   offset: Offset(0, 2),
                 ),
@@ -97,7 +92,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
             ),
           ),
           leading: AppBackButton(
-            backgroundColor: Colors.white.withOpacity(0.2),
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
             iconColor: Colors.white,
             onPressed: () {
               if (Navigator.canPop(context)) {
@@ -114,7 +109,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
             Container(
               margin: EdgeInsets.only(right: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
+                color: Colors.white.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: CartIconButton(
@@ -136,7 +131,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   spreadRadius: 1,
                 ),

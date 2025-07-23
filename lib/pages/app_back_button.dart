@@ -1,4 +1,4 @@
-// pages/AppBackButton.dart
+// pages/app_back_button.dart
 import 'package:flutter/material.dart';
 import 'homepage.dart';
 
@@ -8,11 +8,11 @@ class AppBackButton extends StatelessWidget {
   final VoidCallback? onPressed;
 
   const AppBackButton({
-    Key? key,
+    super.key,
     this.backgroundColor = const Color(0xFF43A047), // green[600]
     this.iconColor = Colors.white,
     this.onPressed,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

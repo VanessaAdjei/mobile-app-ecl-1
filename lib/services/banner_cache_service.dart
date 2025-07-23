@@ -5,7 +5,6 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'dart:developer';
 
 
 class BannerModel {
@@ -59,7 +58,7 @@ class BannerCacheService {
   // Initialize cache service
   Future<void> initialize() async {
     await _loadFromStorage();
-    print(
+    debugPrint(
         'BannerCacheService initialized with ${_cachedBanners.length} cached banners');
   }
 
@@ -68,7 +67,7 @@ class BannerCacheService {
     // Return cached banners if valid and not forcing refresh
     if (isCacheValid && hasCachedBanners && !forceRefresh) {
       _cacheHits++;
-      print(
+      debugPrint(
           'Banner cache hit: ${_cachedBanners.length} banners returned from cache');
       return cachedBanners;
     }
@@ -77,7 +76,7 @@ class BannerCacheService {
     // and refresh in background for better UX
     if (hasCachedBanners && !forceRefresh) {
       _cacheHits++;
-      print(
+      debugPrint(
           'Banner cache expired but returning cached data while refreshing in background');
 
       // Refresh in background without blocking
@@ -90,7 +89,7 @@ class BannerCacheService {
 
     // If already loading, wait for current request
     if (_isLoading) {
-      print('Banner request already in progress, waiting...');
+      debugPrint('Banner request already in progress, waiting...');
       while (_isLoading) {
         await Future.delayed(const Duration(milliseconds: 100));
       }
@@ -108,7 +107,7 @@ class BannerCacheService {
     try {
       await _fetchBannersFromAPI();
     } catch (e) {
-      print('Background banner refresh failed: $e');
+      debugPrint('Background banner refresh failed: $e');
       // Keep using old cache data
     }
   }
@@ -120,7 +119,7 @@ class BannerCacheService {
     _lastApiCallTime = DateTime.now();
 
     try {
-      print('Fetching banners from API...');
+      debugPrint('Fetching banners from API...');
       final stopwatch = Stopwatch()..start();
 
       final response = await http
@@ -130,7 +129,7 @@ class BannerCacheService {
           .timeout(const Duration(seconds: 15));
 
       stopwatch.stop();
-      print('Banner API call completed in ${stopwatch.elapsedMilliseconds}ms');
+      debugPrint('Banner API call completed in ${stopwatch.elapsedMilliseconds}ms');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -140,7 +139,7 @@ class BannerCacheService {
             .map<BannerModel>((item) => BannerModel.fromJson(item))
             .toList();
 
-        print('Successfully fetched ${banners.length} banners from API');
+        debugPrint('Successfully fetched ${banners.length} banners from API');
 
         // Cache the banners
         await _cacheBanners(banners);
@@ -152,25 +151,25 @@ class BannerCacheService {
           if (context != null) {
             await preloadBannerImages(context);
             preloadStopwatch.stop();
-            print('Banner image preloading completed in ${preloadStopwatch.elapsedMilliseconds}ms');
+            debugPrint('Banner image preloading completed in ${preloadStopwatch.elapsedMilliseconds}ms');
           } else {
-            print('Banner image preloading skipped (no context available)');
+            debugPrint('Banner image preloading skipped (no context available)');
           }
         });
 
         return banners;
       } else {
-        print('Banner API error: ${response.statusCode}');
+        debugPrint('Banner API error: ${response.statusCode}');
         throw Exception('Server error: ${response.statusCode}');
       }
     } on TimeoutException {
-      print('Banner API timeout');
+      debugPrint('Banner API timeout');
       throw Exception('Request timeout. Please check your connection.');
     } on http.ClientException {
-      print('Banner API client error - no internet connection');
+      debugPrint('Banner API client error - no internet connection');
       throw Exception('No internet connection.');
     } catch (e) {
-      print('Banner API error: $e');
+      debugPrint('Banner API error: $e');
       throw Exception('Failed to load banners: $e');
     } finally {
       _isLoading = false;
@@ -191,7 +190,7 @@ class BannerCacheService {
 
     // Save to persistent storage
     await _saveToStorage();
-    print('Banners cached successfully: ${banners.length} banners');
+    debugPrint('Banners cached successfully: ${banners.length} banners');
   }
 
   // Save banners to persistent storage
@@ -212,7 +211,7 @@ class BannerCacheService {
       await prefs.setString(
           _bannerCacheTimeKey, _lastCacheTime!.toIso8601String());
     } catch (e) {
-      print('Failed to save banner cache: $e');
+      debugPrint('Failed to save banner cache: $e');
     }
   }
 
@@ -233,10 +232,10 @@ class BannerCacheService {
             .toList();
         _lastCacheTime = cacheTime;
 
-        print('Loaded ${_cachedBanners.length} banners from storage cache');
+        debugPrint('Loaded ${_cachedBanners.length} banners from storage cache');
       }
     } catch (e) {
-      print('Failed to load banner cache: $e');
+      debugPrint('Failed to load banner cache: $e');
       _cachedBanners = [];
       _lastCacheTime = null;
     }
@@ -252,9 +251,9 @@ class BannerCacheService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_bannerCacheKey);
       await prefs.remove(_bannerCacheTimeKey);
-      print('Banner cache cleared successfully');
+      debugPrint('Banner cache cleared successfully');
     } catch (e) {
-      print('Failed to clear banner cache: $e');
+      debugPrint('Failed to clear banner cache: $e');
     }
   }
 
@@ -271,9 +270,8 @@ class BannerCacheService {
       'api_calls': _apiCalls,
       'last_api_call': _lastApiCallTime?.toIso8601String(),
       'cache_hit_rate': _cacheHits + _cacheMisses > 0
-          ? (_cacheHits / (_cacheHits + _cacheMisses) * 100)
-                  .toStringAsFixed(1) +
-              '%'
+          ? '${(_cacheHits / (_cacheHits + _cacheMisses) * 100)
+                  .toStringAsFixed(1)}%'
           : '0%',
     };
   }
@@ -282,7 +280,7 @@ class BannerCacheService {
   Future<void> preloadBannerImages(BuildContext context) async {
     if (_cachedBanners.isEmpty) return;
 
-    print('Preloading ${_cachedBanners.length} banner images...');
+    debugPrint('Preloading ${_cachedBanners.length} banner images...');
 
     // Preload images in background with optimized settings
     for (final banner in _cachedBanners) {
@@ -295,12 +293,12 @@ class BannerCacheService {
             context,
           );
         } catch (e) {
-          print('Failed to preload banner image: $imageUrl - $e');
+          debugPrint('Failed to preload banner image: $imageUrl - $e');
         }
       }
     }
 
-    print('Banner image preloading completed');
+    debugPrint('Banner image preloading completed');
   }
 
   // Get banner image URL with optimization
@@ -316,22 +314,22 @@ class BannerCacheService {
 
   // Refresh cache
   Future<List<BannerModel>> refreshBanners() async {
-    print('Forcing banner cache refresh...');
+    debugPrint('Forcing banner cache refresh...');
     return await getBanners(forceRefresh: true);
   }
 
   // Print performance summary
   void printPerformanceSummary() {
     final stats = getCacheStats();
-    print('=== Banner Cache Performance Summary ===');
-    print('Cache Hits: ${stats['cache_hits']}');
-    print('Cache Misses: ${stats['cache_misses']}');
-    print('API Calls: ${stats['api_calls']}');
-    print('Cache Hit Rate: ${stats['cache_hit_rate']}');
-    print('Cached Banners: ${stats['banner_count']}');
-    print('Cache Valid: ${stats['is_cache_valid']}');
-    print('Cache Duration: ${_cacheValidDuration.inHours} hours');
-    print('========================================');
+    debugPrint('=== Banner Cache Performance Summary ===');
+    debugPrint('Cache Hits: ${stats['cache_hits']}');
+    debugPrint('Cache Misses: ${stats['cache_misses']}');
+    debugPrint('API Calls: ${stats['api_calls']}');
+    debugPrint('Cache Hit Rate: ${stats['cache_hit_rate']}');
+    debugPrint('Cached Banners: ${stats['banner_count']}');
+    debugPrint('Cache Valid: ${stats['is_cache_valid']}');
+    debugPrint('Cache Duration: ${_cacheValidDuration.inHours} hours');
+    debugPrint('========================================');
   }
 
   // Check if cache is working efficiently

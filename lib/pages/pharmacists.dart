@@ -3,16 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'AppBackButton.dart';
+import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
 import 'homepage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
 class PharmacistsPage extends StatefulWidget {
-  const PharmacistsPage({Key? key}) : super(key: key);
+  const PharmacistsPage({super.key});
 
   @override
   State<PharmacistsPage> createState() => _PharmacistsPageState();
@@ -36,11 +35,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
 
   bool _isChatOpen = false;
   bool _isTyping = false;
-  List<ChatMessage> _chatMessages = [];
+  final List<ChatMessage> _chatMessages = [];
 
-  bool _nameInvalid = false;
-  bool _phoneInvalid = false;
-  bool _symptomsInvalid = false;
+  final bool _nameInvalid = false;
+  final bool _phoneInvalid = false;
+  final bool _symptomsInvalid = false;
 
   final List<String> _consultationTypes = [
     'WhatsApp',
@@ -157,8 +156,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     }
     String whatsappUrl =
         'whatsapp://send?phone=$phoneNumber&text=${Uri.encodeComponent(message)}';
-    if (await canLaunch(whatsappUrl)) {
-      await launch(whatsappUrl);
+    if (await canLaunchUrl(Uri.parse(whatsappUrl))) {
+      await launchUrl(Uri.parse(whatsappUrl));
     }
   }
 
@@ -175,7 +174,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
             borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.15),
+                color: Colors.black.withValues(alpha: 0.15),
                 blurRadius: 25,
                 offset: Offset(0, -8),
               ),
@@ -218,7 +217,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                         BorderRadius.vertical(top: Radius.circular(25)),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.green.withOpacity(0.3),
+                        color: Colors.green.withValues(alpha: 0.3),
                         blurRadius: 15,
                         offset: Offset(0, 5),
                       ),
@@ -229,11 +228,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       Container(
                         padding: EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.25),
+                          color: Colors.white.withValues(alpha: 0.25),
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
+                              color: Colors.black.withValues(alpha: 0.1),
                               blurRadius: 8,
                               offset: Offset(0, 2),
                             ),
@@ -269,7 +268,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                               'Get expert advice from our pharmacists',
                               style: GoogleFonts.poppins(
                                 fontSize: 15,
-                                color: Colors.white.withOpacity(0.95),
+                                color: Colors.white.withValues(alpha: 0.95),
                                 height: 1.2,
                               ),
                             )
@@ -281,11 +280,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       ),
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
+                              color: Colors.black.withValues(alpha: 0.1),
                               blurRadius: 6,
                               offset: Offset(0, 2),
                             ),
@@ -474,7 +473,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.green.withOpacity(0.3),
+            color: Colors.green.withValues(alpha: 0.3),
             blurRadius: 12,
             offset: Offset(0, 4),
           ),
@@ -587,7 +586,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 20,
               offset: Offset(0, 10),
             ),
@@ -643,7 +642,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 20,
                 offset: Offset(0, 10),
               ),
@@ -756,7 +755,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
             border: Border.all(color: Colors.grey[300]!),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 10,
                 offset: Offset(0, 2),
               ),
@@ -889,7 +888,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               border: Border.all(color: Colors.grey[300]!),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: Offset(0, 2),
                 ),
@@ -963,7 +962,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               border: Border.all(color: Colors.grey[300]!),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: Offset(0, 2),
                 ),
@@ -999,7 +998,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.green.withOpacity(0.25),
+            color: Colors.green.withValues(alpha: 0.25),
             blurRadius: 10,
             offset: Offset(0, 3),
           ),
@@ -1404,12 +1403,12 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.white.withOpacity(0.2),
-            Colors.white.withOpacity(0.1)
+            Colors.white.withValues(alpha: 0.2),
+            Colors.white.withValues(alpha: 0.1)
           ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.3)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
       ),
       child: Material(
         color: Colors.transparent,
@@ -1448,7 +1447,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
+                  color: Colors.grey.withValues(alpha: 0.2),
                   blurRadius: 4,
                   offset: Offset(0, 1),
                 ),
@@ -1474,7 +1473,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               width: 8,
               height: 8,
               decoration: BoxDecoration(
-                color: Colors.grey[600]!.withOpacity(0.3 + (value * 0.7)),
+                color: Colors.grey[600]!.withValues(alpha: 0.3 + (value * 0.7)),
                 shape: BoxShape.circle,
               ),
             );
@@ -1561,7 +1560,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         elevation: Theme.of(context).appBarTheme.elevation,
         centerTitle: Theme.of(context).appBarTheme.centerTitle,
         leading: AppBackButton(
-          backgroundColor: Colors.white.withOpacity(0.2),
+          backgroundColor: Colors.white.withValues(alpha: 0.2),
           onPressed: () {
             if (Navigator.canPop(context)) {
               Navigator.pop(context);
@@ -1681,7 +1680,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.indigo.withOpacity(0.3),
+            color: Colors.indigo.withValues(alpha: 0.3),
             blurRadius: 15,
             offset: Offset(0, 6),
           ),
@@ -1695,9 +1694,10 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               Container(
                 padding: EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withOpacity(0.3)),
+                  border:
+                      Border.all(color: Colors.white.withValues(alpha: 0.3)),
                 ),
                 child: Icon(
                   Icons.medical_services,
@@ -1723,7 +1723,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       'Get expert advice from our experienced pharmacists with 24/7 support.',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
-                        color: Colors.white.withOpacity(0.95),
+                        color: Colors.white.withValues(alpha: 0.95),
                         height: 1.2,
                       ),
                     ),
@@ -1754,9 +1754,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
+        color: Colors.white.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1791,7 +1791,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         border: Border.all(color: Colors.grey[200]!, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 6,
             offset: Offset(0, 1),
           ),
@@ -1810,7 +1810,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               borderRadius: BorderRadius.circular(8),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.green.withOpacity(0.2),
+                  color: Colors.green.withValues(alpha: 0.2),
                   blurRadius: 4,
                   offset: Offset(0, 1),
                 ),
@@ -1861,7 +1861,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         border: Border.all(color: Colors.grey[200]!, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 6,
             offset: Offset(0, 1),
           ),
@@ -1883,7 +1883,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   borderRadius: BorderRadius.circular(6),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.blue.withOpacity(0.15),
+                      color: Colors.blue.withValues(alpha: 0.15),
                       blurRadius: 3,
                       offset: Offset(0, 1),
                     ),
@@ -1976,7 +1976,10 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         decoration: BoxDecoration(
           gradient: isSelected
               ? LinearGradient(
-                  colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+                  colors: [
+                    color.withValues(alpha: 0.1),
+                    color.withValues(alpha: 0.05)
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 )
@@ -1990,7 +1993,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: color.withOpacity(0.2),
+                    color: color.withValues(alpha: 0.2),
                     blurRadius: 6,
                     offset: Offset(0, 2),
                   ),
@@ -2004,7 +2007,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               decoration: BoxDecoration(
                 gradient: isSelected
                     ? LinearGradient(
-                        colors: [color, color.withOpacity(0.8)],
+                        colors: [color, color.withValues(alpha: 0.8)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       )
@@ -2014,7 +2017,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: color.withOpacity(0.3),
+                          color: color.withValues(alpha: 0.3),
                           blurRadius: 4,
                           offset: Offset(0, 1),
                         ),
@@ -2127,7 +2130,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         border: Border.all(color: Colors.grey[200]!, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: Offset(0, 2),
           ),
@@ -2235,12 +2238,12 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.green.withOpacity(0.3),
+              color: Colors.green.withValues(alpha: 0.3),
               blurRadius: 15,
               offset: Offset(0, 6),
             ),
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 10,
               offset: Offset(0, 3),
             ),
@@ -2253,7 +2256,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           icon: Container(
             padding: EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -2280,7 +2283,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               Text(
                 'Ask me anything',
                 style: GoogleFonts.poppins(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   fontSize: 9,
                   fontWeight: FontWeight.w500,
                 ),
@@ -2304,7 +2307,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
         boxShadow: [
           BoxShadow(
-            color: Colors.green.withOpacity(0.3),
+            color: Colors.green.withValues(alpha: 0.3),
             blurRadius: 25,
             offset: Offset(0, -8),
           ),
@@ -2328,7 +2331,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.green.withOpacity(0.4),
+                  color: Colors.green.withValues(alpha: 0.4),
                   blurRadius: 15,
                   offset: Offset(0, 5),
                 ),
@@ -2341,14 +2344,14 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        Colors.white.withOpacity(0.25),
-                        Colors.white.withOpacity(0.15)
+                        Colors.white.withValues(alpha: 0.25),
+                        Colors.white.withValues(alpha: 0.15)
                       ],
                     ),
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         blurRadius: 6,
                         offset: Offset(0, 2),
                       ),
@@ -2379,7 +2382,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       Text(
                         'Powered by Enerst Chemists • 24/7 Available',
                         style: GoogleFonts.poppins(
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                           fontSize: 10,
                         ),
                       ),
@@ -2390,14 +2393,14 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        Colors.white.withOpacity(0.25),
-                        Colors.white.withOpacity(0.15)
+                        Colors.white.withValues(alpha: 0.25),
+                        Colors.white.withValues(alpha: 0.15)
                       ],
                     ),
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                         blurRadius: 4,
                         offset: Offset(0, 1),
                       ),
@@ -2416,14 +2419,14 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        Colors.white.withOpacity(0.25),
-                        Colors.white.withOpacity(0.15)
+                        Colors.white.withValues(alpha: 0.25),
+                        Colors.white.withValues(alpha: 0.15)
                       ],
                     ),
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                         blurRadius: 4,
                         offset: Offset(0, 1),
                       ),
@@ -2519,7 +2522,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       border: Border.all(color: Colors.grey[200]!, width: 1),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
+                          color: Colors.grey.withValues(alpha: 0.1),
                           blurRadius: 8,
                           offset: Offset(0, 2),
                         ),
@@ -2557,7 +2560,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                     borderRadius: BorderRadius.circular(25),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.green.withOpacity(0.4),
+                        color: Colors.green.withValues(alpha: 0.4),
                         blurRadius: 10,
                         offset: Offset(0, 4),
                       ),
@@ -2595,7 +2598,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.green.withOpacity(0.3),
+                    color: Colors.green.withValues(alpha: 0.3),
                     blurRadius: 6,
                     offset: Offset(0, 2),
                   ),
@@ -2624,14 +2627,14 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 boxShadow: message.isUser
                     ? [
                         BoxShadow(
-                          color: Colors.green.withOpacity(0.2),
+                          color: Colors.green.withValues(alpha: 0.2),
                           blurRadius: 8,
                           offset: Offset(0, 3),
                         ),
                       ]
                     : [
                         BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
+                          color: Colors.grey.withValues(alpha: 0.1),
                           blurRadius: 6,
                           offset: Offset(0, 2),
                         ),
@@ -2661,7 +2664,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.green.withOpacity(0.3),
+                    color: Colors.green.withValues(alpha: 0.3),
                     blurRadius: 6,
                     offset: Offset(0, 2),
                   ),
@@ -2806,8 +2809,7 @@ class BookingsListSheet extends StatelessWidget {
   final List<Map<String, dynamic>> bookings;
   final VoidCallback onClear;
   const BookingsListSheet(
-      {required this.bookings, required this.onClear, Key? key})
-      : super(key: key);
+      {required this.bookings, required this.onClear, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -2866,7 +2868,7 @@ class BookingsListSheet extends StatelessWidget {
 
 class _BookingCardModal extends StatelessWidget {
   final Map<String, dynamic> b;
-  const _BookingCardModal(this.b, {Key? key}) : super(key: key);
+  const _BookingCardModal(this.b);
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -3005,10 +3007,14 @@ String getBookingStatus(Map<String, dynamic> b) {
       int minute = int.tryParse(hm[1]) ?? 0;
       if (timeParts.length > 1 &&
           timeParts[1].toUpperCase() == 'PM' &&
-          hour < 12) hour += 12;
+          hour < 12) {
+        hour += 12;
+      }
       if (timeParts.length > 1 &&
           timeParts[1].toUpperCase() == 'AM' &&
-          hour == 12) hour = 0;
+          hour == 12) {
+        hour = 0;
+      }
       final bookingDate = DateTime(year, month, day, hour, minute);
       if (bookingDate.isAfter(now)) return 'Upcoming';
       return 'Completed';

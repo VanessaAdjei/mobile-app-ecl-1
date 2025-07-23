@@ -4,17 +4,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'homepage.dart';
 import 'cartprovider.dart';
-import 'CartItem.dart';
-import 'cart.dart';
+import 'cart_item.dart';
 import 'itemdetail.dart';
-import 'bottomnav.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class BulkPurchasePage extends StatefulWidget {
-  const BulkPurchasePage({Key? key}) : super(key: key);
+  const BulkPurchasePage({super.key});
 
   @override
   State<BulkPurchasePage> createState() => _BulkPurchasePageState();
@@ -206,10 +203,11 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
         // Prevent back navigation
-        return false;
+        // PopScope handles the navigation automatically
       },
       child: Scaffold(
         appBar: AppBar(
@@ -402,7 +400,8 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
                                       borderRadius: BorderRadius.circular(16),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.grey.withOpacity(0.1),
+                                          color: Colors.grey
+                                              .withValues(alpha: 0.1),
                                           blurRadius: 4,
                                           offset: Offset(0, 2),
                                         ),

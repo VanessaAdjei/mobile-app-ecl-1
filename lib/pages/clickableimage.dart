@@ -15,7 +15,7 @@ class ClickableImageButton extends StatelessWidget {
       child: Material(
         elevation: 8,
         borderRadius: BorderRadius.circular(16),
-        shadowColor: Colors.green.withOpacity(0.18),
+        shadowColor: Colors.green.withValues(alpha: 0.18),
         child: InkWell(
           onTap: () {
             Navigator.push(
@@ -43,7 +43,7 @@ class ClickableImageButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.green.withOpacity(0.13),
+                  color: Colors.green.withValues(alpha: 0.13),
                   blurRadius: 16,
                   offset: Offset(0, 8),
                 ),
@@ -68,7 +68,7 @@ class ClickableImageButton extends StatelessWidget {
                       letterSpacing: 1.1,
                       shadows: [
                         Shadow(
-                          color: Colors.black.withOpacity(0.08),
+                          color: Colors.black.withValues(alpha: 0.08),
                           blurRadius: 2,
                           offset: Offset(0, 1),
                         ),

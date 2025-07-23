@@ -9,8 +9,8 @@ import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'CartItem.dart';
-import 'package:eclapp/pages/ProductModel.dart';
+import 'cart_item.dart';
+import 'package:eclapp/pages/product_model.dart';
 import 'package:eclapp/pages/auth_service.dart';
 import 'bottomnav.dart';
 import 'cartprovider.dart';
@@ -18,19 +18,14 @@ import 'package:html/parser.dart' show parse;
 import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:eclapp/pages/signinpage.dart';
-import 'AppBackButton.dart';
+import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'dart:ui';
-import 'package:eclapp/pages/cart.dart';
 import '../widgets/cart_icon_button.dart';
+import '../widgets/optimized_quantity_button.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/universal_page_optimization_service.dart';
 
 // Import optimization service
-import '../services/item_detail_optimization_service.dart';
-import '../widgets/optimized_item_detail_widget.dart';
-
-final Map<String, Product> _productCache = {};
-final Map<String, List<Product>> _relatedProductsCache = {};
 
 class ItemPage extends StatefulWidget {
   final String urlName;
@@ -55,7 +50,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   bool isDescriptionExpanded = false;
   PageController? _imagePageController;
   int _currentImageIndex = 0;
-  List<String> _productImages = [];
+  final List<String> _productImages = [];
 
   // Key for storing quantity preferences
   static const String _quantityPrefsKey = 'product_quantities';
@@ -63,6 +58,11 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   // Animation controllers
   late AnimationController _fadeController;
   late AnimationController _scaleController;
+
+  // Optimization variables
+  bool _showSkeleton = true;
+  Timer? _skeletonTimer;
+  final UniversalPageOptimizationService _optimizationService = UniversalPageOptimizationService();
 
   @override
   void initState() {
@@ -77,9 +77,52 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       vsync: this,
     );
 
+    // Initialize optimization service
+    _initializeOptimization();
+
+    // Load data concurrently with minimum skeleton display time
+    _loadDataWithSkeleton();
+  }
+
+  void _initializeOptimization() {
+    // Start performance monitoring
+    _optimizationService.trackPagePerformance('item_detail_${widget.urlName}', 'load');
+  }
+
+  void _loadDataWithSkeleton() async {
+    // Set minimum skeleton display time
+    _skeletonTimer = Timer(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        setState(() {
+          _showSkeleton = false;
+        });
+      }
+    });
+
     // Load data concurrently
     _productFuture = _fetchProductDetailsWithCache(widget.urlName);
     _relatedProductsFuture = _fetchRelatedProductsWithCache(widget.urlName);
+
+    // Wait for both futures to complete
+    try {
+      await Future.wait([_productFuture, _relatedProductsFuture]);
+    } catch (e) {
+      debugPrint('Error loading data: $e');
+    }
+
+    // Ensure minimum skeleton time has passed
+    if (_skeletonTimer?.isActive == true) {
+      await Future.delayed(const Duration(milliseconds: 800));
+    }
+
+    if (mounted) {
+      setState(() {
+        _showSkeleton = false;
+      });
+      
+      // End performance monitoring
+      _optimizationService.stopPagePerformanceTracking('item_detail_${widget.urlName}', 'load');
+    }
   }
 
   @override
@@ -87,55 +130,41 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     _imagePageController?.dispose();
     _fadeController.dispose();
     _scaleController.dispose();
+    _skeletonTimer?.cancel();
     super.dispose();
   }
 
-  // Enhanced product fetching with caching
+  // Enhanced product fetching with caching and optimization
   Future<Product> _fetchProductDetailsWithCache(String urlName) async {
-    // Check cache first
-    if (_productCache.containsKey(urlName)) {
-      return _productCache[urlName]!;
-    }
-
-    try {
-      final product = await fetchProductDetails(urlName);
-
-      // Cache the result
-      _productCache[urlName] = product;
-
-      // Extract images for gallery
-      if (product.thumbnail.isNotEmpty) {
-        _productImages = [product.thumbnail];
-        // You can add more images here if available in the API response
-      }
-
-      return product;
-    } catch (e) {
-      // Remove from cache if there's an error
-      _productCache.remove(urlName);
-      rethrow;
-    }
+    final result = await _optimizationService.fetchData(
+      'product_details_$urlName',
+      () => fetchProductDetails(urlName),
+      pageName: 'item_detail',
+    );
+    return result ?? Product(
+      id: 0,
+      name: 'Product not found',
+      description: '',
+      urlName: urlName,
+      status: '',
+      price: '0.00',
+      thumbnail: '',
+      quantity: '',
+      category: '',
+      route: '',
+      batch_no: '',
+      uom: '',
+    );
   }
 
-  // Enhanced related products fetching with caching
+  // Enhanced related products fetching with caching and optimization
   Future<List<Product>> _fetchRelatedProductsWithCache(String urlName) async {
-    // Check cache first
-    if (_relatedProductsCache.containsKey(urlName)) {
-      return _relatedProductsCache[urlName]!;
-    }
-
-    try {
-      final products = await fetchRelatedProducts(urlName);
-
-      // Cache the result
-      _relatedProductsCache[urlName] = products;
-
-      return products;
-    } catch (e) {
-      // Remove from cache if there's an error
-      _relatedProductsCache.remove(urlName);
-      return [];
-    }
+    final result = await _optimizationService.fetchData(
+      'related_products_$urlName',
+      () => fetchRelatedProducts(urlName),
+      pageName: 'item_detail',
+    );
+    return result ?? [];
   }
 
   void _addToCart(BuildContext context, Product product) async {
@@ -146,14 +175,14 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       BuildContext context, Product product, int quantity) async {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
-    print('🔍 ADDING TO CART ===');
-    print('Product ID: ${product.id}');
-    print('Product Name: ${product.name}');
-    print('Batch Number: ${product.batch_no}');
-    print('Price: ${product.price}');
-    print('URL Name: ${product.urlName}');
-    print('Quantity: $quantity');
-    print('========================');
+    debugPrint('🔍 ADDING TO CART ===');
+    debugPrint('Product ID: ${product.id}');
+    debugPrint('Product Name: ${product.name}');
+    debugPrint('Batch Number: ${product.batch_no}');
+    debugPrint('Price: ${product.price}');
+    debugPrint('URL Name: ${product.urlName}');
+    debugPrint('Quantity: $quantity');
+    debugPrint('========================');
 
     try {
       final cartItem = CartItem(
@@ -170,11 +199,11 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         totalPrice: (double.tryParse(product.price) ?? 0.0) * quantity,
       );
 
-      print('🔍 CREATED CART ITEM ===');
-      print('Cart Item ID: ${cartItem.id}');
-      print('Cart Item Quantity: ${cartItem.quantity}');
-      print('Cart Item Total Price: ${cartItem.totalPrice}');
-      print('========================');
+      debugPrint('🔍 CREATED CART ITEM ===');
+      debugPrint('Cart Item ID: ${cartItem.id}');
+      debugPrint('Cart Item Quantity: ${cartItem.quantity}');
+      debugPrint('Cart Item Total Price: ${cartItem.totalPrice}');
+      debugPrint('========================');
 
       cartProvider.addToCart(cartItem);
 
@@ -193,15 +222,11 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
   Future<void> _flyToCartAnimation(BuildContext context) async {
     final overlay = Overlay.of(context);
-    if (overlay == null) return;
 
     // Find the render boxes for the Add to Cart button and the cart icon
     final addToCartBox = context.findRenderObject() as RenderBox?;
     final scaffoldBox =
         Scaffold.maybeOf(context)?.context.findRenderObject() as RenderBox?;
-    final appBarBox = Scaffold.maybeOf(context)?.appBarMaxHeight != null
-        ? Scaffold.maybeOf(context)?.context.findRenderObject() as RenderBox?
-        : null;
 
     // Fallback: use the center bottom and top right
     final start = addToCartBox != null && scaffoldBox != null
@@ -236,7 +261,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 size: 36,
                 shadows: [
                   Shadow(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     blurRadius: 8,
                   ),
                 ],
@@ -255,12 +280,12 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   void _removeFromCart(BuildContext context, Product product) async {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
-    print('🔍 REMOVING FROM CART ===');
-    print('Product ID: ${product.id}');
-    print('Product Name: ${product.name}');
-    print('Batch Number: ${product.batch_no}');
-    print('URL Name: ${product.urlName}');
-    print('========================');
+    debugPrint('🔍 REMOVING FROM CART ===');
+    debugPrint('Product ID: ${product.id}');
+    debugPrint('Product Name: ${product.name}');
+    debugPrint('Batch Number: ${product.batch_no}');
+    debugPrint('URL Name: ${product.urlName}');
+    debugPrint('========================');
 
     try {
       // Find the cart item to remove
@@ -367,8 +392,8 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Future<Product> fetchProductDetails(String urlName) async {
-    print('🔍 FETCHING PRODUCT DETAILS ===');
-    print('URL Name: $urlName');
+    debugPrint('🔍 FETCHING PRODUCT DETAILS ===');
+    debugPrint('URL Name: $urlName');
 
     try {
       final response = await http
@@ -383,33 +408,33 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         },
       );
 
-      print('🔍 HTTP RESPONSE RECEIVED ===');
-      print('Status Code: ${response.statusCode}');
-      print('Response Body: ${response.body}');
+      debugPrint('🔍 HTTP RESPONSE RECEIVED ===');
+      debugPrint('Status Code: ${response.statusCode}');
+      debugPrint('Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         try {
           final Map<String, dynamic> data = json.decode(response.body);
 
           // Debug print to see the full API response structure
-          print('🔍 PRODUCT DETAILS API RESPONSE ===');
-          print(
+          debugPrint('🔍 PRODUCT DETAILS API RESPONSE ===');
+          debugPrint(
               'URL: https://eclcommerce.ernestchemists.com.gh/api/product-details/$urlName');
-          print('Response Status: ${response.statusCode}');
-          print('Response Body: ${response.body}');
-          print('  data keys: ${data.keys.toList()}');
+          debugPrint('Response Status: ${response.statusCode}');
+          debugPrint('Response Body: ${response.body}');
+          debugPrint('  data keys: ${data.keys.toList()}');
           if (data.containsKey('data')) {
-            print('  data.data keys: ${data['data'].keys.toList()}');
+            debugPrint('  data.data keys: ${data['data'].keys.toList()}');
             if (data['data'].containsKey('product')) {
-              print(
+              debugPrint(
                   '  data.data.product keys: ${data['data']['product'].keys.toList()}');
             }
             if (data['data'].containsKey('inventory')) {
-              print(
+              debugPrint(
                   '  data.data.inventory keys: ${data['data']['inventory'].keys.toList()}');
             }
           }
-          print('=====================================');
+          debugPrint('=====================================');
 
           if (data.containsKey('data')) {
             final productData = data['data']['product'] ?? {};
@@ -432,14 +457,14 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             }
 
             // Log the extracted product details
-            print('🔍 EXTRACTED PRODUCT DETAILS ===');
-            print('Product ID: $productId');
-            print('Product Name: ${inventoryData['url_name']}');
-            print('Batch Number: ${inventoryData['batch_no']}');
-            print('Price: ${inventoryData['price']}');
-            print('Status: ${inventoryData['status']}');
-            print('Quantity: ${inventoryData['quantity']}');
-            print('================================');
+            debugPrint('🔍 EXTRACTED PRODUCT DETAILS ===');
+            debugPrint('Product ID: $productId');
+            debugPrint('Product Name: ${inventoryData['url_name']}');
+            debugPrint('Batch Number: ${inventoryData['batch_no']}');
+            debugPrint('Price: ${inventoryData['price']}');
+            debugPrint('Status: ${inventoryData['status']}');
+            debugPrint('Quantity: ${inventoryData['quantity']}');
+            debugPrint('================================');
 
             // Check all possible locations for otcpom
             final otcpom = productData['otcpom'] ??
@@ -456,14 +481,14 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 '';
 
             // Debug print to see what UOM data we're getting
-            print('🔍 UOM Debug Info:');
-            print('  productData uom: ${productData['uom']}');
-            print('  inventoryData uom: ${inventoryData['uom']}');
-            print(
+            debugPrint('🔍 UOM Debug Info:');
+            debugPrint('  productData uom: ${productData['uom']}');
+            debugPrint('  inventoryData uom: ${inventoryData['uom']}');
+            debugPrint(
                 '  productData unit_of_measure: ${productData['unit_of_measure']}');
-            print(
+            debugPrint(
                 '  inventoryData unit_of_measure: ${inventoryData['unit_of_measure']}');
-            print('  Final UOM value: $uom');
+            debugPrint('  Final UOM value: $uom');
 
             List<String> tags = [];
             if (productData['tags'] != null && productData['tags'] is List) {
@@ -473,14 +498,14 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
             final extractedName =
                 _extractProductName(inventoryData['url_name'] ?? '');
-            print('🔍 CREATING PRODUCT OBJECT ===');
-            print('Extracted Name: $extractedName');
-            print('Product ID: $productId');
-            print('Price: ${inventoryData['price']?.toString() ?? '0.00'}');
-            print('Batch No: ${inventoryData['batch_no'] ?? ''}');
-            print(
+            debugPrint('🔍 CREATING PRODUCT OBJECT ===');
+            debugPrint('Extracted Name: $extractedName');
+            debugPrint('Product ID: $productId');
+            debugPrint('Price: ${inventoryData['price']?.toString() ?? '0.00'}');
+            debugPrint('Batch No: ${inventoryData['batch_no'] ?? ''}');
+            debugPrint(
                 'Category: ${(productData['categories'] != null && productData['categories'].isNotEmpty) ? productData['categories'][0]['description'] ?? '' : ''}');
-            print('UOM: $uom');
+            debugPrint('UOM: $uom');
 
             final product = Product.fromJson({
               'id': productId,
@@ -505,11 +530,11 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               'uom': uom,
             });
 
-            print('🔍 PRODUCT OBJECT CREATED ===');
-            print('Final Product Name: ${product.name}');
-            print('Final Product Price: ${product.price}');
-            print('Final Product Category: ${product.category}');
-            print('=====================================');
+            debugPrint('🔍 PRODUCT OBJECT CREATED ===');
+            debugPrint('Final Product Name: ${product.name}');
+            debugPrint('Final Product Price: ${product.price}');
+            debugPrint('Final Product Category: ${product.category}');
+            debugPrint('=====================================');
 
             return product;
           } else {
@@ -541,19 +566,19 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   String _extractProductName(String urlName) {
     if (urlName.isEmpty) return 'Unknown Product';
 
-    print('🔍 EXTRACTING PRODUCT NAME ===');
-    print('Original URL Name: $urlName');
+    debugPrint('🔍 EXTRACTING PRODUCT NAME ===');
+    debugPrint('Original URL Name: $urlName');
 
     // Remove common suffixes that are not part of the product name
     String cleanName = urlName;
 
     // Remove random alphanumeric suffixes (like a8cfddbcd6)
     cleanName = cleanName.replaceAll(RegExp(r'-[a-f0-9]{8,}$'), '');
-    print('After removing alphanumeric suffix: $cleanName');
+    debugPrint('After removing alphanumeric suffix: $cleanName');
 
     // Remove trailing numbers that are not part of the name
     cleanName = cleanName.replaceAll(RegExp(r'-\d+$'), '');
-    print('After removing trailing numbers: $cleanName');
+    debugPrint('After removing trailing numbers: $cleanName');
 
     // Convert kebab-case to title case
     final finalName = cleanName
@@ -564,8 +589,8 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             : '')
         .join(' ');
 
-    print('Final extracted name: $finalName');
-    print('================================');
+    debugPrint('Final extracted name: $finalName');
+    debugPrint('================================');
 
     return finalName;
   }
@@ -586,14 +611,14 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           setState(() {
             quantity = savedQuantity;
           });
-          print('🔍 LOADED SAVED QUANTITY ===');
-          print('Product: ${widget.urlName}');
-          print('Saved Quantity: $quantity');
-          print('==========================');
+          debugPrint('🔍 LOADED SAVED QUANTITY ===');
+          debugPrint('Product: ${widget.urlName}');
+          debugPrint('Saved Quantity: $quantity');
+          debugPrint('==========================');
         }
       }
     } catch (e) {
-      print('Error loading saved quantity: $e');
+      debugPrint('Error loading saved quantity: $e');
     }
   }
 
@@ -612,12 +637,12 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
       await prefs.setString(_quantityPrefsKey, json.encode(prefsMap));
 
-      print('🔍 SAVED QUANTITY ===');
-      print('Product: ${widget.urlName}');
-      print('Quantity: $quantity');
-      print('====================');
+      debugPrint('🔍 SAVED QUANTITY ===');
+      debugPrint('Product: ${widget.urlName}');
+      debugPrint('Quantity: $quantity');
+      debugPrint('====================');
     } catch (e) {
-      print('Error saving quantity: $e');
+      debugPrint('Error saving quantity: $e');
     }
   }
 
@@ -632,12 +657,12 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
         await prefs.setString(_quantityPrefsKey, json.encode(prefsMap));
 
-        print('🔍 CLEARED SAVED QUANTITY ===');
-        print('Product: ${widget.urlName}');
-        print('============================');
+        debugPrint('🔍 CLEARED SAVED QUANTITY ===');
+        debugPrint('Product: ${widget.urlName}');
+        debugPrint('============================');
       }
     } catch (e) {
-      print('Error clearing saved quantity: $e');
+      debugPrint('Error clearing saved quantity: $e');
     }
   }
 
@@ -749,7 +774,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 8,
                 offset: Offset(0, 2),
               ),
@@ -757,7 +782,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           ),
         ),
         leading: AppBackButton(
-          backgroundColor: Colors.white.withOpacity(0.2),
+          backgroundColor: Colors.white.withValues(alpha: 0.2),
           onPressed: () => Navigator.pop(context),
         ),
         title: FutureBuilder<Product>(
@@ -798,7 +823,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           Container(
             margin: EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
             child: CartIconButton(
@@ -819,59 +844,61 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           await _productFuture;
           await _relatedProductsFuture;
         },
-        child: FutureBuilder<Product>(
-          future: _productFuture,
-          builder: (context, snapshot) {
-            print('🔍 FUTUREBUILDER STATE ===');
-            print('Connection State: ${snapshot.connectionState}');
-            print('Has Data: ${snapshot.hasData}');
-            print('Has Error: ${snapshot.hasError}');
-            if (snapshot.hasError) {
-              print('Error: ${snapshot.error}');
-            }
-            if (snapshot.hasData) {
-              print('Product Data: ${snapshot.data!.name}');
-            }
-            print('==========================');
+        child: _showSkeleton
+            ? _buildLoadingSkeleton()
+            : FutureBuilder<Product>(
+                future: _productFuture,
+                builder: (context, snapshot) {
+                  debugPrint('🔍 FUTUREBUILDER STATE ===');
+                  debugPrint('Connection State: ${snapshot.connectionState}');
+                  debugPrint('Has Data: ${snapshot.hasData}');
+                  debugPrint('Has Error: ${snapshot.hasError}');
+                  if (snapshot.hasError) {
+                    debugPrint('Error: ${snapshot.error}');
+                  }
+                  if (snapshot.hasData) {
+                    debugPrint('Product Data: ${snapshot.data!.name}');
+                  }
+                  debugPrint('==========================');
 
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return _buildLoadingSkeleton();
-            }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return _buildLoadingSkeleton();
+                  }
 
-            if (snapshot.hasError) {
-              return _buildErrorState(snapshot.error.toString());
-            }
+                  if (snapshot.hasError) {
+                    return _buildErrorState(snapshot.error.toString());
+                  }
 
-            if (!snapshot.hasData) {
-              return _buildErrorState('No product data available');
-            }
+                  if (!snapshot.hasData) {
+                    return _buildErrorState('No product data available');
+                  }
 
-            final product = snapshot.data!;
-            return SingleChildScrollView(
-              physics: AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.only(bottom: 60),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Enhanced Product Image Gallery
-                  _buildProductImageGallery(product),
+                  final product = snapshot.data!;
+                  return SingleChildScrollView(
+                    physics: AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.only(bottom: 60),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Enhanced Product Image Gallery
+                        _buildProductImageGallery(product),
 
-                  // Product Info Card
-                  _buildProductInfoCard(product, theme),
+                        // Product Info Card
+                        _buildProductInfoCard(product, theme),
 
-                  // Quantity Selector
-                  _buildQuantitySelector(product),
+                        // Quantity Selector
+                        _buildQuantitySelector(product),
 
-                  // Action Buttons
-                  _buildActionButtons(product),
+                        // Action Buttons
+                        _buildActionButtons(product),
 
-                  // Related Products
-                  _buildRelatedProductsSection(product),
-                ],
+                        // Related Products
+                        _buildRelatedProductsSection(product),
+                      ],
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
       ),
       bottomNavigationBar: CustomBottomNav(initialIndex: 0),
     );
@@ -1115,7 +1142,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         shape: BoxShape.circle,
                         color: _currentImageIndex == index
                             ? Colors.green.shade600
-                            : Colors.white.withOpacity(0.5),
+                            : Colors.white.withValues(alpha: 0.5),
                       ),
                     ),
                   ),
@@ -1128,13 +1155,13 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildProductInfoCard(Product product, ThemeData theme) {
-    print('🔍 BUILDING PRODUCT INFO CARD ===');
-    print('Product Name: ${product.name}');
-    print('Product URL Name: ${product.urlName}');
-    print('Product Price: ${product.price}');
-    print('Product Category: ${product.category}');
-    print('Product UOM: ${product.uom}');
-    print('==================================');
+    debugPrint('🔍 BUILDING PRODUCT INFO CARD ===');
+    debugPrint('Product Name: ${product.name}');
+    debugPrint('Product URL Name: ${product.urlName}');
+    debugPrint('Product Price: ${product.price}');
+    debugPrint('Product Category: ${product.category}');
+    debugPrint('Product UOM: ${product.uom}');
+    debugPrint('==================================');
 
     return Animate(
       effects: [
@@ -1152,7 +1179,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -1264,7 +1291,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -1309,26 +1336,16 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      IconButton(
-                        icon: Icon(
-                          Icons.remove,
-                          color: quantity > 1
-                              ? Colors.grey.shade700
-                              : Colors.grey.shade400,
-                          size: 18,
-                        ),
+                      OptimizedRemoveButton(
                         onPressed: quantity > 1
                             ? () {
-                                HapticFeedback.lightImpact();
                                 setState(() {
                                   quantity--;
                                 });
                               }
                             : null,
-                        style: IconButton.styleFrom(
-                          padding: EdgeInsets.all(8),
-                          minimumSize: Size(32, 32),
-                        ),
+                        isEnabled: quantity > 1,
+                        size: 36.0,
                       ),
                       Container(
                         padding:
@@ -1342,26 +1359,20 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                           ),
                         ),
                       ),
-                      IconButton(
-                        icon: Icon(
-                          Icons.add,
-                          color: quantity < maxQuantity
-                              ? Colors.green.shade600
-                              : Colors.grey.shade400,
-                          size: 18,
-                        ),
+                      OptimizedAddButton(
                         onPressed: quantity < maxQuantity
-                            ? () {
-                                HapticFeedback.lightImpact();
+                            ? () async {
+                                // Optimistic update for instant visual feedback
                                 setState(() {
                                   quantity++;
                                 });
+                                
+                                // Add to cart with new quantity
+                                _addToCartWithQuantity(context, product, quantity);
                               }
                             : null,
-                        style: IconButton.styleFrom(
-                          padding: EdgeInsets.all(8),
-                          minimumSize: Size(32, 32),
-                        ),
+                        isEnabled: quantity < maxQuantity,
+                        size: 36.0,
                       ),
                     ],
                   ),
@@ -1421,7 +1432,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   borderRadius: BorderRadius.circular(22),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.green.shade200.withOpacity(0.3),
+                      color: Colors.green.shade200.withValues(alpha: 0.3),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -1434,8 +1445,8 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         // Add haptic feedback
                         HapticFeedback.mediumImpact();
 
-                        print('DEBUG: ItemPage urlName = \\${widget.urlName}');
-                        print('DEBUG: isPrescribed = \\${widget.isPrescribed}');
+                        debugPrint('DEBUG: ItemPage urlName = \\${widget.urlName}');
+                        debugPrint('DEBUG: isPrescribed = \\${widget.isPrescribed}');
                         if (widget.isPrescribed) {
                           final token = await AuthService.getToken();
                           if (token == null || token == "guest-temp-token") {
@@ -1503,8 +1514,6 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 ),
               ),
             )));
-    bottomNavigationBar:
-    CustomBottomNav(initialIndex: 0);
   }
 
   Widget _buildRelatedProductsSection(Product product) {
@@ -1611,7 +1620,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   );
                 }
 
-                return Container(
+                return SizedBox(
                   height: 160,
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
@@ -1760,7 +1769,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             borderRadius: BorderRadius.circular(10),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withValues(alpha: 0.08),
                 blurRadius: 8,
                 offset: const Offset(0, 3),
               ),
@@ -2238,7 +2247,7 @@ class _ProductDescriptionState extends State<ProductDescription> {
   @override
   Widget build(BuildContext context) {
     final displayContent = !isExpanded && _plainDescription.length > 100
-        ? _plainDescription.substring(0, 100) + '...'
+        ? '${_plainDescription.substring(0, 100)}...'
         : _plainDescription;
 
     if (_plainDescription.isEmpty) {

@@ -4,9 +4,6 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-import 'dart:isolate';
-import 'dart:ui';
 
 class AppOptimizationService {
   static final AppOptimizationService _instance =
@@ -339,7 +336,7 @@ class WidgetOptimizer {
     TextInputType? keyboardType,
     bool obscureText = false,
   }) {
-    Timer? _debounceTimer;
+    Timer? debounceTimer;
 
     return TextField(
       controller: controller,
@@ -347,8 +344,8 @@ class WidgetOptimizer {
       keyboardType: keyboardType,
       obscureText: obscureText,
       onChanged: (value) {
-        if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
-        _debounceTimer = Timer(debounceDuration, () {
+        if (debounceTimer?.isActive ?? false) debounceTimer!.cancel();
+        debounceTimer = Timer(debounceDuration, () {
           onChanged(value);
         });
       },

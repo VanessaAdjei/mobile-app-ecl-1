@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../models/health_tip.dart';
+import 'package:flutter/foundation.dart';
 
 class HealthTipsService {
   static const String _baseUrl =
@@ -11,7 +12,7 @@ class HealthTipsService {
   // Cache for health tips - will refresh on each page visit
   static List<HealthTip> _cachedTips = [];
   static bool _hasLoadedOnce = false;
-  static int _lastFetchTime = 0;
+  static final int _lastFetchTime = 0;
 
   static bool get isCacheValid {
     return _hasLoadedOnce && _cachedTips.isNotEmpty;
@@ -23,10 +24,10 @@ class HealthTipsService {
     int? age,
     String? gender,
   }) async {
-    print('HealthTipsService: Starting fetchHealthTips');
+    debugPrint('HealthTipsService: Starting fetchHealthTips');
 
     try {
-      print('HealthTipsService: Fetching fresh data from API');
+      debugPrint('HealthTipsService: Fetching fresh data from API');
 
       // Build query parameters - use simpler approach that works
       final Map<String, String> queryParams = {};
@@ -38,30 +39,32 @@ class HealthTipsService {
 
       // Build URL with query parameters
       final uri = Uri.parse(_baseUrl).replace(queryParameters: queryParams);
-      print('HealthTipsService: Making request to: $uri');
+      debugPrint('HealthTipsService: Making request to: $uri');
 
       final response = await http.get(uri).timeout(Duration(seconds: 15));
-      print('HealthTipsService: Response status: ${response.statusCode}');
+      debugPrint('HealthTipsService: Response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('HealthTipsService: Response data keys: ${data.keys.toList()}');
-        print('HealthTipsService: Full response data: $data');
+        debugPrint(
+            'HealthTipsService: Response data keys: ${data.keys.toList()}');
+        debugPrint('HealthTipsService: Full response data: $data');
 
         // Add more detailed debugging
         if (data.containsKey('Result')) {
           final result = data['Result'];
-          print('HealthTipsService: Result keys: ${result.keys.toList()}');
+          debugPrint('HealthTipsService: Result keys: ${result.keys.toList()}');
           if (result.containsKey('Resources')) {
             final resources = result['Resources'];
-            print(
+            debugPrint(
                 'HealthTipsService: Resources keys: ${resources.keys.toList()}');
             if (resources.containsKey('Resource')) {
               final resourceList = resources['Resource'];
-              print(
+              debugPrint(
                   'HealthTipsService: Resource list length: ${resourceList.length}');
               if (resourceList.isNotEmpty) {
-                print('HealthTipsService: First resource: ${resourceList[0]}');
+                debugPrint(
+                    'HealthTipsService: First resource: ${resourceList[0]}');
               }
             }
           }
@@ -69,11 +72,11 @@ class HealthTipsService {
 
         try {
           final healthfinderResponse = MyHealthfinderResponse.fromJson(data);
-          print(
+          debugPrint(
               'HealthTipsService: Parsed ${healthfinderResponse.tips.length} tips');
 
           if (healthfinderResponse.tips.isEmpty) {
-            print(
+            debugPrint(
                 'HealthTipsService: No tips parsed, throwing exception to use fallback');
             throw Exception('No tips found in API response');
           }
@@ -87,18 +90,19 @@ class HealthTipsService {
           _hasLoadedOnce = true;
 
           final result = _cachedTips.take(limit).toList();
-          print(
+          debugPrint(
               'HealthTipsService: Returning ${result.length} fresh, shuffled tips');
           return result;
         } catch (parseError) {
-          print('HealthTipsService: Error parsing API response: $parseError');
+          debugPrint(
+              'HealthTipsService: Error parsing API response: $parseError');
 
           // Try a simpler parsing approach as fallback
           try {
-            print('HealthTipsService: Trying simpler parsing approach');
+            debugPrint('HealthTipsService: Trying simpler parsing approach');
             final simpleTips = _parseSimpleResponse(data);
             if (simpleTips.isNotEmpty) {
-              print(
+              debugPrint(
                   'HealthTipsService: Simple parsing successful, got ${simpleTips.length} tips');
               final shuffledTips = List<HealthTip>.from(simpleTips);
               shuffledTips.shuffle(Random());
@@ -108,21 +112,22 @@ class HealthTipsService {
               return result;
             }
           } catch (simpleError) {
-            print(
+            debugPrint(
                 'HealthTipsService: Simple parsing also failed: $simpleError');
           }
 
           throw Exception('Failed to parse health tips: $parseError');
         }
       } else {
-        print('HealthTipsService: API error - status ${response.statusCode}');
+        debugPrint(
+            'HealthTipsService: API error - status ${response.statusCode}');
         throw Exception('Failed to load health tips: ${response.statusCode}');
       }
     } catch (e) {
-      print('HealthTipsService: Exception caught: $e');
+      debugPrint('HealthTipsService: Exception caught: $e');
       // Return randomized fallback tips if API fails
       final fallbackTips = _getRandomizedFallbackTips(limit);
-      print(
+      debugPrint(
           'HealthTipsService: Returning ${fallbackTips.length} randomized fallback tips');
       return fallbackTips;
     }
@@ -148,7 +153,7 @@ class HealthTipsService {
                       final tip = HealthTip.fromJson(item);
                       tips.add(tip);
                     } catch (e) {
-                      print(
+                      debugPrint(
                           'HealthTipsService: Error parsing individual tip: $e');
                     }
                   }
@@ -169,7 +174,7 @@ class HealthTipsService {
                 final tip = HealthTip.fromJson(item);
                 tips.add(tip);
               } catch (e) {
-                print(
+                debugPrint(
                     'HealthTipsService: Error parsing individual tip (alt): $e');
               }
             }
@@ -177,7 +182,7 @@ class HealthTipsService {
         }
       }
     } catch (e) {
-      print('HealthTipsService: Error in simple parsing: $e');
+      debugPrint('HealthTipsService: Error in simple parsing: $e');
     }
 
     return tips;

@@ -1,31 +1,21 @@
 // pages/payment_page.dart
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' show min;
 import 'dart:io' show SocketException;
 import 'package:eclapp/pages/paymentwebview.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'auth_service.dart';
-import 'bottomnav.dart';
 import 'cartprovider.dart';
 import 'homepage.dart';
-import 'AppBackButton.dart';
+import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter/services.dart';
-import 'CartItem.dart';
-import 'package:dio/dio.dart';
-import 'package:cookie_jar/cookie_jar.dart';
-import 'package:dio_cookie_manager/dio_cookie_manager.dart';
+import 'cart_item.dart';
 import 'order_tracking_page.dart';
-import 'package:intl/intl.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'cart.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class ExpressPayChannel {
   static const MethodChannel _channel =
@@ -76,7 +66,7 @@ class _PaymentPageState extends State<PaymentPage> {
   String? _lastPaymentToken;
   String expressPaymentForm =
       'https://eclcommerce.ernestchemists.com.gh/api/expresspayment';
-  bool _paymentSuccess = false;
+  final bool _paymentSuccess = false;
   bool _showAllItems = false; // Add this state variable
 
   // Promo code variables
@@ -146,7 +136,7 @@ class _PaymentPageState extends State<PaymentPage> {
   Future<Map<String, dynamic>> _verifyPayment(
       String token, String transactionId) async {
     final authToken = await AuthService.getToken();
-    print('[DEBUG] Using token for payment verification: $authToken');
+    debugPrint('[DEBUG] Using token for payment verification: $authToken');
     if (authToken == null) {
       return {
         'verified': false,
@@ -209,12 +199,12 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   Future<void> processPayment(CartProvider cart) async {
-    print('[DEBUG] Entered processPayment');
+    debugPrint('[DEBUG] Entered processPayment');
     if (!mounted) return;
 
     // Print selected payment method and token at the start
     final debugToken = await AuthService.getToken();
-    print('[DEBUG] Payment button pressed. Method: '
+    debugPrint('[DEBUG] Payment button pressed. Method: '
         '$selectedPaymentMethod Token:$debugToken');
 
     setState(() {
@@ -225,19 +215,19 @@ class _PaymentPageState extends State<PaymentPage> {
     try {
       // Validate cart
       if (cart.cartItems.isEmpty) {
-        print('[DEBUG] Returning early: cart is empty');
+        debugPrint('[DEBUG] Returning early: cart is empty');
         throw Exception(
             'Your cart is empty. Please add items before proceeding with payment.');
       }
-      print('[DEBUG] Passed cart empty check');
+      debugPrint('[DEBUG] Passed cart empty check');
 
       // Calculate total
       final subtotal = cart.calculateSubtotal();
       if (subtotal <= 0) {
-        print('[DEBUG] Returning early: subtotal <= 0');
+        debugPrint('[DEBUG] Returning early: subtotal <= 0');
         throw Exception('Invalid order amount. Please check your cart items.');
       }
-      print('[DEBUG] Passed subtotal check');
+      debugPrint('[DEBUG] Passed subtotal check');
 
       final deliveryFee = 0.00;
       final total = subtotal + deliveryFee - _discountAmount;
@@ -245,23 +235,23 @@ class _PaymentPageState extends State<PaymentPage> {
       // Determine if user is guest
       final authHeader = await getAuthHeader();
       final isGuest = authHeader != null && authHeader.startsWith('Guest ');
-      print('[DEBUG] Passed guest check');
-      print('[DEBUG] isGuest: $isGuest, authHeader: $authHeader');
+      debugPrint('[DEBUG] Passed guest check');
+      debugPrint('[DEBUG] isGuest: $isGuest, authHeader: $authHeader');
 
       // Validate user data
       if (!isGuest &&
           (_userEmail.isEmpty || _userEmail == "No email available")) {
-        print('[DEBUG] Returning early: user email is empty or not available');
+        debugPrint('[DEBUG] Returning early: user email is empty or not available');
         throw Exception(
             'Please update your email address in your profile before making a payment.');
       }
-      print('[DEBUG] Passed user data check');
+      debugPrint('[DEBUG] Passed user data check');
 
       if (widget.contactNumber?.isEmpty ?? true) {
-        print('[DEBUG] Returning early: contact number is empty');
+        debugPrint('[DEBUG] Returning early: contact number is empty');
         throw Exception('Please provide a valid contact number for delivery.');
       }
-      print('[DEBUG] Passed contact number check');
+      debugPrint('[DEBUG] Passed contact number check');
 
       // Create order description
       String orderDesc = cart.cartItems
@@ -314,16 +304,14 @@ class _PaymentPageState extends State<PaymentPage> {
         // Validate COD payment parameters
         final emailForValidation =
             isGuest ? (widget.guestEmail ?? '') : _userEmail;
-        print('[DEBUG] Email used for COD validation: "' +
-            emailForValidation +
-            '"');
+        debugPrint('[DEBUG] Email used for COD validation: "$emailForValidation"');
         final validation = CODPaymentService.validateParameters(
           firstName: firstName,
           email: emailForValidation,
           phone: widget.contactNumber ?? _phoneNumber,
           amount: total,
         );
-        print('[DEBUG] COD validation result: ' + validation.toString());
+        debugPrint('[DEBUG] COD validation result: $validation');
 
         if (!validation['isValid']) {
           final errors = validation['errors'] as Map<String, String>;
@@ -350,7 +338,7 @@ class _PaymentPageState extends State<PaymentPage> {
         }
 
         // Debug print for email being sent to COD API
-        print('[DEBUG] COD API call email: "' + emailForValidation + '"');
+        debugPrint('[DEBUG] COD API call email: "$emailForValidation"');
 
         // Process COD payment through the API
         final codResult = await CODPaymentService.processCODPayment(
@@ -361,7 +349,7 @@ class _PaymentPageState extends State<PaymentPage> {
           authToken: tokenString,
         );
 
-        print('[DEBUG] COD Payment API Response: ${codResult.toString()}');
+        debugPrint('[DEBUG] COD Payment API Response: ${codResult.toString()}');
 
         if (!codResult['success']) {
           throw Exception(codResult['message'] ?? 'COD payment failed');
@@ -465,19 +453,19 @@ class _PaymentPageState extends State<PaymentPage> {
         final guestId = token;
         headers['Authorization'] = 'Guest $guestId';
         headers['X-Guest-ID'] = guestId;
-        print('[DEBUG] Guest payment status check: guest_id = ' + guestId);
+        debugPrint('[DEBUG] Guest payment status check: guest_id = $guestId');
       } else {
         setState(() {
           _paymentError =
               'You must be logged in or have a guest session to use online payment. Please choose Cash on Delivery or log in.';
         });
-        print('[DEBUG] Returning early: no valid token for payment');
+        debugPrint('[DEBUG] Returning early: no valid token for payment');
         return;
       }
 
-      print('[DEBUG] Payment API Request Headers: ' + headers.toString());
-      print('[DEBUG] Payment API Request Body: ' + jsonEncode(params));
-      print('[DEBUG] About to call expresspay API');
+      debugPrint('[DEBUG] Payment API Request Headers: $headers');
+      debugPrint('[DEBUG] Payment API Request Body: ${jsonEncode(params)}');
+      debugPrint('[DEBUG] About to call expresspay API');
       http.Response? response;
       try {
         response = await http.post(
@@ -486,13 +474,13 @@ class _PaymentPageState extends State<PaymentPage> {
           headers: headers,
           body: jsonEncode(params),
         );
-        print(
+        debugPrint(
             '[DEBUG] Online Payment API Response: Status: ${response.statusCode}, Body: ${response.body}');
       } catch (e) {
-        print('[DEBUG] Exception during expresspay API call: $e');
+        debugPrint('[DEBUG] Exception during expresspay API call: $e');
         rethrow;
       }
-      print('[DEBUG] Finished expresspay API call');
+      debugPrint('[DEBUG] Finished expresspay API call');
 
       if (response.statusCode == 200) {
         final redirectUrl = response.body.trim();
@@ -552,7 +540,7 @@ class _PaymentPageState extends State<PaymentPage> {
       } else {
         throw Exception('Payment Failed, try again');
       }
-    } catch (e, stack) {
+    } catch (e) {
       setState(() {
         _paymentError = e.toString();
       });
@@ -599,7 +587,7 @@ class _PaymentPageState extends State<PaymentPage> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
+                        color: Colors.black.withValues(alpha: 0.15),
                         blurRadius: 12,
                         offset: Offset(0, 4),
                       ),
@@ -614,7 +602,7 @@ class _PaymentPageState extends State<PaymentPage> {
                         child: Row(
                           children: [
                             AppBackButton(
-                              backgroundColor: Colors.white.withOpacity(0.2),
+                              backgroundColor: Colors.white.withValues(alpha: 0.2),
                               onPressed: () {
                                 Navigator.of(context).pop();
                               },
@@ -721,7 +709,7 @@ class _PaymentPageState extends State<PaymentPage> {
                                       Border.all(color: Colors.red.shade200),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.red.withOpacity(0.1),
+                                      color: Colors.red.withValues(alpha: 0.1),
                                       blurRadius: 4,
                                       offset: Offset(0, 1),
                                     ),
@@ -786,7 +774,7 @@ class _PaymentPageState extends State<PaymentPage> {
                   color: Colors.white,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 6,
                       offset: Offset(0, -2),
                     ),
@@ -835,7 +823,7 @@ class _PaymentPageState extends State<PaymentPage> {
                                 borderRadius: BorderRadius.circular(10),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.green.withOpacity(0.3),
+                                    color: Colors.green.withValues(alpha: 0.3),
                                     blurRadius: 6,
                                     offset: Offset(0, 2),
                                   ),
@@ -919,7 +907,7 @@ class _PaymentPageState extends State<PaymentPage> {
           ),
           if (_isProcessingPayment)
             Container(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withValues(alpha: 0.2),
               child: Center(
                 child: CircularProgressIndicator(color: theme.primaryColor),
               ),
@@ -957,7 +945,7 @@ class _PaymentPageState extends State<PaymentPage> {
     return Container(
       width: 50,
       height: 1,
-      color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
+      color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.3),
     );
   }
 
@@ -967,7 +955,7 @@ class _PaymentPageState extends State<PaymentPage> {
         ? Colors.white
         : isActive
             ? Colors.white
-            : Colors.white.withOpacity(0.6);
+            : Colors.white.withValues(alpha: 0.6);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -977,7 +965,7 @@ class _PaymentPageState extends State<PaymentPage> {
           height: 20,
           decoration: BoxDecoration(
             color: isCompleted || isActive
-                ? Colors.white.withOpacity(0.2)
+                ? Colors.white.withValues(alpha: 0.2)
                 : Colors.transparent,
             border: Border.all(
               color: color,
@@ -1039,7 +1027,7 @@ class _PaymentPageState extends State<PaymentPage> {
               borderRadius: BorderRadius.circular(6),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 3,
                   offset: Offset(0, 1),
                 ),
@@ -1092,14 +1080,14 @@ class _PaymentPageState extends State<PaymentPage> {
                   boxShadow: isSelected
                       ? [
                           BoxShadow(
-                            color: Colors.green.withOpacity(0.1),
+                            color: Colors.green.withValues(alpha: 0.1),
                             blurRadius: 3,
                             offset: Offset(0, 1),
                           ),
                         ]
                       : [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
+                            color: Colors.black.withValues(alpha: 0.05),
                             blurRadius: 2,
                             offset: Offset(0, 1),
                           ),
@@ -1196,7 +1184,7 @@ class _PaymentPageState extends State<PaymentPage> {
                 ),
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -1212,7 +1200,7 @@ class _PaymentPageState extends State<PaymentPage> {
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 6,
               offset: Offset(0, 1),
             ),
@@ -1330,7 +1318,7 @@ class _PaymentPageState extends State<PaymentPage> {
                           ],
                         ),
                       ))
-                  .toList(),
+                  ,
               if (cart.cartItems.length > 3 && !_showAllItems) ...[
                 const SizedBox(height: 4),
                 GestureDetector(
@@ -1419,9 +1407,9 @@ class _PaymentPageState extends State<PaymentPage> {
     final deliveryFee = 0.00;
     final total = subtotal + deliveryFee - _discountAmount;
 
-    print(
+    debugPrint(
         'Order Summary - Subtotal: $subtotal, Delivery Fee: $deliveryFee, Discount: $_discountAmount, Total: $total');
-    print('Discount amount > 0: ${_discountAmount > 0}');
+    debugPrint('Discount amount > 0: ${_discountAmount > 0}');
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -1432,7 +1420,7 @@ class _PaymentPageState extends State<PaymentPage> {
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 6,
               offset: Offset(0, 1),
             ),
@@ -1541,7 +1529,7 @@ class _PaymentPageState extends State<PaymentPage> {
                       ),
                       const SizedBox(width: 6),
                       if (_appliedPromoCode == null)
-                        Container(
+                        SizedBox(
                           height: 32,
                           child: ElevatedButton(
                             onPressed:
@@ -1574,7 +1562,7 @@ class _PaymentPageState extends State<PaymentPage> {
                           ),
                         )
                       else
-                        Container(
+                        SizedBox(
                           height: 32,
                           child: ElevatedButton(
                             onPressed: _removePromoCode,
@@ -1760,7 +1748,7 @@ class _PaymentPageState extends State<PaymentPage> {
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 6,
               offset: Offset(0, 1),
             ),
@@ -1836,7 +1824,7 @@ class _PaymentPageState extends State<PaymentPage> {
                 ),
                 const SizedBox(width: 8),
                 if (_appliedPromoCode == null)
-                  Container(
+                  SizedBox(
                     height: 38,
                     child: ElevatedButton(
                       onPressed: _isApplyingPromo ? null : _applyPromoCode,
@@ -1867,7 +1855,7 @@ class _PaymentPageState extends State<PaymentPage> {
                     ),
                   )
                 else
-                  Container(
+                  SizedBox(
                     height: 38,
                     child: ElevatedButton(
                       onPressed: _removePromoCode,
@@ -1991,10 +1979,10 @@ class _PaymentPageState extends State<PaymentPage> {
         final subtotal = cart.calculateSubtotal();
         final discountAmount = subtotal * discountPercentage;
 
-        print('Promo code applied: $promoCode');
-        print('Subtotal: $subtotal');
-        print('Discount percentage: $discountPercentage');
-        print('Discount amount: $discountAmount');
+        debugPrint('Promo code applied: $promoCode');
+        debugPrint('Subtotal: $subtotal');
+        debugPrint('Discount percentage: $discountPercentage');
+        debugPrint('Discount amount: $discountAmount');
 
         setState(() {
           _appliedPromoCode = promoCode;
@@ -2049,7 +2037,7 @@ class _PaymentPageState extends State<PaymentPage> {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
@@ -2113,7 +2101,7 @@ class _PaymentPageState extends State<PaymentPage> {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.red.withOpacity(0.3),
+                        color: Colors.red.withValues(alpha: 0.3),
                         blurRadius: 6,
                         offset: const Offset(0, 3),
                       ),
@@ -2280,16 +2268,15 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
   Future<void> _checkPaymentStatus() async {
     try {
-      print('[DEBUG] _checkPaymentStatus called');
+      debugPrint('[DEBUG] _checkPaymentStatus called');
       setState(() {
         _isLoading = true;
       });
       final result = await _fetchPaymentStatus();
-      print('[DEBUG] _fetchPaymentStatus result: ' + result.toString());
+      debugPrint('[DEBUG] _fetchPaymentStatus result: $result');
       if (mounted) {
         setState(() {
-          print('[DEBUG] setState in _checkPaymentStatus: updating status to ' +
-              (result['status']?.toString() ?? 'null'));
+          debugPrint('[DEBUG] setState in _checkPaymentStatus: updating status to ${result['status']?.toString() ?? 'null'}');
           final newStatus = result['status'];
           final currentStatus = _status?.toLowerCase();
 
@@ -2385,7 +2372,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
+                        color: Colors.black.withValues(alpha: 0.15),
                         blurRadius: 12,
                         offset: Offset(0, 4),
                       ),
@@ -2400,7 +2387,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                         child: Row(
                           children: [
                             AppBackButton(
-                              backgroundColor: Colors.white.withOpacity(0.2),
+                              backgroundColor: Colors.white.withValues(alpha: 0.2),
                               onPressed: () {
                                 // Navigate back to home page using a more direct approach
                                 Navigator.pushAndRemoveUntil(
@@ -2469,7 +2456,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                         _statusMessage = result['message'];
                         _hasFetchedStatus = true;
                       });
-                    } catch (e) {
                     } finally {
                       setState(() => _isLoading = false);
                     }
@@ -2505,7 +2491,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
+                                color: Colors.black.withValues(alpha: 0.05),
                                 blurRadius: 10,
                                 offset: const Offset(0, 2),
                               ),
@@ -2520,7 +2506,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.1),
+                                      color: Colors.black.withValues(alpha: 0.1),
                                       blurRadius: 8,
                                       offset: const Offset(0, 2),
                                     ),
@@ -2551,7 +2537,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                 style: TextStyle(
                                   fontSize: 14,
                                   color:
-                                      _getStatusColor(_status).withOpacity(0.8),
+                                      _getStatusColor(_status).withValues(alpha: 0.8),
                                 ),
                                 textAlign: TextAlign.center,
                               ),
@@ -2570,7 +2556,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                         boxShadow: [
                                           BoxShadow(
                                             color:
-                                                Colors.black.withOpacity(0.05),
+                                                Colors.black.withValues(alpha: 0.05),
                                             blurRadius: 4,
                                             offset: const Offset(0, 2),
                                           ),
@@ -2607,7 +2593,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                           boxShadow: [
                                             BoxShadow(
                                               color: Colors.black
-                                                  .withOpacity(0.05),
+                                                  .withValues(alpha: 0.05),
                                               blurRadius: 4,
                                               offset: const Offset(0, 2),
                                             ),
@@ -2615,7 +2601,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                         ),
                                         child: InkWell(
                                           onTap: () {
-                                            print(
+                                            debugPrint(
                                                 '[DEBUG] Check Status button pressed');
                                             _checkPaymentStatus();
                                           },
@@ -2710,8 +2696,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                                             child,
                                                             loadingProgress) {
                                                           if (loadingProgress ==
-                                                              null)
+                                                              null) {
                                                             return child;
+                                                          }
                                                           return Container(
                                                             width: 60,
                                                             height: 60,
@@ -2827,7 +2814,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                                   ],
                                                 ),
                                               ))
-                                          .toList(),
+                                          ,
                                       const Divider(height: 24),
                                       // Total
                                       Row(
@@ -3191,7 +3178,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         final guestId = tokenRaw;
         authHeader = 'Guest $guestId';
         requestBody = {'guest_id': guestId};
-        print('[DEBUG] Guest payment status check: guest_id = ' + guestId);
+        debugPrint('[DEBUG] Guest payment status check: guest_id = $guestId');
       } else {
         return {'status': 'error', 'message': ''};
       }
@@ -3201,16 +3188,12 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
       };
-      if (authHeader != null) {
-        headers['Authorization'] = authHeader;
-      }
-      if (!isLoggedIn && tokenRaw != null && tokenRaw.startsWith('guest_')) {
+      headers['Authorization'] = authHeader;
+          if (!isLoggedIn && tokenRaw.startsWith('guest_')) {
         headers['X-Guest-ID'] = tokenRaw;
       }
-      print('[DEBUG] Payment Status Check - Request Headers: ' +
-          headers.toString());
-      print('[DEBUG] Payment Status Check - Request Body: ' +
-          jsonEncode(requestBody));
+      debugPrint('[DEBUG] Payment Status Check - Request Headers: $headers');
+      debugPrint('[DEBUG] Payment Status Check - Request Body: ${jsonEncode(requestBody)}');
       final response = await http
           .post(
         Uri.parse(
@@ -3225,7 +3208,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               'Payment status check timed out. Please try again.');
         },
       );
-      print('[DEBUG] Payment Status Check - Raw Response: ' + response.body);
+      debugPrint('[DEBUG] Payment Status Check - Raw Response: ${response.body}');
 
       if (response.statusCode == 200) {
         // Handle empty response
@@ -3384,7 +3367,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     return Container(
       width: 50,
       height: 1,
-      color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
+      color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.3),
     );
   }
 
@@ -3394,7 +3377,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         ? Colors.white
         : isActive
             ? Colors.white
-            : Colors.white.withOpacity(0.6);
+            : Colors.white.withValues(alpha: 0.6);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -3404,7 +3387,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           height: 20,
           decoration: BoxDecoration(
             color: isCompleted || isActive
-                ? Colors.white.withOpacity(0.2)
+                ? Colors.white.withValues(alpha: 0.2)
                 : Colors.transparent,
             border: Border.all(
               color: color,

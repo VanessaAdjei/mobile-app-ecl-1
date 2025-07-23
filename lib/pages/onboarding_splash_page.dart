@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:video_player/video_player.dart';
-import 'homepage.dart';
 
 // Add a custom clipper for the green curve at the top level
 class BottomCurveClipper extends CustomClipper<Path> {
@@ -135,10 +134,10 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
   }
 
   void _onSkip() async {
-    print('Onboarding: Skip button pressed');
+    debugPrint('Onboarding: Skip button pressed');
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('hasLaunchedBefore', true);
-    print('Onboarding: Calling widget.onFinish()');
+    debugPrint('Onboarding: Calling widget.onFinish()');
     widget.onFinish();
   }
 
@@ -220,7 +219,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                             SizedBox(height: 16),
                             // Headline (skip on last page, index 4)
                             if (index != 4) ...[
-                              Container(
+                              SizedBox(
                                 width: double.infinity,
                                 child: Text(
                                   _getHeadlineForIndex(index, page),
@@ -237,7 +236,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                               const SizedBox(height: 10),
                             ],
                             // Subtitle
-                            Container(
+                            SizedBox(
                               width: double.infinity,
                               child: Text(
                                 _getSubtitleForIndex(index, page),
@@ -457,7 +456,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // Headline on top for 'Why Sign Up?'
-            Container(
+            SizedBox(
               width: double.infinity,
               child: Text(
                 'Why Sign Up?',

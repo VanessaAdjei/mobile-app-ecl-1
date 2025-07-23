@@ -4,10 +4,9 @@ import 'package:eclapp/pages/auth_service.dart';
 import 'package:eclapp/services/delivery_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'bottomnav.dart';
 import 'cartprovider.dart';
-import 'AppBackButton.dart';
+import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter/services.dart';
 
@@ -52,8 +51,8 @@ class _DeliveryPageState extends State<DeliveryPage> {
   bool isLoadingStores = false;
 
   // Caching for better performance
-  Map<int, List<Map<String, dynamic>>> _citiesCache = {};
-  Map<int, List<Map<String, dynamic>>> _storesCache = {};
+  final Map<int, List<Map<String, dynamic>>> _citiesCache = {};
+  final Map<int, List<Map<String, dynamic>>> _storesCache = {};
 
   // Selected values for pickup
   Map<String, dynamic>? selectedRegion;
@@ -150,7 +149,9 @@ class _DeliveryPageState extends State<DeliveryPage> {
           _phoneController.text = userData['phone'] ?? '';
         });
       }
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Error in delivery page: $e');
+    }
   }
 
   double _calculateDeliveryFee(String region, String city) {
@@ -182,7 +183,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
             curve: Curves.easeInOutCubic, // Smoother curve
           );
         } catch (e) {
-          print('Error scrolling to $errorType: $e');
+          debugPrint('Error scrolling to $errorType: $e');
         }
       }
     });
@@ -231,7 +232,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
+                        color: Colors.black.withValues(alpha: 0.15),
                         blurRadius: 12,
                         offset: Offset(0, 4),
                       ),
@@ -246,7 +247,8 @@ class _DeliveryPageState extends State<DeliveryPage> {
                         child: Row(
                           children: [
                             AppBackButton(
-                              backgroundColor: Colors.white.withOpacity(0.2),
+                              backgroundColor:
+                                  Colors.white.withValues(alpha: 0.2),
                               onPressed: () {
                                 Navigator.of(context).pop();
                               },
@@ -410,7 +412,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
     return Container(
       width: 50,
       height: 1,
-      color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
+      color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.3),
     );
   }
 
@@ -420,7 +422,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
         ? Colors.white
         : isActive
             ? Colors.white
-            : Colors.white.withOpacity(0.6);
+            : Colors.white.withValues(alpha: 0.6);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -430,7 +432,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
           height: 24,
           decoration: BoxDecoration(
             color: isCompleted || isActive
-                ? Colors.white.withOpacity(0.2)
+                ? Colors.white.withValues(alpha: 0.2)
                 : Colors.transparent,
             border: Border.all(
               color: color,
@@ -440,7 +442,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
             boxShadow: isCompleted || isActive
                 ? [
                     BoxShadow(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       blurRadius: 4,
                       offset: Offset(0, 2),
                     ),
@@ -488,7 +490,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 8,
                   offset: Offset(0, 2),
                 ),
@@ -570,7 +572,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Colors.green.withOpacity(0.1),
+                    color: Colors.green.withValues(alpha: 0.1),
                     blurRadius: 8,
                     offset: Offset(0, 2),
                   ),
@@ -621,7 +623,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: Offset(0, 2),
             ),
@@ -780,7 +782,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: Offset(0, 2),
             ),
@@ -1055,7 +1057,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: Offset(0, 2),
             ),
@@ -1428,7 +1430,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: Offset(0, 2),
             ),
@@ -1521,7 +1523,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: Offset(0, 2),
             ),
@@ -1628,7 +1630,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.green.withOpacity(0.3),
+              color: Colors.green.withValues(alpha: 0.3),
               blurRadius: 12,
               offset: Offset(0, 4),
             ),
@@ -1803,7 +1805,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
                             borderRadius: BorderRadius.circular(8),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
+                                color: Colors.black.withValues(alpha: 0.2),
                                 blurRadius: 8,
                                 offset: Offset(0, 4),
                               ),
@@ -1897,7 +1899,8 @@ class _DeliveryPageState extends State<DeliveryPage> {
     }
 
     // Navigate to payment page with delivery details
-    print('[DEBUG] Passing guestEmail to PaymentPage: "' + _emailController.text.trim() + '"');
+    debugPrint(
+        '[DEBUG] Passing guestEmail to PaymentPage: "${_emailController.text.trim()}"');
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1932,14 +1935,14 @@ class _DeliveryPageState extends State<DeliveryPage> {
         setState(() {
           isLoadingRegions = false;
         });
-        print('Failed to load regions: ${result['message']}');
+        debugPrint('Failed to load regions: ${result['message']}');
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         isLoadingRegions = false;
       });
-      print('Error loading regions: $e');
+      debugPrint('Error loading regions: $e');
     }
   }
 
@@ -1982,14 +1985,14 @@ class _DeliveryPageState extends State<DeliveryPage> {
         setState(() {
           isLoadingCities = false;
         });
-        print('Failed to load cities: ${result['message']}');
+        debugPrint('Failed to load cities: ${result['message']}');
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         isLoadingCities = false;
       });
-      print('Error loading cities: $e');
+      debugPrint('Error loading cities: $e');
     }
   }
 
@@ -2028,64 +2031,20 @@ class _DeliveryPageState extends State<DeliveryPage> {
         setState(() {
           isLoadingStores = false;
         });
-        print('Failed to load stores: ${result['message']}');
+        debugPrint('Failed to load stores: ${result['message']}');
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         isLoadingStores = false;
       });
-      print('Error loading stores: $e');
+      debugPrint('Error loading stores: $e');
     }
   }
 
-  /// Preload cities for a region (for better UX)
-  Future<void> _preloadCities(int regionId) async {
-    if (!_citiesCache.containsKey(regionId)) {
-      try {
-        final result = await DeliveryService.getCitiesByRegion(regionId)
-            .timeout(const Duration(seconds: 2));
-        if (result['success']) {
-          _citiesCache[regionId] =
-              List<Map<String, dynamic>>.from(result['data']);
-        }
-      } catch (e) {
-        // Silent fail for preloading
-      }
-    }
-  }
 
-  /// Preload stores for a city (for better UX)
-  Future<void> _preloadStores(int cityId) async {
-    if (!_storesCache.containsKey(cityId)) {
-      try {
-        final result = await DeliveryService.getStoresByCity(cityId)
-            .timeout(const Duration(seconds: 2));
-        if (result['success']) {
-          _storesCache[cityId] =
-              List<Map<String, dynamic>>.from(result['data']);
-        }
-      } catch (e) {
-        // Silent fail for preloading
-      }
-    }
-  }
 
-  /// Clear cache and reload data
-  void _clearCache() {
-    _citiesCache.clear();
-    _storesCache.clear();
-    setState(() {
-      cities = [];
-      stores = [];
-      selectedCity = null;
-      selectedPickupSite = null;
-    });
-  }
 
-  /// Refresh regions data
-  Future<void> _refreshRegions() async {
-    _clearCache();
-    await _loadRegions();
-  }
+
+
 }

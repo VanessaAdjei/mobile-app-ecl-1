@@ -7,10 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
-import 'ProductModel.dart';
+import 'product_model.dart';
 import 'dart:io';
-import 'package:uuid/uuid.dart';
-import 'dart:math';
 
 class AuthService {
   static const String baseUrl = "https://eclcommerce.ernestchemists.com.gh/api";
@@ -333,9 +331,7 @@ class AuthService {
       }
 
       // Otherwise, get fresh token
-      if (_authToken == null) {
-        _authToken = await _secureStorage.read(key: authTokenKey);
-      }
+      _authToken ??= await _secureStorage.read(key: authTokenKey);
       return _authToken != null ? 'Bearer $_authToken' : null;
     } catch (e) {
       return null;
@@ -579,11 +575,6 @@ class AuthService {
     }
   }
 
-  // Keep the original _verifyToken method for backward compatibility
-  static Future<bool> _verifyToken() async {
-    return await _checkTokenValidity();
-  }
-
   //  logout
   static Future<void> logout() async {
     try {
@@ -594,6 +585,7 @@ class AuthService {
             headers: {'Authorization': 'Bearer $_authToken'},
           ).timeout(const Duration(seconds: 10));
         } catch (e) {
+          debugPrint('Server logout failed: $e');
           // Continue with local logout even if server request fails
         }
       }
@@ -624,6 +616,7 @@ class AuthService {
           _tokenRefreshTimer?.cancel();
         }
       } catch (e) {
+        debugPrint('Token refresh timer error: $e');
         // Don't stop the timer on errors, just log them
       }
     });
@@ -806,11 +799,7 @@ class AuthService {
     }
   }
 
-  static Future<void> debugPrintUserData() async {
-    try {
-      String? usersData = await _secureStorage.read(key: usersKey);
-    } catch (e) {}
-  }
+
 
   static Future<bool> validateCurrentPassword(String password) async {
     try {
@@ -1000,7 +989,7 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     String? guestId = prefs.getString('guest_id');
     if (!loggedIn && guestId != null) {
-      print('[AuthService] Using existing guest_id: ' + guestId);
+      debugPrint('[AuthService] Using existing guest_id: $guestId');
       return guestId;
     }
     return null;
@@ -1028,7 +1017,7 @@ class AuthService {
             data['guestid'];
         if (guestId != null && guestId is String && guestId.isNotEmpty) {
           await prefs.setString('guest_id', guestId);
-          print('[AuthService] Fetched guest_id from API: ' + guestId);
+          debugPrint('[AuthService] Fetched guest_id from API: $guestId');
           return guestId;
         } else {
           throw Exception('Invalid guest_id in API response');
@@ -1037,7 +1026,7 @@ class AuthService {
         throw Exception('Failed to fetch guest_id from API');
       }
     } catch (e) {
-      print('[AuthService] Error fetching guest_id: $e');
+      debugPrint('[AuthService] Error fetching guest_id: $e');
       rethrow;
     }
   }
@@ -1163,7 +1152,7 @@ class AuthService {
       response.headers.forEach((key, value) {});
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
-        print(json.encode(data));
+        debugPrint(json.encode(data));
         return data;
       } else {
         return {
@@ -1172,7 +1161,7 @@ class AuthService {
         };
       }
     } catch (e) {
-      print(e);
+      debugPrint('Error: $e');
       return {
         'status': 'error',
         'message': 'Exception: $e',
@@ -1487,8 +1476,8 @@ class AuthService {
 
   static Future<void> printStoredToken() async {
     final token = await _secureStorage.read(key: authTokenKey);
-    print('AuthService.printStoredToken: '
-        '${token != null && token.length > 20 ? token.substring(0, 20) + '...' : token}');
+    debugPrint('AuthService.printStoredToken: '
+        '${token != null && token.length > 20 ? '${token.substring(0, 20)}...' : token}');
   }
 
   static Future<void> _validateTokenInBackground() async {
@@ -1596,10 +1585,9 @@ class CODPaymentService {
       };
 
       debugPrint('COD Payment Request: \\${json.encode(requestBody)}');
+      debugPrint('[DEBUG] COD Payment API Request Headers: $headers');
       debugPrint(
-          '[DEBUG] COD Payment API Request Headers: ' + headers.toString());
-      debugPrint(
-          '[DEBUG] COD Payment API Request Body: ' + json.encode(requestBody));
+          '[DEBUG] COD Payment API Request Body: ${json.encode(requestBody)}');
       // Make the API call
       final response = await http
           .post(

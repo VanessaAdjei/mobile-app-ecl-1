@@ -5,7 +5,6 @@
 // widgets/optimized_list_widget.dart
 // widgets/optimized_list_widget.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 
 /// Optimized ListView with automatic performance optimizations

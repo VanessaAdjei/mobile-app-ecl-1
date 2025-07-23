@@ -1,15 +1,13 @@
 // pages/homepage.dart
-import 'package:eclapp/pages/pharmacists.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:eclapp/pages/storelocation.dart';
-import 'package:eclapp/pages/categories.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'ProductModel.dart';
+import 'product_model.dart';
 import 'auth_service.dart';
 import 'bottomnav.dart';
 import 'itemdetail.dart';
@@ -22,16 +20,12 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/product_card.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../services/banner_cache_service.dart';
 import '../services/homepage_optimization_service.dart';
 import '../widgets/empty_state.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'section_products_page.dart';
 import 'package:animations/animations.dart';
 import 'package:visibility_detector/visibility_detector.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart';
 
 class ImagePreloader {
   static final Map<String, bool> _preloadedImages = {};
@@ -92,9 +86,9 @@ class ErrorDisplayWidget extends StatelessWidget {
   final VoidCallback? onRetry;
 
   const ErrorDisplayWidget({
-    Key? key,
+    super.key,
     this.onRetry,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -170,7 +164,7 @@ class SliverSearchBarDelegate extends SliverPersistentHeaderDelegate {
 }
 
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  const HomePage({super.key});
 
   @override
   _HomePageState createState() => _HomePageState();
@@ -183,8 +177,7 @@ class _HomePageState extends State<HomePage>
         AutomaticKeepAliveClientMixin {
   bool _isLoading = true;
   bool _isLoadingPopular = true;
-  bool _isLoadingHealthTips = true;
-  bool _isFetchingHealthTips = false;
+
   String? _error;
   String? _popularError;
 
@@ -193,7 +186,7 @@ class _HomePageState extends State<HomePage>
   List<Product> popularProducts = [];
 
   final RefreshController _refreshController = RefreshController();
-  bool _allContentLoaded = false;
+
   TextEditingController searchController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
 
@@ -222,9 +215,7 @@ class _HomePageState extends State<HomePage>
   // Add these fields to the _HomePageState class:
   int _popularBaseIndex = 0;
   int _popularCurrentIndex = 0;
-  int _popularRepeatCount = 1000;
-
-  int _currentTutorialStep = 0;
+  final int _popularRepeatCount = 1000;
 
   @override
   bool get wantKeepAlive => true;
@@ -233,8 +224,8 @@ class _HomePageState extends State<HomePage>
     final permissionStatus = await Permission.phone.request();
     if (permissionStatus.isGranted) {
       final String formattedPhoneNumber = 'tel:$phoneNumber';
-      if (await canLaunch(formattedPhoneNumber)) {
-        await launch(formattedPhoneNumber);
+      if (await canLaunchUrl(Uri.parse(formattedPhoneNumber))) {
+        await launchUrl(Uri.parse(formattedPhoneNumber));
       } else {}
     } else {}
   }
@@ -266,8 +257,8 @@ class _HomePageState extends State<HomePage>
     String whatsappUrl =
         'whatsapp://send?phone=$phoneNumber&text=${Uri.encodeComponent(message)}';
 
-    if (await canLaunch(whatsappUrl)) {
-      await launch(whatsappUrl);
+    if (await canLaunchUrl(Uri.parse(whatsappUrl))) {
+      await launchUrl(Uri.parse(whatsappUrl));
     } else {
       showTopSnackBar(
           context, 'Could not open WhatsApp. Please ensure it is installed.');
@@ -275,22 +266,21 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _loadAllContent() async {
-    print('HomePage: _loadAllContent called');
-    setState(() => _allContentLoaded = false);
+    debugPrint('HomePage: _loadAllContent called');
     try {
       // Load products first
-      print('HomePage: Loading products');
+      debugPrint('HomePage: Loading products');
       await loadProducts();
 
       // Load popular products using the old method
-      print('HomePage: Loading popular products');
+      debugPrint('HomePage: Loading popular products');
       await _fetchPopularProducts();
 
       // Load health tips
-      print('HomePage: Loading health tips');
+      debugPrint('HomePage: Loading health tips');
       await _fetchHealthTips();
     } catch (e) {
-      print('HomePage: Exception in _loadAllContent: $e');
+      debugPrint('HomePage: Exception in _loadAllContent: $e');
       if (mounted) {
         setState(() {
           _error = 'Failed to load content';
@@ -300,9 +290,8 @@ class _HomePageState extends State<HomePage>
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _allContentLoaded = true;
         });
-        print('HomePage: _loadAllContent completed');
+        debugPrint('HomePage: _loadAllContent completed');
         // Preload all product images for best UX
         HomepageOptimizationService().preloadAllProductImages(context);
       }
@@ -311,19 +300,31 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> loadProducts() async {
+    // Always show skeleton for at least 800ms for better UX
+    final skeletonStartTime = DateTime.now();
+
     // Check if we have valid cached data
     if (ProductCache.isCacheValid && ProductCache.cachedProducts.isNotEmpty) {
-      setState(() {
-        _isLoading = false;
-        _error = null;
-      });
-
-      // Use cached data
+      // Use cached data but still show skeleton briefly
       final cachedProducts = ProductCache.cachedProducts;
       _processProducts(cachedProducts);
 
       // Preload images in background
       _preloadImages(cachedProducts);
+
+      // Ensure skeleton shows for at least 800ms
+      final elapsed = DateTime.now().difference(skeletonStartTime);
+      if (elapsed.inMilliseconds < 800) {
+        await Future.delayed(
+            Duration(milliseconds: 800 - elapsed.inMilliseconds));
+      }
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _error = null;
+        });
+      }
       return;
     }
 
@@ -469,114 +470,8 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _fetchHealthTips() async {
-    print('Health tips fetching disabled.');
+    debugPrint('Health tips fetching disabled.');
     return;
-  }
-
-  void _loadDefaultHealthTips() {
-    if (!mounted) return;
-
-    setState(() {});
-  }
-
-  IconData _getIconFromCategory(String category) {
-    switch (category.toLowerCase()) {
-      case 'wellness':
-        return Icons.favorite;
-      case 'physical activity':
-      case 'exercise':
-        return Icons.fitness_center;
-      case 'nutrition':
-      case 'diet':
-        return Icons.restaurant;
-      case 'prevention':
-        return Icons.shield;
-      case 'mental health':
-        return Icons.psychology;
-      case 'heart health':
-        return Icons.favorite;
-      case 'diabetes':
-        return Icons.monitor_heart;
-      case 'cancer':
-        return Icons.local_hospital;
-      case 'pregnancy':
-        return Icons.pregnant_woman;
-      case 'vaccinations':
-      case 'immunizations':
-        return Icons.vaccines;
-      default:
-        return Icons.health_and_safety;
-    }
-  }
-
-  Color _getColorFromCategory(String category) {
-    switch (category.toLowerCase()) {
-      case 'wellness':
-        return Colors.green[600]!;
-      case 'physical activity':
-      case 'exercise':
-        return Colors.blue[600]!;
-      case 'nutrition':
-      case 'diet':
-        return Colors.orange[600]!;
-      case 'prevention':
-        return Colors.purple[600]!;
-      case 'mental health':
-        return Colors.indigo[600]!;
-      case 'heart health':
-        return Colors.red[600]!;
-      case 'diabetes':
-        return Colors.teal[600]!;
-      case 'cancer':
-        return Colors.pink[600]!;
-      case 'pregnancy':
-        return Colors.pink[400]!;
-      case 'vaccinations':
-      case 'immunizations':
-        return Colors.cyan[600]!;
-      default:
-        return Colors.green[600]!;
-    }
-  }
-
-  String _getShortCategoryName(String category) {
-    // Handle long category names by taking the first meaningful part
-    if (category.contains(',')) {
-      return category.split(',')[0].trim();
-    }
-
-    // Handle specific long categories
-    switch (category.toLowerCase()) {
-      case 'hiv and other stis, screening tests, sexual health':
-        return 'Sexual Health';
-      case 'cervical cancer, vaccines (shots)':
-        return 'Cancer Prevention';
-      case 'screening tests':
-        return 'Screening';
-      case 'heart health':
-        return 'Heart Health';
-      case 'mental health':
-        return 'Mental Health';
-      case 'physical activity':
-        return 'Exercise';
-      case 'nutrition':
-        return 'Nutrition';
-      case 'prevention':
-        return 'Prevention';
-      case 'wellness':
-        return 'Wellness';
-      case 'pregnancy':
-        return 'Pregnancy';
-      case 'vaccinations':
-      case 'immunizations':
-        return 'Vaccines';
-      default:
-        // If category is still too long, truncate it
-        if (category.length > 15) {
-          return category.substring(0, 15) + '...';
-        }
-        return category;
-    }
   }
 
   void makePhoneCall(String phoneNumber) async {
@@ -700,7 +595,7 @@ class _HomePageState extends State<HomePage>
           border: Border.all(color: Colors.grey.shade200),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -711,7 +606,7 @@ class _HomePageState extends State<HomePage>
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
@@ -902,14 +797,6 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Future<void> _clearCacheAndReload() async {
-    ProductCache.clearCache();
-    ImagePreloader.clearPreloadedImages();
-// Clear health tips cache
-    _preloadedImages.clear();
-    await _loadAllContent();
-  }
-
   void _clearSearch() {
     if (_searchController.text.isNotEmpty) {
       _searchController.clear();
@@ -925,7 +812,7 @@ class _HomePageState extends State<HomePage>
     // Clear any old cached data to prevent type mismatches
 
     _initializeOptimizationService();
-    _loadContentOptimized();
+    _loadAllContent();
     _scrollController.addListener(() {
       if (_scrollController.offset > 100 && !_isScrolled) {
         setState(() {
@@ -986,7 +873,8 @@ class _HomePageState extends State<HomePage>
       setState(() {
         _products = _optimizationService.cachedProducts;
         filteredProducts = _optimizationService.cachedProducts;
-        _isLoading = false;
+        // Keep loading state true for skeleton to show
+        _isLoading = true;
         _error = null;
       });
     }
@@ -1039,7 +927,7 @@ class _HomePageState extends State<HomePage>
               borderRadius: BorderRadius.circular(8),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),
@@ -1173,7 +1061,7 @@ class _HomePageState extends State<HomePage>
             if (suggestion.name == '__VIEW_MORE__') {
               return Container(
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.08),
+                  color: Colors.green.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1204,12 +1092,12 @@ class _HomePageState extends State<HomePage>
                 borderRadius: BorderRadius.circular(9),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
+                    color: Colors.black.withValues(alpha: 0.03),
                     blurRadius: 4,
                     offset: Offset(0, 1),
                   ),
                 ],
-                border: Border.all(color: Colors.grey.withOpacity(0.06)),
+                border: Border.all(color: Colors.grey.withValues(alpha: 0.06)),
               ),
               child: InkWell(
                 borderRadius: BorderRadius.circular(9),
@@ -1426,9 +1314,9 @@ class _HomePageState extends State<HomePage>
         ),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.3), width: 1),
+          border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1436,7 +1324,7 @@ class _HomePageState extends State<HomePage>
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
+                color: color.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 20),
@@ -1470,7 +1358,7 @@ class _HomePageState extends State<HomePage>
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 8,
                 offset: Offset(0, 4),
               ),
@@ -1541,8 +1429,53 @@ class _HomePageState extends State<HomePage>
   Widget build(BuildContext context) {
     super.build(context);
     return Scaffold(
-      body: _isLoading ? HomePageSkeletonBody() : _buildMainContent(),
+      body: _isLoading ? _buildSkeletonWithLoading() : _buildMainContent(),
       bottomNavigationBar: CustomBottomNav(initialIndex: 0),
+    );
+  }
+
+  Widget _buildSkeletonWithLoading() {
+    return Stack(
+      children: [
+        const HomePageSkeletonBody(),
+        // Add a loading indicator overlay
+        Positioned(
+          top: 100,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Loading your products...',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1566,15 +1499,6 @@ class _HomePageState extends State<HomePage>
       child: LayoutBuilder(
         builder: (context, constraints) {
           double screenWidth = constraints.maxWidth;
-          int crossAxisCount = 2;
-          double aspectRatio = 1.2;
-          if (screenWidth > 900) {
-            crossAxisCount = 4;
-            aspectRatio = 1.1;
-          } else if (screenWidth > 600) {
-            crossAxisCount = 3;
-            aspectRatio = 1.15;
-          }
           double cardFontSize =
               screenWidth < 400 ? 11 : (screenWidth < 600 ? 13 : 15);
           double cardPadding =
@@ -1667,10 +1591,12 @@ class _HomePageState extends State<HomePage>
                           children: [
                             Container(
                               decoration: BoxDecoration(
-                                color: Colors.blueAccent.withOpacity(0.10),
+                                color:
+                                    Colors.blueAccent.withValues(alpha: 0.10),
                                 borderRadius: BorderRadius.circular(30),
                                 border: Border.all(
-                                    color: Colors.blueAccent.withOpacity(0.18),
+                                    color: Colors.blueAccent
+                                        .withValues(alpha: 0.18),
                                     width: 1),
                               ),
                               padding: const EdgeInsets.symmetric(
@@ -1733,227 +1659,6 @@ class _HomePageState extends State<HomePage>
         },
       ),
     );
-  }
-
-  Widget _buildOptimizedSkeleton() {
-    // Get screen dimensions for responsive spacing
-    final screenHeight = MediaQuery.of(context).size.height;
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    // Calculate responsive spacing - absolutely minimal
-    final responsiveMainAxisSpacing = 0.0; // No spacing at all
-    final responsiveCrossAxisSpacing = 0.0; // No spacing at all
-    final responsivePadding = 0.0; // No padding at all
-
-    // Ensure minimum and maximum values - absolutely minimal spacing
-    final finalMainAxisSpacing = 0.0; // No spacing between rows
-    final finalCrossAxisSpacing = 0.0; // No spacing between columns
-    final finalPadding = 0.0; // No padding around grid
-
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
-      child: SingleChildScrollView(
-        child: Column(
-          children: [
-            Container(
-              height: kToolbarHeight + MediaQuery.of(context).padding.top,
-              color: Colors.white,
-            ),
-            // Search bar
-            Container(
-              height: 86.0, // Must match the sliver's minExtent/maxExtent
-              margin: const EdgeInsets.symmetric(
-                  horizontal: 16.0), // Only horizontal margin
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            Container(
-              height: 150,
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(
-                    3,
-                    (index) => Container(
-                          width: (MediaQuery.of(context).size.width - 48) / 3,
-                          height: 100,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        )),
-              ),
-            ),
-            GridView.builder(
-              physics: NeverScrollableScrollPhysics(),
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              itemCount: 4,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 1.0,
-                mainAxisSpacing: 0.0,
-                crossAxisSpacing: 0.0,
-              ),
-              itemBuilder: (context, index) => _buildProductSkeleton(),
-            ),
-            Container(
-              height: 120,
-              margin: const EdgeInsets.all(16),
-              color: Colors.white,
-            ),
-            GridView.builder(
-              physics: NeverScrollableScrollPhysics(),
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              itemCount: 4,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 1.0,
-                mainAxisSpacing: 0.0,
-                crossAxisSpacing: 0.0,
-              ),
-              itemBuilder: (context, index) => _buildProductSkeleton(),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Container(
-                width: 150,
-                height: 24,
-                color: Colors.white,
-              ),
-            ),
-            SizedBox(
-              height: 120,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.only(left: 16),
-                itemCount: 5,
-                itemBuilder: (context, index) => Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: Container(
-                    width: 80,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            GridView.builder(
-              physics: NeverScrollableScrollPhysics(),
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              itemCount: 4,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 1.0,
-                mainAxisSpacing: 0.0,
-                crossAxisSpacing: 0.0,
-              ),
-              itemBuilder: (context, index) => _buildProductSkeleton(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProductSkeleton() {
-    return AspectRatio(
-      aspectRatio: 1.0,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(4.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    height: 12,
-                    color: Colors.white,
-                  ),
-                  const SizedBox(height: 2),
-                  Container(
-                    width: 80,
-                    height: 10,
-                    color: Colors.white,
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    width: 50,
-                    height: 12,
-                    color: Colors.white,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Check if images are already cached
-  bool _areImagesCached() {
-    return _preloadedImages.isNotEmpty ||
-        ImagePreloader.isPreloaded(
-            getProductImageUrl(_products.firstOrNull?.thumbnail ?? ''));
-  }
-
-  // Optimized loading that checks cache first
-  Future<void> _loadContentOptimized() async {
-    // If we have cached data and images are preloaded, use them immediately
-    if (ProductCache.isCacheValid &&
-        ProductCache.cachedProducts.isNotEmpty &&
-        _areImagesCached()) {
-      setState(() {
-        _isLoading = false;
-        _error = null;
-        _allContentLoaded = true;
-      });
-
-      final cachedProducts = ProductCache.cachedProducts;
-      _processProducts(cachedProducts);
-
-      if (ProductCache.cachedPopularProducts.isNotEmpty) {
-        setState(() {
-          popularProducts = ProductCache.cachedPopularProducts;
-          _isLoadingPopular = false;
-        });
-      }
-
-      return;
-    }
-
-    // Otherwise, load normally
-    await _loadAllContent();
   }
 
   Widget _buildPopularProducts() {
@@ -2022,163 +1727,9 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildProductCard(
-    Product product, {
-    double fontSize = 16,
-    double padding = 16,
-    double imageHeight = 120,
-  }) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    // Reduce card width for more compact layout
-    double cardWidth = screenWidth * (screenWidth < 600 ? 0.35 : 0.38);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min, // Prevent overflow
-      children: [
-        // Card is only the image (square) - more compact
-        Container(
-          width: cardWidth,
-          margin: EdgeInsets.zero, // No margins at all
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ItemPage(
-                        urlName: product.urlName,
-                        isPrescribed: product.otcpom?.toLowerCase() == 'pom',
-                      ),
-                    ),
-                  );
-                },
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: Container(
-                      color: Colors.grey[100],
-                      child: CachedNetworkImage(
-                        imageUrl: getProductImageUrl(product.thumbnail),
-                        fit: BoxFit.cover,
-                        memCacheWidth: 300,
-                        memCacheHeight: 300,
-                        maxWidthDiskCache: 300,
-                        maxHeightDiskCache: 300,
-                        fadeInDuration: Duration(milliseconds: 100),
-                        fadeOutDuration: Duration(milliseconds: 100),
-                        placeholder: (context, url) => Center(
-                          child: CircularProgressIndicator(strokeWidth: 1),
-                        ),
-                        errorWidget: (_, __, ___) => Container(
-                          color: Colors.grey[200],
-                          child: Center(
-                            child: Icon(Icons.broken_image, size: 16),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              if (product.otcpom?.toLowerCase() == 'pom')
-                Positioned(
-                  bottom: 8,
-                  left: 2,
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: Colors.red[700],
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    child: Text(
-                      'Prescribed',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        // Name and price beneath the card - minimal spacing
-        Container(
-          width: cardWidth,
-          constraints: BoxConstraints(
-              maxHeight: 35,
-              maxWidth: cardWidth), // Constrain both height and width
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 1), // Minimal spacing
-              Expanded(
-                flex: 2,
-                child: Container(
-                  width: cardWidth,
-                  child: Text(
-                    _truncateProductName(product.name),
-                    maxLines: 1, // Only 1 line to make it shorter
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: fontSize * 0.5, // Very small font size
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                      height: 1.0, // Very tight line height
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 1), // Minimal spacing
-              Expanded(
-                flex: 1,
-                child: Container(
-                  width: cardWidth,
-                  child: Text(
-                    'GHS ${product.price}',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: fontSize * 0.55, // Very small price font
-                      fontWeight: FontWeight.w700,
-                      color: Colors.green[700],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4), // Added margin after price
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   // Limit products for better performance
   List<Product> _getLimitedProducts(List<Product> products, {int limit = 8}) {
     return products.take(limit).toList();
-  }
-
-  // Truncate product names to keep them short
-  String _truncateProductName(String name) {
-    if (name.length <= 10) return name;
-    return name.substring(0, 7) + '...';
   }
 
   Widget _buildProductSection(
@@ -2186,20 +1737,6 @@ class _HomePageState extends State<HomePage>
       {required double fontSize,
       required double padding,
       required double imageHeight}) {
-    // Get screen dimensions for responsive spacing
-    final screenHeight = MediaQuery.of(context).size.height;
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    // Calculate responsive spacing - absolutely minimal
-    final responsiveMainAxisSpacing = 0.0; // No spacing at all
-    final responsiveCrossAxisSpacing = 0.0; // No spacing at all
-    final responsivePadding = 0.0; // No padding at all
-
-    // Ensure minimum and maximum values - absolutely minimal spacing
-    final finalMainAxisSpacing = 0.0; // No spacing between rows
-    final finalCrossAxisSpacing = 0.0; // No spacing between columns
-    final finalPadding = 0.0; // No padding around grid
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2382,8 +1919,8 @@ class HomePageSkeletonBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
+      baseColor: Colors.grey[400]!,
+      highlightColor: Colors.grey[200]!,
       child: CustomScrollView(
         slivers: [
           SliverAppBar(
@@ -2625,7 +2162,7 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
               borderRadius: BorderRadius.circular(8),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),
@@ -2729,7 +2266,7 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 6,
                       offset: Offset(0, 3),
                     ),
@@ -2803,12 +2340,13 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
 
         // Print performance summary periodically
         if (banners.isNotEmpty) {
-          print('Banner widget loaded ${banners.length} banners successfully');
+          debugPrint(
+              'Banner widget loaded ${banners.length} banners successfully');
           _bannerCacheService.printPerformanceSummary();
         }
       }
     } catch (e) {
-      print('Banner widget error: $e');
+      debugPrint('Banner widget error: $e');
       if (mounted) {
         setState(() {
           _isLoadingBanners = false;
@@ -2846,13 +2384,13 @@ Widget buildSectionHeading(String title, Color color) {
             end: Alignment.bottomCenter,
             colors: [
               color,
-              color.withOpacity(0.7),
+              color.withValues(alpha: 0.7),
             ],
           ),
           borderRadius: BorderRadius.circular(2),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.2),
+              color: color.withValues(alpha: 0.2),
               blurRadius: 2,
               offset: const Offset(0, 1),
             ),
@@ -2864,7 +2402,7 @@ Widget buildSectionHeading(String title, Color color) {
       Container(
         padding: const EdgeInsets.all(5),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(4),
         ),
         child: Icon(
@@ -2895,7 +2433,7 @@ Widget buildSectionHeading(String title, Color color) {
                 gradient: LinearGradient(
                   colors: [
                     color,
-                    color.withOpacity(0.5),
+                    color.withValues(alpha: 0.5),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(1),
@@ -2940,18 +2478,18 @@ Widget buildCapsuleHeading(String title, Color color) {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              color.withOpacity(0.12),
-              color.withOpacity(0.06),
+              color.withValues(alpha: 0.12),
+              color.withValues(alpha: 0.06),
             ],
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: color.withOpacity(0.15),
+            color: color.withValues(alpha: 0.15),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.08),
+              color: color.withValues(alpha: 0.08),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -2990,12 +2528,12 @@ class AnimatedVisibilityProductCard extends StatefulWidget {
   final double? imageHeight;
 
   const AnimatedVisibilityProductCard({
-    Key? key,
+    super.key,
     required this.product,
     this.fontSize,
     this.padding,
     this.imageHeight,
-  }) : super(key: key);
+  });
 
   @override
   State<AnimatedVisibilityProductCard> createState() =>
@@ -3006,8 +2544,6 @@ class _AnimatedVisibilityProductCardState
     extends State<AnimatedVisibilityProductCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _fade;
-  late Animation<Offset> _slide;
   bool _visible = false;
 
   @override
@@ -3015,13 +2551,6 @@ class _AnimatedVisibilityProductCardState
     super.initState();
     _controller =
         AnimationController(vsync: this, duration: Duration(milliseconds: 250));
-    _fade = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-          parent: _controller,
-          curve: Interval(0.0, 0.2, curve: Curves.easeOut)),
-    );
-    _slide = Tween<Offset>(begin: Offset(0, 0.25), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
   @override

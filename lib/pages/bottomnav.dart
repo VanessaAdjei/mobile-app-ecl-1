@@ -1,7 +1,6 @@
 // pages/bottomnav.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'auth_service.dart';
 import 'cartprovider.dart';
 import 'homepage.dart' as home;
 import 'categories.dart';
@@ -12,16 +11,15 @@ class CustomBottomNav extends StatefulWidget {
   final int initialIndex;
 
   const CustomBottomNav({
-    Key? key,
+    super.key,
     this.initialIndex = 0,
-  }) : super(key: key);
+  });
 
   @override
   State<CustomBottomNav> createState() => _CustomBottomNavState();
 }
 
 class _CustomBottomNavState extends State<CustomBottomNav> {
-  bool _userLoggedIn = false;
   late int _selectedIndex;
 
   @override
@@ -32,27 +30,22 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
   }
 
   Future<void> _checkLoginStatus() async {
-    final loggedIn = await AuthService.isLoggedIn();
-    setState(() {
-      _userLoggedIn = loggedIn;
-    });
-
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
     await cartProvider.refreshLoginStatus();
   }
 
   void _onItemTapped(int index) async {
-    print('🔍 BOTTOM NAV TAPPED ===');
-    print('Index: $index');
-    print('Current Index: $_selectedIndex');
-    print('Can Pop: ${Navigator.canPop(context)}');
-    print('Route Count: ${Navigator.of(context).widget.observers.length}');
+    debugPrint('🔍 BOTTOM NAV TAPPED ===');
+    debugPrint('Index: $index');
+    debugPrint('Current Index: $_selectedIndex');
+    debugPrint('Can Pop: ${Navigator.canPop(context)}');
+    debugPrint('Route Count: ${Navigator.of(context).widget.observers.length}');
 
     // Only return early if we're actually on the same page AND it's not the home button
     // For home button (index 0), we always want to navigate regardless of current index
     // For cart button (index 1), we also want to allow navigation to go back to cart from other pages
     if (index == _selectedIndex && index != 0 && index != 1) {
-      print('🔍 SAME INDEX (NOT HOME OR CART) - RETURNING ===');
+      debugPrint('🔍 SAME INDEX (NOT HOME OR CART) - RETURNING ===');
       return;
     }
 
@@ -62,7 +55,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
 
     switch (index) {
       case 0:
-        print('🔍 HOME BUTTON PRESSED ===');
+        debugPrint('🔍 HOME BUTTON PRESSED ===');
         // For home button, clear the entire navigation stack
         try {
           // First, try to pop all routes until we can't pop anymore
@@ -77,9 +70,9 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
               builder: (context) => const home.HomePage(),
             ),
           );
-          print('🔍 HOME NAVIGATION COMPLETED ===');
+          debugPrint('🔍 HOME NAVIGATION COMPLETED ===');
         } catch (e) {
-          print('🔍 HOME NAVIGATION ERROR: $e ===');
+          debugPrint('🔍 HOME NAVIGATION ERROR: $e ===');
           // Final fallback: try simple push replacement
           Navigator.pushReplacement(
             context,
@@ -141,7 +134,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withValues(alpha: 0.3),
             spreadRadius: 2,
             blurRadius: 10,
           ),

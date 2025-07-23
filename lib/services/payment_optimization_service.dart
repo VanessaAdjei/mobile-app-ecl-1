@@ -6,10 +6,9 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-import 'package:provider/provider.dart';
 import '../pages/auth_service.dart';
 import '../pages/cartprovider.dart';
-import '../pages/CartItem.dart';
+import '../pages/cart_item.dart';
 import 'performance_service.dart';
 
 class PaymentOptimizationService {
@@ -375,7 +374,7 @@ class PaymentOptimizationService {
       };
     } catch (e) {
       _performanceService.stopTimer('cod_payment');
-      throw e;
+      rethrow;
     }
   }
 
@@ -432,7 +431,7 @@ class PaymentOptimizationService {
       }
     } catch (e) {
       _performanceService.stopTimer('online_payment');
-      throw e;
+      rethrow;
     }
   }
 

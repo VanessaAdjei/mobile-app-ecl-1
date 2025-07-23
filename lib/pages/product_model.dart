@@ -1,4 +1,4 @@
-// pages/ProductModel.dart
+// pages/product_model.dart
 class Product {
   final int id;
   final String name;

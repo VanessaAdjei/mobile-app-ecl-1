@@ -1,4 +1,4 @@
-// pages/CartItem.dart
+// pages/cart_item.dart
 import 'package:flutter/cupertino.dart';
 
 class CartItem {
@@ -61,46 +61,49 @@ class CartItem {
   }
 
   Map<String, dynamic> toJson() {
+    debugPrint('🛒 Converting CartItem to JSON: $name');
+    debugPrint('🛒 CartItem data: {id: $id, name: $name, price: $price, quantity: $quantity}');
+    
     return {
       'id': id,
-      'productId': productId,
-      if (serverProductId != null) 'serverProductId': serverProductId,
-      if (originalProductId != null)
-        'originalProductId': originalProductId, 
-      'name': name,
+      'product_name': name,
       'price': price,
-      if (originalPrice != null) 'originalPrice': originalPrice,
-      'quantity': quantity,
-      'image': image,
-      'batch_no': batchNo,
-      'lastModified': lastModified?.toIso8601String(),
-      if (purchaseDate != null) 'purchaseDate': purchaseDate?.toIso8601String(),
+      'qty': quantity,
+      'product_img': image,
       'url_name': urlName,
+      'batch_no': batchNo,
+      'product_id': productId,
+      'original_product_id': originalProductId,
+      'server_product_id': serverProductId,
     };
   }
 
   factory CartItem.fromJson(Map<String, dynamic> json) {
+    debugPrint('🛒 Creating CartItem from JSON: ${json['product_name']}');
+    debugPrint('🛒 JSON data: $json');
+    
+    final price = _parseDouble(json['price']);
+    final quantity = _parseInt(json['qty'] ?? json['quantity']);
+    
     return CartItem(
       id: json['id']?.toString() ?? '',
-      productId:
-          json['productId']?.toString() ?? json['product_id']?.toString() ?? '',
-      serverProductId: json['serverProductId'] != null
-          ? int.tryParse(json['serverProductId'].toString())
+      productId: json['product_id']?.toString() ?? '',
+      serverProductId: json['server_product_id'] != null 
+          ? int.tryParse(json['server_product_id'].toString()) 
           : null,
-      originalProductId:
-          json['originalProductId']?.toString(), // Parse from JSON
-      name: json['name']?.toString() ?? 'Unknown Item',
-      price: _parseDouble(json['price']),
-      originalPrice: json['originalPrice'] != null
-          ? _parseDouble(json['originalPrice'])
+      originalProductId: json['original_product_id']?.toString(),
+      name: json['product_name'] ?? json['name'] ?? '',
+      price: price,
+      originalPrice: json['original_price'] != null 
+          ? _parseDouble(json['original_price']) 
           : null,
-      quantity: _parseInt(json['quantity'] ?? json['qty']),
-      image: json['image']?.toString() ?? '',
-      batchNo: json['batch_no']?.toString() ?? '',
-      lastModified: _parseDate(json['lastModified']),
-      purchaseDate: _parseDate(json['purchaseDate']),
-      urlName: json['url_name']?.toString() ?? '',
-      totalPrice: _parseDouble(json['totalPrice']),
+      quantity: quantity,
+      image: json['product_img'] ?? json['image'] ?? '',
+      batchNo: json['batch_no'] ?? '',
+      purchaseDate: _parseDate(json['purchase_date']),
+      lastModified: _parseDate(json['last_modified']),
+      urlName: json['url_name'] ?? '',
+      totalPrice: price * quantity,
     );
   }
 
@@ -108,13 +111,13 @@ class CartItem {
     final cartItemId = json['id']?.toString() ?? '';
     final serverProductId = json['product_id']?.toString() ?? '';
 
-    print('🔍 CREATING CART ITEM FROM SERVER JSON ===');
-    print('Raw JSON: $json');
-    print('Cart Item ID: $cartItemId');
-    print('Server Product ID: $serverProductId');
-    print('Product Name: ${json['product_name']}');
-    print('Batch No: ${json['batch_no']}');
-    print('==========================================');
+    debugPrint('🔍 CREATING CART ITEM FROM SERVER JSON ===');
+    debugPrint('Raw JSON: $json');
+    debugPrint('Cart Item ID: $cartItemId');
+    debugPrint('Server Product ID: $serverProductId');
+    debugPrint('Product Name: ${json['product_name']}');
+    debugPrint('Batch No: ${json['batch_no']}');
+    debugPrint('==========================================');
 
     // Calculate correct quantity from total_price if qty seems wrong
     final price = _parseDouble(json['price']);
@@ -126,13 +129,13 @@ class CartItem {
     if (price > 0 && totalPrice > 0) {
       final calculatedQty = (totalPrice / price).round();
       if (calculatedQty != reportedQty) {
-        print('🔧 QUANTITY CORRECTION ===');
-        print('Reported Qty: $reportedQty');
-        print('Price: $price');
-        print('Total Price: $totalPrice');
-        print('Calculated Qty: $calculatedQty');
-        print('Using calculated quantity: $calculatedQty');
-        print('==========================');
+        debugPrint('🔧 QUANTITY CORRECTION ===');
+        debugPrint('Reported Qty: $reportedQty');
+        debugPrint('Price: $price');
+        debugPrint('Total Price: $totalPrice');
+        debugPrint('Calculated Qty: $calculatedQty');
+        debugPrint('Using calculated quantity: $calculatedQty');
+        debugPrint('==========================');
         correctQuantity = calculatedQty;
       }
     }

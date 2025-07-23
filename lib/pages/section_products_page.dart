@@ -1,9 +1,7 @@
 // pages/section_products_page.dart
 import 'package:flutter/material.dart';
-import 'ProductModel.dart';
-import '../services/homepage_optimization_service.dart';
-import '../widgets/product_card.dart';
-import 'AppBackButton.dart';
+import 'product_model.dart';
+import 'app_back_button.dart';
 import 'itemdetail.dart';
 import 'package:animations/animations.dart';
 
@@ -12,17 +10,17 @@ class SectionProductsPage extends StatefulWidget {
   final List<Product> products;
 
   const SectionProductsPage({
-    Key? key,
+    super.key,
     required this.sectionTitle,
     required this.products,
-  }) : super(key: key);
+  });
 
   @override
   State<SectionProductsPage> createState() => _SectionProductsPageState();
 }
 
 class _SectionProductsPageState extends State<SectionProductsPage> {
-  int _tappedIndex = -1;
+  final int _tappedIndex = -1;
   List<Product> _filteredProducts = [];
   String _sortOption = 'NameAsc';
   String _selectedCategory = 'All';
@@ -276,7 +274,7 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
           elevation: 0,
           centerTitle: true,
           leading: AppBackButton(
-            backgroundColor: Colors.white.withOpacity(0.2),
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
             iconColor: Colors.white,
             onPressed: () => Navigator.of(context).pop(),
           ),
@@ -381,7 +379,7 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.06),
+                            color: Colors.black.withValues(alpha: 0.06),
                             blurRadius: 12,
                             offset: const Offset(0, 3),
                             spreadRadius: 0,
@@ -430,8 +428,9 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                                                 },
                                                 loadingBuilder: (context, child,
                                                     loadingProgress) {
-                                                  if (loadingProgress == null)
+                                                  if (loadingProgress == null) {
                                                     return child;
+                                                  }
                                                   return const Center(
                                                     child:
                                                         CircularProgressIndicator(
@@ -502,7 +501,7 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                                             padding: const EdgeInsets.all(6),
                                             decoration: BoxDecoration(
                                               color: const Color(0xFF22C55E)
-                                                  .withOpacity(0.1),
+                                                  .withValues(alpha: 0.1),
                                               borderRadius:
                                                   BorderRadius.circular(6),
                                             ),

@@ -15,7 +15,7 @@ import 'auth_service.dart';
 import 'bottomnav.dart';
 import 'notifications.dart';
 import 'HomePage.dart';
-import 'AppBackButton.dart';
+import 'app_back_button.dart';
 import 'cartprovider.dart';
 import '../main.dart';
 import 'package:eclapp/pages/prescription_history.dart';
@@ -309,10 +309,11 @@ class ProfileState extends State<Profile> {
     final textColor = isDark ? Colors.white : Colors.black87;
     final subtextColor = isDark ? Colors.white70 : Colors.black54;
 
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
         if (Navigator.canPop(context)) {
-          return true;
+          Navigator.pop(context);
         } else {
           // Switch to Home tab instead of closing app
           Navigator.pushAndRemoveUntil(
@@ -320,7 +321,6 @@ class ProfileState extends State<Profile> {
             MaterialPageRoute(builder: (context) => HomePage()),
             (route) => false,
           );
-          return false;
         }
       },
       child: Scaffold(

@@ -64,17 +64,17 @@ class CategoryOptimizationService {
 
   // Initialize service
   Future<void> initialize() async {
-    print('Initializing CategoryOptimizationService...');
+    debugPrint('Initializing CategoryOptimizationService...');
     final stopwatch = Stopwatch()..start();
 
     // Load from storage immediately without blocking
     await _loadFromStorage();
 
     stopwatch.stop();
-    print(
+    debugPrint(
         'CategoryOptimizationService initialized in ${stopwatch.elapsedMilliseconds}ms with ${_cachedCategories.length} categories and ${_cachedProducts.length} products');
-    print('Categories cache valid: $isCategoriesCacheValid');
-    print('Products cache valid: $isProductsCacheValid');
+    debugPrint('Categories cache valid: $isCategoriesCacheValid');
+    debugPrint('Products cache valid: $isProductsCacheValid');
   }
 
   // Get categories with optimized caching
@@ -84,7 +84,7 @@ class CategoryOptimizationService {
     // Return cached categories if valid and not forcing refresh
     if (isCategoriesCacheValid && hasCachedCategories && !forceRefresh) {
       _optimizationService.endTimer('CategoryService_GetCategories');
-      print(
+      debugPrint(
           'Category cache hit: ${_cachedCategories.length} categories returned from cache');
       return cachedCategories;
     }
@@ -92,7 +92,7 @@ class CategoryOptimizationService {
     // If we have stale cache, return it immediately and refresh in background
     if (hasCachedCategories && !forceRefresh) {
       _optimizationService.endTimer('CategoryService_GetCategories');
-      print(
+      debugPrint(
           'Category cache expired but returning cached data while refreshing in background');
 
       // Refresh in background without blocking
@@ -103,7 +103,7 @@ class CategoryOptimizationService {
 
     // If already loading, wait for current request
     if (_isLoadingCategories) {
-      print('Category request already in progress, waiting...');
+      debugPrint('Category request already in progress, waiting...');
       while (_isLoadingCategories) {
         await Future.delayed(const Duration(milliseconds: 50));
       }
@@ -122,7 +122,7 @@ class CategoryOptimizationService {
     try {
       await _fetchCategoriesFromAPI();
     } catch (e) {
-      print('Background category refresh failed: $e');
+      debugPrint('Background category refresh failed: $e');
       // Keep using old cache data
     }
   }
@@ -134,7 +134,7 @@ class CategoryOptimizationService {
     // Return cached products if valid and not forcing refresh
     if (isProductsCacheValid && hasCachedProducts && !forceRefresh) {
       _optimizationService.endTimer('CategoryService_GetProducts');
-      print(
+      debugPrint(
           'Product cache hit: ${_cachedProducts.length} products returned from cache');
       return cachedProducts;
     }
@@ -142,7 +142,7 @@ class CategoryOptimizationService {
     // If we have stale cache, return it immediately and refresh in background
     if (hasCachedProducts && !forceRefresh) {
       _optimizationService.endTimer('CategoryService_GetProducts');
-      print(
+      debugPrint(
           'Product cache expired but returning cached data while refreshing in background');
 
       // Refresh in background without blocking
@@ -171,7 +171,7 @@ class CategoryOptimizationService {
     try {
       await _fetchProductsFromAPI();
     } catch (e) {
-      print('Background product refresh failed: $e');
+      debugPrint('Background product refresh failed: $e');
       // Keep using old cache data
     }
   }
@@ -181,7 +181,7 @@ class CategoryOptimizationService {
     _isLoadingCategories = true;
 
     try {
-      print('Fetching categories from API...');
+      debugPrint('Fetching categories from API...');
       final stopwatch = Stopwatch()..start();
 
       // Reduced timeout for faster failure detection
@@ -193,7 +193,7 @@ class CategoryOptimizationService {
           .timeout(const Duration(seconds: 8)); // Reduced from 10 to 8 seconds
 
       stopwatch.stop();
-      print(
+      debugPrint(
           'Category API call completed in ${stopwatch.elapsedMilliseconds}ms');
 
       if (response.statusCode == 200) {
@@ -205,7 +205,7 @@ class CategoryOptimizationService {
           await _cacheCategories(categories);
 
           _optimizationService.endTimer('CategoryService_GetCategories');
-          print(
+          debugPrint(
               'Successfully fetched ${categories.length} categories from API');
           return categories;
         } else {
@@ -216,7 +216,7 @@ class CategoryOptimizationService {
       }
     } catch (e) {
       _optimizationService.endTimer('CategoryService_GetCategories');
-      print('Category API error: $e');
+      debugPrint('Category API error: $e');
       rethrow;
     } finally {
       _isLoadingCategories = false;
@@ -228,7 +228,7 @@ class CategoryOptimizationService {
     _isLoadingProducts = true;
 
     try {
-      print('Fetching products from API...');
+      debugPrint('Fetching products from API...');
       final stopwatch = Stopwatch()..start();
 
       // First get categories if not available
@@ -246,7 +246,7 @@ class CategoryOptimizationService {
       final results = await Future.wait(futures).timeout(
         const Duration(seconds: 30), // Reduced from 45 to 30 seconds
         onTimeout: () {
-          print('Product fetch timeout, returning partial results');
+          debugPrint('Product fetch timeout, returning partial results');
           return <List<dynamic>>[];
         },
       );
@@ -265,15 +265,15 @@ class CategoryOptimizationService {
       await _cacheProducts(allProducts);
 
       stopwatch.stop();
-      print(
+      debugPrint(
           'Product API calls completed in ${stopwatch.elapsedMilliseconds}ms');
 
       _optimizationService.endTimer('CategoryService_GetProducts');
-      print('Successfully fetched ${allProducts.length} products from API');
+      debugPrint('Successfully fetched ${allProducts.length} products from API');
       return allProducts;
     } catch (e) {
       _optimizationService.endTimer('CategoryService_GetProducts');
-      print('Product API error: $e');
+      debugPrint('Product API error: $e');
       rethrow;
     } finally {
       _isLoadingProducts = false;
@@ -314,7 +314,7 @@ class CategoryOptimizationService {
         }
       }
     } catch (e) {
-      print('Failed to fetch products for category ${category['name']}: $e');
+      debugPrint('Failed to fetch products for category ${category['name']}: $e');
       // Continue with other categories
     }
     return <dynamic>[];
@@ -350,7 +350,7 @@ class CategoryOptimizationService {
         }
       }
     } catch (e) {
-      print(
+      debugPrint(
           'Failed to fetch products for subcategory ${subcategory['name']}: $e');
       // Continue with other subcategories
     }
@@ -363,7 +363,7 @@ class CategoryOptimizationService {
     _categoriesCacheTime = DateTime.now();
     // Save to storage in background without blocking
     _saveCategoriesToStorage();
-    print('Categories cached successfully: ${categories.length} categories');
+    debugPrint('Categories cached successfully: ${categories.length} categories');
   }
 
   // Cache products
@@ -372,7 +372,7 @@ class CategoryOptimizationService {
     _productsCacheTime = DateTime.now();
     // Save to storage in background without blocking
     _saveProductsToStorage();
-    print('Products cached successfully: ${products.length} products');
+    debugPrint('Products cached successfully: ${products.length} products');
   }
 
   // Save categories to persistent storage
@@ -384,7 +384,7 @@ class CategoryOptimizationService {
       await prefs.setString(
           _categoriesCacheTimeKey, _categoriesCacheTime!.toIso8601String());
     } catch (e) {
-      print('Failed to save categories cache: $e');
+      debugPrint('Failed to save categories cache: $e');
     }
   }
 
@@ -396,7 +396,7 @@ class CategoryOptimizationService {
       await prefs.setString(
           _productsCacheTimeKey, _productsCacheTime!.toIso8601String());
     } catch (e) {
-      print('Failed to save products cache: $e');
+      debugPrint('Failed to save products cache: $e');
     }
   }
 
@@ -412,7 +412,7 @@ class CategoryOptimizationService {
       if (categoriesJson != null && categoriesTimeString != null) {
         _cachedCategories = json.decode(categoriesJson) as List;
         _categoriesCacheTime = DateTime.parse(categoriesTimeString);
-        print(
+        debugPrint(
             'Loaded ${_cachedCategories.length} categories from storage cache');
       }
 
@@ -423,10 +423,10 @@ class CategoryOptimizationService {
       if (productsJson != null && productsTimeString != null) {
         _cachedProducts = json.decode(productsJson) as List;
         _productsCacheTime = DateTime.parse(productsTimeString);
-        print('Loaded ${_cachedProducts.length} products from storage cache');
+        debugPrint('Loaded ${_cachedProducts.length} products from storage cache');
       }
     } catch (e) {
-      print('Failed to load category cache: $e');
+      debugPrint('Failed to load category cache: $e');
       _cachedCategories = [];
       _cachedProducts = [];
       _categoriesCacheTime = null;
@@ -443,7 +443,7 @@ class CategoryOptimizationService {
         .where((url) => url.isNotEmpty)
         .toList();
 
-    print('Preloading ${imageUrls.length} category images...');
+    debugPrint('Preloading ${imageUrls.length} category images...');
 
     for (final imageUrl in imageUrls) {
       if (!_preloadedImages.containsKey(imageUrl)) {
@@ -451,12 +451,12 @@ class CategoryOptimizationService {
         try {
           precacheImage(CachedNetworkImageProvider(imageUrl), context);
         } catch (e) {
-          print('Failed to preload category image: $imageUrl - $e');
+          debugPrint('Failed to preload category image: $imageUrl - $e');
         }
       }
     }
 
-    print('Category image preloading completed');
+    debugPrint('Category image preloading completed');
   }
 
   // Get category image URL
@@ -496,7 +496,7 @@ class CategoryOptimizationService {
 
   // Clear all caches
   Future<void> clearAllCaches() async {
-    print('Clearing all category caches...');
+    debugPrint('Clearing all category caches...');
     _cachedCategories.clear();
     _cachedProducts.clear();
     _categoriesCacheTime = null;
@@ -509,15 +509,15 @@ class CategoryOptimizationService {
       await prefs.remove(_categoriesCacheTimeKey);
       await prefs.remove(_productsCacheKey);
       await prefs.remove(_productsCacheTimeKey);
-      print('Category cache cleared successfully');
+      debugPrint('Category cache cleared successfully');
     } catch (e) {
-      print('Failed to clear category cache: $e');
+      debugPrint('Failed to clear category cache: $e');
     }
   }
 
   // Force refresh cache for testing
   Future<void> forceRefreshCache() async {
-    print('Forcing category cache refresh...');
+    debugPrint('Forcing category cache refresh...');
     await clearAllCaches();
     await getCategories(forceRefresh: true);
   }
@@ -542,17 +542,17 @@ class CategoryOptimizationService {
   // Print performance summary
   void printPerformanceSummary() {
     final stats = getCacheStats();
-    print('=== Category Service Performance Summary ===');
-    print('Cached Categories: ${stats['categories_count']}');
-    print('Cached Products: ${stats['products_count']}');
-    print('Categories Cache Valid: ${stats['categories_cache_valid']}');
-    print('Products Cache Valid: ${stats['products_cache_valid']}');
-    print(
+    debugPrint('=== Category Service Performance Summary ===');
+    debugPrint('Cached Categories: ${stats['categories_count']}');
+    debugPrint('Cached Products: ${stats['products_count']}');
+    debugPrint('Categories Cache Valid: ${stats['categories_cache_valid']}');
+    debugPrint('Products Cache Valid: ${stats['products_cache_valid']}');
+    debugPrint(
         'Categories Cache Duration: ${stats['categories_cache_duration_hours']} hours');
-    print(
+    debugPrint(
         'Products Cache Duration: ${stats['products_cache_duration_hours']} hours');
-    print('Preloaded Images: ${stats['preloaded_images_count']}');
-    print('============================================');
+    debugPrint('Preloaded Images: ${stats['preloaded_images_count']}');
+    debugPrint('============================================');
   }
 
   // Refresh all data

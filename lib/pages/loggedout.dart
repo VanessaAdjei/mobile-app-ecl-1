@@ -127,7 +127,7 @@ class _LoggedOutScreenState extends State<LoggedOutScreen>
                       colors: [
                         Colors.white,
                         const Color(0xFFE8F5E9)
-                            .withOpacity(_logoController.value),
+                            .withValues(alpha: _logoController.value),
                       ],
                     ),
                   ),
@@ -162,7 +162,7 @@ class _LoggedOutScreenState extends State<LoggedOutScreen>
                                 borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(
+                                    color: Colors.black.withValues(alpha: 
                                         0.05 * _logoController.value),
                                     blurRadius: 20,
                                     offset: const Offset(0, 5),
@@ -405,7 +405,7 @@ class _LoggedOutScreenState extends State<LoggedOutScreen>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -416,7 +416,7 @@ class _LoggedOutScreenState extends State<LoggedOutScreen>
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(

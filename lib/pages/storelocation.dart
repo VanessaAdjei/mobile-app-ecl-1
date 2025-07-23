@@ -1,7 +1,6 @@
 // pages/storelocation.dart
 import 'package:flutter/material.dart';
-import 'bottomnav.dart';
-import 'AppBackButton.dart';
+import 'app_back_button.dart';
 import 'HomePage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -71,36 +70,36 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
 
   // Load regions from API
   Future<void> _loadRegions() async {
-    print('=== STORE LOCATION: Loading regions ===');
+    debugPrint('=== STORE LOCATION: Loading regions ===');
     setState(() {
       isLoadingRegions = true;
       regionsError = null;
     });
 
     try {
-      print('Calling DeliveryService.getRegions()...');
+      debugPrint('Calling DeliveryService.getRegions()...');
       final result = await DeliveryService.getRegions();
-      print('Regions API result: $result');
+      debugPrint('Regions API result: $result');
 
       if (result['success']) {
         final regionsData = result['data'] ?? [];
-        print('Regions data received: ${regionsData.length} regions');
-        print('Regions: $regionsData');
+        debugPrint('Regions data received: ${regionsData.length} regions');
+        debugPrint('Regions: $regionsData');
 
         setState(() {
           regions = regionsData;
           isLoadingRegions = false;
         });
-        print('Regions loaded successfully: ${regions.length} regions');
+        debugPrint('Regions loaded successfully: ${regions.length} regions');
       } else {
-        print('Regions API failed: ${result['message']}');
+        debugPrint('Regions API failed: ${result['message']}');
         setState(() {
           regionsError = result['message'] ?? 'Failed to load regions';
           isLoadingRegions = false;
         });
       }
     } catch (e) {
-      print('Error loading regions: $e');
+      debugPrint('Error loading regions: $e');
       setState(() {
         regionsError = 'Network error: ${e.toString()}';
         isLoadingRegions = false;
@@ -186,7 +185,7 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
 
   // Load ALL stores with parallel processing for speed
   Future<void> _loadAllStores() async {
-    print('=== STORE LOCATION: Loading ALL stores ===');
+    debugPrint('=== STORE LOCATION: Loading ALL stores ===');
     setState(() {
       isLoadingAllStores = true;
       allStoresError = null;
@@ -258,9 +257,9 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
         allStores = allStoresList;
         isLoadingAllStores = false;
       });
-      print('ALL stores loaded successfully: ${allStores.length} stores');
+      debugPrint('ALL stores loaded successfully: ${allStores.length} stores');
     } catch (e) {
-      print('Error loading all stores: $e');
+      debugPrint('Error loading all stores: $e');
       setState(() {
         allStoresError = 'Network error: ${e.toString()}';
         isLoadingAllStores = false;
@@ -276,7 +275,7 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
         elevation: Theme.of(context).appBarTheme.elevation,
         centerTitle: Theme.of(context).appBarTheme.centerTitle,
         leading: AppBackButton(
-          backgroundColor: Colors.white.withOpacity(0.2),
+          backgroundColor: Colors.white.withValues(alpha: 0.2),
           onPressed: () {
             if (Navigator.canPop(context)) {
               Navigator.pop(context);
@@ -296,7 +295,7 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
           Container(
             margin: EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
             child: CartIconButton(
@@ -1049,7 +1048,7 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
         ),
 
         // Regions List
-        ...regions.map((region) => _buildRegionCard(region)).toList(),
+        ...regions.map((region) => _buildRegionCard(region)),
       ],
     );
   }

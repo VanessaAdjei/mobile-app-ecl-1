@@ -464,7 +464,7 @@ class ComprehensiveOptimizationService {
         _cartCacheTime = DateTime.parse(cartTimeString);
       }
     } catch (e) {
-      print('Failed to load comprehensive cache: $e');
+      debugPrint('Failed to load comprehensive cache: $e');
     }
   }
 
@@ -524,7 +524,7 @@ class ComprehensiveOptimizationService {
       await prefs.remove(_cartCacheKey);
       await prefs.remove(_cartCacheTimeKey);
     } catch (e) {
-      print('Failed to clear comprehensive cache: $e');
+      debugPrint('Failed to clear comprehensive cache: $e');
     }
   }
 

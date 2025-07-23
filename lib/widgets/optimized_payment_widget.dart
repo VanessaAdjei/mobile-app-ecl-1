@@ -5,7 +5,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pages/cartprovider.dart';
-import '../pages/CartItem.dart';
+import '../pages/cart_item.dart';
 import '../services/payment_optimization_service.dart';
 import '../services/performance_service.dart';
 import 'loading_skeleton.dart';
@@ -244,7 +244,7 @@ class _OptimizedPaymentWidgetState extends State<OptimizedPaymentWidget> {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
@@ -301,7 +301,7 @@ class _OptimizedPaymentWidgetState extends State<OptimizedPaymentWidget> {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.green.withOpacity(0.3),
+                        color: Colors.green.withValues(alpha: 0.3),
                         blurRadius: 6,
                         offset: const Offset(0, 3),
                       ),
@@ -395,7 +395,7 @@ class _OptimizedPaymentWidgetState extends State<OptimizedPaymentWidget> {
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 6,
               offset: Offset(0, 1),
             ),
@@ -444,7 +444,7 @@ class _OptimizedPaymentWidgetState extends State<OptimizedPaymentWidget> {
               ...cart.cartItems
                   .take(_showAllItems ? cart.cartItems.length : 3)
                   .map((item) => _buildOrderItem(item))
-                  .toList(),
+                  ,
               if (cart.cartItems.length > 3) ...[
                 const SizedBox(height: 4),
                 _buildShowMoreButton(cart.cartItems.length),
@@ -577,7 +577,7 @@ class _OptimizedPaymentWidgetState extends State<OptimizedPaymentWidget> {
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 6,
               offset: Offset(0, 1),
             ),
@@ -717,7 +717,7 @@ class _OptimizedPaymentWidgetState extends State<OptimizedPaymentWidget> {
               ),
               const SizedBox(width: 6),
               if (_appliedPromoCode == null)
-                Container(
+                SizedBox(
                   height: 32,
                   child: ElevatedButton(
                     onPressed: _isApplyingPromo ? null : _applyPromoCode,
@@ -748,7 +748,7 @@ class _OptimizedPaymentWidgetState extends State<OptimizedPaymentWidget> {
                   ),
                 )
               else
-                Container(
+                SizedBox(
                   height: 32,
                   child: ElevatedButton(
                     onPressed: _removePromoCode,
@@ -900,7 +900,7 @@ class _OptimizedPaymentWidgetState extends State<OptimizedPaymentWidget> {
               borderRadius: BorderRadius.circular(6),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 3,
                   offset: Offset(0, 1),
                 ),
@@ -952,14 +952,14 @@ class _OptimizedPaymentWidgetState extends State<OptimizedPaymentWidget> {
                   boxShadow: isSelected
                       ? [
                           BoxShadow(
-                            color: Colors.green.withOpacity(0.1),
+                            color: Colors.green.withValues(alpha: 0.1),
                             blurRadius: 3,
                             offset: Offset(0, 1),
                           ),
                         ]
                       : [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
+                            color: Colors.black.withValues(alpha: 0.05),
                             blurRadius: 2,
                             offset: Offset(0, 1),
                           ),
@@ -1053,7 +1053,7 @@ class _OptimizedPaymentWidgetState extends State<OptimizedPaymentWidget> {
                 ),
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -1077,7 +1077,7 @@ class _OptimizedPaymentWidgetState extends State<OptimizedPaymentWidget> {
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: Colors.green.withOpacity(0.3),
+              color: Colors.green.withValues(alpha: 0.3),
               blurRadius: 6,
               offset: Offset(0, 2),
             ),

@@ -1,14 +1,10 @@
 // pages/changepassword.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'Cart.dart';
 import 'HomePage.dart';
-import 'AppBackButton.dart';
+import 'app_back_button.dart';
 import 'package:http/http.dart' as http;
 import 'forgot_password.dart';
-import 'package:provider/provider.dart';
-import 'cart.dart';
-import 'cartprovider.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -97,93 +93,6 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     }
   }
 
-  void _showResetPasswordDialog() {
-    final TextEditingController _emailController = TextEditingController();
-    bool isLoading = false;
-    showDialog(
-      context: context,
-      barrierDismissible: !isLoading,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Reset Password'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                      'Enter your email or phone number to reset your password.'),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Email or Phone',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isLoading ? null : () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: isLoading
-                      ? null
-                      : () async {
-                          final value = _emailController.text.trim();
-                          if (value.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text(
-                                        'Please enter your email or phone')));
-                            return;
-                          }
-                          setState(() => isLoading = true);
-                          try {
-                            final response = await http.post(
-                              Uri.parse(
-                                  'https://eclcommerce.ernestchemists.com.gh/api/reset-pwd'),
-                              body: {'email': value},
-                            );
-                            if (response.statusCode == 200) {
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text(
-                                          'Password reset instructions sent!'),
-                                      backgroundColor: Colors.green));
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                  content: Text(
-                                      'Failed to send reset instructions: ${response.body}'),
-                                  backgroundColor: Colors.red));
-                            }
-                          } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                content: Text('Error: $e'),
-                                backgroundColor: Colors.red));
-                          } finally {
-                            setState(() => isLoading = false);
-                          }
-                        },
-                  child: isLoading
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : const Text('Send Reset Link'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -207,7 +116,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 8,
                   offset: Offset(0, 2),
                 ),
@@ -224,7 +133,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             ),
           ),
           leading: AppBackButton(
-            backgroundColor: Colors.white.withOpacity(0.2),
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
             iconColor: Colors.white,
             onPressed: () {
               if (Navigator.canPop(context)) {
@@ -241,7 +150,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             Container(
               margin: EdgeInsets.only(right: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
+                color: Colors.white.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: CartIconButton(
@@ -280,7 +189,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -303,7 +212,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
               "Create a strong, unique password",
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
               ),
             ),
           ],
@@ -321,7 +230,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             spreadRadius: 1,
           ),

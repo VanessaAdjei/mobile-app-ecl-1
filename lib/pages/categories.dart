@@ -8,7 +8,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:eclapp/widgets/error_display.dart';
 import 'package:eclapp/pages/itemdetail.dart';
 import 'package:eclapp/pages/homepage.dart';
-import 'package:eclapp/pages/AppBackButton.dart';
+import 'package:eclapp/pages/app_back_button.dart';
 import 'package:eclapp/widgets/cart_icon_button.dart';
 import 'package:eclapp/pages/bulk_purchase_page.dart';
 import 'package:eclapp/pages/bottomnav.dart';
@@ -98,7 +98,7 @@ class _CategoryPageState extends State<CategoryPage> {
   final Map<int, List<dynamic>> _subcategoriesMap = {};
   Timer? _highlightTimer;
   List<dynamic> _allProducts = [];
-  bool _isLoadingProducts = false;
+  final bool _isLoadingProducts = false;
   bool _showSearchDropdown = false;
   List<dynamic> _searchResults = [];
   final FocusNode _searchFocusNode = FocusNode();
@@ -133,12 +133,13 @@ class _CategoryPageState extends State<CategoryPage> {
     // Load cached data immediately if available
     if (_categoryService.hasCachedCategories &&
         _categoryService.isCategoriesCacheValid) {
-      print(
+      debugPrint(
           'Using cached categories from initialization: ${_categoryService.cachedCategories.length} categories');
       setState(() {
         _categories = _categoryService.cachedCategories;
         _filteredCategories = _categoryService.cachedCategories;
-        _isLoading = false;
+        // Keep loading state true for skeleton to show
+        _isLoading = true;
         _errorMessage = '';
       });
 
@@ -158,18 +159,41 @@ class _CategoryPageState extends State<CategoryPage> {
 
   // Optimized loading that checks cache first
   Future<void> _loadCategoriesOptimized() async {
+    // Always show skeleton for at least 800ms for better UX
+    final skeletonStartTime = DateTime.now();
+
     // Skip loading if we already have valid cached data from initialization
     if (_categoryService.hasCachedCategories &&
         _categoryService.isCategoriesCacheValid &&
         _categories.isNotEmpty) {
-      print('Skipping category loading - using existing cached data');
+      debugPrint('Skipping category loading - using existing cached data');
+
+      // Ensure skeleton shows for at least 800ms
+      final elapsed = DateTime.now().difference(skeletonStartTime);
+      if (elapsed.inMilliseconds < 800) {
+        await Future.delayed(
+            Duration(milliseconds: 800 - elapsed.inMilliseconds));
+      }
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
       return;
     }
 
     try {
-      print('Loading categories from service...');
+      debugPrint('Loading categories from service...');
       final categories = await _categoryService.getCategories();
       _processCategories(categories);
+
+      // Ensure skeleton shows for at least 800ms
+      final elapsed = DateTime.now().difference(skeletonStartTime);
+      if (elapsed.inMilliseconds < 800) {
+        await Future.delayed(
+            Duration(milliseconds: 800 - elapsed.inMilliseconds));
+      }
 
       if (mounted) {
         setState(() {
@@ -181,7 +205,15 @@ class _CategoryPageState extends State<CategoryPage> {
       // Preload images in background
       _categoryService.preloadCategoryImages(context, categories);
     } catch (e) {
-      print('Category loading error: $e');
+      debugPrint('Category loading error: $e');
+
+      // Ensure skeleton shows for at least 800ms even on error
+      final elapsed = DateTime.now().difference(skeletonStartTime);
+      if (elapsed.inMilliseconds < 800) {
+        await Future.delayed(
+            Duration(milliseconds: 800 - elapsed.inMilliseconds));
+      }
+
       if (mounted) {
         setState(() {
           _errorMessage = 'Failed to load categories. Please try again.';
@@ -198,7 +230,6 @@ class _CategoryPageState extends State<CategoryPage> {
     setState(() {
       _categories = categories;
       _filteredCategories = categories;
-      _isLoading = false; // Ensure loading is set to false
     });
   }
 
@@ -241,55 +272,6 @@ class _CategoryPageState extends State<CategoryPage> {
     }
   }
 
-  Future<void> _fetchTopCategories() async {
-    try {
-      final response = await http
-          .get(
-        Uri.parse(
-          'https://eclcommerce.ernestchemists.com.gh/api/top-categories',
-        ),
-      )
-          .timeout(
-        Duration(seconds: 10),
-        onTimeout: () {
-          throw Exception('Request timeout. Please check your connection.');
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-
-        if (data['success'] == true) {
-          final categories = data['data'];
-
-          // Cache the categories
-          CategoryCache.cacheCategories(categories);
-
-          // Process categories and update state immediately
-          _processCategories(categories);
-
-          // Preload images in background without blocking UI
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _preloadCategoryImages(categories);
-          });
-        } else {
-          throw Exception('Unable to load categories at this time');
-        }
-      } else {
-        throw Exception('Unable to connect to the server');
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.toString().contains('timeout')
-              ? 'Connection timeout. Please check your internet connection.'
-              : 'Unable to load categories. Please check your internet connection and try again.';
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
   Future<List<dynamic>> _getAllProductsFromCategories({
     bool forceRefresh = false,
   }) async {
@@ -301,75 +283,6 @@ class _CategoryPageState extends State<CategoryPage> {
     } catch (e) {
       return [];
     }
-  }
-
-  Future<void> _fetchProductsForCategory(
-      dynamic category, List<dynamic> allProducts) async {
-    try {
-      final subcategoriesResponse = await http
-          .get(
-            Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/categories/${category['id']}',
-            ),
-          )
-          .timeout(Duration(seconds: 5));
-
-      if (subcategoriesResponse.statusCode == 200) {
-        final subcategoriesData = json.decode(subcategoriesResponse.body);
-        if (subcategoriesData['success'] == true) {
-          final subcategories = subcategoriesData['data'] as List;
-
-          // Fetch products for all subcategories concurrently
-          final futures = <Future<List<dynamic>>>[];
-
-          for (final subcategory in subcategories) {
-            futures.add(_fetchProductsForSubcategory(category, subcategory));
-          }
-
-          final productLists = await Future.wait(futures);
-          for (final productList in productLists) {
-            allProducts.addAll(productList);
-          }
-        }
-      }
-    } catch (e) {
-      // Continue with other categories
-    }
-  }
-
-  Future<List<dynamic>> _fetchProductsForSubcategory(
-      dynamic category, dynamic subcategory) async {
-    try {
-      final subcategoryId = subcategory['id'];
-      final subcategoryName = subcategory['name'];
-
-      final apiUrl =
-          'https://eclcommerce.ernestchemists.com.gh/api/product-categories/$subcategoryId';
-
-      final response =
-          await http.get(Uri.parse(apiUrl)).timeout(Duration(seconds: 5));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-
-        if (data['success'] == true && data['data'] != null) {
-          final products = data['data'] as List;
-
-          return products
-              .map((product) => {
-                    ...product,
-                    'category_id': category['id'],
-                    'category_name': category['name'],
-                    'subcategory_id': subcategoryId,
-                    'subcategory_name': subcategoryName,
-                  })
-              .toList();
-        }
-      }
-    } catch (e) {
-      // Continue with other subcategories
-    }
-    return <dynamic>[];
   }
 
   void _showSearch(BuildContext context) async {
@@ -765,218 +678,264 @@ class _CategoryPageState extends State<CategoryPage> {
       ),
       backgroundColor: Colors.grey[50],
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Search Section
-            Container(
-              padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
-              child: Column(
+        child: _isLoading ? _buildSkeletonWithLoading() : _buildMainContent(),
+      ),
+      bottomNavigationBar: CustomBottomNav(initialIndex: 2),
+    );
+  }
+
+  Widget _buildSkeletonWithLoading() {
+    return Stack(
+      children: [
+        const CategoryPageSkeletonBody(),
+        // Add a loading indicator overlay
+        Positioned(
+          top: 100,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Loading categories...',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMainContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Search Section
+        Container(
+          padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Search Bar with Dropdown
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Search Bar with Dropdown
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(6),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      onChanged: _searchProduct,
+                      onTap: () {
+                        if (_searchController.text.isNotEmpty) {
+                          setState(() {
+                            _showSearchDropdown = true;
+                          });
+                        }
+                      },
+                      decoration: InputDecoration(
+                        hintText: "Search products...",
+                        hintStyle: TextStyle(
+                          color: Colors.grey.shade400,
+                          fontSize: 13,
                         ),
-                        child: TextField(
-                          controller: _searchController,
-                          focusNode: _searchFocusNode,
-                          onChanged: _searchProduct,
-                          onTap: () {
-                            if (_searchController.text.isNotEmpty) {
-                              setState(() {
-                                _showSearchDropdown = true;
-                              });
-                            }
-                          },
-                          decoration: InputDecoration(
-                            hintText: "Search products...",
-                            hintStyle: TextStyle(
-                              color: Colors.grey.shade400,
-                              fontSize: 13,
-                            ),
-                            prefixIcon: Icon(
-                              Icons.search,
-                              color: Colors.green.shade700,
-                              size: 20,
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            errorBorder: InputBorder.none,
-                            disabledBorder: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(vertical: 8),
-                          ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: Colors.green.shade700,
+                          size: 20,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                      ),
+                    ),
+                  ),
+                  // Search Dropdown
+                  if (_showSearchDropdown)
+                    Container(
+                      margin: EdgeInsets.only(top: 4),
+                      constraints:
+                          BoxConstraints(maxHeight: 320), // Increased height
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.green.shade300,
+                          width: 2,
                         ),
                       ),
-                      // Search Dropdown
-                      if (_showSearchDropdown)
-                        Container(
-                          margin: EdgeInsets.only(top: 4),
-                          constraints: BoxConstraints(
-                              maxHeight: 320), // Increased height
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: Colors.green.shade300,
-                              width: 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Debug header
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
                             ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Debug header
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(6),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.search,
+                                  size: 14,
+                                  color: Colors.green.shade700,
                                 ),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.shade50,
-                                  borderRadius: BorderRadius.vertical(
-                                    top: Radius.circular(6),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Search Results (${_searchResults.length})',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.green.shade700,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.search,
-                                      size: 14,
-                                      color: Colors.green.shade700,
+                              ],
+                            ),
+                          ),
+                          // Results
+                          Flexible(
+                            child: _isLoadingProducts
+                                ? Container(
+                                    padding: EdgeInsets.all(16),
+                                    child: Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                    Colors.green.shade700),
+                                          ),
+                                        ),
+                                        SizedBox(width: 12),
+                                        Text(
+                                          'Loading products...',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'Search Results (${_searchResults.length})',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.green.shade700,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              // Results
-                              Flexible(
-                                child: _isLoadingProducts
+                                  )
+                                : _searchResults.isEmpty
                                     ? Container(
                                         padding: EdgeInsets.all(16),
-                                        child: Row(
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            SizedBox(
-                                              width: 16,
-                                              height: 16,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<
-                                                            Color>(
-                                                        Colors.green.shade700),
-                                              ),
+                                            Icon(
+                                              Icons.search_off,
+                                              size: 32,
+                                              color: Colors.grey.shade400,
                                             ),
-                                            SizedBox(width: 12),
+                                            SizedBox(height: 8),
                                             Text(
-                                              'Loading products...',
+                                              'No products found',
                                               style: TextStyle(
-                                                fontSize: 14,
+                                                fontSize: 12,
                                                 color: Colors.grey.shade600,
+                                                fontWeight: FontWeight.w500,
                                               ),
+                                              textAlign: TextAlign.center,
                                             ),
                                           ],
                                         ),
                                       )
-                                    : _searchResults.isEmpty
-                                        ? Container(
-                                            padding: EdgeInsets.all(16),
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  Icons.search_off,
-                                                  size: 32,
-                                                  color: Colors.grey.shade400,
-                                                ),
-                                                SizedBox(height: 8),
-                                                Text(
-                                                  'No products found',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.grey.shade600,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                  textAlign: TextAlign.center,
-                                                ),
-                                              ],
-                                            ),
-                                          )
-                                        : Scrollbar(
-                                            thumbVisibility: true,
-                                            child: ListView.builder(
-                                              primary:
-                                                  false, // Prevent PrimaryScrollController conflict
-                                              shrinkWrap: true,
-                                              padding: EdgeInsets.zero,
-                                              itemCount: _searchResults.length,
-                                              itemBuilder: (context, index) {
-                                                final item =
-                                                    _searchResults[index];
-                                                return _buildSearchResultItem(
-                                                    item);
-                                              },
-                                            ),
-                                          ),
-                              ),
-                            ],
+                                    : Scrollbar(
+                                        thumbVisibility: true,
+                                        child: ListView.builder(
+                                          primary:
+                                              false, // Prevent PrimaryScrollController conflict
+                                          shrinkWrap: true,
+                                          padding: EdgeInsets.zero,
+                                          itemCount: _searchResults.length,
+                                          itemBuilder: (context, index) {
+                                            final item = _searchResults[index];
+                                            return _buildSearchResultItem(item);
+                                          },
+                                        ),
+                                      ),
                           ),
-                        ),
-                    ],
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Find products by name',
-                    style: TextStyle(color: Colors.green, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            // Categories Title
-            Padding(
-              padding: EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Browse Categories',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                        ],
+                      ),
                     ),
-                  ),
-                  Text(
-                    '${_filteredCategories.length} found',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                  ),
                 ],
               ),
-            ),
-            // Categories Grid
-            Expanded(child: _buildCategoriesGrid()),
-          ],
+              SizedBox(height: 4),
+              Text(
+                'Find products by name',
+                style: TextStyle(color: Colors.green, fontSize: 12),
+              ),
+            ],
+          ),
         ),
-      ),
-      bottomNavigationBar: CustomBottomNav(initialIndex: 2),
+        // Categories Title
+        Padding(
+          padding: EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Browse Categories',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              Text(
+                '${_filteredCategories.length} found',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+            ],
+          ),
+        ),
+        // Categories Grid
+        Expanded(child: _buildCategoriesGrid()),
+      ],
     );
   }
 
@@ -1111,10 +1070,6 @@ class _CategoryPageState extends State<CategoryPage> {
   }
 
   Widget _buildCategoriesGrid() {
-    if (_isLoading) {
-      return _buildShimmerGrid();
-    }
-
     if (_errorMessage.isNotEmpty) {
       return _buildErrorState();
     }
@@ -1147,7 +1102,7 @@ class _CategoryPageState extends State<CategoryPage> {
             final icon = _getCategoryIcon(category['name'] ?? '');
             final iconColor = Colors.green.shade700;
             final available =
-                category['product_count'] ?? category['available'] ?? null;
+                category['product_count'] ?? category['available'];
             return OpenContainer(
               transitionType: ContainerTransitionType.fadeThrough,
               openColor: Theme.of(context).scaffoldBackgroundColor,
@@ -1182,31 +1137,6 @@ class _CategoryPageState extends State<CategoryPage> {
           },
         );
       },
-    );
-  }
-
-  Widget _buildShimmerGrid() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
-      child: GridView.builder(
-        padding: const EdgeInsets.all(16.0),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 0.85,
-        ),
-        itemCount: 6,
-        itemBuilder: (context, index) {
-          return Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-          );
-        },
-      ),
     );
   }
 
@@ -1315,10 +1245,218 @@ class _CategoryPageState extends State<CategoryPage> {
       final products = await _categoryService.getProducts(forceRefresh: false);
       _allProducts = products;
       CategoryCache.cacheAllProducts(products);
-      print('Prefetched and cached all products: \\${products.length}');
+      debugPrint('Prefetched and cached all products: \\${products.length}');
     } catch (e) {
-      print('Error prefetching products: $e');
+      debugPrint('Error prefetching products: $e');
     }
+  }
+}
+
+// Skeleton screen for category page
+class CategoryPageSkeletonBody extends StatelessWidget {
+  const CategoryPageSkeletonBody({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[400]!,
+      highlightColor: Colors.grey[200]!,
+      child: Column(
+        children: [
+          // Search bar skeleton
+          Container(
+            margin: EdgeInsets.all(16),
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          // Categories title skeleton
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: 120,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                Container(
+                  width: 60,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Categories grid skeleton
+          Expanded(
+            child: GridView.builder(
+              padding: EdgeInsets.all(16),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 1.0,
+              ),
+              itemCount: 8,
+              itemBuilder: (context, index) {
+                return Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Skeleton screen for subcategory page
+class SubcategoryPageSkeletonBody extends StatelessWidget {
+  const SubcategoryPageSkeletonBody({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[400]!,
+      highlightColor: Colors.grey[200]!,
+      child: Row(
+        children: [
+          // Sidebar skeleton
+          Container(
+            width: 200,
+            color: Colors.white,
+            child: Column(
+              children: [
+                // Header skeleton
+                Container(
+                  height: 50,
+                  margin: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                // Sidebar items skeleton
+                Expanded(
+                  child: ListView.builder(
+                    padding: EdgeInsets.all(8),
+                    itemCount: 6,
+                    itemBuilder: (context, index) {
+                      return Container(
+                        height: 40,
+                        margin: EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Main content skeleton
+          Expanded(
+            child: Column(
+              children: [
+                // Header skeleton
+                Container(
+                  height: 60,
+                  margin: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                // Products grid skeleton
+                Expanded(
+                  child: GridView.builder(
+                    padding: EdgeInsets.all(16),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      childAspectRatio: 0.6,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                    ),
+                    itemCount: 8,
+                    itemBuilder: (context, index) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Skeleton screen for product list page
+class ProductListPageSkeletonBody extends StatelessWidget {
+  const ProductListPageSkeletonBody({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[400]!,
+      highlightColor: Colors.grey[200]!,
+      child: Column(
+        children: [
+          // Header skeleton
+          Container(
+            height: 80,
+            margin: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          // Products grid skeleton
+          Expanded(
+            child: GridView.builder(
+              padding: EdgeInsets.all(16),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 0.55,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+              ),
+              itemCount: 8,
+              itemBuilder: (context, index) {
+                return Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1329,20 +1467,13 @@ class _ModernCategoryCard extends StatelessWidget {
   final Color iconColor;
   final VoidCallback onTap;
 
-  static const List<String> _backgroundImages = [
-    'assets/images/Medicines ECL.jpg',
-    'assets/images/Sexual Health ECL.jpg',
-    'assets/images/Sports Nutrition ECL.jpg',
-  ];
-
   const _ModernCategoryCard({
     required this.name,
     required this.icon,
     required this.iconColor,
     required this.onTap,
     this.available,
-    Key? key,
-  }) : super(key: key);
+  });
 
   static String _getBackgroundImage(String name) {
     final lower = name.toLowerCase();
@@ -1386,7 +1517,7 @@ class _ModernCategoryCard extends StatelessWidget {
             image: AssetImage(bgImage),
             fit: BoxFit.cover,
             colorFilter: ColorFilter.mode(
-              Colors.black.withOpacity(0.18),
+              Colors.black.withValues(alpha: 0.18),
               BlendMode.darken,
             ),
           ),
@@ -1398,7 +1529,7 @@ class _ModernCategoryCard extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
-                  color: Colors.white.withOpacity(0.08),
+                  color: Colors.white.withValues(alpha: 0.08),
                 ),
               ),
             ),
@@ -1434,7 +1565,7 @@ class _ModernCategoryCard extends StatelessWidget {
                       Text(
                         '$available Available',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.85),
+                          color: Colors.white.withValues(alpha: 0.85),
                           fontSize: 13,
                           shadows: [
                             Shadow(
@@ -1508,9 +1639,9 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   bool isSidebarVisible = true; // New state for sidebar visibility
 
   // Cache for subcategories and products
-  static Map<int, List<dynamic>> _subcategoriesCache = {};
-  static Map<int, List<dynamic>> _productsCache = {};
-  static Map<int, DateTime> _cacheTimestamps = {};
+  static final Map<int, List<dynamic>> _subcategoriesCache = {};
+  static final Map<int, List<dynamic>> _productsCache = {};
+  static final Map<int, DateTime> _cacheTimestamps = {};
   static const Duration _cacheValidDuration = Duration(minutes: 30);
 
   @override
@@ -1635,11 +1766,6 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     }
 
     try {
-      final selectedSubcategory = subcategories.firstWhere(
-        (sub) => sub['id'] == subcategoryId,
-        orElse: () => {'name': 'Unknown', 'id': subcategoryId},
-      );
-
       // Use the correct endpoint for products in a subcategory
       final apiUrl =
           'https://eclcommerce.ernestchemists.com.gh/api/product-categories/$subcategoryId';
@@ -1836,6 +1962,10 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   }
 
   Widget buildBody() {
+    if (isLoading && subcategories.isEmpty) {
+      return _buildSkeletonWithLoading();
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         // Responsive layout based on screen width
@@ -1890,7 +2020,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.green.withOpacity(0.4),
+                        color: Colors.green.withValues(alpha: 0.4),
                         blurRadius: 12,
                         offset: Offset(0, 6),
                       ),
@@ -1932,6 +2062,51 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildSkeletonWithLoading() {
+    return Stack(
+      children: [
+        const SubcategoryPageSkeletonBody(),
+        // Add a loading indicator overlay
+        Positioned(
+          top: 100,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Loading subcategories...',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -2204,7 +2379,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                       product['route']?.split('/').last;
 
                   if (itemDetailURL != null && itemDetailURL.isNotEmpty) {
-                    return ItemPage(urlName: itemDetailURL!);
+                    return ItemPage(urlName: itemDetailURL);
                   } else {
                     final productId = product['id']?.toString();
                     if (productId != null) {
@@ -2409,7 +2584,7 @@ class ProductCard extends StatelessWidget {
                     child: Container(
                       padding: EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -2661,7 +2836,7 @@ class _ProductListPageState extends State<ProductListPage> {
 
   Widget _buildProductsList() {
     if (isLoading) {
-      return _buildLoadingState();
+      return _buildSkeletonWithLoading();
     }
 
     if (errorMessage.isNotEmpty) {
@@ -2714,7 +2889,7 @@ class _ProductListPageState extends State<ProductListPage> {
                     product['route']?.split('/').last;
 
                 if (itemDetailURL != null && itemDetailURL.isNotEmpty) {
-                  return ItemPage(urlName: itemDetailURL!);
+                  return ItemPage(urlName: itemDetailURL);
                 } else {
                   final productId = product['id']?.toString();
                   if (productId != null) {
@@ -2733,6 +2908,51 @@ class _ProductListPageState extends State<ProductListPage> {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildSkeletonWithLoading() {
+    return Stack(
+      children: [
+        const ProductListPageSkeletonBody(),
+        // Add a loading indicator overlay
+        Positioned(
+          top: 100,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Loading products...',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

@@ -1,7 +1,5 @@
 // pages/search.dart
 import 'package:flutter/material.dart';
-import 'package:eclapp/pages/itemdetail.dart';
-import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/pages/categories.dart';
 
 class CategorySearchDelegate extends SearchDelegate {
@@ -9,10 +7,10 @@ class CategorySearchDelegate extends SearchDelegate {
   final Map<int, List<dynamic>> subcategoriesMap;
 
   // Cache for search results
-  Map<String, List<dynamic>> _searchCache = {};
+  final Map<String, List<dynamic>> _searchCache = {};
 
   // Search history
-  List<String> _searchHistory = [];
+  final List<String> _searchHistory = [];
 
   CategorySearchDelegate(this.categories, this.subcategoriesMap);
 
@@ -268,7 +266,7 @@ class CategorySearchDelegate extends SearchDelegate {
               ...matchingSubcategories
                   .map((subcategory) =>
                       _buildSubcategoryTile(context, subcategory))
-                  .toList(),
+                  ,
           ],
         );
       },

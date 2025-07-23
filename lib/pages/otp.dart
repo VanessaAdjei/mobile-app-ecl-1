@@ -255,7 +255,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             colors: [
               Colors.green.shade50,
               Colors.white,
-              Colors.green.shade100.withOpacity(0.3),
+              Colors.green.shade100.withValues(alpha: 0.3),
             ],
             stops: const [0.0, 0.6, 1.0],
           ),
@@ -282,7 +282,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
+                          color: Colors.black.withValues(alpha: 0.05),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -294,10 +294,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                         filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withValues(alpha: 0.8),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.3),
+                              color: Colors.white.withValues(alpha: 0.3),
                             ),
                           ),
                           child: IconButton(
@@ -339,7 +339,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                             color: Colors.green.shade50,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.green.shade200.withOpacity(0.3),
+                                color: Colors.green.shade200.withValues(alpha: 0.3),
                                 blurRadius: 15,
                                 offset: const Offset(0, 5),
                               ),
@@ -463,7 +463,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.green.shade200.withOpacity(0.4),
+                          color: Colors.green.shade200.withValues(alpha: 0.4),
                           blurRadius: 12,
                           offset: const Offset(0, 6),
                         ),
@@ -592,7 +592,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -604,10 +604,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.85),
+              color: Colors.white.withValues(alpha: 0.85),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.3),
               ),
             ),
             padding: const EdgeInsets.all(20),

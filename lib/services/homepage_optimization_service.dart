@@ -9,7 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'app_optimization_service.dart';
-import '../pages/ProductModel.dart';
+import '../pages/product_model.dart';
 import '../models/health_tip.dart';
 import 'health_tips_service.dart';
 import 'banner_cache_service.dart';
@@ -255,12 +255,15 @@ class HomepageOptimizationService {
       for (final product in products) {
         if (product.otcpom == true) categorizedProducts['otcpom']!.add(product);
         if (product.drug == true) categorizedProducts['drug']!.add(product);
-        if (product.wellness == true)
+        if (product.wellness == true) {
           categorizedProducts['wellness']!.add(product);
-        if (product.selfcare == true)
+        }
+        if (product.selfcare == true) {
           categorizedProducts['selfcare']!.add(product);
-        if (product.accessories == true)
+        }
+        if (product.accessories == true) {
           categorizedProducts['accessories']!.add(product);
+        }
       }
 
       _cacheCategorizedProducts(categorizedProducts);
@@ -400,7 +403,7 @@ class HomepageOptimizationService {
         _categorizedProductsCacheTime = DateTime.parse(categorizedTimeString);
       }
     } catch (e) {
-      print('Failed to load homepage cache: $e');
+      debugPrint('Failed to load homepage cache: $e');
       _cachedProducts = [];
       _cachedPopularProducts = [];
       _cachedCategorizedProducts = {};
@@ -445,18 +448,18 @@ class HomepageOptimizationService {
   /// Print product cache performance summary (like banners)
   void printProductCachePerformanceSummary() {
     final stats = getCacheStats();
-    print('=== Product Cache Performance Summary ===');
-    print('Products Cache Valid: ${stats['products_cache_valid']}');
-    print('Popular Products Cache Valid: ${stats['popular_products_cache_valid']}');
-    print('Categorized Products Cache Valid: ${stats['categorized_products_cache_valid']}');
-    print('Products Count: ${stats['products_count']}');
-    print('Popular Products Count: ${stats['popular_products_count']}');
-    print('Categorized Products Count: ${stats['categorized_products_count']}');
-    print('Preloaded Images Count: ${stats['preloaded_images_count']}');
-    print('Products Cache Duration: ${stats['products_cache_duration_minutes']} min');
-    print('Popular Products Cache Duration: ${stats['popular_products_cache_duration_minutes']} min');
-    print('Categorized Products Cache Duration: ${stats['categorized_products_cache_duration_minutes']} min');
-    print('========================================');
+    debugPrint('=== Product Cache Performance Summary ===');
+    debugPrint('Products Cache Valid: ${stats['products_cache_valid']}');
+    debugPrint('Popular Products Cache Valid: ${stats['popular_products_cache_valid']}');
+    debugPrint('Categorized Products Cache Valid: ${stats['categorized_products_cache_valid']}');
+    debugPrint('Products Count: ${stats['products_count']}');
+    debugPrint('Popular Products Count: ${stats['popular_products_count']}');
+    debugPrint('Categorized Products Count: ${stats['categorized_products_count']}');
+    debugPrint('Preloaded Images Count: ${stats['preloaded_images_count']}');
+    debugPrint('Products Cache Duration: ${stats['products_cache_duration_minutes']} min');
+    debugPrint('Popular Products Cache Duration: ${stats['popular_products_cache_duration_minutes']} min');
+    debugPrint('Categorized Products Cache Duration: ${stats['categorized_products_cache_duration_minutes']} min');
+    debugPrint('========================================');
   }
 
   /// Preload all product images in cache (not just 20)
@@ -476,7 +479,7 @@ class HomepageOptimizationService {
         precacheImage(CachedNetworkImageProvider(imageUrl), context);
       }
     }
-    print('Preloaded ${imageUrls.length} product images');
+    debugPrint('Preloaded ${imageUrls.length} product images');
   }
 
   // ==================== SEARCH OPTIMIZATION ====================
@@ -519,7 +522,7 @@ class HomepageOptimizationService {
       await prefs.remove(_categorizedProductsCacheKey);
       await prefs.remove(_categorizedProductsCacheTimeKey);
     } catch (e) {
-      print('Failed to clear homepage cache: $e');
+      debugPrint('Failed to clear homepage cache: $e');
     }
   }
 

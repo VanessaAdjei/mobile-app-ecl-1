@@ -6,7 +6,7 @@ import 'package:eclapp/models/product.dart';
 class ProductDetailPage extends StatelessWidget {
   final Product product;
 
-  const ProductDetailPage({Key? key, required this.product}) : super(key: key);
+  const ProductDetailPage({super.key, required this.product});
 
   @override
   Widget build(BuildContext context) {

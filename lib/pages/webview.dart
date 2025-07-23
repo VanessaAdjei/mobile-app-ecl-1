@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'AppBackButton.dart';
+import 'app_back_button.dart';
 
 class WebViewPage extends StatefulWidget {
   final String url;
@@ -83,7 +83,7 @@ class _WebViewPageState extends State<WebViewPage> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 8,
                 offset: Offset(0, 2),
               ),
@@ -100,7 +100,7 @@ class _WebViewPageState extends State<WebViewPage> {
           ),
         ),
         leading: AppBackButton(
-          backgroundColor: Colors.white.withOpacity(0.2),
+          backgroundColor: Colors.white.withValues(alpha: 0.2),
           onPressed: () => Navigator.pop(context),
         ),
       ),

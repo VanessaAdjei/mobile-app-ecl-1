@@ -1,6 +1,5 @@
 // widgets/search_bar_widget.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 class SearchBarWidget extends StatefulWidget {
   final TextEditingController controller;
@@ -72,7 +71,7 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),

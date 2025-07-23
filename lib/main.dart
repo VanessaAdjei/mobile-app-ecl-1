@@ -11,19 +11,19 @@ import 'pages/theme_provider.dart';
 import 'services/app_optimization_service.dart';
 import 'services/optimized_api_service.dart';
 import 'services/banner_cache_service.dart';
+import 'services/advanced_performance_service.dart';
+import 'services/optimized_homepage_service.dart';
+import 'services/universal_page_optimization_service.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'pages/onboarding_splash_page.dart';
 import 'services/homepage_optimization_service.dart';
-import 'pages/main_navigation_page.dart';
-import 'package:eclapp/pages/profilescreen.dart';
-import 'package:flutter/foundation.dart';
+import 'pages/onboarding_splash_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AuthService.clearAllGuestIds();
   final prefs = await SharedPreferences.getInstance();
-  print('guest_id after clear: \'${prefs.getString('guest_id')}\'');
+  debugPrint('guest_id after clear: \'${prefs.getString('guest_id')}\'');
 
   // If not previously running, clear guest_id
   final wasRunning = prefs.getBool('was_running') ?? false;
@@ -31,37 +31,29 @@ void main() async {
     await prefs.remove('guest_id');
     await prefs.setBool('was_running', true);
   }
-  final tutorialShown = prefs.getBool('tutorial_shown') ?? false;
-  // Remove this line to stop forcing onboarding:
-  // await prefs.setBool('hasLaunchedBefore', false);
-
-  final isFirstLaunch = !(prefs.getBool('hasLaunchedBefore') ?? false);
 
   // Configure image cache for better performance
   PaintingBinding.instance.imageCache.maximumSize = 1000;
   PaintingBinding.instance.imageCache.maximumSizeBytes = 100 << 20; // 100 MB
 
-  // Initialize optimization service
+  // Initialize optimization services
   await AppOptimizationService().initialize();
-
-  // Initialize optimized API service
   await OptimizedApiService().initialize();
-
-  // Initialize banner cache service
   await BannerCacheService().initialize();
+  await AdvancedPerformanceService().initialize();
+  await OptimizedHomepageService().initialize();
+  await UniversalPageOptimizationService().initialize();
 
-  // Prefetch banners on app start
-  BannerCacheService().getBanners();
-  // Prefetch products on app start
-  HomepageOptimizationService().getProducts();
-  // Prefetch categorized products on app start
-  HomepageOptimizationService().getCategorizedProducts();
-  // Prefetch popular products on app start (as early as possible)
-  print('Prefetching popular products as soon as app opens...');
-  HomepageOptimizationService().getPopularProducts();
+  // Prefetch data on app start for better performance
+  unawaited(BannerCacheService().getBanners());
+  unawaited(HomepageOptimizationService().getProducts());
+  unawaited(HomepageOptimizationService().getCategorizedProducts());
+  unawaited(HomepageOptimizationService().getPopularProducts());
+  unawaited(OptimizedHomepageService().getProducts());
+  unawaited(OptimizedHomepageService().getBanners());
 
   AuthService.init().catchError((e) {
-    print('Background auth initialization error: $e');
+    debugPrint('Background auth initialization error: $e');
   });
 
   // Print guest id for testing
@@ -71,7 +63,7 @@ void main() async {
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -205,7 +197,7 @@ class _MyAppState extends State<MyApp> {
                 colorScheme: ColorScheme.fromSwatch(
                   primarySwatch: Colors.green,
                   brightness: Brightness.light,
-                ).copyWith(background: Color(0xFFF8F9FA)),
+                ).copyWith(surface: Color(0xFFF8F9FA)),
               ),
               darkTheme: ThemeData(
                 fontFamily: 'Poppins',
@@ -272,7 +264,7 @@ class _MyAppState extends State<MyApp> {
                 colorScheme: ColorScheme.fromSwatch(
                   primarySwatch: Colors.green,
                   brightness: Brightness.dark,
-                ).copyWith(background: Colors.grey.shade900),
+                ).copyWith(surface: Colors.grey.shade900),
               ),
               home: _isFirstLaunch == true
                   ? OnboardingSplashPage(

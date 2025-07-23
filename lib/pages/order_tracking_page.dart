@@ -1,7 +1,7 @@
 // pages/order_tracking_page.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'AppBackButton.dart';
+import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,9 +10,9 @@ class OrderTrackingPage extends StatefulWidget {
   final Map<String, dynamic> orderDetails;
 
   const OrderTrackingPage({
-    Key? key,
+    super.key,
     required this.orderDetails,
-  }) : super(key: key);
+  });
 
   @override
   _OrderTrackingPageState createState() => _OrderTrackingPageState();
@@ -133,7 +133,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 8,
                 offset: Offset(0, 2),
               ),
@@ -141,7 +141,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
           ),
         ),
         leading: AppBackButton(
-          backgroundColor: Colors.white.withOpacity(0.2),
+          backgroundColor: Colors.white.withValues(alpha: 0.2),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -157,7 +157,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
           Container(
             margin: EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
             child: CartIconButton(
@@ -214,7 +214,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
             ),
             SizedBox(height: 16),
             // Show order items
-            ...orderItems.map((item) => _buildOrderItemRow(item)).toList(),
+            ...orderItems.map((item) => _buildOrderItemRow(item)),
             Divider(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -435,7 +435,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                     Container(
                       height: 1,
                       color: isCompleted
-                          ? Colors.green[700]!.withOpacity(0.2)
+                          ? Colors.green[700]!.withValues(alpha: 0.2)
                           : Colors.grey[300],
                     ),
                 ],

@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'payment_page.dart';
-import 'CartItem.dart';
+import 'cart_item.dart';
 import 'auth_service.dart';
 
 class PaymentWebView extends StatefulWidget {
@@ -128,9 +128,10 @@ class _PaymentWebViewState extends State<PaymentWebView> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        if (!mounted) return false;
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (!mounted) return;
 
         // Show confirmation dialog
         final shouldPop = await showDialog<bool>(
@@ -223,7 +224,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
           // Simply pop back to the previous screen (payment page)
           Navigator.pop(context, false);
         }
-        return false;
+        // PopScope handles the navigation automatically
       },
       child: Scaffold(
         backgroundColor: Colors.grey[50],
@@ -250,7 +251,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
+                            color: Colors.black.withValues(alpha: 0.15),
                             blurRadius: 12,
                             offset: Offset(0, 4),
                           ),
@@ -464,7 +465,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
     return Container(
       width: 50,
       height: 1,
-      color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
+      color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.3),
     );
   }
 
@@ -474,7 +475,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
         ? Colors.white
         : isActive
             ? Colors.white
-            : Colors.white.withOpacity(0.6);
+            : Colors.white.withValues(alpha: 0.6);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -484,7 +485,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
           height: 24,
           decoration: BoxDecoration(
             color: isCompleted || isActive
-                ? Colors.white.withOpacity(0.2)
+                ? Colors.white.withValues(alpha: 0.2)
                 : Colors.transparent,
             border: Border.all(
               color: color,
@@ -494,7 +495,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
             boxShadow: isCompleted || isActive
                 ? [
                     BoxShadow(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       blurRadius: 4,
                       offset: Offset(0, 2),
                     ),

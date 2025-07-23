@@ -1,6 +1,5 @@
 // pages/signinpage.dart
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:eclapp/widgets/error_display.dart';
 import 'package:eclapp/pages/forgot_password.dart';
 import 'package:eclapp/pages/homepage.dart';
@@ -8,14 +7,7 @@ import 'package:eclapp/pages/createaccount.dart';
 import 'package:eclapp/pages/auth_service.dart';
 import 'package:eclapp/pages/authprovider.dart';
 import 'package:eclapp/pages/cartprovider.dart';
-import 'package:eclapp/pages/profile.dart';
-import 'package:eclapp/pages/settings.dart';
-import 'package:eclapp/pages/purchases.dart';
-import 'package:eclapp/pages/notifications.dart';
-import 'package:eclapp/pages/prescription_history.dart';
-import 'package:eclapp/pages/bulk_purchase_page.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class SignInScreen extends StatefulWidget {
   final String? returnTo;
@@ -33,7 +25,7 @@ class _SignInScreenState extends State<SignInScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
-  bool _isResettingPassword = false;
+  final bool _isResettingPassword = false;
   String? _errorMessage;
 
   @override
@@ -92,7 +84,7 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   void _showError(String message) {
-    print('SHOW ERROR CALLED: ' + message);
+    debugPrint('SHOW ERROR CALLED: $message');
     if (!mounted) return;
 
     // Use optimized SnackBar for faster appearance and disappearance
@@ -112,11 +104,11 @@ class _SignInScreenState extends State<SignInScreen> {
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
-      print('=== SIGN IN API RESPONSE ===');
-      print(result);
-      print('Token: ${result['token']}');
-      print('User: ${result['user']}');
-      print('============================');
+      debugPrint('=== SIGN IN API RESPONSE ===');
+      debugPrint('Sign in result: $result');
+      debugPrint('Token: ${result['token']}');
+      debugPrint('User: ${result['user']}');
+      debugPrint('============================');
       if (result['token'] != null && result['user'] != null) {
         // Add a delay to ensure token is properly saved
         await Future.delayed(const Duration(milliseconds: 100));
@@ -149,7 +141,7 @@ class _SignInScreenState extends State<SignInScreen> {
         }
         // Final verification - check if user is actually logged in
         final isActuallyLoggedIn = await AuthService.isLoggedIn();
-        print('Is actually logged in: ${isActuallyLoggedIn}');
+        debugPrint('Is actually logged in: $isActuallyLoggedIn');
         if (!isActuallyLoggedIn) {
           // If still not logged in, show error
           _showError('Login failed. Please try again.');
@@ -201,8 +193,8 @@ class _SignInScreenState extends State<SignInScreen> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.4),
-                  Colors.black.withOpacity(0.6),
+                  Colors.black.withValues(alpha: 0.4),
+                  Colors.black.withValues(alpha: 0.6),
                 ],
               ),
             ),
@@ -223,9 +215,9 @@ class _SignInScreenState extends State<SignInScreen> {
                       margin: const EdgeInsets.only(bottom: 20),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
-                        color: Colors.white.withOpacity(0.15),
+                        color: Colors.white.withValues(alpha: 0.15),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                         ),
                       ),
                       child: IconButton(
@@ -244,14 +236,14 @@ class _SignInScreenState extends State<SignInScreen> {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.15),
+                      color: Colors.white.withValues(alpha: 0.15),
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.3),
+                        color: Colors.white.withValues(alpha: 0.3),
                         width: 2,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
+                          color: Colors.black.withValues(alpha: 0.3),
                           blurRadius: 15,
                           offset: const Offset(0, 8),
                         ),
@@ -269,7 +261,10 @@ class _SignInScreenState extends State<SignInScreen> {
                   // Welcome Text with improved styling
                   ShaderMask(
                     shaderCallback: (bounds) => LinearGradient(
-                      colors: [Colors.white, Colors.white.withOpacity(0.95)],
+                      colors: [
+                        Colors.white,
+                        Colors.white.withValues(alpha: 0.95)
+                      ],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                     ).createShader(bounds),
@@ -285,7 +280,7 @@ class _SignInScreenState extends State<SignInScreen> {
                           Shadow(
                             offset: const Offset(2, 2),
                             blurRadius: 6,
-                            color: Colors.black.withOpacity(0.4),
+                            color: Colors.black.withValues(alpha: 0.4),
                           ),
                         ],
                       ),
@@ -305,7 +300,7 @@ class _SignInScreenState extends State<SignInScreen> {
                         border: Border.all(color: Colors.red.shade200),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.red.shade100.withOpacity(0.4),
+                            color: Colors.red.shade100.withValues(alpha: 0.4),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
@@ -346,16 +341,16 @@ class _SignInScreenState extends State<SignInScreen> {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Colors.green.shade50.withOpacity(0.95),
-                          Colors.green.shade100.withOpacity(0.9),
-                          Colors.white.withOpacity(0.98),
+                          Colors.green.shade50.withValues(alpha: 0.95),
+                          Colors.green.shade100.withValues(alpha: 0.9),
+                          Colors.white.withValues(alpha: 0.98),
                         ],
                         stops: const [0.0, 0.5, 1.0],
                       ),
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 0.1),
                           blurRadius: 20,
                           offset: const Offset(0, 10),
                         ),
@@ -582,7 +577,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       Text(
                         "Don't have an account? ",
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                           fontSize: 15,
                           fontWeight: FontWeight.w400,
                         ),
