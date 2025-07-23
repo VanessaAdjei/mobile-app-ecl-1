@@ -1,6 +1,5 @@
 // pages/authprovider.dart
 import 'package:flutter/material.dart';
-
 import 'package:eclapp/pages/auth_service.dart';
 
 class AuthProvider with ChangeNotifier {

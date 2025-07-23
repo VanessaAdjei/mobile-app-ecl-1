@@ -1,6 +1,7 @@
 // pages/itemdetail.dart
 import 'package:eclapp/pages/prescription.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
@@ -49,6 +50,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   late Future<Product> _productFuture;
   late Future<List<Product>> _relatedProductsFuture;
   int quantity = 1;
+  final int maxQuantity = 99; // Maximum quantity limit
   final uuid = Uuid();
   bool isDescriptionExpanded = false;
   PageController? _imagePageController;
@@ -157,6 +159,8 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       final cartItem = CartItem(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         productId: product.id.toString(),
+        originalProductId:
+            product.id.toString(), // Preserve original product ID
         name: product.name,
         price: double.tryParse(product.price) ?? 0.0,
         quantity: quantity,
@@ -1295,55 +1299,77 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             SizedBox(height: 6),
             Row(
               children: [
-                // Quantity controls
+                // Simple Quantity controls
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.grey.shade200),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        icon: Icon(Icons.remove,
-                            color: Colors.grey.shade700, size: 16),
-                        onPressed: () {
-                          setState(() {
-                            if (quantity > 1) {
-                              quantity--;
-                            }
-                          });
-                        },
+                        icon: Icon(
+                          Icons.remove,
+                          color: quantity > 1
+                              ? Colors.grey.shade700
+                              : Colors.grey.shade400,
+                          size: 18,
+                        ),
+                        onPressed: quantity > 1
+                            ? () {
+                                HapticFeedback.lightImpact();
+                                setState(() {
+                                  quantity--;
+                                });
+                              }
+                            : null,
+                        style: IconButton.styleFrom(
+                          padding: EdgeInsets.all(8),
+                          minimumSize: Size(32, 32),
+                        ),
                       ),
                       Container(
                         padding:
-                            EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                         child: Text(
                           quantity.toString(),
                           style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
                             color: Colors.black87,
                           ),
                         ),
                       ),
                       IconButton(
-                        icon: Icon(Icons.add,
-                            color: Colors.green.shade600, size: 16),
-                        onPressed: () {
-                          setState(() {
-                            quantity++;
-                          });
-                        },
+                        icon: Icon(
+                          Icons.add,
+                          color: quantity < maxQuantity
+                              ? Colors.green.shade600
+                              : Colors.grey.shade400,
+                          size: 18,
+                        ),
+                        onPressed: quantity < maxQuantity
+                            ? () {
+                                HapticFeedback.lightImpact();
+                                setState(() {
+                                  quantity++;
+                                });
+                              }
+                            : null,
+                        style: IconButton.styleFrom(
+                          padding: EdgeInsets.all(8),
+                          minimumSize: Size(32, 32),
+                        ),
                       ),
                     ],
                   ),
                 ),
-                Spacer(),
-                // Total price
+                SizedBox(width: 8),
+                // Simple Total price display
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: Colors.green.shade50,
                     borderRadius: BorderRadius.circular(6),
@@ -1360,6 +1386,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 ),
               ],
             ),
+            // Maximum quantity indicator removed for cleaner design
           ],
         ),
       ),
@@ -1399,11 +1426,11 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 ),
                 child: Consumer<CartProvider>(
                   builder: (context, cartProvider, child) {
-                    final cartQuantity = _getCartQuantity(product);
-                    final isInCart = cartQuantity > 0;
-
                     return ElevatedButton(
                       onPressed: () async {
+                        // Add haptic feedback
+                        HapticFeedback.mediumImpact();
+
                         print('DEBUG: ItemPage urlName = \\${widget.urlName}');
                         print('DEBUG: isPrescribed = \\${widget.isPrescribed}');
                         if (widget.isPrescribed) {
@@ -1449,6 +1476,10 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         children: [
                           if (widget.isPrescribed) ...[
                             Icon(Icons.medical_services_outlined,
+                                color: Colors.white, size: 16),
+                            SizedBox(width: 4),
+                          ] else ...[
+                            Icon(Icons.add_shopping_cart,
                                 color: Colors.white, size: 16),
                             SizedBox(width: 4),
                           ],

@@ -44,14 +44,11 @@ class Product {
 
   factory Product.fromJson(Map<String, dynamic> json) {
     final uomValue = json['uom'];
-    print('🏷️ Product.fromJson - UOM value: $uomValue');
-    print('🏷️ Product.fromJson - UOM type: ${uomValue.runtimeType}');
 
     // Handle UOM properly - extract description if it's a Map
     String? finalUom;
     if (uomValue is Map<String, dynamic>) {
       finalUom = uomValue['description']?.toString();
-      print('🏷️ Product.fromJson - Extracted UOM description: $finalUom');
     } else if (uomValue is String) {
       finalUom = uomValue;
     }

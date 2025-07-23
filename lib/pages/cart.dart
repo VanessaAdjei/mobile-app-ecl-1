@@ -9,6 +9,7 @@ import 'delivery_page.dart';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:core';
+import 'package:http/http.dart' as http;
 import 'AppBackButton.dart';
 import 'auth_service.dart';
 import 'signinpage.dart';
@@ -168,16 +169,32 @@ class _CartState extends State<Cart> {
 
   // Improved helper to get the full product image URL for all possible formats
   String getImageUrl(String? url) {
-    if (url == null || url.isEmpty) return '';
-    if (url.startsWith('http')) return url;
+    if (url == null || url.isEmpty) {
+      print('🖼️ IMAGE URL DEBUG: Empty or null URL');
+      return '';
+    }
+
+    if (url.startsWith('http')) {
+      return url;
+    }
+
     if (url.startsWith('/uploads/')) {
-      return 'https://adm-ecommerce.ernestchemists.com.gh$url';
+      final fullUrl = 'https://adm-ecommerce.ernestchemists.com.gh$url';
+
+      return fullUrl;
     }
+
     if (url.startsWith('/storage/')) {
-      return 'https://eclcommerce.ernestchemists.com.gh$url';
+      final fullUrl = 'https://eclcommerce.ernestchemists.com.gh$url';
+
+      return fullUrl;
     }
+
     // Otherwise, treat as filename
-    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
+    final fullUrl =
+        'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
+
+    return fullUrl;
   }
 
   Future<bool> _showGuestReminder() async {
@@ -938,6 +955,7 @@ class _CartState extends State<Cart> {
 
   Widget _buildCartItem(CartProvider cart, int index) {
     final item = cart.cartItems[index];
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
@@ -948,7 +966,7 @@ class _CartState extends State<Cart> {
         padding: const EdgeInsets.all(10),
         child: Row(
           children: [
-            // Product Image - Compact Design
+            // Product Image - Compact Design with Placeholder
             Container(
               width: 50,
               height: 50,
@@ -957,36 +975,70 @@ class _CartState extends State<Cart> {
                 child: CachedNetworkImage(
                   imageUrl: getImageUrl(item.image),
                   fit: BoxFit.cover,
-                  memCacheWidth: 100, // 2x for high DPI
-                  memCacheHeight: 100,
-                  maxWidthDiskCache: 100,
-                  maxHeightDiskCache: 100,
-                  fadeInDuration: Duration(milliseconds: 200),
+                  memCacheWidth: 200,
+                  memCacheHeight: 200,
+                  maxWidthDiskCache: 200,
+                  maxHeightDiskCache: 200,
+                  fadeInDuration: Duration(milliseconds: 300),
                   placeholder: (context, url) => Container(
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Center(
-                      child: SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.green.shade600),
-                        ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.medication,
+                            color: Colors.grey.shade400,
+                            size: 20,
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Loading...',
+                            style: TextStyle(
+                              fontSize: 8,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  errorWidget: (context, url, error) => Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Icon(Icons.image_not_supported,
-                        color: Colors.grey.shade400, size: 20),
-                  ),
+                  errorWidget: (context, url, error) {
+                    print('🖼️ IMAGE ERROR: Failed to load image from $url');
+                    print('🖼️ IMAGE ERROR: Error: $error');
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.medication,
+                              color: Colors.grey.shade400,
+                              size: 20,
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'No Image',
+                              style: TextStyle(
+                                fontSize: 8,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                  httpHeaders: {
+                    'User-Agent': 'Mozilla/5.0 (compatible; Flutter)',
+                  },
                 ),
               ),
             ),

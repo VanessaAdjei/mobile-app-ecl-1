@@ -5,6 +5,7 @@ class CartItem {
   final String id;
   final String productId;
   final int? serverProductId;
+  final String? originalProductId; // Add field to preserve original product ID
   final String name;
   final double price;
   final double? originalPrice;
@@ -20,6 +21,7 @@ class CartItem {
     required this.id,
     required this.productId,
     this.serverProductId,
+    this.originalProductId, // Add to constructor
     required this.name,
     required this.price,
     this.originalPrice,
@@ -63,6 +65,7 @@ class CartItem {
       'id': id,
       'productId': productId,
       if (serverProductId != null) 'serverProductId': serverProductId,
+      if (originalProductId != null) 'originalProductId': originalProductId, // Add to JSON
       'name': name,
       'price': price,
       if (originalPrice != null) 'originalPrice': originalPrice,
@@ -83,6 +86,7 @@ class CartItem {
       serverProductId: json['serverProductId'] != null
           ? int.tryParse(json['serverProductId'].toString())
           : null,
+      originalProductId: json['originalProductId']?.toString(), // Parse from JSON
       name: json['name']?.toString() ?? 'Unknown Item',
       price: _parseDouble(json['price']),
       originalPrice: json['originalPrice'] != null
@@ -99,12 +103,24 @@ class CartItem {
   }
 
   factory CartItem.fromServerJson(Map<String, dynamic> json) {
+    final cartItemId = json['id']?.toString() ?? '';
+    final serverProductId = json['product_id']?.toString() ?? '';
+
+    print('🔍 CREATING CART ITEM FROM SERVER JSON ===');
+    print('Raw JSON: $json');
+    print('Cart Item ID: $cartItemId');
+    print('Server Product ID: $serverProductId');
+    print('Product Name: ${json['product_name']}');
+    print('Batch No: ${json['batch_no']}');
+    print('==========================================');
+
     return CartItem(
-      id: json['id']?.toString() ?? '',
-      productId: json['product_id']?.toString() ?? '',
+      id: cartItemId,
+      productId: serverProductId, // Keep server product ID as productId
       serverProductId: json['product_id'] is int
           ? json['product_id']
           : int.tryParse(json['product_id']?.toString() ?? ''),
+      originalProductId: null, // Will be set when merging with existing items
       name: json['product_name']?.toString() ?? 'Unknown Item',
       price: _parseDouble(json['price']),
       quantity: _parseInt(json['qty']),
@@ -126,6 +142,7 @@ class CartItem {
     String? id,
     String? productId,
     int? serverProductId,
+    String? originalProductId, // Add to copyWith
     String? name,
     double? price,
     double? originalPrice,
@@ -141,6 +158,7 @@ class CartItem {
       id: id ?? this.id,
       productId: productId ?? this.productId,
       serverProductId: serverProductId ?? this.serverProductId,
+      originalProductId: originalProductId ?? this.originalProductId, // Add to copyWith
       name: name ?? this.name,
       price: price ?? this.price,
       originalPrice: originalPrice ?? this.originalPrice,
