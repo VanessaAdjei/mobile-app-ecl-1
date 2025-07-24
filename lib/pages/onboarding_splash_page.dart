@@ -112,6 +112,13 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       'iconColor': Colors.teal,
     },
     {
+      'icon': Icons.warning_amber,
+      'title': 'Important Safety Information',
+      'desc': 'Please read carefully before using our services.',
+      'button': 'Next',
+      'iconColor': Colors.orange,
+    },
+    {
       'icon': Icons.verified_user,
       'title': 'Why Sign Up?',
       'desc': '',
@@ -386,6 +393,8 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       case 3:
         return 'Speak to a pharmacist about your concerns';
       case 4:
+        return 'Important Safety Information';
+      case 5:
         return 'Why Sign Up?';
       default:
         return page['title'] ?? '';
@@ -404,6 +413,8 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       case 3:
         return 'Chat with a licensed pharmacist anytime.';
       case 4:
+        return 'Please read carefully before using our services.';
+      case 5:
         return '';
       default:
         return page['desc'] ?? '';
@@ -452,6 +463,82 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
           fit: BoxFit.contain,
         );
       case 4:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Warning icon
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.orange.shade200, width: 2),
+              ),
+              child: Icon(
+                Icons.warning_amber_rounded,
+                size: 60,
+                color: Colors.orange.shade700,
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Disclaimer content
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.shade200),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orange.shade100,
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _disclaimerItem(
+                    Icons.warning,
+                    'Know Your Allergies',
+                    'Always keep in mind any allergies or adverse reactions you\'ve had to medications before purchasing.',
+                    Colors.red.shade600,
+                  ),
+                  SizedBox(height: 12),
+                  _disclaimerItem(
+                    Icons.medical_services,
+                    'Consult Healthcare Providers',
+                    'Consult your doctor or pharmacist before starting new medications, especially if you have existing conditions.',
+                    Colors.blue.shade600,
+                  ),
+                  SizedBox(height: 12),
+                  _disclaimerItem(
+                    Icons.block,
+                    'No Drug Abuse',
+                    'Medications are for legitimate medical use only. Misuse can be harmful and illegal.',
+                    Colors.purple.shade600,
+                  ),
+                  SizedBox(height: 12),
+                  _disclaimerItem(
+                    Icons.info_outline,
+                    'Read Instructions',
+                    'Always read medication labels, instructions, and warnings before use.',
+                    Colors.green.shade600,
+                  ),
+                  SizedBox(height: 12),
+                  _disclaimerItem(
+                    Icons.storage,
+                    'Proper Storage',
+                    'Store medications as directed, away from children and pets.',
+                    Colors.teal.shade600,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      case 5:
         return Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -546,5 +633,51 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
         ),
       );
     }
+  }
+
+  Widget _disclaimerItem(
+      IconData icon, String title, String description, Color iconColor) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: iconColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            color: iconColor,
+            size: 20,
+          ),
+        ),
+        SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                description,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.black54,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }

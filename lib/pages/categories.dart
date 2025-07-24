@@ -96,6 +96,7 @@ class _CategoryPageState extends State<CategoryPage> {
   bool _isLoading = true;
   String _errorMessage = '';
   final Map<int, List<dynamic>> _subcategoriesMap = {};
+  final Map<int, bool> _categoryHasSubcategories = {};
   Timer? _highlightTimer;
   List<dynamic> _allProducts = [];
   final bool _isLoadingProducts = false;
@@ -227,10 +228,41 @@ class _CategoryPageState extends State<CategoryPage> {
   void _processCategories(List<dynamic> categories) {
     if (!mounted) return;
 
+    debugPrint('Processing ${categories.length} categories');
+    debugPrint('Categories data: ${categories.take(3).map((c) => {
+          'id': c['id'],
+          'name': c['name'],
+          'has_subcategories': c['has_subcategories']
+        }).toList()}');
+
+    // Update the subcategory mapping based on actual API responses
+    _updateSubcategoryMapping(categories);
+
     setState(() {
       _categories = categories;
       _filteredCategories = categories;
     });
+
+    debugPrint('Categories state updated: ${_categories.length} categories');
+    debugPrint('Filtered categories: ${_filteredCategories.length} categories');
+  }
+
+  // Update subcategory mapping based on actual API responses
+  void _updateSubcategoryMapping(List<dynamic> categories) {
+    for (final category in categories) {
+      final categoryId = category['id'];
+      final categoryName = category['name'];
+
+      // Use the category service's cached subcategory information
+      // This is much faster than making new API calls
+      final hasSubcategories = _categoryService.hasSubcategoryInfo(categoryId);
+      _categoryHasSubcategories[categoryId] = hasSubcategories;
+
+      if (hasSubcategories) {
+        debugPrint(
+            'Updated subcategory mapping for $categoryName: has subcategories = true (from cache)');
+      }
+    }
   }
 
   // Preload category images for better performance
@@ -1099,6 +1131,7 @@ class _CategoryPageState extends State<CategoryPage> {
           itemCount: _filteredCategories.length,
           itemBuilder: (context, index) {
             final category = _filteredCategories[index];
+            debugPrint('Building category card $index: ${category['name']}');
             final icon = _getCategoryIcon(category['name'] ?? '');
             final iconColor = Colors.green.shade700;
             final available =
@@ -1114,7 +1147,13 @@ class _CategoryPageState extends State<CategoryPage> {
                 borderRadius: BorderRadius.circular(20),
               ),
               openBuilder: (context, _) {
-                if (category['has_subcategories'] == true) {
+                // Use the cached subcategory information if available
+                final hasSubcategories =
+                    _categoryHasSubcategories[category['id']] ??
+                        category['has_subcategories'] ??
+                        false;
+
+                if (hasSubcategories) {
                   return SubcategoryPage(
                     categoryName: category['name'],
                     categoryId: category['id'],
@@ -1496,6 +1535,7 @@ class _ModernCategoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('Rendering _ModernCategoryCard for: $name');
     final String bgImage = _getBackgroundImage(name);
 
     return InkWell(

@@ -25,8 +25,6 @@ import '../widgets/optimized_quantity_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/universal_page_optimization_service.dart';
 
-// Import optimization service
-
 class ItemPage extends StatefulWidget {
   final String urlName;
   final bool isPrescribed;

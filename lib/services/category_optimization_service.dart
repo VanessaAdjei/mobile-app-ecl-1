@@ -30,6 +30,7 @@ class CategoryOptimizationService {
   // In-memory cache
   List<dynamic> _cachedCategories = [];
   List<dynamic> _cachedProducts = [];
+  Map<int, bool> _subcategoryCache = {}; // Cache for subcategory info
   DateTime? _categoriesCacheTime;
   DateTime? _productsCacheTime;
   bool _isLoadingCategories = false;
@@ -61,6 +62,11 @@ class CategoryOptimizationService {
   bool get isLoadingProducts => _isLoadingProducts;
   bool get hasCachedCategories => _cachedCategories.isNotEmpty;
   bool get hasCachedProducts => _cachedProducts.isNotEmpty;
+
+  // Check if a category has subcategories (from cache)
+  bool hasSubcategoryInfo(int categoryId) {
+    return _subcategoryCache[categoryId] ?? false;
+  }
 
   // Initialize service
   Future<void> initialize() async {
@@ -198,8 +204,15 @@ class CategoryOptimizationService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        debugPrint('Category API response: ${data.keys.toList()}');
+        debugPrint('Category API success: ${data['success']}');
+
         if (data['success'] == true) {
           final categories = data['data'] as List;
+          debugPrint('Raw categories data: ${categories.take(2).map((c) => {
+                'id': c['id'],
+                'name': c['name']
+              }).toList()}');
 
           // Cache the categories
           await _cacheCategories(categories);
@@ -209,9 +222,11 @@ class CategoryOptimizationService {
               'Successfully fetched ${categories.length} categories from API');
           return categories;
         } else {
+          debugPrint('API returned success: false with data: $data');
           throw Exception('API returned success: false');
         }
       } else {
+        debugPrint('HTTP error: ${response.statusCode} - ${response.body}');
         throw Exception('HTTP ${response.statusCode}');
       }
     } catch (e) {
@@ -269,7 +284,8 @@ class CategoryOptimizationService {
           'Product API calls completed in ${stopwatch.elapsedMilliseconds}ms');
 
       _optimizationService.endTimer('CategoryService_GetProducts');
-      debugPrint('Successfully fetched ${allProducts.length} products from API');
+      debugPrint(
+          'Successfully fetched ${allProducts.length} products from API');
       return allProducts;
     } catch (e) {
       _optimizationService.endTimer('CategoryService_GetProducts');
@@ -283,6 +299,9 @@ class CategoryOptimizationService {
   // Fetch products for a specific category with optimized timeouts
   Future<List<dynamic>> _fetchProductsForCategory(dynamic category) async {
     try {
+      debugPrint(
+          'Fetching products for category: ${category['name']} (ID: ${category['id']})');
+
       // Get subcategories first with shorter timeout
       final subcategoriesResponse = await http
           .get(
@@ -291,10 +310,23 @@ class CategoryOptimizationService {
           )
           .timeout(const Duration(seconds: 6)); // Reduced from 10 to 6 seconds
 
-      if (subcategoriesResponse.statusCode == 200) {
-        final subcategoriesData = json.decode(subcategoriesResponse.body);
-        if (subcategoriesData['success'] == true) {
-          final subcategories = subcategoriesData['data'] as List;
+              if (subcategoriesResponse.statusCode == 200) {
+          final subcategoriesData = json.decode(subcategoriesResponse.body);
+          debugPrint(
+              'Subcategories response for ${category['name']}: ${subcategoriesData['data']?.length ?? 0} subcategories');
+
+          if (subcategoriesData['success'] == true) {
+            final subcategories = subcategoriesData['data'] as List;
+            
+            // Cache subcategory information for fast navigation
+            _subcategoryCache[category['id']] = subcategories.isNotEmpty;
+
+          // If no subcategories, try to fetch products directly from the category
+          if (subcategories.isEmpty) {
+            debugPrint(
+                'No subcategories found for ${category['name']}, trying direct product fetch');
+            return await _fetchProductsDirectlyFromCategory(category);
+          }
 
           // Fetch products for all subcategories concurrently
           final futures = <Future<List<dynamic>>>[];
@@ -310,12 +342,51 @@ class CategoryOptimizationService {
             categoryProducts.addAll(productList);
           }
 
+          debugPrint(
+              'Found ${categoryProducts.length} products for category ${category['name']}');
           return categoryProducts;
         }
       }
     } catch (e) {
-      debugPrint('Failed to fetch products for category ${category['name']}: $e');
+      debugPrint(
+          'Failed to fetch products for category ${category['name']}: $e');
       // Continue with other categories
+    }
+    return <dynamic>[];
+  }
+
+  // Fetch products directly from a category (for categories without subcategories)
+  Future<List<dynamic>> _fetchProductsDirectlyFromCategory(
+      dynamic category) async {
+    try {
+      debugPrint(
+          'Fetching products directly from category ${category['name']} (ID: ${category['id']})');
+
+      final response = await http
+          .get(Uri.parse(
+              'https://eclcommerce.ernestchemists.com.gh/api/product-categories/${category['id']}'))
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data['success'] == true && data['data'] != null) {
+          final products = data['data'] as List;
+          debugPrint(
+              'Found ${products.length} products directly in category ${category['name']}');
+
+          return products
+              .map((product) => {
+                    ...product,
+                    'category_id': category['id'],
+                    'category_name': category['name'],
+                  })
+              .toList();
+        }
+      }
+    } catch (e) {
+      debugPrint(
+          'Failed to fetch products directly from category ${category['name']}: $e');
     }
     return <dynamic>[];
   }
@@ -363,7 +434,8 @@ class CategoryOptimizationService {
     _categoriesCacheTime = DateTime.now();
     // Save to storage in background without blocking
     _saveCategoriesToStorage();
-    debugPrint('Categories cached successfully: ${categories.length} categories');
+    debugPrint(
+        'Categories cached successfully: ${categories.length} categories');
   }
 
   // Cache products
@@ -423,7 +495,8 @@ class CategoryOptimizationService {
       if (productsJson != null && productsTimeString != null) {
         _cachedProducts = json.decode(productsJson) as List;
         _productsCacheTime = DateTime.parse(productsTimeString);
-        debugPrint('Loaded ${_cachedProducts.length} products from storage cache');
+        debugPrint(
+            'Loaded ${_cachedProducts.length} products from storage cache');
       }
     } catch (e) {
       debugPrint('Failed to load category cache: $e');

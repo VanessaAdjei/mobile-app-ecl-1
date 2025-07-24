@@ -1,8 +1,12 @@
 // pages/forgot_password.dart
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:async';
+import 'dart:io';
 import 'app_back_button.dart';
 import 'HomePage.dart';
+import 'signinpage.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -22,31 +26,179 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+
     setState(() {
       _isLoading = true;
       _feedback = null;
     });
+
     try {
-      final response = await http.post(
+      final response = await http
+          .post(
         Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/reset-pwd'),
-        body: {'email': _emailController.text.trim()},
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({'email': _emailController.text.trim()}),
+      )
+          .timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw TimeoutException(
+              'Request timed out. Please check your internet connection and try again.');
+        },
       );
+
+      debugPrint('Reset password response: ${response.statusCode}');
+      debugPrint('Response body: ${response.body}');
+
       if (response.statusCode == 200) {
+        // Try to parse the response
+        try {
+          final responseData = jsonDecode(response.body);
+                  debugPrint('Response data: $responseData');
+        debugPrint('Status: ${responseData['status']}');
+        
+        if (responseData['status'] == 'success' || responseData['message']?.toString().toLowerCase().contains('sent') == true) {
+          setState(() {
+            _feedback = responseData['message'] ??
+                'Password reset instructions sent! Check your email for further instructions.';
+            _feedbackColor = Colors.green;
+          });
+          // Navigate back to sign in page after a short delay
+          debugPrint('Success! Navigating to sign in page in 2 seconds...');
+          Future.delayed(const Duration(seconds: 2), () {
+            debugPrint('Attempting navigation...');
+            if (mounted) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => SignInScreen()),
+              );
+              debugPrint('Navigation completed');
+            } else {
+              debugPrint('Widget not mounted, cannot navigate');
+            }
+          });
+        } else {
+          setState(() {
+            _feedback = responseData['message'] ??
+                'Failed to send reset instructions. Please try again.';
+            _feedbackColor = Colors.orange;
+          });
+        }
+        } catch (parseError) {
+          // If JSON parsing fails, use the raw response
+          debugPrint('JSON parsing failed, but status code is 200. Raw response: ${response.body}');
+          setState(() {
+            _feedback =
+                'Password reset instructions sent! Check your email for further instructions.';
+            _feedbackColor = Colors.green;
+          });
+          // Navigate back to sign in page after a short delay
+          debugPrint('Success (fallback)! Navigating to sign in page in 2 seconds...');
+          Future.delayed(const Duration(seconds: 2), () {
+            debugPrint('Attempting navigation (fallback)...');
+            if (mounted) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => SignInScreen()),
+              );
+              debugPrint('Navigation completed (fallback)');
+            } else {
+              debugPrint('Widget not mounted, cannot navigate (fallback)');
+            }
+          });
+        }
+      } else if (response.statusCode == 404) {
         setState(() {
-          _feedback = 'Password reset instructions sent!';
-          _feedbackColor = Colors.green;
-        });
-      } else {
-        setState(() {
-          _feedback = 'Failed to send reset instructions: ${response.body}';
+          _feedback =
+              'Email address not found. Please check your email or contact support.';
           _feedbackColor = Colors.red;
         });
+      } else if (response.statusCode == 422) {
+        try {
+          final responseData = jsonDecode(response.body);
+          final errors = responseData['errors'];
+          if (errors != null && errors['email'] != null) {
+            setState(() {
+              _feedback = errors['email'][0] ??
+                  'Invalid email format. Please check your email address.';
+              _feedbackColor = Colors.red;
+            });
+          } else {
+            setState(() {
+              _feedback = responseData['message'] ??
+                  'Invalid email format. Please check your email address.';
+              _feedbackColor = Colors.red;
+            });
+          }
+        } catch (parseError) {
+          setState(() {
+            _feedback =
+                'Invalid email format. Please check your email address.';
+            _feedbackColor = Colors.red;
+          });
+        }
+      } else if (response.statusCode == 429) {
+        setState(() {
+          _feedback =
+              'Too many requests. Please wait a few minutes before trying again.';
+          _feedbackColor = Colors.orange;
+        });
+      } else if (response.statusCode >= 500) {
+        setState(() {
+          _feedback =
+              'Server error. Please try again later or contact support if the problem persists.';
+          _feedbackColor = Colors.red;
+        });
+      } else {
+        try {
+          final responseData = jsonDecode(response.body);
+          setState(() {
+            _feedback = responseData['message'] ??
+                'Failed to send reset instructions. Please try again.';
+            _feedbackColor = Colors.red;
+          });
+        } catch (parseError) {
+          setState(() {
+            _feedback = 'Failed to send reset instructions. Please try again.';
+            _feedbackColor = Colors.red;
+          });
+        }
       }
-    } catch (e) {
+    } on TimeoutException catch (e) {
       setState(() {
-        _feedback = 'Error: $e';
+        _feedback = e.message ??
+            'Request timed out. Please check your internet connection and try again.';
+        _feedbackColor = Colors.orange;
+      });
+    } on FormatException catch (e) {
+      setState(() {
+        _feedback = 'Invalid response from server. Please try again.';
         _feedbackColor = Colors.red;
       });
+      debugPrint('Format exception: $e');
+    } on SocketException catch (e) {
+      setState(() {
+        _feedback =
+            'No internet connection. Please check your network and try again.';
+        _feedbackColor = Colors.red;
+      });
+      debugPrint('Socket exception: $e');
+    } on HttpException catch (e) {
+      setState(() {
+        _feedback =
+            'Network error. Please check your connection and try again.';
+        _feedbackColor = Colors.red;
+      });
+      debugPrint('HTTP exception: $e');
+    } catch (e) {
+      setState(() {
+        _feedback = 'An unexpected error occurred. Please try again.';
+        _feedbackColor = Colors.red;
+      });
+      debugPrint('Unexpected error: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -152,7 +304,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Enter your email or phone number and we\'ll send you instructions to reset your password.',
+                    'Enter your email and we\'ll send you instructions to reset your password.',
                     style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                     textAlign: TextAlign.center,
                   ),
@@ -212,6 +364,29 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           color: _feedbackColor, fontWeight: FontWeight.w600),
                       textAlign: TextAlign.center,
                     ),
+                    // Add manual navigation button for success case
+                    if (_feedbackColor == Colors.green) ...[
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 40,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(builder: (context) => SignInScreen()),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green.shade600,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text('Back to Sign In'),
+                        ),
+                      ),
+                    ],
                   ],
                 ],
               ),
