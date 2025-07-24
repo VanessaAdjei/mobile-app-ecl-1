@@ -255,7 +255,6 @@ class CartProvider with ChangeNotifier {
     debugPrint('Adding item: ${item.name}');
     debugPrint('================================');
 
-    // For logged-in users, try to sync with server
     _currentUserId ??= await AuthService.getCurrentUserID();
 
     // --- GUEST SESSION LOGIC ---
@@ -443,8 +442,33 @@ class CartProvider with ChangeNotifier {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         debugPrint('Successfully added item to server cart');
+        
+        // Store the original product ID before syncing
+        final originalProductId = item.productId;
+        debugPrint('🔍 PRESERVING ORIGINAL PRODUCT ID FOR SYNC ===');
+        debugPrint('Original Product ID: $originalProductId');
+        debugPrint('Item Name: ${item.name}');
+        debugPrint('=============================================');
+        
         // Sync with server to get the authoritative cart state
         await syncWithApi();
+        
+        // After sync, find the item and restore the original product ID
+        final syncedItemIndex = _cartItems.indexWhere((cartItem) =>
+            _normalizeProductName(cartItem.name) == _normalizeProductName(item.name) &&
+            cartItem.batchNo == item.batchNo);
+            
+        if (syncedItemIndex != -1) {
+          _cartItems[syncedItemIndex] = _cartItems[syncedItemIndex].copyWith(
+            originalProductId: originalProductId,
+          );
+          debugPrint('🔍 RESTORED ORIGINAL PRODUCT ID ===');
+          debugPrint('Product: ${_cartItems[syncedItemIndex].name}');
+          debugPrint('Original Product ID: ${_cartItems[syncedItemIndex].originalProductId}');
+          debugPrint('Server Product ID: ${_cartItems[syncedItemIndex].serverProductId}');
+          debugPrint('====================================');
+          notifyListeners();
+        }
       } else {
         debugPrint(
             'Failed to add/update cart item on server: ${response.statusCode}');
@@ -703,11 +727,11 @@ class CartProvider with ChangeNotifier {
       debugPrint('Product ID: ${item.productId}');
 
       int? productId;
-      // For quantity updates, prefer original product ID as it's more stable
+
+      // For quantity updates, always use original product ID first, then fallback to server product ID
       if (item.originalProductId != null) {
         productId = int.tryParse(item.originalProductId!);
-        debugPrint(
-            '✅ Using originalProductId: $productId (preferred for updates)');
+        debugPrint('✅ Using originalProductId: $productId (always preferred)');
       } else if (item.serverProductId != null) {
         productId = item.serverProductId;
         debugPrint('✅ Using serverProductId: $productId (fallback)');
@@ -794,19 +818,19 @@ class CartProvider with ChangeNotifier {
             '⚠️ Product not found (404) - trying alternative product ID');
         debugPrint('Response body: ${addResponse.body}');
 
-                // Try with server product ID as fallback if original product ID failed
+        // Try with server product ID as fallback if original product ID failed
         if (item.serverProductId != null &&
             item.serverProductId.toString() != item.originalProductId) {
           debugPrint('🔄 RETRYING WITH SERVER PRODUCT ID ===');
           final serverProductId = item.serverProductId;
-          
+
           debugPrint('Trying with server product ID: $serverProductId');
-          
+
           final retryRequestBody = {
             'productID': serverProductId,
             'quantity': newQuantity,
           };
-          
+
           final retryResponse = await http.post(
             Uri.parse(
                 'https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
@@ -817,37 +841,36 @@ class CartProvider with ChangeNotifier {
             },
             body: jsonEncode(retryRequestBody),
           );
-          
+
           debugPrint('Retry Response: ${retryResponse.statusCode}');
           debugPrint('Retry Body: ${retryResponse.body}');
-          
+
           if (retryResponse.statusCode == 200 ||
               retryResponse.statusCode == 201) {
-            debugPrint(
-                '✅ Quantity update successful with server product ID');
+            debugPrint('✅ Quantity update successful with server product ID');
             await syncWithApi();
             return;
           }
         }
 
-        // If all attempts fail, remove from local cart
-        debugPrint(
-            '❌ All product ID attempts failed - removing from local cart');
-        _cartItems.removeWhere((cartItem) => cartItem.id == item.id);
-        notifyListeners();
+        // If all attempts fail, keep the item locally but show error
+        debugPrint('❌ All product ID attempts failed - keeping item locally');
         _showSyncError(
-            'Product no longer available and has been removed from your cart.');
+            'Quantity update failed. Item remains in cart with previous quantity.');
+        // Don't sync with server as it might remove the item
       } else {
-        debugPrint('❌ Failed to update quantity on server');
+                debugPrint('❌ Failed to update quantity on server');
         debugPrint('Response status: ${addResponse.statusCode}');
         debugPrint('Response body: ${addResponse.body}');
-        _showSyncError(
-            'Unable to update quantity. Your changes are saved locally.');
+        
+        _showSyncError('Quantity update failed. Item remains in cart with previous quantity.');
+        // Don't sync with server as it might remove the item
       }
-    } catch (e) {
+        } catch (e) {
       debugPrint('❌ Error in simple quantity update: $e');
-      _showSyncError(
-          'Server temporarily unavailable. Your changes are saved locally.');
+      
+      _showSyncError('Server temporarily unavailable. Item remains in cart with previous quantity.');
+      // Don't sync with server as it might remove the item
     }
   }
 

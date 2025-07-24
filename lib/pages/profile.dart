@@ -839,9 +839,9 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: iconColor.withAlpha((255 * 0.2).toInt()),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
+                          color: iconColor.withAlpha((255 * 0.1).toInt()),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),

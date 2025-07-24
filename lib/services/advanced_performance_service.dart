@@ -389,7 +389,8 @@ class AdvancedPerformanceService {
           try {
             return decodedData as T;
           } catch (e) {
-            developer.log('Cache type conversion failed for key $key: $e', name: 'Performance');
+            developer.log('Cache type conversion failed for key $key: $e',
+                name: 'Performance');
             return null;
           }
         }

@@ -17,6 +17,7 @@ import 'services/universal_page_optimization_service.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'services/homepage_optimization_service.dart';
+import 'services/background_prefetch_service.dart';
 import 'pages/onboarding_splash_page.dart';
 
 void main() async {
@@ -43,6 +44,7 @@ void main() async {
   await AdvancedPerformanceService().initialize();
   await OptimizedHomepageService().initialize();
   await UniversalPageOptimizationService().initialize();
+  await BackgroundPrefetchService().initialize();
 
   // Prefetch data on app start for better performance
   unawaited(BannerCacheService().getBanners());
@@ -51,6 +53,9 @@ void main() async {
   unawaited(HomepageOptimizationService().getPopularProducts());
   unawaited(OptimizedHomepageService().getProducts());
   unawaited(OptimizedHomepageService().getBanners());
+
+  // Start background prefetching for better performance
+  unawaited(BackgroundPrefetchService().smartPrefetch());
 
   AuthService.init().catchError((e) {
     debugPrint('Background auth initialization error: $e');
