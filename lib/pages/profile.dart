@@ -30,16 +30,57 @@ class Profile extends StatefulWidget {
   ProfileState createState() => ProfileState();
 }
 
-class ProfileState extends State<Profile> {
+class ProfileState extends State<Profile> with TickerProviderStateMixin {
   String _userName = "User";
   String _userEmail = "No email available";
   bool _userLoggedIn = false;
+  late AnimationController _headerAnimationController;
+  late AnimationController _contentAnimationController;
+  late Animation<double> _headerAnimation;
+  late Animation<double> _contentAnimation;
 
   @override
   void initState() {
     super.initState();
+
+    // Initialize animations
+    _headerAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
+
+    _contentAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _headerAnimation = CurvedAnimation(
+      parent: _headerAnimationController,
+      curve: Curves.easeOutCubic,
+    );
+
+    _contentAnimation = CurvedAnimation(
+      parent: _contentAnimationController,
+      curve: Curves.easeOutQuart,
+    );
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeUserData();
+      _startAnimations();
+    });
+  }
+
+  @override
+  void dispose() {
+    _headerAnimationController.dispose();
+    _contentAnimationController.dispose();
+    super.dispose();
+  }
+
+  void _startAnimations() {
+    _headerAnimationController.forward();
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _contentAnimationController.forward();
     });
   }
 
@@ -100,13 +141,30 @@ class ProfileState extends State<Profile> {
         return AlertDialog(
           backgroundColor: isDark ? Colors.grey[900] : Colors.white,
           shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(
-            "Confirm Logout",
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black,
-            ),
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.logout,
+                  color: Colors.red.shade600,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                "Confirm Logout",
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black,
+                ),
+              ),
+            ],
           ),
           content: Text(
             "Are you sure you want to logout from your account?",
@@ -129,8 +187,9 @@ class ProfileState extends State<Profile> {
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                elevation: 2,
               ),
               onPressed: () async {
                 // Get providers before any await
@@ -203,44 +262,56 @@ class ProfileState extends State<Profile> {
       builder: (context) {
         return Dialog(
           shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           backgroundColor: Colors.white,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+          child: Container(
+            padding: const EdgeInsets.all(32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.green.shade50,
+                    gradient: LinearGradient(
+                      colors: [Colors.green.shade400, Colors.green.shade600],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.shade200,
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
-                  padding: const EdgeInsets.all(18),
+                  padding: const EdgeInsets.all(20),
                   child: Icon(
                     Icons.lock_outline,
-                    color: Colors.green.shade700,
-                    size: 38,
+                    color: Colors.white,
+                    size: 40,
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 24),
                 Text(
                   'Sign In Required',
-                  style: TextStyle(
+                  style: GoogleFonts.poppins(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.green.shade800,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 16),
                 Text(
                   'This feature is only for signed up users.\nSign in to upload a prescription, get refillable drugs, and track your order.',
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.grey,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                    height: 1.5,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 32),
                 Row(
                   children: [
                     Expanded(
@@ -249,17 +320,20 @@ class ProfileState extends State<Profile> {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.green.shade700,
                           side: BorderSide(
-                              color: Colors.green.shade700, width: 1.2),
+                              color: Colors.green.shade700, width: 1.5),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 10, horizontal: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        child: Text('Cancel'),
+                        child: Text(
+                          'Cancel',
+                          style:
+                              GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
@@ -279,14 +353,17 @@ class ProfileState extends State<Profile> {
                           backgroundColor: Colors.green.shade700,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 10, horizontal: 8),
-                          elevation: 1,
-                          shadowColor: Colors.transparent,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          elevation: 4,
+                          shadowColor: Colors.green.shade200,
                         ),
-                        child: Text('Sign In'),
+                        child: Text(
+                          'Sign In',
+                          style:
+                              GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                        ),
                       ),
                     ),
                   ],
@@ -325,328 +402,381 @@ class ProfileState extends State<Profile> {
       },
       child: Scaffold(
         backgroundColor: backgroundColor,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          centerTitle: true,
-          flexibleSpace: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.green.shade700,
-                  Colors.green.shade800,
-                ],
+        body: CustomScrollView(
+          slivers: [
+            // Enhanced App Bar
+            SliverAppBar(
+              expandedHeight: 60,
+              floating: false,
+              pinned: true,
+              backgroundColor: Colors.green.shade700,
+              elevation: 4,
+              flexibleSpace: FlexibleSpaceBar(
+                background: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.green.shade700,
+                        Colors.green.shade800,
+                      ],
+                    ),
+                  ),
+                ),
+                title: Text(
+                  'Your Profile',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                centerTitle: true,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha((255 * 0.1).toInt()),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
+              leading: AppBackButton(
+                backgroundColor: Colors.white.withAlpha((255 * 0.2).toInt()),
+                onPressed: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  } else {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (context) => HomePage()),
+                      (route) => false,
+                    );
+                  }
+                },
+              ),
+              actions: [
+                Container(
+                  margin: const EdgeInsets.only(right: 16),
+                  child: CartIconButton(
+                    iconColor: Colors.white,
+                    iconSize: 22,
+                    backgroundColor: Colors.transparent,
+                  ),
                 ),
               ],
             ),
-          ),
-          leading: AppBackButton(
-            backgroundColor: Colors.white.withAlpha((255 * 0.2).toInt()),
-            onPressed: () {
-              if (Navigator.canPop(context)) {
-                Navigator.pop(context);
-              } else {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => HomePage()),
-                  (route) => false,
-                );
-              }
-            },
-          ),
-          title: Text(
-            'Your Profile',
-            style: GoogleFonts.poppins(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-              letterSpacing: 0.5,
-            ),
-          ),
-          actions: [
-            Container(
-              margin: EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withAlpha((255 * 0.15).toInt()),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: CartIconButton(
-                iconColor: Colors.white,
-                iconSize: 24,
-                backgroundColor: Colors.transparent,
-              ),
-            ),
-          ],
-        ),
-        body: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Profile Header
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: primaryColor,
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(30),
-                    bottomRight: Radius.circular(30),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: primaryColor.withAlpha((255 * 0.3).toInt()),
-                      blurRadius: 20,
-                      offset: Offset(0, 10),
+
+            // Profile Content
+            SliverToBoxAdapter(
+              child: AnimatedBuilder(
+                animation: _contentAnimation,
+                builder: (context, child) {
+                  return Transform.translate(
+                    offset: Offset(0, 50 * (1 - _contentAnimation.value)),
+                    child: Opacity(
+                      opacity: _contentAnimation.value,
+                      child: child,
                     ),
-                  ],
-                ),
+                  );
+                },
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 20),
-                    // Profile Avatar
+                    // Enhanced Profile Header
                     Container(
-                      height: 130,
-                      width: 130,
+                      width: double.infinity,
+                      margin: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 4),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            primaryColor,
+                            primaryColor.withOpacity(0.8),
+                            primaryColor.withOpacity(0.6),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withAlpha((255 * 0.2).toInt()),
-                            blurRadius: 10,
-                            offset: Offset(0, 5),
+                            color: primaryColor.withAlpha((255 * 0.3).toInt()),
+                            blurRadius: 30,
+                            offset: const Offset(0, 15),
                           ),
                         ],
-                        color: Colors.grey[300],
                       ),
-                      child: Icon(
-                        Icons.person,
-                        size: 80,
-                        color: Colors.grey[600],
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 16),
+                          // Enhanced Profile Avatar
+                          Container(
+                            height: 100,
+                            width: 100,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 5),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black
+                                      .withAlpha((255 * 0.3).toInt()),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Colors.white,
+                                  Colors.grey.shade100,
+                                ],
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.person,
+                              size: 60,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            _userLoggedIn ? _userName : "Guest User",
+                            style: GoogleFonts.poppins(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 6),
+                            decoration: BoxDecoration(
+                              color:
+                                  Colors.white.withAlpha((255 * 0.2).toInt()),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              _userLoggedIn
+                                  ? _userEmail
+                                  : "Please sign in to continue",
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
                       ),
                     ),
+
+                    // Account Section Header
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color:
+                                  primaryColor.withAlpha((255 * 0.1).toInt()),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.account_circle_outlined,
+                              color: primaryColor,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            "Your Account",
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: textColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                     const SizedBox(height: 20),
-                    Text(
-                      _userLoggedIn ? _userName : "Guest User",
-                      style: GoogleFonts.poppins(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+
+                    // Enhanced Profile Options
+                    _buildEnhancedProfileOption(
+                      context,
+                      Icons.notifications_outlined,
+                      "Notifications",
+                      "Manage your notifications",
+                      _userLoggedIn
+                          ? () => _navigateTo(NotificationsScreen())
+                          : () => _showSignInRequiredDialog(context,
+                              feature: 'notifications'),
+                      primaryColor,
+                      cardColor,
+                      textColor,
+                      subtextColor,
+                      0,
+                    ),
+                    _buildEnhancedProfileOption(
+                      context,
+                      Icons.person_outline,
+                      "Profile Information",
+                      "View your profile details",
+                      _userLoggedIn
+                          ? () => _navigateTo(ProfileScreen())
+                          : () => _showSignInRequiredDialog(context,
+                              feature: 'profile information'),
+                      primaryColor,
+                      cardColor,
+                      textColor,
+                      subtextColor,
+                      1,
+                    ),
+                    _buildEnhancedProfileOption(
+                      context,
+                      Icons.upload_file_outlined,
+                      "Uploaded Prescriptions",
+                      "View your uploaded prescriptions",
+                      _userLoggedIn
+                          ? () => _navigateTo(PrescriptionHistoryScreen())
+                          : () => _showSignInRequiredDialog(context,
+                              feature: 'uploaded prescriptions'),
+                      primaryColor,
+                      cardColor,
+                      textColor,
+                      subtextColor,
+                      2,
+                    ),
+                    _buildEnhancedProfileOption(
+                      context,
+                      Icons.shopping_bag_outlined,
+                      "Purchases",
+                      "View your order history",
+                      _userLoggedIn
+                          ? () => _navigateTo(PurchaseScreen())
+                          : () => _showSignInRequiredDialog(context,
+                              feature: 'order tracking and purchases'),
+                      primaryColor,
+                      cardColor,
+                      textColor,
+                      subtextColor,
+                      3,
+                    ),
+                    if (!_userLoggedIn)
+                      _buildEnhancedProfileOption(
+                        context,
+                        Icons.login,
+                        "Sign In",
+                        "Access your account and manage orders",
+                        _handleLogin,
+                        Colors.blue.shade400,
+                        cardColor,
+                        textColor,
+                        subtextColor,
+                        4,
+                      ),
+
+                    const SizedBox(height: 30),
+
+                    // Support Section Header
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color:
+                                  primaryColor.withAlpha((255 * 0.1).toInt()),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.support_outlined,
+                              color: primaryColor,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            "Support & Information",
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: textColor,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _userLoggedIn ? _userEmail : "Please sign in to continue",
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        color: Colors.white.withAlpha((255 * 0.9).toInt()),
-                      ),
+
+                    const SizedBox(height: 20),
+
+                    // Enhanced Support Options
+                    _buildEnhancedProfileOption(
+                      context,
+                      Icons.info_outline,
+                      "About Us",
+                      "Learn more about our company",
+                      () => _navigateTo(AboutUsScreen()),
+                      primaryColor,
+                      cardColor,
+                      textColor,
+                      subtextColor,
+                      5,
                     ),
+                    _buildEnhancedProfileOption(
+                      context,
+                      Icons.privacy_tip_outlined,
+                      "Privacy Policy",
+                      "Read our privacy policy",
+                      () => _navigateTo(PrivacyPolicyScreen()),
+                      primaryColor,
+                      cardColor,
+                      textColor,
+                      subtextColor,
+                      6,
+                    ),
+                    _buildEnhancedProfileOption(
+                      context,
+                      Icons.description_outlined,
+                      "Terms and Conditions",
+                      "Read our terms of service",
+                      () => _navigateTo(TermsAndConditionsScreen()),
+                      primaryColor,
+                      cardColor,
+                      textColor,
+                      subtextColor,
+                      7,
+                    ),
+
+                    if (_userLoggedIn) ...[
+                      const SizedBox(height: 20),
+                      _buildEnhancedProfileOption(
+                        context,
+                        Icons.logout,
+                        "Logout",
+                        "Sign out from your account",
+                        _showLogoutDialog,
+                        Colors.red.shade400,
+                        cardColor,
+                        textColor,
+                        subtextColor,
+                        8,
+                      ),
+                    ],
+
                     const SizedBox(height: 30),
                   ],
                 ),
               ),
-
-              const SizedBox(height: 30),
-
-              // Account Section Header
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.account_circle_outlined,
-                      color: primaryColor,
-                      size: 24,
-                    ),
-                    SizedBox(width: 12),
-                    Text(
-                      "Your Account",
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: textColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Always show these options, with tap handler based on login state
-              _buildAnimatedProfileOption(
-                context,
-                Icons.notifications_outlined,
-                "Notifications",
-                "Manage your notifications",
-                _userLoggedIn
-                    ? () => _navigateTo(NotificationsScreen())
-                    : () => _showSignInRequiredDialog(context,
-                        feature: 'notifications'),
-                primaryColor,
-                cardColor,
-                textColor,
-                subtextColor,
-                0,
-              ),
-              _buildAnimatedProfileOption(
-                context,
-                Icons.person_outline,
-                "Profile Information",
-                "View your profile details",
-                _userLoggedIn
-                    ? () => _navigateTo(ProfileScreen())
-                    : () => _showSignInRequiredDialog(context,
-                        feature: 'profile information'),
-                primaryColor,
-                cardColor,
-                textColor,
-                subtextColor,
-                1,
-              ),
-              _buildAnimatedProfileOption(
-                context,
-                Icons.upload_file_outlined,
-                "Uploaded Prescriptions",
-                "View your uploaded prescriptions",
-                _userLoggedIn
-                    ? () => _navigateTo(PrescriptionHistoryScreen())
-                    : () => _showSignInRequiredDialog(context,
-                        feature: 'uploaded prescriptions'),
-                primaryColor,
-                cardColor,
-                textColor,
-                subtextColor,
-                2,
-              ),
-              _buildAnimatedProfileOption(
-                context,
-                Icons.shopping_bag_outlined,
-                "Purchases",
-                "View your order history",
-                _userLoggedIn
-                    ? () => _navigateTo(PurchaseScreen())
-                    : () => _showSignInRequiredDialog(context,
-                        feature: 'order tracking and purchases'),
-                primaryColor,
-                cardColor,
-                textColor,
-                subtextColor,
-                3,
-              ),
-              if (!_userLoggedIn)
-                _buildAnimatedProfileOption(
-                  context,
-                  Icons.login,
-                  "Sign In",
-                  "Access your account and manage orders",
-                  _handleLogin,
-                  Colors.blue.shade400,
-                  cardColor,
-                  textColor,
-                  subtextColor,
-                  4,
-                ),
-
-              const SizedBox(height: 30),
-
-              // Support Section Header
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.support_outlined,
-                      color: primaryColor,
-                      size: 24,
-                    ),
-                    SizedBox(width: 12),
-                    Text(
-                      "Support & Information",
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: textColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Support Options
-              _buildAnimatedProfileOption(
-                context,
-                Icons.info_outline,
-                "About Us",
-                "Learn more about our company",
-                () => _navigateTo(AboutUsScreen()),
-                primaryColor,
-                cardColor,
-                textColor,
-                subtextColor,
-                5,
-              ),
-              _buildAnimatedProfileOption(
-                context,
-                Icons.privacy_tip_outlined,
-                "Privacy Policy",
-                "Read our privacy policy",
-                () => _navigateTo(PrivacyPolicyScreen()),
-                primaryColor,
-                cardColor,
-                textColor,
-                subtextColor,
-                6,
-              ),
-              _buildAnimatedProfileOption(
-                context,
-                Icons.description_outlined,
-                "Terms and Conditions",
-                "Read our terms of service",
-                () => _navigateTo(TermsAndConditionsScreen()),
-                primaryColor,
-                cardColor,
-                textColor,
-                subtextColor,
-                7,
-              ),
-
-              if (_userLoggedIn) ...[
-                const SizedBox(height: 30),
-                _buildAnimatedProfileOption(
-                  context,
-                  Icons.logout,
-                  "Logout",
-                  "Sign out from your account",
-                  _showLogoutDialog,
-                  Colors.red.shade400,
-                  cardColor,
-                  textColor,
-                  subtextColor,
-                  8,
-                ),
-              ],
-
-              const SizedBox(height: 30),
-            ],
-          ),
+            ),
+          ],
         ),
         bottomNavigationBar: CustomBottomNav(initialIndex: 3),
       ),
     );
   }
 
-  Widget _buildAnimatedProfileOption(
+  Widget _buildEnhancedProfileOption(
     BuildContext context,
     IconData icon,
     String title,
@@ -660,26 +790,29 @@ class ProfileState extends State<Profile> {
   ) {
     return TweenAnimationBuilder(
       tween: Tween<double>(begin: 0, end: 1),
-      duration: Duration(milliseconds: 400 + (index * 100)),
+      duration: Duration(milliseconds: 600 + (index * 150)),
       builder: (context, double value, child) {
         return Transform.translate(
-          offset: Offset(0, 30 * (1 - value)),
+          offset: Offset(0, 40 * (1 - value)),
           child: Opacity(
             opacity: value,
-            child: child,
+            child: Transform.scale(
+              scale: 0.9 + (0.1 * value),
+              child: child,
+            ),
           ),
         );
       },
       child: Container(
-        margin: EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
         decoration: BoxDecoration(
           color: cardColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withAlpha((255 * 0.05).toInt()),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
+              color: Colors.black.withAlpha((255 * 0.08).toInt()),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -688,15 +821,29 @@ class ProfileState extends State<Profile> {
           child: InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
+            child: Container(
+              padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: iconColor.withAlpha((255 * 0.1).toInt()),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          iconColor.withAlpha((255 * 0.15).toInt()),
+                          iconColor.withAlpha((255 * 0.25).toInt()),
+                        ],
+                      ),
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: iconColor.withAlpha((255 * 0.2).toInt()),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Icon(icon, color: iconColor, size: 24),
                   ),
@@ -709,7 +856,7 @@ class ProfileState extends State<Profile> {
                           title,
                           style: GoogleFonts.poppins(
                             fontSize: 16,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
                             color: textColor,
                           ),
                         ),
@@ -720,16 +867,24 @@ class ProfileState extends State<Profile> {
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               color: subtextColor,
+                              height: 1.3,
                             ),
                           ),
                         ],
                       ],
                     ),
                   ),
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    size: 16,
-                    color: subtextColor,
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: subtextColor.withAlpha((255 * 0.1).toInt()),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: subtextColor,
+                    ),
                   ),
                 ],
               ),
