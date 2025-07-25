@@ -260,7 +260,8 @@ class _CategoryPageState extends State<CategoryPage> {
         debugPrint(
             'Updated subcategory mapping for $categoryName: has subcategories = true');
       } else {
-        _categoryHasSubcategories[categoryId] = category['has_subcategories'] ?? false;
+        _categoryHasSubcategories[categoryId] =
+            category['has_subcategories'] ?? false;
       }
     }
   }
@@ -1846,6 +1847,11 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       subcategories = data['data'];
       isLoading = false;
     });
+    
+    debugPrint('🔍 SUBCATEGORIES LOADED ===');
+    debugPrint('Subcategories count: ${subcategories.length}');
+    debugPrint('Subcategories: ${subcategories.map((s) => s['name']).toList()}');
+    debugPrint('==========================');
 
     if (subcategories.isNotEmpty) {
       // If we have a target subcategory from search, select it
@@ -2020,21 +2026,9 @@ class SubcategoryPageState extends State<SubcategoryPage> {
         }
         sideNavWidth = sideNavWidth.clamp(minWidth, maxWidth);
 
-        // Auto-hide sidebar on very small screens
-        bool shouldAutoHide = constraints.maxWidth < 400;
-        if (shouldAutoHide && isSidebarVisible) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              setState(() {
-                isSidebarVisible = false;
-              });
-            }
-          });
-        }
-
-        // Force hide sidebar if screen is too narrow
-        bool isScreenTooNarrow = constraints.maxWidth < 300;
-        if (isScreenTooNarrow) {
+        // Only force hide sidebar if screen is extremely narrow
+        bool isScreenTooNarrow = constraints.maxWidth < 250;
+        if (isScreenTooNarrow && isSidebarVisible) {
           isSidebarVisible = false;
         }
 
@@ -2093,7 +2087,30 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                 color: Color(0xFFF8F9FA),
                 child: Column(
                   children: [
-                    if (selectedSubcategoryId != null) buildSubcategoryHeader(),
+                    // Sticky subcategory header - Always show for debugging
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: subcategories.isNotEmpty 
+                        ? buildSubcategoryHeader()
+                        : Container(
+                            padding: EdgeInsets.all(8),
+                            color: Colors.red.shade100,
+                            child: Text(
+                              'DEBUG: subcategories.isEmpty = ${subcategories.isEmpty}, length = ${subcategories.length}',
+                              style: TextStyle(color: Colors.red.shade800),
+                            ),
+                          ),
+                    ),
+                    // Products content
                     Expanded(child: _buildProductsContent()),
                   ],
                 ),
@@ -2287,31 +2304,20 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   }
 
   Widget buildSubcategoryHeader() {
-    final selectedSubcategory = subcategories.firstWhere(
-      (sub) => sub['id'] == selectedSubcategoryId,
-      orElse: () => {'name': 'All Products', 'id': null},
-    );
+    final selectedSubcategory = selectedSubcategoryId != null 
+      ? subcategories.firstWhere(
+          (sub) => sub['id'] == selectedSubcategoryId,
+          orElse: () => subcategories.isNotEmpty ? subcategories[0] : {'name': 'All Products', 'id': null},
+        )
+      : subcategories.isNotEmpty 
+        ? subcategories[0] 
+        : {'name': 'All Products', 'id': null};
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(color: Colors.white),
       child: Row(
         children: [
-          // Menu toggle button when sidebar is hidden
-          if (!isSidebarVisible)
-            Container(
-              margin: EdgeInsets.only(right: 8),
-              child: IconButton(
-                icon: Icon(Icons.menu, color: Colors.green.shade700, size: 20),
-                onPressed: () {
-                  setState(() {
-                    isSidebarVisible = true;
-                  });
-                },
-                padding: EdgeInsets.all(4),
-                constraints: BoxConstraints(minWidth: 32, minHeight: 32),
-              ),
-            ),
           Container(
             padding: EdgeInsets.all(6),
             decoration: BoxDecoration(
@@ -2331,7 +2337,9 @@ class SubcategoryPageState extends State<SubcategoryPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  selectedSubcategory['name'] ?? 'All Products',
+                  selectedSubcategoryId != null 
+                    ? (selectedSubcategory['name'] ?? 'All Products')
+                    : 'All Products',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
