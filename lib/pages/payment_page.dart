@@ -241,7 +241,8 @@ class _PaymentPageState extends State<PaymentPage> {
       // Validate user data
       if (!isGuest &&
           (_userEmail.isEmpty || _userEmail == "No email available")) {
-        debugPrint('[DEBUG] Returning early: user email is empty or not available');
+        debugPrint(
+            '[DEBUG] Returning early: user email is empty or not available');
         throw Exception(
             'Please update your email address in your profile before making a payment.');
       }
@@ -304,7 +305,8 @@ class _PaymentPageState extends State<PaymentPage> {
         // Validate COD payment parameters
         final emailForValidation =
             isGuest ? (widget.guestEmail ?? '') : _userEmail;
-        debugPrint('[DEBUG] Email used for COD validation: "$emailForValidation"');
+        debugPrint(
+            '[DEBUG] Email used for COD validation: "$emailForValidation"');
         final validation = CODPaymentService.validateParameters(
           firstName: firstName,
           email: emailForValidation,
@@ -602,7 +604,8 @@ class _PaymentPageState extends State<PaymentPage> {
                         child: Row(
                           children: [
                             AppBackButton(
-                              backgroundColor: Colors.white.withValues(alpha: 0.2),
+                              backgroundColor:
+                                  Colors.white.withValues(alpha: 0.2),
                               onPressed: () {
                                 Navigator.of(context).pop();
                               },
@@ -1317,8 +1320,7 @@ class _PaymentPageState extends State<PaymentPage> {
                             ),
                           ],
                         ),
-                      ))
-                  ,
+                      )),
               if (cart.cartItems.length > 3 && !_showAllItems) ...[
                 const SizedBox(height: 4),
                 GestureDetector(
@@ -1407,9 +1409,7 @@ class _PaymentPageState extends State<PaymentPage> {
     final deliveryFee = 0.00;
     final total = subtotal + deliveryFee - _discountAmount;
 
-    debugPrint(
-        'Order Summary - Subtotal: $subtotal, Delivery Fee: $deliveryFee, Discount: $_discountAmount, Total: $total');
-    debugPrint('Discount amount > 0: ${_discountAmount > 0}');
+
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -2276,7 +2276,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       debugPrint('[DEBUG] _fetchPaymentStatus result: $result');
       if (mounted) {
         setState(() {
-          debugPrint('[DEBUG] setState in _checkPaymentStatus: updating status to ${result['status']?.toString() ?? 'null'}');
+          debugPrint(
+              '[DEBUG] setState in _checkPaymentStatus: updating status to ${result['status']?.toString() ?? 'null'}');
           final newStatus = result['status'];
           final currentStatus = _status?.toLowerCase();
 
@@ -2387,7 +2388,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                         child: Row(
                           children: [
                             AppBackButton(
-                              backgroundColor: Colors.white.withValues(alpha: 0.2),
+                              backgroundColor:
+                                  Colors.white.withValues(alpha: 0.2),
                               onPressed: () {
                                 // Navigate back to home page using a more direct approach
                                 Navigator.pushAndRemoveUntil(
@@ -2506,7 +2508,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.1),
+                                      color:
+                                          Colors.black.withValues(alpha: 0.1),
                                       blurRadius: 8,
                                       offset: const Offset(0, 2),
                                     ),
@@ -2536,8 +2539,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                 _getStatusMessage(_status),
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color:
-                                      _getStatusColor(_status).withValues(alpha: 0.8),
+                                  color: _getStatusColor(_status)
+                                      .withValues(alpha: 0.8),
                                 ),
                                 textAlign: TextAlign.center,
                               ),
@@ -2555,8 +2558,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                         borderRadius: BorderRadius.circular(20),
                                         boxShadow: [
                                           BoxShadow(
-                                            color:
-                                                Colors.black.withValues(alpha: 0.05),
+                                            color: Colors.black
+                                                .withValues(alpha: 0.05),
                                             blurRadius: 4,
                                             offset: const Offset(0, 2),
                                           ),
@@ -2674,147 +2677,135 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                         ),
                                       ),
                                       const SizedBox(height: 12),
-                                      ...widget.purchasedItems
-                                          .map((item) => Padding(
-                                                padding: const EdgeInsets.only(
-                                                    bottom: 12),
-                                                child: Row(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    // Product Image
-                                                    ClipRRect(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              8),
-                                                      child: Image.network(
-                                                        getImageUrl(item.image),
+                                      ...widget.purchasedItems.map((item) =>
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                                bottom: 12),
+                                            child: Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                // Product Image
+                                                ClipRRect(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  child: Image.network(
+                                                    getImageUrl(item.image),
+                                                    width: 60,
+                                                    height: 60,
+                                                    fit: BoxFit.cover,
+                                                    loadingBuilder: (context,
+                                                        child,
+                                                        loadingProgress) {
+                                                      if (loadingProgress ==
+                                                          null) {
+                                                        return child;
+                                                      }
+                                                      return Container(
                                                         width: 60,
                                                         height: 60,
-                                                        fit: BoxFit.cover,
-                                                        loadingBuilder: (context,
-                                                            child,
-                                                            loadingProgress) {
-                                                          if (loadingProgress ==
-                                                              null) {
-                                                            return child;
-                                                          }
-                                                          return Container(
-                                                            width: 60,
-                                                            height: 60,
-                                                            decoration:
-                                                                BoxDecoration(
-                                                              color: Colors
-                                                                  .grey[200],
-                                                              borderRadius:
-                                                                  BorderRadius
-                                                                      .circular(
-                                                                          8),
-                                                            ),
-                                                            child: Center(
-                                                              child:
-                                                                  CircularProgressIndicator(
-                                                                value: loadingProgress
-                                                                            .expectedTotalBytes !=
-                                                                        null
-                                                                    ? loadingProgress
-                                                                            .cumulativeBytesLoaded /
-                                                                        loadingProgress
-                                                                            .expectedTotalBytes!
-                                                                    : null,
-                                                                strokeWidth: 2,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color:
+                                                              Colors.grey[200],
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(8),
+                                                        ),
+                                                        child: Center(
+                                                          child:
+                                                              CircularProgressIndicator(
+                                                            value: loadingProgress
+                                                                        .expectedTotalBytes !=
+                                                                    null
+                                                                ? loadingProgress
+                                                                        .cumulativeBytesLoaded /
+                                                                    loadingProgress
+                                                                        .expectedTotalBytes!
+                                                                : null,
+                                                            strokeWidth: 2,
+                                                          ),
+                                                        ),
+                                                      );
+                                                    },
+                                                    errorBuilder: (context,
+                                                        error, stackTrace) {
+                                                      return Container(
+                                                        width: 60,
+                                                        height: 60,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color:
+                                                              Colors.grey[200],
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(8),
+                                                        ),
+                                                        child: Column(
+                                                          mainAxisAlignment:
+                                                              MainAxisAlignment
+                                                                  .center,
+                                                          children: [
+                                                            Icon(
+                                                                Icons
+                                                                    .image_not_supported,
+                                                                color: Colors
+                                                                    .grey[400],
+                                                                size: 20),
+                                                            Text(
+                                                              'No Image',
+                                                              style: TextStyle(
+                                                                color: Colors
+                                                                    .grey[400],
+                                                                fontSize: 10,
                                                               ),
-                                                            ),
-                                                          );
-                                                        },
-                                                        errorBuilder: (context,
-                                                            error, stackTrace) {
-                                                          return Container(
-                                                            width: 60,
-                                                            height: 60,
-                                                            decoration:
-                                                                BoxDecoration(
-                                                              color: Colors
-                                                                  .grey[200],
-                                                              borderRadius:
-                                                                  BorderRadius
-                                                                      .circular(
-                                                                          8),
-                                                            ),
-                                                            child: Column(
-                                                              mainAxisAlignment:
-                                                                  MainAxisAlignment
+                                                              textAlign:
+                                                                  TextAlign
                                                                       .center,
-                                                              children: [
-                                                                Icon(
-                                                                    Icons
-                                                                        .image_not_supported,
-                                                                    color: Colors
-                                                                            .grey[
-                                                                        400],
-                                                                    size: 20),
-                                                                Text(
-                                                                  'No Image',
-                                                                  style:
-                                                                      TextStyle(
-                                                                    color: Colors
-                                                                            .grey[
-                                                                        400],
-                                                                    fontSize:
-                                                                        10,
-                                                                  ),
-                                                                  textAlign:
-                                                                      TextAlign
-                                                                          .center,
-                                                                ),
-                                                              ],
                                                             ),
-                                                          );
-                                                        },
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 12),
-                                                    // Product Details
-                                                    Expanded(
-                                                      child: Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          Text(
-                                                            item.name,
-                                                            style:
-                                                                const TextStyle(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w500,
-                                                            ),
-                                                          ),
-                                                          const SizedBox(
-                                                              height: 4),
-                                                          Text(
-                                                            'GHS ${item.price.toStringAsFixed(2)} x ${item.quantity}',
-                                                            style: TextStyle(
-                                                              color: Colors
-                                                                  .grey[600],
-                                                              fontSize: 12,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                    // Item Total
-                                                    Text(
-                                                      'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
-                                                      style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ],
+                                                          ],
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
                                                 ),
-                                              ))
-                                          ,
+                                                const SizedBox(width: 12),
+                                                // Product Details
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        item.name,
+                                                        style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        'GHS ${item.price.toStringAsFixed(2)} x ${item.quantity}',
+                                                        style: TextStyle(
+                                                          color:
+                                                              Colors.grey[600],
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                // Item Total
+                                                Text(
+                                                  'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          )),
                                       const Divider(height: 24),
                                       // Total
                                       Row(
@@ -3154,12 +3145,16 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
   Future<Map<String, dynamic>> _fetchPaymentStatus() async {
     try {
+      debugPrint('[DEBUG] _fetchPaymentStatus started');
       // Check if user is logged in
       final isLoggedIn = await AuthService.isLoggedIn();
       final tokenRaw = await AuthService.getToken();
       String? userId = await AuthService.getCurrentUserID();
       String? authHeader;
       Map<String, dynamic> requestBody = {};
+
+      debugPrint(
+          '[DEBUG] Auth check - isLoggedIn: $isLoggedIn, tokenRaw: ${tokenRaw?.substring(0, 10)}..., userId: $userId');
 
       if (isLoggedIn &&
           tokenRaw != null &&
@@ -3168,9 +3163,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         // Logged-in user: ONLY use Bearer token, never guest_id
         authHeader = 'Bearer $tokenRaw';
         if (userId == null) {
+          debugPrint('[DEBUG] Early return: userId is null');
           return {'status': 'error', 'message': ''};
         }
         requestBody = {'user_id': userId};
+        debugPrint('[DEBUG] Using logged-in user flow');
       } else if (!isLoggedIn &&
           tokenRaw != null &&
           tokenRaw.startsWith('guest_')) {
@@ -3180,6 +3177,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         requestBody = {'guest_id': guestId};
         debugPrint('[DEBUG] Guest payment status check: guest_id = $guestId');
       } else {
+        debugPrint('[DEBUG] Early return: no valid auth found');
         return {'status': 'error', 'message': ''};
       }
 
@@ -3189,11 +3187,14 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         'Content-Type': 'application/json',
       };
       headers['Authorization'] = authHeader;
-          if (!isLoggedIn && tokenRaw.startsWith('guest_')) {
+      if (!isLoggedIn && tokenRaw.startsWith('guest_')) {
         headers['X-Guest-ID'] = tokenRaw;
       }
       debugPrint('[DEBUG] Payment Status Check - Request Headers: $headers');
-      debugPrint('[DEBUG] Payment Status Check - Request Body: ${jsonEncode(requestBody)}');
+      debugPrint(
+          '[DEBUG] Payment Status Check - Request Body: ${jsonEncode(requestBody)}');
+      
+      debugPrint('[DEBUG] Making HTTP request to check-payment endpoint...');
       final response = await http
           .post(
         Uri.parse(
@@ -3204,11 +3205,14 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           .timeout(
         const Duration(seconds: 15),
         onTimeout: () {
+          debugPrint('[DEBUG] Payment status check timed out');
           throw TimeoutException(
               'Payment status check timed out. Please try again.');
         },
       );
-      debugPrint('[DEBUG] Payment Status Check - Raw Response: ${response.body}');
+      debugPrint('[DEBUG] HTTP request completed successfully');
+      debugPrint(
+          '[DEBUG] Payment Status Check - Raw Response: ${response.body}');
 
       if (response.statusCode == 200) {
         // Handle empty response

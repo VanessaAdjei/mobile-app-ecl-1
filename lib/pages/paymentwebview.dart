@@ -28,6 +28,7 @@ class PaymentWebView extends StatefulWidget {
 class _PaymentWebViewState extends State<PaymentWebView> {
   late final WebViewController _controller;
   bool _isLoading = true;
+  bool _isShowingDialog = false;
 
   Future<void> _checkAndRefreshAuth() async {
     try {
@@ -133,98 +134,113 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       onPopInvoked: (didPop) async {
         if (!mounted) return;
 
-        // Show confirmation dialog
-        final shouldPop = await showDialog<bool>(
-          context: context,
-          builder: (context) => Dialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            backgroundColor: Colors.white,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      shape: BoxShape.circle,
-                    ),
-                    padding: const EdgeInsets.all(18),
-                    child: Icon(
-                      Icons.warning_amber_rounded,
-                      color: Colors.red.shade700,
-                      size: 38,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
-                    'Cancel Payment?',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red.shade800,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Are you sure you want to cancel this payment?',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.grey,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 28),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.red.shade700,
-                            side: BorderSide(
-                                color: Colors.red.shade700, width: 1.2),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 10, horizontal: 8),
-                          ),
-                          child: Text('No'),
-                        ),
+        // Use a flag to prevent multiple dialogs
+        if (_isShowingDialog) return;
+        _isShowingDialog = true;
+
+        try {
+          // Show confirmation dialog with error handling
+          final shouldPop = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => Dialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              backgroundColor: Colors.white,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        shape: BoxShape.circle,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red.shade700,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 10, horizontal: 8),
-                            elevation: 1,
-                            shadowColor: Colors.transparent,
-                          ),
-                          child: Text('Yes, Cancel'),
-                        ),
+                      padding: const EdgeInsets.all(18),
+                      child: Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.red.shade700,
+                        size: 38,
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Cancel Payment?',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red.shade800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Are you sure you want to cancel this payment?',
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Colors.grey,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 28),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red.shade700,
+                              side: BorderSide(
+                                  color: Colors.red.shade700, width: 1.2),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 10, horizontal: 8),
+                            ),
+                            child: Text('No'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red.shade700,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 10, horizontal: 8),
+                              elevation: 1,
+                              shadowColor: Colors.transparent,
+                            ),
+                            child: Text('Yes, Cancel'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
+          );
 
-        if (shouldPop == true) {
-          // Simply pop back to the previous screen (payment page)
-          Navigator.pop(context, false);
+          if (shouldPop == true && mounted) {
+            // Simply pop back to the previous screen (payment page)
+            Navigator.pop(context, false);
+          }
+        } catch (e) {
+          debugPrint('Error showing cancel dialog: $e');
+          // If dialog fails, just pop back
+          if (mounted) {
+            Navigator.pop(context, false);
+          }
+        } finally {
+          _isShowingDialog = false;
         }
-        // PopScope handles the navigation automatically
       },
       child: Scaffold(
         backgroundColor: Colors.grey[50],

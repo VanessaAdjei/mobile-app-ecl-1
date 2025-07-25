@@ -13,8 +13,7 @@ class CartProvider with ChangeNotifier {
   List<CartItem> _cartItems = [];
   List<CartItem> _purchasedItems = [];
   String? _currentUserId;
-  
-  // Pending variables for preserving original product ID during sync
+
   String? _pendingOriginalProductId;
   String? _pendingItemName;
   String? _pendingItemBatch;
@@ -229,20 +228,25 @@ class CartProvider with ChangeNotifier {
               bool isPendingItem = (_pendingOriginalProductId != null &&
                   _pendingItemName != null &&
                   _pendingItemBatch != null &&
-                  _normalizeProductName(cartItem.name) == _normalizeProductName(_pendingItemName!) &&
+                  _normalizeProductName(cartItem.name) ==
+                      _normalizeProductName(_pendingItemName!) &&
                   cartItem.batchNo == _pendingItemBatch!);
-              
+
               if (isPendingItem) {
                 cartItem = cartItem.copyWith(
                   originalProductId: _pendingOriginalProductId,
                 );
-                debugPrint('🔍 PRESERVED ORIGINAL PRODUCT ID (PENDING MATCH) ===');
+                debugPrint(
+                    '🔍 PRESERVED ORIGINAL PRODUCT ID (PENDING MATCH) ===');
                 debugPrint('Product: ${cartItem.name}');
-                debugPrint('Original Product ID: ${cartItem.originalProductId}');
+                debugPrint(
+                    'Original Product ID: ${cartItem.originalProductId}');
                 debugPrint('Server Product ID: ${cartItem.productId}');
-                debugPrint('Pending Original Product ID: $_pendingOriginalProductId');
-                debugPrint('==================================================');
-                
+                debugPrint(
+                    'Pending Original Product ID: $_pendingOriginalProductId');
+                debugPrint(
+                    '==================================================');
+
                 // Clear pending variables after use
                 _pendingOriginalProductId = null;
                 _pendingItemName = null;
@@ -253,43 +257,58 @@ class CartProvider with ChangeNotifier {
                 try {
                   flexibleMatchingLocalItem = _cartItems.firstWhere(
                     (localItem) {
-                      final localNormalizedName = _normalizeProductName(localItem.name);
-                      final serverNormalizedName = _normalizeProductName(cartItem.name);
-                      
+                      final localNormalizedName =
+                          _normalizeProductName(localItem.name);
+                      final serverNormalizedName =
+                          _normalizeProductName(cartItem.name);
+
                       // More flexible matching for e-panol products
-                      final isEpanolLocal = localNormalizedName.contains('e panol') || localNormalizedName.contains('e-panol');
-                      final isEpanolServer = serverNormalizedName.contains('e panol') || serverNormalizedName.contains('e-panol');
-                      
+                      final isEpanolLocal =
+                          localNormalizedName.contains('e panol') ||
+                              localNormalizedName.contains('e-panol');
+                      final isEpanolServer =
+                          serverNormalizedName.contains('e panol') ||
+                              serverNormalizedName.contains('e-panol');
+
                       if (isEpanolLocal && isEpanolServer) {
                         // For e-panol products, match by batch number and flavor
-                        final localHasStrawberry = localNormalizedName.contains('strawberry');
-                        final serverHasStrawberry = serverNormalizedName.contains('strawberry');
-                        final localHasOriginal = localNormalizedName.contains('original');
-                        final serverHasOriginal = serverNormalizedName.contains('original');
-                        
+                        final localHasStrawberry =
+                            localNormalizedName.contains('strawberry');
+                        final serverHasStrawberry =
+                            serverNormalizedName.contains('strawberry');
+                        final localHasOriginal =
+                            localNormalizedName.contains('original');
+                        final serverHasOriginal =
+                            serverNormalizedName.contains('original');
+
                         return localItem.batchNo == cartItem.batchNo &&
-                               ((localHasStrawberry && serverHasStrawberry) || 
+                            ((localHasStrawberry && serverHasStrawberry) ||
                                 (localHasOriginal && serverHasOriginal));
                       }
-                      
+
                       return false;
                     },
                   );
                 } catch (e) {
                   flexibleMatchingLocalItem = null;
                 }
-                
+
                 if (flexibleMatchingLocalItem != null) {
                   cartItem = cartItem.copyWith(
-                    originalProductId: flexibleMatchingLocalItem.originalProductId ??
-                        flexibleMatchingLocalItem.productId,
+                    originalProductId:
+                        flexibleMatchingLocalItem.originalProductId ??
+                            flexibleMatchingLocalItem.productId,
                   );
-                  debugPrint('🔍 PRESERVED ORIGINAL PRODUCT ID (FLEXIBLE MATCH) ===');
+                  debugPrint(
+                      '🔍 PRESERVED ORIGINAL PRODUCT ID (FLEXIBLE MATCH) ===');
                   debugPrint('Product: ${cartItem.name}');
-                  debugPrint('Original Product ID: ${cartItem.originalProductId}');
+                  debugPrint(
+                      'Original Product ID: ${cartItem.originalProductId}');
                   debugPrint('Server Product ID: ${cartItem.productId}');
-                  debugPrint('Local Item Product ID: ${flexibleMatchingLocalItem.productId}');
-                  debugPrint('==================================================');
+                  debugPrint(
+                      'Local Item Product ID: ${flexibleMatchingLocalItem.productId}');
+                  debugPrint(
+                      '==================================================');
                 } else {
                   debugPrint('🔍 NO LOCAL ITEM FOUND FOR PRESERVATION ===');
                   debugPrint('Product: ${cartItem.name}');
@@ -515,35 +534,38 @@ class CartProvider with ChangeNotifier {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         debugPrint('Successfully added item to server cart');
-        
+
         // Store the original product ID before syncing
         final originalProductId = item.productId;
         debugPrint('🔍 PRESERVING ORIGINAL PRODUCT ID FOR SYNC ===');
         debugPrint('Original Product ID: $originalProductId');
         debugPrint('Item Name: ${item.name}');
         debugPrint('=============================================');
-        
+
         // Store this item's original product ID in a temporary variable for sync
         _pendingOriginalProductId = originalProductId;
         _pendingItemName = item.name;
         _pendingItemBatch = item.batchNo;
-        
+
         // Sync with server to get the authoritative cart state
         await syncWithApi();
-        
+
         // After sync, find the item and restore the original product ID
         final syncedItemIndex = _cartItems.indexWhere((cartItem) =>
-            _normalizeProductName(cartItem.name) == _normalizeProductName(item.name) &&
+            _normalizeProductName(cartItem.name) ==
+                _normalizeProductName(item.name) &&
             cartItem.batchNo == item.batchNo);
-            
+
         if (syncedItemIndex != -1) {
           _cartItems[syncedItemIndex] = _cartItems[syncedItemIndex].copyWith(
             originalProductId: originalProductId,
           );
           debugPrint('🔍 RESTORED ORIGINAL PRODUCT ID ===');
           debugPrint('Product: ${_cartItems[syncedItemIndex].name}');
-          debugPrint('Original Product ID: ${_cartItems[syncedItemIndex].originalProductId}');
-          debugPrint('Server Product ID: ${_cartItems[syncedItemIndex].serverProductId}');
+          debugPrint(
+              'Original Product ID: ${_cartItems[syncedItemIndex].originalProductId}');
+          debugPrint(
+              'Server Product ID: ${_cartItems[syncedItemIndex].serverProductId}');
           debugPrint('====================================');
           notifyListeners();
         } else {
@@ -551,34 +573,41 @@ class CartProvider with ChangeNotifier {
           final flexibleMatchIndex = _cartItems.indexWhere((cartItem) {
             final cartNormalizedName = _normalizeProductName(cartItem.name);
             final itemNormalizedName = _normalizeProductName(item.name);
-            
+
             // More flexible matching for e-panol products
-            final isEpanolCart = cartNormalizedName.contains('e panol') || cartNormalizedName.contains('e-panol');
-            final isEpanolItem = itemNormalizedName.contains('e panol') || itemNormalizedName.contains('e-panol');
-            
+            final isEpanolCart = cartNormalizedName.contains('e panol') ||
+                cartNormalizedName.contains('e-panol');
+            final isEpanolItem = itemNormalizedName.contains('e panol') ||
+                itemNormalizedName.contains('e-panol');
+
             if (isEpanolCart && isEpanolItem) {
               // For e-panol products, match by batch number and flavor
-              final cartHasStrawberry = cartNormalizedName.contains('strawberry');
-              final itemHasStrawberry = itemNormalizedName.contains('strawberry');
+              final cartHasStrawberry =
+                  cartNormalizedName.contains('strawberry');
+              final itemHasStrawberry =
+                  itemNormalizedName.contains('strawberry');
               final cartHasOriginal = cartNormalizedName.contains('original');
               final itemHasOriginal = itemNormalizedName.contains('original');
-              
+
               return cartItem.batchNo == item.batchNo &&
-                     ((cartHasStrawberry && itemHasStrawberry) || 
+                  ((cartHasStrawberry && itemHasStrawberry) ||
                       (cartHasOriginal && itemHasOriginal));
             }
-            
+
             return false;
           });
-          
+
           if (flexibleMatchIndex != -1) {
-            _cartItems[flexibleMatchIndex] = _cartItems[flexibleMatchIndex].copyWith(
+            _cartItems[flexibleMatchIndex] =
+                _cartItems[flexibleMatchIndex].copyWith(
               originalProductId: originalProductId,
             );
             debugPrint('🔍 RESTORED ORIGINAL PRODUCT ID (FLEXIBLE MATCH) ===');
             debugPrint('Product: ${_cartItems[flexibleMatchIndex].name}');
-            debugPrint('Original Product ID: ${_cartItems[flexibleMatchIndex].originalProductId}');
-            debugPrint('Server Product ID: ${_cartItems[flexibleMatchIndex].serverProductId}');
+            debugPrint(
+                'Original Product ID: ${_cartItems[flexibleMatchIndex].originalProductId}');
+            debugPrint(
+                'Server Product ID: ${_cartItems[flexibleMatchIndex].serverProductId}');
             debugPrint('==================================================');
             notifyListeners();
           } else {
@@ -979,17 +1008,19 @@ class CartProvider with ChangeNotifier {
             'Quantity update failed. Item remains in cart with previous quantity.');
         // Don't sync with server as it might remove the item
       } else {
-                debugPrint('❌ Failed to update quantity on server');
+        debugPrint('❌ Failed to update quantity on server');
         debugPrint('Response status: ${addResponse.statusCode}');
         debugPrint('Response body: ${addResponse.body}');
-        
-        _showSyncError('Quantity update failed. Item remains in cart with previous quantity.');
+
+        _showSyncError(
+            'Quantity update failed. Item remains in cart with previous quantity.');
         // Don't sync with server as it might remove the item
       }
-        } catch (e) {
+    } catch (e) {
       debugPrint('❌ Error in simple quantity update: $e');
-      
-      _showSyncError('Server temporarily unavailable. Item remains in cart with previous quantity.');
+
+      _showSyncError(
+          'Server temporarily unavailable. Item remains in cart with previous quantity.');
       // Don't sync with server as it might remove the item
     }
   }
