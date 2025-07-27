@@ -8,6 +8,8 @@ import '../widgets/cart_icon_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import '../services/delivery_service.dart';
+import '../services/location_service.dart';
+import 'package:geolocator/geolocator.dart';
 
 class StoreSelectionPage extends StatefulWidget {
   const StoreSelectionPage({super.key});
@@ -27,6 +29,18 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
   // Selected values
   dynamic selectedRegion;
   dynamic selectedCity;
+
+  // Sorting and location
+  String sortBy = 'distance'; // Default to distance sorting
+  bool isLocationAvailable = false;
+  Position? userLocation;
+  bool isLoadingLocation = false;
+
+  // Manual location input
+  bool showManualLocationInput = false;
+  final TextEditingController _locationController = TextEditingController();
+  double? manualLatitude;
+  double? manualLongitude;
 
   // Loading states
   bool isLoadingRegions = false;
@@ -59,6 +73,7 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
     // Load initial data
     _loadRegions();
     _loadAllStores();
+    _initializeLocation();
   }
 
   @override
@@ -66,6 +81,409 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
     _fadeController.dispose();
     _slideController.dispose();
     super.dispose();
+  }
+
+  // Initialize location services
+  Future<void> _initializeLocation() async {
+    setState(() {
+      isLoadingLocation = true;
+    });
+
+    try {
+      final locationService = LocationService();
+      isLocationAvailable = await locationService.isLocationAvailable();
+
+      if (isLocationAvailable) {
+        userLocation = await locationService.getCurrentLocation();
+        debugPrint(
+            '📍 Location initialized: ${userLocation?.latitude}, ${userLocation?.longitude}');
+
+        // Check if location is within Ghana (rough bounds)
+        if (userLocation != null) {
+          final isInGhana = _isLocationInGhana(
+              userLocation!.latitude, userLocation!.longitude);
+          if (!isInGhana) {
+            debugPrint(
+                '⚠️ Location is outside Ghana, setting default Accra location');
+            _setDefaultGhanaLocation();
+          } else {
+            debugPrint('✅ Location is within Ghana');
+          }
+        }
+
+        // Test distance calculations
+        _testDistanceCalculation();
+      } else {
+        debugPrint('❌ Location services not available');
+        // Set default Ghana location if location services not available
+        _setDefaultGhanaLocation();
+      }
+    } catch (e) {
+      debugPrint('❌ Error initializing location: $e');
+      // Set default Ghana location on error
+      _setDefaultGhanaLocation();
+    } finally {
+      setState(() {
+        isLoadingLocation = false;
+      });
+    }
+  }
+
+  // Sort stores based on selected criteria
+  List<dynamic> _sortStores(List<dynamic> stores) {
+    if (stores.isEmpty) return stores;
+
+    debugPrint('📍 Sorting by: $sortBy');
+
+    switch (sortBy) {
+      case 'distance':
+        if (userLocation != null) {
+          debugPrint('📍 Sorting by distance (user location available)');
+          return _sortByDistance(stores);
+        } else {
+          debugPrint(
+              '📍 Cannot sort by distance - no location available, falling back to name');
+          return _sortByName(stores);
+        }
+      case 'name':
+      default:
+        debugPrint('📍 Sorting by name');
+        return _sortByName(stores);
+    }
+  }
+
+  // Sort stores by distance from user location
+  List<dynamic> _sortByDistance(List<dynamic> stores) {
+    final locationService = LocationService();
+
+    debugPrint('📍 DISTANCE SORTING DEBUG ===');
+    debugPrint(
+        'User Location: ${userLocation?.latitude}, ${userLocation?.longitude}');
+    debugPrint('User Location Accuracy: ${userLocation?.accuracy} meters');
+    debugPrint('Number of stores to sort: ${stores.length}');
+
+    if (userLocation == null) {
+      debugPrint('❌ ERROR: User location is null! Cannot sort by distance.');
+      return stores; // Return unsorted if no location
+    }
+
+    return List<dynamic>.from(stores)
+      ..sort((a, b) {
+        // Extract coordinates from store data
+        // Try to get coordinates from API response first
+        double aLat = 0.0;
+        double aLon = 0.0;
+        double bLat = 0.0;
+        double bLon = 0.0;
+
+        // Try to parse coordinates from API response - handle null values properly
+        if (a['latitude'] != null && a['longitude'] != null) {
+          aLat = double.tryParse(a['latitude'].toString()) ?? 0.0;
+          aLon = double.tryParse(a['longitude'].toString()) ?? 0.0;
+        }
+        if (b['latitude'] != null && b['longitude'] != null) {
+          bLat = double.tryParse(b['latitude'].toString()) ?? 0.0;
+          bLon = double.tryParse(b['longitude'].toString()) ?? 0.0;
+        }
+
+        debugPrint(
+            'Store A (${a['description']}): API coords = ($aLat, $aLon)');
+        debugPrint(
+            'Store B (${b['description']}): API coords = ($bLat, $bLon)');
+
+        // If coordinates are not available or invalid, use estimated coordinates based on region/city
+        if (aLat == 0.0 || aLon == 0.0) {
+          final aCoords = _getEstimatedCoordinates(a);
+          aLat = aCoords['lat']!;
+          aLon = aCoords['lon']!;
+          debugPrint('Store A: Using estimated coords = ($aLat, $aLon)');
+        }
+        if (bLat == 0.0 || bLon == 0.0) {
+          final bCoords = _getEstimatedCoordinates(b);
+          bLat = bCoords['lat']!;
+          bLon = bCoords['lon']!;
+          debugPrint('Store B: Using estimated coords = ($bLat, $bLon)');
+        }
+
+        // Calculate distances
+        final aDistance = locationService.calculateDistance(
+          userLocation!.latitude,
+          userLocation!.longitude,
+          aLat,
+          aLon,
+        );
+        final bDistance = locationService.calculateDistance(
+          userLocation!.latitude,
+          userLocation!.longitude,
+          bLat,
+          bLon,
+        );
+
+        debugPrint(
+            'Store A distance: ${locationService.formatDistance(aDistance)}');
+        debugPrint(
+            'Store B distance: ${locationService.formatDistance(bDistance)}');
+
+        // Add distance to store data for display
+        a['distance'] = aDistance;
+        b['distance'] = bDistance;
+
+        return aDistance.compareTo(bDistance);
+      });
+
+    // Debug: Show final sorted order
+    debugPrint('📍 FINAL SORTED ORDER ===');
+    for (int i = 0; i < stores.length; i++) {
+      final store = stores[i];
+      final distance = store['distance'] ?? 'N/A';
+      debugPrint(
+          '${i + 1}. ${store['description']} - ${locationService.formatDistance(distance)}');
+    }
+    debugPrint('========================');
+
+    return stores;
+  }
+
+  // Check if location is within Ghana bounds
+  bool _isLocationInGhana(double lat, double lon) {
+    // Ghana rough bounds: 4.5°N to 11.2°N, 3.3°W to 1.2°E
+    return lat >= 4.5 && lat <= 11.2 && lon >= -3.3 && lon <= 1.2;
+  }
+
+  // Set default Ghana location (Accra)
+  void _setDefaultGhanaLocation() {
+    setState(() {
+      userLocation = Position(
+        latitude: 5.6037, // Accra coordinates
+        longitude: -0.1870,
+        timestamp: DateTime.now(),
+        accuracy: 1000.0, // Lower accuracy since it's estimated
+        altitude: 0.0,
+        heading: 0.0,
+        speed: 0.0,
+        speedAccuracy: 0.0,
+        altitudeAccuracy: 0.0,
+        headingAccuracy: 0.0,
+      );
+      isLocationAvailable = true;
+      manualLatitude = 5.6037;
+      manualLongitude = -0.1870;
+      _locationController.text = 'Accra (Default)';
+    });
+    debugPrint('📍 Default Ghana location set: Accra (5.6037, -0.1870)');
+  }
+
+  // Test distance calculation with known coordinates
+  void _testDistanceCalculation() {
+    final locationService = LocationService();
+
+    // Test with Accra coordinates (5.6037, -0.1870)
+    final accraLat = 5.6037;
+    final accraLon = -0.1870;
+
+    // Test distances from different locations
+    final testLocations = [
+      {'name': 'Circle Accra', 'lat': 5.5500, 'lon': -0.1833},
+      {'name': 'Kumasi', 'lat': 6.6885, 'lon': -1.6244},
+      {'name': 'Tema', 'lat': 5.6795, 'lon': -0.0167},
+    ];
+
+    debugPrint('🧪 TESTING DISTANCE CALCULATIONS ===');
+    for (final location in testLocations) {
+      final distance = locationService.calculateDistance(accraLat, accraLon,
+          location['lat'] as double, location['lon'] as double);
+      debugPrint(
+          '${location['name']}: ${locationService.formatDistance(distance)}');
+    }
+    debugPrint('====================================');
+  }
+
+  // Get estimated coordinates based on region and city
+  Map<String, double> _getEstimatedCoordinates(dynamic store) {
+    // Default coordinates for Ghana (center of the country)
+    double lat = 7.9465;
+    double lon = -1.0232;
+
+    final regionName = store['region_name']?.toString().toLowerCase() ?? '';
+    final cityName = store['city_name']?.toString().toLowerCase() ?? '';
+    final storeName = store['description']?.toString().toLowerCase() ?? '';
+
+    debugPrint('📍 ESTIMATING COORDS for: $regionName, $cityName, $storeName');
+
+    // More precise coordinates for major Ghanaian cities and regions
+    if (regionName.contains('accra') || cityName.contains('accra')) {
+      // Accra region - more specific coordinates based on store names
+      if (storeName.contains('circle')) {
+        lat = 5.5500;
+        lon = -0.1833;
+        debugPrint('📍 Using Circle Accra coordinates: $lat, $lon');
+      } else if (storeName.contains('nester') || storeName.contains('square')) {
+        lat = 5.6037;
+        lon = -0.1870;
+        debugPrint('📍 Using Nester Square coordinates: $lat, $lon');
+      } else if (storeName.contains('volta') || storeName.contains('place')) {
+        lat = 5.6037;
+        lon = -0.1870;
+        debugPrint('📍 Using Volta Place coordinates: $lat, $lon');
+      } else {
+        // General Accra coordinates
+        lat = 5.6037;
+        lon = -0.1870;
+        debugPrint('📍 Using general Accra coordinates: $lat, $lon');
+      }
+    } else if (regionName.contains('kumasi') || cityName.contains('kumasi')) {
+      lat = 6.6885;
+      lon = -1.6244;
+      debugPrint('📍 Using Kumasi coordinates: $lat, $lon');
+    } else if (regionName.contains('tamale') || cityName.contains('tamale')) {
+      lat = 9.4035;
+      lon = -0.8423;
+      debugPrint('📍 Using Tamale coordinates: $lat, $lon');
+    } else if (regionName.contains('sekondi') ||
+        cityName.contains('sekondi') ||
+        regionName.contains('takoradi') ||
+        cityName.contains('takoradi')) {
+      lat = 4.9340;
+      lon = -1.7300;
+      debugPrint('📍 Using Sekondi-Takoradi coordinates: $lat, $lon');
+    } else if (regionName.contains('sunyani') || cityName.contains('sunyani')) {
+      lat = 7.3399;
+      lon = -2.3268;
+      debugPrint('📍 Using Sunyani coordinates: $lat, $lon');
+    } else if (regionName.contains('ho') || cityName.contains('ho')) {
+      lat = 6.6000;
+      lon = 0.4700;
+      debugPrint('📍 Using Ho coordinates: $lat, $lon');
+    } else if (regionName.contains('koforidua') ||
+        cityName.contains('koforidua')) {
+      lat = 6.0833;
+      lon = -0.2500;
+      debugPrint('📍 Using Koforidua coordinates: $lat, $lon');
+    } else if (regionName.contains('cape coast') ||
+        cityName.contains('cape coast')) {
+      lat = 5.1053;
+      lon = -1.2466;
+      debugPrint('📍 Using Cape Coast coordinates: $lat, $lon');
+    } else if (regionName.contains('tema') || cityName.contains('tema')) {
+      // Tema region - more specific coordinates
+      lat = 5.6795;
+      lon = -0.0167;
+      debugPrint('📍 Using Tema coordinates: $lat, $lon');
+    } else if (regionName.contains('ashaiman') ||
+        cityName.contains('ashaiman')) {
+      lat = 5.6167;
+      lon = -0.0667;
+      debugPrint('📍 Using Ashaiman coordinates: $lat, $lon');
+    } else if (regionName.contains('madina') || cityName.contains('madina')) {
+      lat = 5.6833;
+      lon = -0.1667;
+      debugPrint('📍 Using Madina coordinates: $lat, $lon');
+    } else if (regionName.contains('adenta') || cityName.contains('adenta')) {
+      lat = 5.7000;
+      lon = -0.1667;
+      debugPrint('📍 Using Adenta coordinates: $lat, $lon');
+    } else if (regionName.contains('spintex') || cityName.contains('spintex')) {
+      lat = 5.6167;
+      lon = -0.1833;
+      debugPrint('📍 Using Spintex coordinates: $lat, $lon');
+    } else if (regionName.contains('east legon') ||
+        cityName.contains('east legon')) {
+      lat = 5.6500;
+      lon = -0.1833;
+      debugPrint('📍 Using East Legon coordinates: $lat, $lon');
+    } else if (regionName.contains('west legon') ||
+        cityName.contains('west legon')) {
+      lat = 5.6500;
+      lon = -0.2000;
+      debugPrint('📍 Using West Legon coordinates: $lat, $lon');
+    } else if (regionName.contains('airport') || cityName.contains('airport')) {
+      lat = 5.6053;
+      lon = -0.1674;
+      debugPrint('📍 Using Airport coordinates: $lat, $lon');
+    } else if (regionName.contains('oshie') || cityName.contains('oshie')) {
+      lat = 5.6167;
+      lon = -0.1833;
+      debugPrint('📍 Using Oshie coordinates: $lat, $lon');
+    } else if (regionName.contains('dansoman') ||
+        cityName.contains('dansoman')) {
+      lat = 5.5500;
+      lon = -0.2333;
+      debugPrint('📍 Using Dansoman coordinates: $lat, $lon');
+    } else if (regionName.contains('kanda') || cityName.contains('kanda')) {
+      lat = 5.6167;
+      lon = -0.1833;
+      debugPrint('📍 Using Kanda coordinates: $lat, $lon');
+    } else if (regionName.contains('nima') || cityName.contains('nima')) {
+      lat = 5.6167;
+      lon = -0.1833;
+      debugPrint('📍 Using Nima coordinates: $lat, $lon');
+    } else if (regionName.contains('mamprobi') ||
+        cityName.contains('mamprobi')) {
+      lat = 5.5500;
+      lon = -0.2333;
+      debugPrint('📍 Using Mamprobi coordinates: $lat, $lon');
+    } else if (regionName.contains('korle bu') ||
+        cityName.contains('korle bu')) {
+      lat = 5.5500;
+      lon = -0.2333;
+      debugPrint('📍 Using Korle Bu coordinates: $lat, $lon');
+    } else if (regionName.contains('jamestown') ||
+        cityName.contains('jamestown')) {
+      lat = 5.5500;
+      lon = -0.2333;
+      debugPrint('📍 Using Jamestown coordinates: $lat, $lon');
+    } else if (regionName.contains('osu') || cityName.contains('osu')) {
+      lat = 5.5500;
+      lon = -0.1833;
+      debugPrint('📍 Using Osu coordinates: $lat, $lon');
+    } else if (regionName.contains('cantonments') ||
+        cityName.contains('cantonments')) {
+      lat = 5.6167;
+      lon = -0.1833;
+      debugPrint('📍 Using Cantonments coordinates: $lat, $lon');
+    } else if (regionName.contains('labone') || cityName.contains('labone')) {
+      lat = 5.6167;
+      lon = -0.1833;
+      debugPrint('📍 Using Labone coordinates: $lat, $lon');
+    } else if (regionName.contains('ring road') ||
+        cityName.contains('ring road')) {
+      lat = 5.6167;
+      lon = -0.1833;
+      debugPrint('📍 Using Ring Road coordinates: $lat, $lon');
+    } else if (regionName.contains('circle') || cityName.contains('circle')) {
+      lat = 5.5500;
+      lon = -0.1833;
+      debugPrint('📍 Using Circle coordinates: $lat, $lon');
+    } else {
+      debugPrint('📍 Using default Ghana coordinates: $lat, $lon');
+    }
+
+    return {'lat': lat, 'lon': lon};
+  }
+
+  // Sort stores by name
+  List<dynamic> _sortByName(List<dynamic> stores) {
+    debugPrint('📍 NAME SORTING DEBUG ===');
+    debugPrint('Number of stores to sort: ${stores.length}');
+
+    final sortedStores = List<dynamic>.from(stores)
+      ..sort((a, b) {
+        final aName = (a['description'] ?? '').toString().toLowerCase();
+        final bName = (b['description'] ?? '').toString().toLowerCase();
+
+        debugPrint('Comparing: "$aName" vs "$bName"');
+        return aName.compareTo(bName);
+      });
+
+    // Debug: Show final sorted order
+    debugPrint('📍 FINAL NAME SORTED ORDER ===');
+    for (int i = 0; i < sortedStores.length; i++) {
+      final store = sortedStores[i];
+      debugPrint('${i + 1}. ${store['description']}');
+    }
+    debugPrint('=============================');
+
+    return sortedStores;
   }
 
   // Load regions from API
@@ -248,6 +666,18 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
               store['region_name'] = cityInfo[cityId]!['region_name'];
               store['city_name'] = cityInfo[cityId]!['city_name'];
             }
+
+            // Debug: Log store data structure
+            debugPrint('🔍 STORE DATA STRUCTURE ===');
+            debugPrint('Store: ${store['description']}');
+            debugPrint('Keys: ${store.keys.toList()}');
+            debugPrint('Latitude: ${store['latitude']}');
+            debugPrint('Longitude: ${store['longitude']}');
+            debugPrint('Address: ${store['address']}');
+            debugPrint('Region: ${store['region_name']}');
+            debugPrint('City: ${store['city_name']}');
+            debugPrint('==========================');
+
             allStoresList.add(store);
           }
         }
@@ -372,6 +802,8 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
             ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.2, end: 0),
             SizedBox(height: 8),
             _buildSearchAndFilterCard(),
+            SizedBox(height: 8),
+            _buildSortingOptions(),
           ],
         ),
       ),
@@ -464,6 +896,509 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
         .slideY(begin: 0.2, end: 0);
   }
 
+  Widget _buildSortingOptions() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.sort, color: Colors.green.shade600, size: 16),
+              SizedBox(width: 6),
+              Text(
+                'Sort by:',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildSortChip('Name', 'name', Icons.sort_by_alpha),
+                      SizedBox(width: 6),
+                      if (isLocationAvailable) ...[
+                        _buildSortChip(
+                            'Auto Distance', 'distance', Icons.location_on),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (!isLocationAvailable && !isLoadingLocation) ...[
+            SizedBox(height: 8),
+            _buildLocationPermissionRequest(),
+            SizedBox(height: 8),
+            _buildManualLocationInput(),
+          ],
+          if (isLocationAvailable) ...[
+            SizedBox(height: 8),
+            Container(
+              padding: EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle,
+                      color: Colors.green.shade600, size: 14),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Stores automatically sorted by distance',
+                          style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                        if (userLocation != null &&
+                            !_isLocationInGhana(userLocation!.latitude,
+                                userLocation!.longitude))
+                          Text(
+                            'Using default Accra location',
+                            style: GoogleFonts.poppins(
+                              fontSize: 8,
+                              color: Colors.orange.shade700,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    )
+        .animate()
+        .fadeIn(duration: 400.ms, delay: 300.ms)
+        .slideY(begin: 0.2, end: 0);
+  }
+
+  Widget _buildLocationPermissionRequest() {
+    return Container(
+      padding: EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.orange.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.location_on, color: Colors.orange.shade600, size: 16),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Enable location to sort by distance',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    color: Colors.orange.shade700,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: _requestLocationPermission,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade500,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Enable',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (userLocation != null) ...[
+            SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.blue.shade600, size: 12),
+                SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    'Location accuracy: ${userLocation!.accuracy.toStringAsFixed(0)}m',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      color: Colors.blue.shade700,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _refreshLocation,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade500,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: Text(
+                      'Refresh',
+                      style: GoogleFonts.poppins(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _refreshLocation() async {
+    setState(() {
+      isLoadingLocation = true;
+    });
+
+    try {
+      final locationService = LocationService();
+      locationService.clearCache(); // Clear cached location
+      userLocation = await locationService.getCurrentLocation();
+
+      if (userLocation != null) {
+        debugPrint(
+            '📍 Location refreshed: ${userLocation!.latitude}, ${userLocation!.longitude}');
+        debugPrint('📍 Accuracy: ${userLocation!.accuracy}m');
+
+        // Re-sort stores if distance sorting is active
+        if (sortBy == 'distance') {
+          setState(() {
+            // This will trigger a rebuild and re-sort
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error refreshing location: $e');
+    } finally {
+      setState(() {
+        isLoadingLocation = false;
+      });
+    }
+  }
+
+  Future<void> _requestLocationPermission() async {
+    setState(() {
+      isLoadingLocation = true;
+    });
+
+    try {
+      await _initializeLocation();
+    } finally {
+      setState(() {
+        isLoadingLocation = false;
+      });
+    }
+  }
+
+  Widget _buildManualLocationInput() {
+    return Container(
+      padding: EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.edit_location, color: Colors.blue.shade600, size: 16),
+              SizedBox(width: 8),
+              Text(
+                'Or enter your location manually',
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  color: Colors.blue.shade700,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _locationController,
+                  decoration: InputDecoration(
+                    hintText: 'e.g., Accra, Ghana',
+                    hintStyle: GoogleFonts.poppins(fontSize: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: BorderSide(color: Colors.blue.shade300),
+                    ),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    isDense: true,
+                  ),
+                  style: GoogleFonts.poppins(fontSize: 11),
+                ),
+              ),
+              SizedBox(width: 8),
+              GestureDetector(
+                onTap: _geocodeLocation,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade500,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Find',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (manualLatitude != null && manualLongitude != null) ...[
+            SizedBox(height: 4),
+            Text(
+              'Location set: ${manualLatitude!.toStringAsFixed(4)}, ${manualLongitude!.toStringAsFixed(4)}',
+              style: GoogleFonts.poppins(
+                fontSize: 10,
+                color: Colors.green.shade700,
+              ),
+            ),
+          ],
+          SizedBox(height: 8),
+          Text(
+            'Quick locations:',
+            style: GoogleFonts.poppins(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: Colors.blue.shade700,
+            ),
+          ),
+          SizedBox(height: 4),
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              _buildQuickLocationChip('Accra', 5.6037, -0.1870),
+              _buildQuickLocationChip('Tema', 5.6795, -0.0167),
+              _buildQuickLocationChip('Kumasi', 6.6885, -1.6244),
+              _buildQuickLocationChip('Tamale', 9.4035, -0.8423),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _geocodeLocation() async {
+    if (_locationController.text.trim().isEmpty) return;
+
+    setState(() {
+      isLoadingLocation = true;
+    });
+
+    try {
+      final locationService = LocationService();
+      final coordinates = await locationService
+          .getCoordinatesFromAddress(_locationController.text.trim());
+
+      if (coordinates != null) {
+        setState(() {
+          manualLatitude = coordinates['lat'];
+          manualLongitude = coordinates['lon'];
+          // Create a mock Position object for distance calculations
+          userLocation = Position(
+            latitude: coordinates['lat']!,
+            longitude: coordinates['lon']!,
+            timestamp: DateTime.now(),
+            accuracy: 100.0, // Estimated accuracy for geocoded location
+            altitude: 0.0,
+            heading: 0.0,
+            speed: 0.0,
+            speedAccuracy: 0.0,
+            altitudeAccuracy: 0.0,
+            headingAccuracy: 0.0,
+          );
+          isLocationAvailable = true;
+        });
+
+        debugPrint(
+            '📍 Manual location set: ${coordinates['lat']}, ${coordinates['lon']}');
+
+        // Re-sort stores if distance sorting is active
+        if (sortBy == 'distance') {
+          setState(() {
+            // This will trigger a rebuild and re-sort
+          });
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Could not find coordinates for "${_locationController.text}"'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error geocoding location: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error finding location: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        isLoadingLocation = false;
+      });
+    }
+  }
+
+  Widget _buildSortChip(String label, String value, IconData icon) {
+    final isSelected = sortBy == value;
+    return GestureDetector(
+      onTap: () {
+        debugPrint('📍 Sort chip tapped: $value');
+        setState(() {
+          sortBy = value;
+        });
+        debugPrint('📍 sortBy updated to: $sortBy');
+
+        // Force rebuild of the stores list
+        setState(() {
+          // This will trigger a rebuild and re-sort
+        });
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.green.shade500 : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? Colors.green.shade500 : Colors.grey.shade300,
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.green.shade100,
+              blurRadius: 2,
+              offset: Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: isSelected ? Colors.white : Colors.grey.shade600,
+            ),
+            SizedBox(width: 4),
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: isSelected ? Colors.white : Colors.grey.shade700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickLocationChip(String name, double lat, double lon) {
+    return GestureDetector(
+      onTap: () => _setQuickLocation(name, lat, lon),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.blue.shade100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.blue.shade300),
+        ),
+        child: Text(
+          name,
+          style: GoogleFonts.poppins(
+            fontSize: 9,
+            fontWeight: FontWeight.w500,
+            color: Colors.blue.shade700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _setQuickLocation(String name, double lat, double lon) {
+    setState(() {
+      manualLatitude = lat;
+      manualLongitude = lon;
+      _locationController.text = name;
+      // Create a mock Position object for distance calculations
+      userLocation = Position(
+        latitude: lat,
+        longitude: lon,
+        timestamp: DateTime.now(),
+        accuracy: 50.0, // Good accuracy for preset locations
+        altitude: 0.0,
+        heading: 0.0,
+        speed: 0.0,
+        speedAccuracy: 0.0,
+        altitudeAccuracy: 0.0,
+        headingAccuracy: 0.0,
+      );
+      isLocationAvailable = true;
+    });
+
+    debugPrint('📍 Quick location set: $name at $lat, $lon');
+
+    // Test distance calculations with this location
+    _testDistanceCalculation();
+
+    // Re-sort stores if distance sorting is active
+    if (sortBy == 'distance') {
+      setState(() {
+        // This will trigger a rebuild and re-sort
+      });
+    }
+  }
+
   Widget _buildCompactDropdown({
     required dynamic value,
     required String hint,
@@ -488,7 +1423,7 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
         value: value != null ? value['description'] : null,
         decoration: InputDecoration(
           labelText: hint,
-          labelStyle: TextStyle(color: Colors.grey[600], fontSize: 9),
+          labelStyle: TextStyle(color: Colors.grey[600], fontSize: 16),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(6),
             borderSide: BorderSide.none,
@@ -503,34 +1438,34 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
           ),
           filled: true,
           fillColor: Colors.white,
-          contentPadding: EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+          contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 12),
           suffixIcon: isLoading
               ? Container(
                   padding: EdgeInsets.all(4),
-                  child: SizedBox(
-                    width: 10,
-                    height: 10,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.5,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(Colors.green.shade600),
+                                      child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Colors.green.shade600),
+                      ),
                     ),
-                  ),
                 )
               : error != null
                   ? IconButton(
                       icon: Icon(Icons.refresh,
-                          color: Colors.red.shade400, size: 12),
+                          color: Colors.red.shade400, size: 20),
                       onPressed: onRetry,
                       tooltip: 'Retry',
                       padding: EdgeInsets.all(4),
                       constraints: BoxConstraints(minWidth: 20, minHeight: 20),
                     )
                   : Icon(Icons.keyboard_arrow_down,
-                      color: Colors.green.shade700, size: 14),
+                      color: Colors.green.shade700, size: 22),
         ),
         hint: Text(hint,
-            overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9)),
+            overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16)),
         isExpanded: true,
         items: items.map((String item) {
           return DropdownMenuItem<String>(
@@ -538,7 +1473,7 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
             child: Text(
               item,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 9),
+              style: TextStyle(fontSize: 16),
             ),
           );
         }).toList(),
@@ -548,6 +1483,8 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
   }
 
   Widget _buildStoreList() {
+    debugPrint('📍 _buildStoreList called - sortBy: $sortBy');
+
     // Show loading state for all stores
     if (isLoadingAllStores) {
       return _buildLoadingSkeleton();
@@ -766,6 +1703,10 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
     final isOpen = _isStoreOpen();
     final storeRating = (store['rating'] ?? 0.0).toDouble();
 
+    // Get distance if available
+    final distance = store['distance'];
+    final locationService = LocationService();
+
     return Card(
       margin: EdgeInsets.only(bottom: 12),
       elevation: 2,
@@ -910,6 +1851,49 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
                                         fontSize: 11,
                                         color: Colors.grey.shade500,
                                       ),
+                                    ),
+                                  if (distance != null)
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.location_on,
+                                          size: 10,
+                                          color: Colors.green.shade500,
+                                        ),
+                                        SizedBox(width: 2),
+                                        Text(
+                                          locationService
+                                              .formatDistance(distance),
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.green.shade600,
+                                          ),
+                                        ),
+                                        if (store['latitude'] == null ||
+                                            double.tryParse(store['latitude']
+                                                        ?.toString() ??
+                                                    '0') ==
+                                                0.0)
+                                          Container(
+                                            margin: EdgeInsets.only(left: 4),
+                                            padding: EdgeInsets.symmetric(
+                                                horizontal: 4, vertical: 1),
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange.shade100,
+                                              borderRadius:
+                                                  BorderRadius.circular(2),
+                                            ),
+                                            child: Text(
+                                              'est.',
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 8,
+                                                fontWeight: FontWeight.w500,
+                                                color: Colors.orange.shade700,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                 ],
                               ),
@@ -1236,7 +2220,9 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
   }
 
   List<dynamic> _getFilteredAllStores() {
-    return allStores.where((store) {
+    debugPrint('📍 _getFilteredAllStores called - sortBy: $sortBy');
+
+    final filteredStores = allStores.where((store) {
       // Filter by region if selected
       if (selectedRegion != null) {
         final storeRegion = store['region_name']?.toString() ?? '';
@@ -1258,6 +2244,13 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
 
       return true;
     }).toList();
+
+    debugPrint('📍 Filtered stores count: ${filteredStores.length}');
+
+    // Apply sorting
+    final sortedStores = _sortStores(filteredStores);
+    debugPrint('📍 Returning sorted stores count: ${sortedStores.length}');
+    return sortedStores;
   }
 
   List<dynamic> _getFilteredStores() {
