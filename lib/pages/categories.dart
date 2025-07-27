@@ -8,6 +8,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:eclapp/widgets/error_display.dart';
 import 'package:eclapp/pages/itemdetail.dart';
 import 'package:eclapp/pages/homepage.dart';
+import 'package:eclapp/pages/product_model.dart';
 import 'package:eclapp/pages/app_back_button.dart';
 import 'package:eclapp/widgets/cart_icon_button.dart';
 import 'package:eclapp/pages/bulk_purchase_page.dart';
@@ -38,7 +39,11 @@ class CategoryCache {
   }
 
   static List<dynamic> get cachedCategories => _cachedCategories;
-  static List<dynamic> get cachedAllProducts => _cachedAllProducts;
+  static List<dynamic> get cachedAllProducts {
+    debugPrint(
+        '🔍 CategoryCache.cachedAllProducts accessed: ${_cachedAllProducts.length} products');
+    return _cachedAllProducts;
+  }
 
   static void clearCache() {
     _cachedCategories.clear();
@@ -110,7 +115,9 @@ class _CategoryPageState extends State<CategoryPage> {
   @override
   void initState() {
     super.initState();
+    debugPrint('🔍 CategoryPage initState() called');
     _initializeCategoryService();
+    debugPrint('🔍 Calling _prefetchAllProducts()...');
     _prefetchAllProducts(); // Prefetch all products on page load
     _loadCategoriesOptimized();
 
@@ -309,11 +316,16 @@ class _CategoryPageState extends State<CategoryPage> {
     bool forceRefresh = false,
   }) async {
     try {
+      debugPrint(
+          '🔍 _getAllProductsFromCategories() called with forceRefresh: $forceRefresh');
       final products =
           await _categoryService.getProducts(forceRefresh: forceRefresh);
       _allProducts = products;
+      debugPrint(
+          '🔍 _getAllProductsFromCategories() returned ${products.length} products');
       return products;
     } catch (e) {
+      debugPrint('🔍 Error in _getAllProductsFromCategories: $e');
       return [];
     }
   }
@@ -428,7 +440,7 @@ class _CategoryPageState extends State<CategoryPage> {
     } else if (_allProducts.isNotEmpty) {
       productsToSearch = _allProducts;
     } else if (query.length >= 2) {
-      await _getAllProductsFromCategories(forceRefresh: false);
+      await _getAllProductsFromCategories(forceRefresh: true);
       productsToSearch = _allProducts;
     }
 
@@ -1281,14 +1293,86 @@ class _CategoryPageState extends State<CategoryPage> {
 
   // Prefetch all products and cache them
   Future<void> _prefetchAllProducts() async {
+    debugPrint('🔍 ==========================================');
+    debugPrint('🔍 _prefetchAllProducts() method started');
+    debugPrint('🔍 ==========================================');
     try {
-      final products = await _categoryService.getProducts(forceRefresh: false);
+      debugPrint(
+          '🔍 Calling _categoryService.getProducts() with forceRefresh: true...');
+      final products = await _categoryService.getProducts(forceRefresh: true);
+      debugPrint(
+          '🔍 Received ${products.length} products from service with otcpom data');
       _allProducts = products;
       CategoryCache.cacheAllProducts(products);
-      debugPrint('Prefetched and cached all products: \\${products.length}');
+      debugPrint('🔍 Cached ${products.length} products in CategoryCache');
+
+      setState(() {});
     } catch (e) {
-      debugPrint('Error prefetching products: $e');
+      debugPrint('🔍 Error in _prefetchAllProducts: $e');
     }
+    debugPrint('🔍 ==========================================');
+    debugPrint('🔍 _prefetchAllProducts() method completed');
+    debugPrint('🔍 ==========================================');
+  }
+
+  Future<void> _enhanceCachedProductsWithOtcpom() async {
+    debugPrint('🔍 _enhanceCachedProductsWithOtcpom() method started');
+    debugPrint('🔍 About to access CategoryCache.cachedAllProducts...');
+
+    final cachedProducts = CategoryCache.cachedAllProducts;
+    debugPrint(
+        '🔍 Enhancing ${cachedProducts.length} cached products with otcpom data');
+
+    for (int i = 0; i < cachedProducts.length; i++) {
+      final product = cachedProducts[i];
+      final productId = product['id'];
+
+      try {
+        debugPrint(
+            '🔍 Fetching otcpom for product ${i + 1}/${cachedProducts.length}: ${product['name']}');
+        final response = await http.get(
+          Uri.parse(
+              'https://eclcommerce.ernestchemists.com.gh/api/products/$productId'),
+        );
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data['success'] == true) {
+            final productData = data['data'];
+            final otcpom = productData['otcpom'];
+
+            if (otcpom != null) {
+              cachedProducts[i]['otcpom'] = otcpom;
+              debugPrint('🔍 Enhanced ${product['name']} with otcpom: $otcpom');
+            } else {
+              debugPrint('🔍 No otcpom data for ${product['name']}');
+            }
+          } else {
+            debugPrint('🔍 API returned success=false for ${product['name']}');
+          }
+        } else {
+          debugPrint(
+              '🔍 API returned status ${response.statusCode} for ${product['name']}');
+        }
+      } catch (e) {
+        debugPrint('🔍 Error enhancing ${product['name']}: $e');
+      }
+    }
+
+    // Update the cache with enhanced products
+    CategoryCache.cacheAllProducts(cachedProducts);
+    debugPrint('🔍 _enhanceCachedProductsWithOtcpom() method completed');
+
+    // Trigger UI rebuild to show enhanced products
+    if (mounted) {
+      setState(() {});
+      debugPrint('🔍 UI rebuild triggered after product enhancement');
+    }
+
+    // Force rebuild of all ProductCards by triggering a global rebuild
+    // This will cause all ProductCards to re-convert with enhanced data
+    debugPrint(
+        '🔍 Product enhancement completed - all ProductCards should now show otcpom data');
   }
 }
 
@@ -1688,6 +1772,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   @override
   void initState() {
     super.initState();
+    // Clear cache to ensure fresh data with otcpom
+    _clearSubcategoryCache();
     _loadSubcategoriesOptimized();
     _setupScrollListener();
   }
@@ -1832,7 +1918,12 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           if (allProducts.isEmpty) {
             handleProductsError('There is no product available currently');
           } else {
-            // Cache the products
+            // Enhance products with otcpom data
+            debugPrint(
+                '🔍 Enhancing ${allProducts.length} products with otcpom data for subcategory $subcategoryId');
+            await _enhanceProductsWithOtcpom(allProducts);
+
+            // Cache the enhanced products
             _productsCache[subcategoryId] = allProducts;
             _cacheTimestamps[subcategoryId] = DateTime.now();
 
@@ -1919,6 +2010,112 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       isLoading = false;
       errorMessage = message;
     });
+  }
+
+  // Clear subcategory cache to ensure fresh data
+  void _clearSubcategoryCache() {
+    debugPrint(
+        '🔍 Clearing subcategory cache for category ${widget.categoryId}');
+    _subcategoriesCache.remove(widget.categoryId);
+    _productsCache.remove(widget.categoryId);
+    _cacheTimestamps.remove(widget.categoryId);
+  }
+
+  // Enhance products with otcpom data using ProductCache from homepage
+  Future<void> _enhanceProductsWithOtcpom(List<dynamic> products) async {
+    debugPrint(
+        '🔍 Starting otcpom enhancement for ${products.length} products using ProductCache');
+
+    try {
+      // Get cached products from homepage (which have otcpom data)
+      final cachedProducts = ProductCache.cachedProducts;
+      debugPrint(
+          '🔍 Found ${cachedProducts.length} cached products from ProductCache');
+
+      if (cachedProducts.isEmpty) {
+        debugPrint('🔍 No cached products available, trying API call...');
+        // Fallback to API call if cache is empty
+        await _enhanceProductsWithAPI(products);
+        return;
+      }
+
+      // Create a map of product names to otcpom data for quick lookup
+      final Map<String, String?> otcpomMap = {};
+      for (final product in cachedProducts) {
+        final productName = product.name?.toString().toLowerCase();
+        final otcpom = product.otcpom;
+        if (productName != null) {
+          otcpomMap[productName] = otcpom;
+        }
+      }
+
+      debugPrint(
+          '🔍 Created otcpom map with ${otcpomMap.length} products from cache');
+
+      // Enhance the subcategory products with otcpom data
+      for (int i = 0; i < products.length; i++) {
+        final product = products[i];
+        final productName = product['name']?.toString().toLowerCase();
+
+        if (productName != null && otcpomMap.containsKey(productName)) {
+          final otcpom = otcpomMap[productName];
+          products[i]['otcpom'] = otcpom;
+          debugPrint('🔍 Enhanced ${product['name']} with otcpom: $otcpom');
+        } else {
+          debugPrint('🔍 No otcpom data found for ${product['name']}');
+        }
+      }
+    } catch (e) {
+      debugPrint('🔍 Error using ProductCache: $e');
+      // Fallback to API call
+      await _enhanceProductsWithAPI(products);
+    }
+
+    debugPrint(
+        '🔍 Completed otcpom enhancement for ${products.length} products');
+  }
+
+  // Fallback method to enhance products with API call
+  Future<void> _enhanceProductsWithAPI(List<dynamic> products) async {
+    debugPrint('🔍 Fallback: Using API call for otcpom enhancement');
+
+    try {
+      final response = await http
+          .get(Uri.parse(
+              'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'))
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> dataList = responseData['data'];
+
+        debugPrint(
+            '🔍 Fetched ${dataList.length} products from get-all-products API');
+
+        final Map<String, String?> otcpomMap = {};
+        for (final item in dataList) {
+          final productData = item['product'] as Map<String, dynamic>;
+          final productName = productData['name']?.toString().toLowerCase();
+          final otcpom = productData['otcpom'];
+          if (productName != null) {
+            otcpomMap[productName] = otcpom;
+          }
+        }
+
+        for (int i = 0; i < products.length; i++) {
+          final product = products[i];
+          final productName = product['name']?.toString().toLowerCase();
+
+          if (productName != null && otcpomMap.containsKey(productName)) {
+            final otcpom = otcpomMap[productName];
+            products[i]['otcpom'] = otcpom;
+            debugPrint('🔍 Enhanced ${product['name']} with otcpom: $otcpom');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('🔍 Error in fallback API call: $e');
+    }
   }
 
   void _highlightSearchedProduct() {
@@ -2439,10 +2636,13 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                       product['route']?.split('/').last;
 
                   if (itemDetailURL != null && itemDetailURL.isNotEmpty) {
+                    final isPrescribed =
+                        product['otcpom']?.toString().toLowerCase() == 'pom';
+                    debugPrint(
+                        '🔍 Navigation Debug - Product: ${product['name']}, otcpom: ${product['otcpom']}, isPrescribed: $isPrescribed');
                     return ItemPage(
                       urlName: itemDetailURL,
-                      isPrescribed:
-                          product['otcpom']?.toString().toLowerCase() == 'pom',
+                      isPrescribed: isPrescribed,
                     );
                   } else {
                     final productId = product['id']?.toString();
@@ -2588,16 +2788,73 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   }
 }
 
-class ProductCard extends StatelessWidget {
+class ProductCard extends StatefulWidget {
   final dynamic product;
   final VoidCallback onTap;
 
   const ProductCard({super.key, required this.product, required this.onTap});
 
   @override
+  State<ProductCard> createState() => _ProductCardState();
+}
+
+class _ProductCardState extends State<ProductCard> {
+  Product? _product;
+  Timer? _cacheCheckTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _convertToProduct();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  void _convertToProduct() {
+    try {
+      _product = Product.fromJson(Map<String, dynamic>.from(widget.product));
+      debugPrint(
+          '🔍 Converted ${_product!.name} to Product object with otcpom: ${_product!.otcpom}');
+    } catch (e) {
+      debugPrint('🔍 Error converting product to Product object: $e');
+      _product = null;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_product == null) {
+      // Fallback to original logic if conversion failed
+      final otcpomValue = widget.product['otcpom']?.toString().toLowerCase();
+      final isPrescribed = otcpomValue == 'pom';
+      debugPrint(
+          '🔍 ProductCard Debug (fallback) - ${widget.product['name']}: otcpom=$otcpomValue, isPrescribed=$isPrescribed');
+      return _buildProductCard(context, isPrescribed, widget.product);
+    }
+
+    // Use Product object logic (same as HomeProductCard)
+    final isPrescribed = _product!.otcpom?.toLowerCase() == 'pom';
+    debugPrint(
+        '🔍 ProductCard Debug (Product object) - ${_product!.name}: otcpom=${_product!.otcpom}, isPrescribed=$isPrescribed');
+
+    // Additional debug for badge rendering
+    if (isPrescribed) {
+      debugPrint('🔍 WILL SHOW BADGE for ${_product!.name}');
+    } else {
+      debugPrint(
+          '🔍 NO BADGE for ${_product!.name} - otcpom: ${_product!.otcpom}');
+    }
+
+    return _buildProductCard(context, isPrescribed, widget.product);
+  }
+
+  Widget _buildProductCard(
+      BuildContext context, bool isPrescribed, dynamic productData) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -2620,7 +2877,7 @@ class ProductCard extends StatelessWidget {
                         top: Radius.circular(16),
                       ),
                       child: CachedNetworkImage(
-                        imageUrl: product['thumbnail'] ?? '',
+                        imageUrl: productData['thumbnail'] ?? '',
                         fit: BoxFit.cover,
                         width: double.infinity,
                         height: double.infinity,
@@ -2631,7 +2888,7 @@ class ProductCard extends StatelessWidget {
                         fadeInDuration: Duration(milliseconds: 100),
                         fadeOutDuration: Duration(milliseconds: 100),
                         cacheKey:
-                            'product_${product['id']}_${product['thumbnail']}',
+                            'product_${productData['id']}_${productData['thumbnail']}',
                         placeholder: (context, url) => Container(
                           color: Colors.grey.shade200,
                           child: Center(child: CircularProgressIndicator()),
@@ -2659,22 +2916,30 @@ class ProductCard extends StatelessWidget {
                     ),
                   ),
                   // Prescribed medicine badge
-                  if (product['otcpom']?.toString().toLowerCase() == 'pom')
+                  if (isPrescribed)
                     Positioned(
-                      bottom: 8,
+                      top: 8,
                       left: 8,
                       child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                         decoration: BoxDecoration(
                           color: Colors.red[700],
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(6),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 2,
+                              offset: Offset(0, 1),
+                            ),
+                          ],
                         ),
                         child: Text(
                           'Prescribed',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 8,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
@@ -2689,7 +2954,7 @@ class ProductCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    product['name'] ?? 'Unknown Product',
+                    productData['name'] ?? 'Unknown Product',
                     maxLines: 4,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -2715,13 +2980,16 @@ class ProductListPage extends StatefulWidget {
   final String? searchedProductName;
   final int? searchedProductId;
 
-  const ProductListPage({
+  ProductListPage({
     super.key,
     required this.categoryName,
     required this.categoryId,
     this.searchedProductName,
     this.searchedProductId,
-  });
+  }) {
+    debugPrint(
+        '🔍 ProductListPage constructor called for category: $categoryName (ID: $categoryId)');
+  }
 
   @override
   _ProductListPageState createState() => _ProductListPageState();
@@ -2740,6 +3008,7 @@ class _ProductListPageState extends State<ProductListPage> {
   @override
   void initState() {
     super.initState();
+    debugPrint('🔍 ProductListPage initState() called');
     fetchProducts();
     scrollController.addListener(() {
       setState(() {
@@ -2756,6 +3025,7 @@ class _ProductListPageState extends State<ProductListPage> {
   }
 
   Future<void> fetchProducts() async {
+    debugPrint('🔍 fetchProducts() method started');
     try {
       setState(() {
         isLoading = true;
@@ -2768,36 +3038,123 @@ class _ProductListPageState extends State<ProductListPage> {
         ),
       );
 
+      debugPrint('🔍 API Response Status: ${response.statusCode}');
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        debugPrint('🔍 API Response Success: ${data['success']}');
         if (data['success'] == true) {
           setState(() {
             products = data['data'];
             isLoading = false;
           });
 
+          // Debug: Check if products have otcpom field
+          if (products.isNotEmpty) {
+            final firstProduct = products.first;
+            debugPrint('🔍 Category Products Debug:');
+            debugPrint('First Product: ${firstProduct['name']}');
+            debugPrint('First Product OTCPOM: ${firstProduct['otcpom']}');
+            debugPrint('First Product Keys: ${firstProduct.keys.toList()}');
+            debugPrint(
+                '🔍 WARNING: Category API does not include otcpom field!');
+          }
+
+          // Enhance products with otcpom data from cached products if missing
+          debugPrint('🔍 About to call _enhanceProductsWithOtcpom()');
+          try {
+            await _enhanceProductsWithOtcpom();
+            debugPrint(
+                '🔍 _enhanceProductsWithOtcpom() completed successfully');
+          } catch (e) {
+            debugPrint('🔍 ERROR in _enhanceProductsWithOtcpom(): $e');
+          }
+
           // Highlight searched product if available
           if (widget.searchedProductId != null) {
             _highlightSearchedProduct();
           }
         } else {
+          debugPrint('🔍 API returned success=false');
           setState(() {
             isLoading = false;
             errorMessage = 'There is no product available currently';
           });
         }
       } else {
+        debugPrint('🔍 API returned status code: ${response.statusCode}');
         setState(() {
           isLoading = false;
           errorMessage = 'Failed to load products: ${response.statusCode}';
         });
       }
     } catch (e) {
+      debugPrint('🔍 ERROR in fetchProducts(): $e');
       setState(() {
         isLoading = false;
         errorMessage = 'Error: ${e.toString()}';
       });
     }
+    debugPrint('🔍 fetchProducts() method completed');
+  }
+
+  Future<void> _enhanceProductsWithOtcpom() async {
+    debugPrint('🔍 _enhanceProductsWithOtcpom() method started');
+
+    // Get cached products from homepage
+    final cachedProducts = ProductCache.cachedProducts;
+
+    debugPrint(
+        '🔍 ProductCache status: ${cachedProducts.length} cached products');
+
+    // Since category API doesn't include otcpom data, always fetch it from API
+    debugPrint(
+        '🔍 Category API missing otcpom data, fetching from individual product APIs');
+    await _fetchOtcpomDataFromAPI();
+    debugPrint('🔍 _enhanceProductsWithOtcpom() method completed');
+
+    // Trigger rebuild to show the enhanced data
+    setState(() {});
+  }
+
+  Future<void> _fetchOtcpomDataFromAPI() async {
+    debugPrint('🔍 _fetchOtcpomDataFromAPI() method started');
+    debugPrint(
+        '🔍 Fetching otcpom data directly from API for ${products.length} products');
+
+    for (int i = 0; i < products.length; i++) {
+      final product = products[i];
+      final productId = product['id'];
+
+      try {
+        final response = await http.get(
+          Uri.parse(
+              'https://eclcommerce.ernestchemists.com.gh/api/products/$productId'),
+        );
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data['success'] == true) {
+            final productData = data['data'];
+            final otcpom = productData['otcpom'];
+
+            if (otcpom != null) {
+              products[i]['otcpom'] = otcpom;
+              debugPrint('🔍 Fetched otcpom for ${product['name']}: $otcpom');
+            } else {
+              debugPrint(
+                  '🔍 No otcpom data in API response for ${product['name']}');
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint(
+            '🔍 Error fetching otcpom for product ${product['name']}: $e');
+      }
+    }
+
+    // Trigger rebuild to show the enhanced data
+    setState(() {});
+    debugPrint('🔍 _fetchOtcpomDataFromAPI() method completed');
   }
 
   void _highlightSearchedProduct() {
@@ -2979,10 +3336,13 @@ class _ProductListPageState extends State<ProductListPage> {
                     product['route']?.split('/').last;
 
                 if (itemDetailURL != null && itemDetailURL.isNotEmpty) {
+                  final isPrescribed =
+                      product['otcpom']?.toString().toLowerCase() == 'pom';
+                  debugPrint(
+                      '🔍 Navigation Debug - Product: ${product['name']}, otcpom: ${product['otcpom']}, isPrescribed: $isPrescribed');
                   return ItemPage(
                     urlName: itemDetailURL,
-                    isPrescribed:
-                        product['otcpom']?.toString().toLowerCase() == 'pom',
+                    isPrescribed: isPrescribed,
                   );
                 } else {
                   final productId = product['id']?.toString();
@@ -3332,7 +3692,8 @@ class ProductSearchDelegate extends SearchDelegate<String> {
                 MaterialPageRoute(
                   builder: (context) => ItemPage(
                     urlName: itemDetailURL!,
-                    isPrescribed: product['otcpom']?.toString().toLowerCase() == 'pom',
+                    isPrescribed:
+                        product['otcpom']?.toString().toLowerCase() == 'pom',
                   ),
                 ),
               );

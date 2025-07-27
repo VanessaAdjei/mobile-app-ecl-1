@@ -246,47 +246,79 @@ class CategoryOptimizationService {
       debugPrint('Fetching products from API...');
       final stopwatch = Stopwatch()..start();
 
-      // First get categories if not available
-      final categories = await getCategories();
+      // Use the same API endpoint as homepage to get otcpom data
+      debugPrint('🔍 Using get-all-products API endpoint for otcpom data...');
+      final response = await http
+          .get(
+            Uri.parse(
+                'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'),
+          )
+          .timeout(const Duration(seconds: 15));
 
-      // Fetch products for all categories concurrently with optimized timeouts
-      final allProducts = <dynamic>[];
-      final futures = <Future<List<dynamic>>>[];
+      debugPrint('🔍 API Response Status: ${response.statusCode}');
 
-      for (final category in categories) {
-        futures.add(_fetchProductsForCategory(category));
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> dataList = responseData['data'];
+
+        debugPrint('🔍 API Response Data Structure:');
+        debugPrint('🔍 Total products in response: ${dataList.length}');
+        if (dataList.isNotEmpty) {
+          final firstItem = dataList[0];
+          final productData = firstItem['product'] ?? {};
+          debugPrint('🔍 First product keys: ${productData.keys.toList()}');
+          debugPrint('🔍 First product otcpom: ${productData['otcpom']}');
+        }
+
+                // Convert to the format expected by categories page
+        final allProducts = dataList.map<dynamic>((item) {
+          final productData = item['product'] as Map<String, dynamic>;
+          final convertedProduct = {
+            'id': productData['id'] ?? 0,
+            'name': productData['name'] ?? 'No name',
+            'description': productData['description'] ?? '',
+            'url_name': productData['url_name'] ?? '',
+            'status': productData['status'] ?? '',
+            'batch_no': item['batch_no'] ?? '',
+            'price': (item['price'] ?? 0).toString(),
+            'thumbnail': productData['thumbnail'] ?? productData['image'] ?? '',
+            'qty_in_stock': productData['qty_in_stock']?.toString() ?? '',
+            'category': productData['category'] ?? '',
+            'route': productData['route'] ?? '',
+            'otcpom': productData['otcpom'], // This is the key field we need!
+            'drug': productData['drug'],
+            'wellness': productData['wellness'],
+            'selfcare': productData['selfcare'],
+            'accessories': productData['accessories'],
+          };
+          
+          return convertedProduct;
+        }).toList();
+        
+        // Debug first few products
+        for (int i = 0; i < allProducts.length && i < 3; i++) {
+          debugPrint('🔍 Converted product ${allProducts[i]['name']}: otcpom=${allProducts[i]['otcpom']}');
+        }
+
+        // Limit cache size
+        if (allProducts.length > _maxCachedProducts) {
+          allProducts.removeRange(_maxCachedProducts, allProducts.length);
+        }
+
+        // Cache the products
+        await _cacheProducts(allProducts);
+
+        stopwatch.stop();
+        debugPrint(
+            'Product API calls completed in ${stopwatch.elapsedMilliseconds}ms');
+
+        _optimizationService.endTimer('CategoryService_GetProducts');
+        debugPrint(
+            'Successfully fetched ${allProducts.length} products from API with otcpom data');
+        return allProducts;
+      } else {
+        throw Exception('HTTP ${response.statusCode}');
       }
-
-      // Wait for all requests with shorter timeout
-      final results = await Future.wait(futures).timeout(
-        const Duration(seconds: 30), // Reduced from 45 to 30 seconds
-        onTimeout: () {
-          debugPrint('Product fetch timeout, returning partial results');
-          return <List<dynamic>>[];
-        },
-      );
-
-      // Combine all products
-      for (final productList in results) {
-        allProducts.addAll(productList);
-      }
-
-      // Limit cache size
-      if (allProducts.length > _maxCachedProducts) {
-        allProducts.removeRange(_maxCachedProducts, allProducts.length);
-      }
-
-      // Cache the products
-      await _cacheProducts(allProducts);
-
-      stopwatch.stop();
-      debugPrint(
-          'Product API calls completed in ${stopwatch.elapsedMilliseconds}ms');
-
-      _optimizationService.endTimer('CategoryService_GetProducts');
-      debugPrint(
-          'Successfully fetched ${allProducts.length} products from API');
-      return allProducts;
     } catch (e) {
       _optimizationService.endTimer('CategoryService_GetProducts');
       debugPrint('Product API error: $e');
@@ -310,16 +342,16 @@ class CategoryOptimizationService {
           )
           .timeout(const Duration(seconds: 6)); // Reduced from 10 to 6 seconds
 
-              if (subcategoriesResponse.statusCode == 200) {
-          final subcategoriesData = json.decode(subcategoriesResponse.body);
-          debugPrint(
-              'Subcategories response for ${category['name']}: ${subcategoriesData['data']?.length ?? 0} subcategories');
+      if (subcategoriesResponse.statusCode == 200) {
+        final subcategoriesData = json.decode(subcategoriesResponse.body);
+        debugPrint(
+            'Subcategories response for ${category['name']}: ${subcategoriesData['data']?.length ?? 0} subcategories');
 
-          if (subcategoriesData['success'] == true) {
-            final subcategories = subcategoriesData['data'] as List;
-            
-            // Cache subcategory information for fast navigation
-            _subcategoryCache[category['id']] = subcategories.isNotEmpty;
+        if (subcategoriesData['success'] == true) {
+          final subcategories = subcategoriesData['data'] as List;
+
+          // Cache subcategory information for fast navigation
+          _subcategoryCache[category['id']] = subcategories.isNotEmpty;
 
           // If no subcategories, try to fetch products directly from the category
           if (subcategories.isEmpty) {
@@ -398,6 +430,8 @@ class CategoryOptimizationService {
       final subcategoryId = subcategory['id'];
       final subcategoryName = subcategory['name'];
 
+      debugPrint('🔍 Fetching products for subcategory: $subcategoryName (ID: $subcategoryId)');
+
       final response = await http
           .get(Uri.parse(
               'https://eclcommerce.ernestchemists.com.gh/api/product-categories/$subcategoryId'))
@@ -408,8 +442,10 @@ class CategoryOptimizationService {
 
         if (data['success'] == true && data['data'] != null) {
           final products = data['data'] as List;
+          
+          debugPrint('🔍 Found ${products.length} products for subcategory $subcategoryName');
 
-          return products
+          final enhancedProducts = products
               .map((product) => {
                     ...product,
                     'category_id': category['id'],
@@ -418,6 +454,12 @@ class CategoryOptimizationService {
                     'subcategory_name': subcategoryName,
                   })
               .toList();
+          
+          // Enhance products with otcpom data
+          debugPrint('🔍 Enhancing ${enhancedProducts.length} products with otcpom data for subcategory $subcategoryName');
+          await _enhanceProductsWithOtcpom(enhancedProducts);
+          
+          return enhancedProducts;
         }
       }
     } catch (e) {
@@ -632,5 +674,41 @@ class CategoryOptimizationService {
   Future<void> refreshAllData() async {
     await getCategories(forceRefresh: true);
     await getProducts(forceRefresh: true);
+  }
+
+  // Enhance products with otcpom data by fetching from individual product API
+  Future<void> _enhanceProductsWithOtcpom(List<dynamic> products) async {
+    debugPrint('🔍 Starting otcpom enhancement for ${products.length} products');
+    
+    for (int i = 0; i < products.length; i++) {
+      final product = products[i];
+      final productId = product['id'];
+      
+      try {
+        debugPrint('🔍 Fetching otcpom for product ${i + 1}/${products.length}: ${product['name']}');
+        final response = await http.get(
+          Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/products/$productId'),
+        ).timeout(const Duration(seconds: 3));
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data['success'] == true) {
+            final productData = data['data'];
+            final otcpom = productData['otcpom'];
+
+            if (otcpom != null) {
+              products[i]['otcpom'] = otcpom;
+              debugPrint('🔍 Enhanced ${product['name']} with otcpom: $otcpom');
+            } else {
+              debugPrint('🔍 No otcpom data for ${product['name']}');
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('🔍 Error enhancing ${product['name']}: $e');
+      }
+    }
+    
+    debugPrint('🔍 Completed otcpom enhancement for ${products.length} products');
   }
 }
