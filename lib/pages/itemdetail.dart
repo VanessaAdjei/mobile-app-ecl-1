@@ -24,6 +24,7 @@ import '../widgets/cart_icon_button.dart';
 import '../widgets/optimized_quantity_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/universal_page_optimization_service.dart';
+import 'homepage.dart';
 
 class ItemPage extends StatefulWidget {
   final String urlName;
@@ -442,6 +443,14 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             final productData = data['data']['product'] ?? {};
             final inventoryData = data['data']['inventory'] ?? {};
 
+            // Debug print to see the raw API response structure
+            debugPrint('🔍 RAW API RESPONSE STRUCTURE ===');
+            debugPrint('Product Data Keys: ${productData.keys.toList()}');
+            debugPrint('Inventory Data Keys: ${inventoryData.keys.toList()}');
+            debugPrint('Complete Product Data: $productData');
+            debugPrint('Complete Inventory Data: $inventoryData');
+            debugPrint('=====================================');
+
             if (productData.isEmpty || inventoryData.isEmpty) {
               throw Exception('Product data is incomplete or missing');
             }
@@ -469,11 +478,44 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             debugPrint('================================');
 
             // Check all possible locations for otcpom
-            final otcpom = productData['otcpom'] ??
+            String otcpom = productData['otcpom'] ??
                 inventoryData['otcpom'] ??
                 productData['route'] ??
                 inventoryData['route'] ??
                 '';
+
+            // If otcpom is not found in the API response, try to get it from cached products
+            if (otcpom.isEmpty) {
+              final cachedProducts = ProductCache.cachedProducts;
+              final matchingProduct = cachedProducts.firstWhere(
+                (product) => product.urlName == inventoryData['url_name'],
+                orElse: () => Product(
+                  id: 0,
+                  name: '',
+                  description: '',
+                  urlName: '',
+                  status: '',
+                  price: '0',
+                  thumbnail: '',
+                  quantity: '',
+                  category: '',
+                  route: '',
+                  batch_no: '',
+                ),
+              );
+              if (matchingProduct.id != 0) {
+                otcpom = matchingProduct.otcpom ?? '';
+                debugPrint('🔍 Found OTCPOM from cached products: $otcpom');
+              }
+            }
+
+            // Debug print to see what otcpom data we're getting
+            debugPrint('🔍 OTCPOM Debug Info:');
+            debugPrint('  productData otcpom: ${productData['otcpom']}');
+            debugPrint('  inventoryData otcpom: ${inventoryData['otcpom']}');
+            debugPrint('  productData route: ${productData['route']}');
+            debugPrint('  inventoryData route: ${inventoryData['route']}');
+            debugPrint('  Final OTCPOM value: $otcpom');
 
             // Extract UOM (Unit of Measure) from possible locations
             final uom = productData['uom'] ??
@@ -537,6 +579,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             debugPrint('Final Product Name: ${product.name}');
             debugPrint('Final Product Price: ${product.price}');
             debugPrint('Final Product Category: ${product.category}');
+            debugPrint('Final Product OTCPOM: ${product.otcpom}');
             debugPrint('=====================================');
 
             return product;
@@ -690,6 +733,31 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             return (data['data'] as List)
                 .map((item) {
                   try {
+                    // Try to get otcpom from cached products if not in API response
+                    String otcpom = item['otcpom'] ?? '';
+                    if (otcpom.isEmpty) {
+                      final cachedProducts = ProductCache.cachedProducts;
+                      final matchingProduct = cachedProducts.firstWhere(
+                        (product) => product.urlName == (item['url_name'] ?? item['product']?['url_name'] ?? ''),
+                        orElse: () => Product(
+                          id: 0,
+                          name: '',
+                          description: '',
+                          urlName: '',
+                          status: '',
+                          price: '0',
+                          thumbnail: '',
+                          quantity: '',
+                          category: '',
+                          route: '',
+                          batch_no: '',
+                        ),
+                      );
+                      if (matchingProduct.id != 0) {
+                        otcpom = matchingProduct.otcpom ?? '';
+                      }
+                    }
+
                     return Product(
                       id: item['product_id'] ?? item['id'] ?? 0,
                       name: item['name'] ??
@@ -723,6 +791,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                           '',
                       category: item['category'] ?? '',
                       route: '',
+                      otcpom: otcpom,
                       uom: item['uom'] ??
                           item['unit_of_measure'] ??
                           (item['product'] != null
@@ -1754,7 +1823,10 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => ItemPage(urlName: product.urlName),
+            builder: (context) => ItemPage(
+              urlName: product.urlName,
+              isPrescribed: product.otcpom?.toLowerCase() == 'pom',
+            ),
           ),
         );
       },
@@ -1786,42 +1858,67 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             children: [
               // Image section
               Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
-                  child: product.thumbnail.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          fit: BoxFit.contain,
-                          width: double.infinity,
-                          height: double.infinity,
-                          placeholder: (context, url) => Container(
-                            color: Colors.grey[200],
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.green.shade600,
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+                      child: product.thumbnail.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: imageUrl,
+                              fit: BoxFit.contain,
+                              width: double.infinity,
+                              height: double.infinity,
+                              placeholder: (context, url) => Container(
+                                color: Colors.grey[200],
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.green.shade600,
+                                    ),
+                                  ),
                                 ),
                               ),
+                              errorWidget: (context, url, error) => Container(
+                                color: Colors.grey[200],
+                                child: Icon(
+                                  Icons.medical_services,
+                                  size: 36,
+                                  color: Colors.grey[400],
+                                ),
+                              ),
+                            )
+                          : Container(
+                              color: Colors.grey[200],
+                              child: Icon(
+                                Icons.medical_services,
+                                size: 36,
+                                color: Colors.grey[400],
+                              ),
                             ),
+                    ),
+                    // Prescribed medicine badge
+                    if (product.otcpom?.toLowerCase() == 'pom')
+                      Positioned(
+                        top: 4,
+                        left: 4,
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: Colors.red[700],
+                            borderRadius: BorderRadius.circular(4),
                           ),
-                          errorWidget: (context, url, error) => Container(
-                            color: Colors.grey[200],
-                            child: Icon(
-                              Icons.medical_services,
-                              size: 36,
-                              color: Colors.grey[400],
+                          child: Text(
+                            'Prescribed',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 7,
+                              fontWeight: FontWeight.w600,
                             ),
-                          ),
-                        )
-                      : Container(
-                          color: Colors.grey[200],
-                          child: Icon(
-                            Icons.medical_services,
-                            size: 36,
-                            color: Colors.grey[400],
                           ),
                         ),
+                      ),
+                  ],
                 ),
               ),
               // Content section

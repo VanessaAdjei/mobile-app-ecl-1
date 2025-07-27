@@ -965,7 +965,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
           MaterialPageRoute(
             builder: (context) => OptimizedItemDetailWidget(
               urlName: product.urlName,
-              isPrescribed: widget.isPrescribed,
+              isPrescribed: product.otcpom?.toLowerCase() == 'pom',
             ),
           ),
         );
@@ -986,44 +986,69 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Product image
-            ClipRRect(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-              child: SizedBox(
-                height: 120,
-                width: double.infinity,
-                child: product.thumbnail.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: product.thumbnail,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(
-                          color: Colors.grey[200],
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.green.shade600,
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                  child: SizedBox(
+                    height: 120,
+                    width: double.infinity,
+                    child: product.thumbnail.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: product.thumbnail,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                              color: Colors.grey[200],
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.green.shade600,
+                                  ),
+                                ),
                               ),
                             ),
+                            errorWidget: (context, url, error) => Container(
+                              color: Colors.grey[200],
+                              child: Icon(
+                                Icons.medical_services,
+                                size: 30,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                          )
+                        : Container(
+                            color: Colors.grey[200],
+                            child: Icon(
+                              Icons.medical_services,
+                              size: 30,
+                              color: Colors.grey[400],
+                            ),
                           ),
-                        ),
-                        errorWidget: (context, url, error) => Container(
-                          color: Colors.grey[200],
-                          child: Icon(
-                            Icons.medical_services,
-                            size: 30,
-                            color: Colors.grey[400],
-                          ),
-                        ),
-                      )
-                    : Container(
-                        color: Colors.grey[200],
-                        child: Icon(
-                          Icons.medical_services,
-                          size: 30,
-                          color: Colors.grey[400],
+                  ),
+                ),
+                // Prescribed medicine badge
+                if (product.otcpom?.toLowerCase() == 'pom')
+                  Positioned(
+                    top: 6,
+                    left: 6,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.red[700],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Prescribed',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-              ),
+                    ),
+                  ),
+              ],
             ),
 
             // Product info

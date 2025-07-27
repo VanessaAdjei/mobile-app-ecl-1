@@ -1820,6 +1820,15 @@ class SubcategoryPageState extends State<SubcategoryPage> {
         if (data['success'] == true) {
           final allProducts = data['data'] as List;
 
+          // Debug print to see the first product structure
+          if (allProducts.isNotEmpty) {
+            final firstProduct = allProducts[0];
+            debugPrint('🔍 CATEGORIES API RESPONSE STRUCTURE ===');
+            debugPrint('First Product Keys: ${firstProduct.keys.toList()}');
+            debugPrint('First Product OTCPOM: ${firstProduct['otcpom']}');
+            debugPrint('==========================================');
+          }
+
           if (allProducts.isEmpty) {
             handleProductsError('There is no product available currently');
           } else {
@@ -1847,10 +1856,11 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       subcategories = data['data'];
       isLoading = false;
     });
-    
+
     debugPrint('🔍 SUBCATEGORIES LOADED ===');
     debugPrint('Subcategories count: ${subcategories.length}');
-    debugPrint('Subcategories: ${subcategories.map((s) => s['name']).toList()}');
+    debugPrint(
+        'Subcategories: ${subcategories.map((s) => s['name']).toList()}');
     debugPrint('==========================');
 
     if (subcategories.isNotEmpty) {
@@ -2099,16 +2109,16 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                           ),
                         ],
                       ),
-                      child: subcategories.isNotEmpty 
-                        ? buildSubcategoryHeader()
-                        : Container(
-                            padding: EdgeInsets.all(8),
-                            color: Colors.red.shade100,
-                            child: Text(
-                              'DEBUG: subcategories.isEmpty = ${subcategories.isEmpty}, length = ${subcategories.length}',
-                              style: TextStyle(color: Colors.red.shade800),
+                      child: subcategories.isNotEmpty
+                          ? buildSubcategoryHeader()
+                          : Container(
+                              padding: EdgeInsets.all(8),
+                              color: Colors.red.shade100,
+                              child: Text(
+                                'DEBUG: subcategories.isEmpty = ${subcategories.isEmpty}, length = ${subcategories.length}',
+                                style: TextStyle(color: Colors.red.shade800),
+                              ),
                             ),
-                          ),
                     ),
                     // Products content
                     Expanded(child: _buildProductsContent()),
@@ -2304,14 +2314,16 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   }
 
   Widget buildSubcategoryHeader() {
-    final selectedSubcategory = selectedSubcategoryId != null 
-      ? subcategories.firstWhere(
-          (sub) => sub['id'] == selectedSubcategoryId,
-          orElse: () => subcategories.isNotEmpty ? subcategories[0] : {'name': 'All Products', 'id': null},
-        )
-      : subcategories.isNotEmpty 
-        ? subcategories[0] 
-        : {'name': 'All Products', 'id': null};
+    final selectedSubcategory = selectedSubcategoryId != null
+        ? subcategories.firstWhere(
+            (sub) => sub['id'] == selectedSubcategoryId,
+            orElse: () => subcategories.isNotEmpty
+                ? subcategories[0]
+                : {'name': 'All Products', 'id': null},
+          )
+        : subcategories.isNotEmpty
+            ? subcategories[0]
+            : {'name': 'All Products', 'id': null};
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -2337,9 +2349,9 @@ class SubcategoryPageState extends State<SubcategoryPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  selectedSubcategoryId != null 
-                    ? (selectedSubcategory['name'] ?? 'All Products')
-                    : 'All Products',
+                  selectedSubcategoryId != null
+                      ? (selectedSubcategory['name'] ?? 'All Products')
+                      : 'All Products',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -2427,11 +2439,20 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                       product['route']?.split('/').last;
 
                   if (itemDetailURL != null && itemDetailURL.isNotEmpty) {
-                    return ItemPage(urlName: itemDetailURL);
+                    return ItemPage(
+                      urlName: itemDetailURL,
+                      isPrescribed:
+                          product['otcpom']?.toString().toLowerCase() == 'pom',
+                    );
                   } else {
                     final productId = product['id']?.toString();
                     if (productId != null) {
-                      return ItemPage(urlName: productId);
+                      return ItemPage(
+                        urlName: productId,
+                        isPrescribed:
+                            product['otcpom']?.toString().toLowerCase() ==
+                                'pom',
+                      );
                     } else {
                       // Fallback to a default page if navigation fails
                       return CategoryPage();
@@ -2637,6 +2658,27 @@ class ProductCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  // Prescribed medicine badge
+                  if (product['otcpom']?.toString().toLowerCase() == 'pom')
+                    Positioned(
+                      bottom: 8,
+                      left: 8,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.red[700],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Prescribed',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -2937,11 +2979,19 @@ class _ProductListPageState extends State<ProductListPage> {
                     product['route']?.split('/').last;
 
                 if (itemDetailURL != null && itemDetailURL.isNotEmpty) {
-                  return ItemPage(urlName: itemDetailURL);
+                  return ItemPage(
+                    urlName: itemDetailURL,
+                    isPrescribed:
+                        product['otcpom']?.toString().toLowerCase() == 'pom',
+                  );
                 } else {
                   final productId = product['id']?.toString();
                   if (productId != null) {
-                    return ItemPage(urlName: productId);
+                    return ItemPage(
+                      urlName: productId,
+                      isPrescribed:
+                          product['otcpom']?.toString().toLowerCase() == 'pom',
+                    );
                   } else {
                     // Fallback to a default page if navigation fails
                     return CategoryPage();
@@ -3280,7 +3330,10 @@ class ProductSearchDelegate extends SearchDelegate<String> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ItemPage(urlName: itemDetailURL!),
+                  builder: (context) => ItemPage(
+                    urlName: itemDetailURL!,
+                    isPrescribed: product['otcpom']?.toString().toLowerCase() == 'pom',
+                  ),
                 ),
               );
             }

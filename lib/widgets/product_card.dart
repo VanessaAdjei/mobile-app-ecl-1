@@ -80,11 +80,13 @@ class HomeProductCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                         child: showHero
                             ? Hero(
-                                tag: 'product-image-${product.id}-${product.urlName}',
+                                tag:
+                                    'product-image-${product.id}-${product.urlName}',
                                 child: Container(
                                   color: Colors.grey[100],
                                   child: CachedNetworkImage(
-                                    imageUrl: HomepageOptimizationService().getProductImageUrl(product.thumbnail),
+                                    imageUrl: HomepageOptimizationService()
+                                        .getProductImageUrl(product.thumbnail),
                                     fit: BoxFit.cover,
                                     memCacheWidth: 300,
                                     memCacheHeight: 300,
@@ -93,12 +95,14 @@ class HomeProductCard extends StatelessWidget {
                                     fadeInDuration: Duration.zero,
                                     fadeOutDuration: Duration.zero,
                                     placeholder: (context, url) => Center(
-                                      child: CircularProgressIndicator(strokeWidth: 1),
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 1),
                                     ),
                                     errorWidget: (_, __, ___) => Container(
                                       color: Colors.grey[200],
                                       child: Center(
-                                        child: Icon(Icons.broken_image, size: 16),
+                                        child:
+                                            Icon(Icons.broken_image, size: 16),
                                       ),
                                     ),
                                   ),
@@ -107,7 +111,8 @@ class HomeProductCard extends StatelessWidget {
                             : Container(
                                 color: Colors.grey[100],
                                 child: CachedNetworkImage(
-                                  imageUrl: HomepageOptimizationService().getProductImageUrl(product.thumbnail),
+                                  imageUrl: HomepageOptimizationService()
+                                      .getProductImageUrl(product.thumbnail),
                                   fit: BoxFit.cover,
                                   memCacheWidth: 300,
                                   memCacheHeight: 300,
@@ -116,7 +121,8 @@ class HomeProductCard extends StatelessWidget {
                                   fadeInDuration: Duration.zero,
                                   fadeOutDuration: Duration.zero,
                                   placeholder: (context, url) => Center(
-                                    child: CircularProgressIndicator(strokeWidth: 1),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 1),
                                   ),
                                   errorWidget: (_, __, ___) => Container(
                                     color: Colors.grey[200],
@@ -266,7 +272,8 @@ class GenericProductCard extends StatelessWidget {
                     child: Container(
                       color: Colors.grey[100],
                       child: CachedNetworkImage(
-                        imageUrl: HomepageOptimizationService().getProductImageUrl(productImage),
+                        imageUrl: HomepageOptimizationService()
+                            .getProductImageUrl(productImage),
                         fit: BoxFit.cover,
                         memCacheWidth: 200,
                         memCacheHeight: 200,
@@ -352,21 +359,26 @@ class GenericProductCard extends StatelessWidget {
     if (product is Map) return product['name'] ?? '';
     return '';
   }
+
   String _getProductImage() {
     if (product is Product) return product.thumbnail;
     if (product is Map) return product['thumbnail'] ?? '';
     return '';
   }
+
   String _getProductPrice() {
     if (product is Product) return product.price.toString();
     if (product is Map) return product['price']?.toString() ?? '';
     return '';
   }
+
   bool _isPrescribed() {
     if (product is Product) return product.otcpom?.toLowerCase() == 'pom';
-    if (product is Map) return (product['otcpom']?.toLowerCase() ?? '') == 'pom';
+    if (product is Map)
+      return (product['otcpom']?.toLowerCase() ?? '') == 'pom';
     return false;
   }
+
   String _getUrlName() {
     if (product is Product) return product.urlName;
     if (product is Map) return product['urlname'] ?? product['urlName'] ?? '';
@@ -411,15 +423,23 @@ class ProductCard extends StatelessWidget {
     if (product is Map) return product['name'] ?? '';
     return '';
   }
+
   String _getProductImage() {
     if (product is Product) return product.thumbnail;
     if (product is Map) return product['thumbnail'] ?? '';
     return '';
   }
+
   String _getProductPrice() {
     if (product is Product) return product.price.toString();
     if (product is Map) return product['price']?.toString() ?? '';
     return '';
+  }
+
+  bool _isPrescribed() {
+    if (product is Product) return product.otcpom?.toLowerCase() == 'pom';
+    if (product is Map) return (product['otcpom']?.toLowerCase() ?? '') == 'pom';
+    return false;
   }
 
   String _formatPrice(dynamic price) {
@@ -445,7 +465,8 @@ class ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageUrl = HomepageOptimizationService().getProductImageUrl(_getProductImage());
+    final imageUrl =
+        HomepageOptimizationService().getProductImageUrl(_getProductImage());
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -465,14 +486,42 @@ class ProductCard extends StatelessWidget {
           children: [
             Flexible(
               flex: 7,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                child: Image.network(
-                  imageUrl,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  errorBuilder: (context, error, stackTrace) => Icon(Icons.image, size: 48, color: Colors.grey[300]),
-                ),
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(16)),
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      errorBuilder: (context, error, stackTrace) =>
+                          Icon(Icons.image, size: 48, color: Colors.grey[300]),
+                    ),
+                  ),
+                  // Prescribed medicine badge
+                  if (_isPrescribed())
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.red[700],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Prescribed',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
             Flexible(
@@ -487,7 +536,8 @@ class ProductCard extends StatelessWidget {
                       _getProductName(),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 14),
                     ),
                     const SizedBox(height: 6),
                     Text(

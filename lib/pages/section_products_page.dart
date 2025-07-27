@@ -392,139 +392,164 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                           color: Colors.transparent,
                           child: InkWell(
                             onTap: openContainer,
-                          child: Column(
-                            children: [
-                              // Image Section
-                              Expanded(
-                                flex: 3,
-                                child: Container(
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade50,
-                                  ),
-                                  child: Stack(
-                                    children: [
-                                      // Product Image
-                                      Center(
-                                        child: product.thumbnail.isNotEmpty
-                                            ? Image.network(
-                                                product.thumbnail,
-                                                fit: BoxFit.contain,
-                                                width: double.infinity,
-                                                height: double.infinity,
-                                                errorBuilder: (context, error,
-                                                    stackTrace) {
-                                                  return Container(
-                                                    padding:
-                                                        const EdgeInsets.all(
-                                                            20),
-                                                    child: const Icon(
-                                                      Icons
-                                                          .image_not_supported_outlined,
-                                                      color: Colors.grey,
-                                                      size: 28,
-                                                    ),
-                                                  );
-                                                },
-                                                loadingBuilder: (context, child,
-                                                    loadingProgress) {
-                                                  if (loadingProgress == null) {
-                                                    return child;
-                                                  }
-                                                  return const Center(
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      valueColor:
-                                                          AlwaysStoppedAnimation<
-                                                              Color>(
-                                                        Color(0xFF22C55E),
+                            child: Column(
+                              children: [
+                                // Image Section
+                                Expanded(
+                                  flex: 3,
+                                  child: Container(
+                                    width: double.infinity,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade50,
+                                    ),
+                                    child: Stack(
+                                      children: [
+                                        // Product Image
+                                        Center(
+                                          child: product.thumbnail.isNotEmpty
+                                              ? Image.network(
+                                                  product.thumbnail,
+                                                  fit: BoxFit.contain,
+                                                  width: double.infinity,
+                                                  height: double.infinity,
+                                                  errorBuilder: (context, error,
+                                                      stackTrace) {
+                                                    return Container(
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                              20),
+                                                      child: const Icon(
+                                                        Icons
+                                                            .image_not_supported_outlined,
+                                                        color: Colors.grey,
+                                                        size: 28,
                                                       ),
-                                                    ),
-                                                  );
-                                                },
-                                              )
-                                            : Container(
-                                                padding:
-                                                    const EdgeInsets.all(20),
-                                                child: const Icon(
-                                                  Icons
-                                                      .image_not_supported_outlined,
-                                                  color: Colors.grey,
-                                                  size: 28,
+                                                    );
+                                                  },
+                                                  loadingBuilder: (context,
+                                                      child, loadingProgress) {
+                                                    if (loadingProgress ==
+                                                        null) {
+                                                      return child;
+                                                    }
+                                                    return const Center(
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        valueColor:
+                                                            AlwaysStoppedAnimation<
+                                                                Color>(
+                                                          Color(0xFF22C55E),
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                )
+                                              : Container(
+                                                  padding:
+                                                      const EdgeInsets.all(20),
+                                                  child: const Icon(
+                                                    Icons
+                                                        .image_not_supported_outlined,
+                                                    color: Colors.grey,
+                                                    size: 28,
+                                                  ),
+                                                ),
+                                        ),
+                                        // Prescribed medicine badge
+                                        if (product.otcpom?.toLowerCase() ==
+                                            'pom')
+                                          Positioned(
+                                            top: 8,
+                                            left: 8,
+                                            child: Container(
+                                              padding: EdgeInsets.symmetric(
+                                                  horizontal: 4, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.red[700],
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                'Prescribed',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 8,
+                                                  fontWeight: FontWeight.w600,
                                                 ),
                                               ),
-                                      ),
-                                    ],
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                              // Content Section
-                              Expanded(
-                                flex: 2,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      // Product Name
-                                      Text(
-                                        product.name,
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.black87,
-                                          height: 1.2,
+                                // Content Section
+                                Expanded(
+                                  flex: 2,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        // Product Name
+                                        Text(
+                                          product.name,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.black87,
+                                            height: 1.2,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      // Bottom Row
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          // Price
-                                          Text(
-                                            'GHS ${product.price}',
-                                            style: const TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.bold,
-                                              color: Color(0xFF22C55E),
+                                        // Bottom Row
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            // Price
+                                            Text(
+                                              'GHS ${product.price}',
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF22C55E),
+                                              ),
                                             ),
-                                          ),
-                                          // Simple action button
-                                          Container(
-                                            padding: const EdgeInsets.all(6),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFF22C55E)
-                                                  .withValues(alpha: 0.1),
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
+                                            // Simple action button
+                                            Container(
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF22C55E)
+                                                    .withValues(alpha: 0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: const Icon(
+                                                Icons.arrow_forward_ios,
+                                                color: Color(0xFF22C55E),
+                                                size: 12,
+                                              ),
                                             ),
-                                            child: const Icon(
-                                              Icons.arrow_forward_ios,
-                                              color: Color(0xFF22C55E),
-                                              size: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                                          ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
               ),
       ),
     );

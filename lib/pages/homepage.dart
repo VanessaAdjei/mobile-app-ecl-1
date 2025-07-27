@@ -344,6 +344,17 @@ class _HomePageState extends State<HomePage>
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
         final List<dynamic> dataList = responseData['data'];
+
+        // Debug print to see the first product structure
+        if (dataList.isNotEmpty) {
+          final firstItem = dataList[0];
+          final productData = firstItem['product'] ?? {};
+          debugPrint('🔍 HOMEPAGE API RESPONSE STRUCTURE ===');
+          debugPrint('First Product Data Keys: ${productData.keys.toList()}');
+          debugPrint('First Product OTCPOM: ${productData['otcpom']}');
+          debugPrint('==========================================');
+        }
+
         final allProducts = dataList.map<Product>((item) {
           final productData = item['product'] as Map<String, dynamic>;
           return Product(

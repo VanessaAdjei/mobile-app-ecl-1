@@ -87,8 +87,6 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _checkFirstLaunch() async {
     final prefs = await SharedPreferences.getInstance();
-    // Temporarily force show onboarding for testing
-    await prefs.remove('hasLaunchedBefore');
     setState(() {
       _isFirstLaunch = !(prefs.getBool('hasLaunchedBefore') ?? false);
     });
