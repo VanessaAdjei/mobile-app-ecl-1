@@ -726,8 +726,8 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     _buildEnhancedProfileOption(
                       context,
                       Icons.privacy_tip_outlined,
-                      "Privacy Policy",
-                      "Read our privacy policy",
+                      "Privacy Statement",
+                      "Read our privacy statement",
                       () => _navigateTo(PrivacyPolicyScreen()),
                       primaryColor,
                       cardColor,

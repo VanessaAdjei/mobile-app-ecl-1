@@ -292,7 +292,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 ),
                                 const TextSpan(text: ' and '),
                                 TextSpan(
-                                  text: 'Privacy Policy',
+                                  text: 'Privacy Statement',
                                   style: GoogleFonts.poppins(
                                     color: Colors.green.shade600,
                                     fontWeight: FontWeight.w600,

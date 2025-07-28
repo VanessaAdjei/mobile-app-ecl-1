@@ -51,7 +51,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           },
         ),
         title: Text(
-          'Privacy Policy',
+          'Privacy Statement',
           style: GoogleFonts.poppins(
             fontSize: 20,
             fontWeight: FontWeight.w600,
@@ -105,7 +105,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                             color: theme.primaryColor, size: 28),
                         SizedBox(width: 10),
                         Text(
-                          'Privacy Policy',
+                          'Privacy Statement',
                           style: theme.textTheme.titleLarge?.copyWith(
                             color: theme.primaryColor,
                             fontWeight: FontWeight.bold,
@@ -115,7 +115,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                     ),
                     SizedBox(height: 18),
                     Text(
-                      'We value your privacy and are committed to protecting your personal information. This Privacy Policy explains how we collect, use, and disclose information about you when you use our services.',
+                      'We value your privacy and are committed to protecting your personal information. This Privacy Statement explains how we collect, use, and disclose information about you when you use our services.',
                       style: theme.textTheme.bodyLarge?.copyWith(
                         color: Colors.grey[800],
                         height: 1.5,

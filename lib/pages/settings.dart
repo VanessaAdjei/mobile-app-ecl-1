@@ -445,7 +445,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const Divider(height: 1),
                   _buildAnimatedSettingOption(
                       context,
-                      "Privacy Policy",
+                      "Privacy Statement",
                       Icons.privacy_tip_outlined,
                       PrivacyPolicyScreen(),
                       textColor,

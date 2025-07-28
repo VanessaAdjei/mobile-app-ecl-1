@@ -140,7 +140,7 @@ class TermsAndConditionsScreen extends StatelessWidget {
                     ),
                     SizedBox(height: 8),
                     Text(
-                      'Your privacy is important to us. Please review our Privacy Policy to understand how we handle your information.',
+                      'Your privacy is important to us. Please review our Privacy Statement to understand how we handle your information.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: Colors.grey[700],
                         height: 1.4,
