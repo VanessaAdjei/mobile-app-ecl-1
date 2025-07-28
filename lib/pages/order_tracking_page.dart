@@ -5,6 +5,7 @@ import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/delivery_service.dart';
 
 class OrderTrackingPage extends StatefulWidget {
   final Map<String, dynamic> orderDetails;
@@ -32,17 +33,67 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
 
   Future<void> _loadDeliveryInfo() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      setState(() {
-        _deliveryAddress = prefs.getString('delivery_address');
-        _contactNumber = prefs.getString('userPhoneNumber');
-        _deliveryOption = prefs.getString('delivery_option');
-        _isLoading = false;
-      });
+      debugPrint('🔍 Loading delivery info for order tracking...');
+      // Try to get delivery info from API first
+      final deliveryResult = await DeliveryService.getLastDeliveryInfo();
+
+      debugPrint('🔍 Delivery API result: ${deliveryResult['success']}');
+
+      if (deliveryResult['success'] == true && deliveryResult['data'] != null) {
+        final deliveryData = deliveryResult['data'];
+        setState(() {
+          // Build delivery address from components
+          final region = deliveryData['region'] ?? '';
+          final city = deliveryData['city'] ?? '';
+          final address = deliveryData['address'] ?? '';
+
+          if (deliveryData['delivery_option'] == 'delivery') {
+            _deliveryAddress = '$address, $city, $region';
+          } else {
+            // For pickup, use pickup location
+            final pickupRegion = deliveryData['pickup_region'] ?? '';
+            final pickupCity = deliveryData['pickup_city'] ?? '';
+            final pickupSite = deliveryData['pickup_site'] ??
+                deliveryData['pickup_location'] ??
+                '';
+            _deliveryAddress = '$pickupSite, $pickupCity, $pickupRegion';
+          }
+
+          _contactNumber = deliveryData['phone'];
+          _deliveryOption = deliveryData['delivery_option'];
+          _isLoading = false;
+
+          debugPrint('🔍 Loaded delivery info:');
+          debugPrint('🔍 Address: $_deliveryAddress');
+          debugPrint('🔍 Contact: $_contactNumber');
+          debugPrint('🔍 Option: $_deliveryOption');
+        });
+      } else {
+        // Fallback to SharedPreferences if API fails
+        final prefs = await SharedPreferences.getInstance();
+        setState(() {
+          _deliveryAddress = prefs.getString('delivery_address');
+          _contactNumber = prefs.getString('userPhoneNumber');
+          _deliveryOption = prefs.getString('delivery_option');
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
+      debugPrint('Error loading delivery info: $e');
+      // Fallback to SharedPreferences
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        setState(() {
+          _deliveryAddress = prefs.getString('delivery_address');
+          _contactNumber = prefs.getString('userPhoneNumber');
+          _deliveryOption = prefs.getString('delivery_option');
+          _isLoading = false;
+        });
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
