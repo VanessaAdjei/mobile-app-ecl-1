@@ -27,13 +27,13 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
   String? _error;
   List<dynamic> _orders = [];
   final ScrollController _scrollController = ScrollController();
-  
+
   // Pagination
   int _currentPage = 1;
   bool _hasMoreData = true;
   bool _isLoadingMore = false;
   static const int _pageSize = 20;
-  
+
   // Cache for orders data
   static List<dynamic>? _cachedOrders;
   static DateTime? _lastFetchTime;
@@ -53,21 +53,26 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= 
+    if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
       _loadMoreOrders();
     }
   }
 
   Future<void> _loadOrders() async {
+    debugPrint('🔍 Loading orders...');
     // Check if we have valid cached data
     if (_cachedOrders != null && _lastFetchTime != null) {
       final timeSinceLastFetch = DateTime.now().difference(_lastFetchTime!);
-      if (timeSinceLastFetch < _cacheValidDuration) {
+      final isCacheValid = timeSinceLastFetch < _cacheValidDuration;
+      debugPrint('🔍 Cache check: ${isCacheValid ? 'HIT' : 'MISS'} (age: ${timeSinceLastFetch.inMinutes}min)');
+      
+      if (isCacheValid) {
         setState(() {
           _orders = _cachedOrders!;
           _isLoading = false;
         });
+        debugPrint('🔍 Loaded ${_orders.length} orders from cache');
         return;
       }
     }
@@ -90,11 +95,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
         if (mounted) {
           final rawOrders = result['data'] as List;
           final processedOrders = await _processOrders(rawOrders);
-          
+
           // Cache the data
           _cachedOrders = processedOrders;
           _lastFetchTime = DateTime.now();
-          
+
           setState(() {
             _orders = processedOrders;
             _isLoading = false;
@@ -126,7 +131,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
 
     // Simulate pagination - in real app, you'd pass page number to API
     await Future.delayed(const Duration(milliseconds: 500));
-    
+
     setState(() {
       _isLoadingMore = false;
       _hasMoreData = false; // For demo, assume no more data
@@ -137,20 +142,23 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     setState(() {
       _isRefreshing = true;
     });
-    
+
     // Clear cache to force fresh data
     _cachedOrders = null;
     _lastFetchTime = null;
-    
+
     await _fetchOrders();
   }
 
   Future<List<dynamic>> _processOrders(List<dynamic> rawOrders) async {
+    debugPrint('🔍 Processing ${rawOrders.length} orders...');
     // Process orders in a separate isolate for better performance
     return await _processOrdersInBackground(rawOrders);
   }
 
-  Future<List<dynamic>> _processOrdersInBackground(List<dynamic> rawOrders) async {
+  Future<List<dynamic>> _processOrdersInBackground(
+      List<dynamic> rawOrders) async {
+    debugPrint('🔍 Starting background order processing...');
     final Map<String, List<dynamic>> groupedOrders = {};
 
     // Group orders by transaction ID
@@ -165,6 +173,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     }
 
     // Convert grouped orders to combined orders
+    debugPrint('🔍 Processing ${groupedOrders.length} grouped orders...');
     final combinedOrders = groupedOrders.entries.map((entry) {
       final orders = entry.value;
       final transactionId = entry.key;
@@ -177,6 +186,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     }).toList();
 
     // Remove duplicates and sort
+    debugPrint('🔍 Removing duplicates and sorting orders...');
     final uniqueOrders = _removeDuplicates(combinedOrders);
     uniqueOrders.sort((a, b) {
       final dateA = DateTime.tryParse(a['created_at'] ?? '') ?? DateTime(1970);
@@ -184,27 +194,30 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
       return dateB.compareTo(dateA); // Descending: latest first
     });
 
+    debugPrint('🔍 Final processed orders: ${uniqueOrders.length}');
     return uniqueOrders;
   }
 
   String _getTransactionId(dynamic order) {
-    final paymentMethod = order['payment_method'] ?? order['payment_type'] ?? '';
+    final paymentMethod =
+        order['payment_method'] ?? order['payment_type'] ?? '';
     final isCashOnDelivery = _isCashOnDelivery(paymentMethod);
 
     if (isCashOnDelivery) {
-      return order['delivery_id']?.toString() ?? 
-             order['order_id']?.toString() ?? 
-             order['transaction_id']?.toString() ?? 
-             'cod_${order['created_at'] ?? DateTime.now().toIso8601String()}';
+      return order['delivery_id']?.toString() ??
+          order['order_id']?.toString() ??
+          order['transaction_id']?.toString() ??
+          'cod_${order['created_at'] ?? DateTime.now().toIso8601String()}';
     } else {
-      return order['order_id']?.toString() ?? 
-             order['transaction_id']?.toString() ?? 
-             order['delivery_id']?.toString() ?? 
-             '${order['created_at'] ?? DateTime.now().toIso8601String()}_${order['product_name'] ?? 'unknown'}';
+      return order['order_id']?.toString() ??
+          order['transaction_id']?.toString() ??
+          order['delivery_id']?.toString() ??
+          '${order['created_at'] ?? DateTime.now().toIso8601String()}_${order['product_name'] ?? 'unknown'}';
     }
   }
 
-  Map<String, dynamic> _processSingleOrder(dynamic order, String transactionId) {
+  Map<String, dynamic> _processSingleOrder(
+      dynamic order, String transactionId) {
     if (order.containsKey('items') && order['items'] is List) {
       final items = order['items'] as List;
       if (items.isNotEmpty) {
@@ -213,12 +226,16 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
           ...order,
           'product_name': firstItem['product_name'] ?? 'Unknown Product',
           'product_img': firstItem['product_img'] ?? '',
-                     'qty': items.length > 1 ? items.fold<int>(0, (sum, item) => sum + ((item['qty'] ?? 1) as int)) : (firstItem['qty'] ?? 1) as int,
+          'qty': items.length > 1
+              ? items.fold<int>(
+                  0, (sum, item) => sum + ((item['qty'] ?? 1) as int))
+              : (firstItem['qty'] ?? 1) as int,
           'price': firstItem['price'] ?? 0.0,
           'total_price': (order['total_price'] ?? 0.0).toDouble(),
           'is_multi_item': items.length > 1,
           'item_count': items.length,
-          'order_items': items.map((item) => Map<String, dynamic>.from(item)).toList(),
+          'order_items':
+              items.map((item) => Map<String, dynamic>.from(item)).toList(),
           'transaction_id': transactionId,
         };
       }
@@ -230,9 +247,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     };
   }
 
-  Map<String, dynamic> _processMultiOrder(List<dynamic> orders, String transactionId) {
+  Map<String, dynamic> _processMultiOrder(
+      List<dynamic> orders, String transactionId) {
     final firstOrder = orders.first;
-    final paymentMethod = firstOrder['payment_type'] ?? firstOrder['payment_method'] ?? '';
+    final paymentMethod =
+        firstOrder['payment_type'] ?? firstOrder['payment_method'] ?? '';
     final isCashOnDelivery = _isCashOnDelivery(paymentMethod);
 
     if (firstOrder.containsKey('items') && firstOrder['items'] is List) {
@@ -244,7 +263,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     }
   }
 
-  Map<String, dynamic> _processMultiOrderWithItems(List<dynamic> orders, String transactionId, String paymentMethod) {
+  Map<String, dynamic> _processMultiOrderWithItems(
+      List<dynamic> orders, String transactionId, String paymentMethod) {
     double totalAmount = 0.0;
     int totalQuantity = 0;
     List<Map<String, dynamic>> allItems = [];
@@ -276,16 +296,20 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     };
   }
 
-  Map<String, dynamic> _processCashOnDeliveryOrder(List<dynamic> orders, String transactionId, String paymentMethod) {
-    final orderItems = orders.map((order) => {
-      'product_name': order['product_name'] ?? 'Unknown Product',
-      'product_img': order['product_img'] ?? '',
-      'qty': order['qty'] ?? 1,
-      'price': order['price'] ?? 0.0,
-      'batch_no': order['batch_no'] ?? '',
-    }).toList();
+  Map<String, dynamic> _processCashOnDeliveryOrder(
+      List<dynamic> orders, String transactionId, String paymentMethod) {
+    final orderItems = orders
+        .map((order) => {
+              'product_name': order['product_name'] ?? 'Unknown Product',
+              'product_img': order['product_img'] ?? '',
+              'qty': order['qty'] ?? 1,
+              'price': order['price'] ?? 0.0,
+              'batch_no': order['batch_no'] ?? '',
+            })
+        .toList();
 
-    final totalQuantity = orders.fold<int>(0, (sum, order) => sum + (order['qty'] ?? 1) as int);
+    final totalQuantity =
+        orders.fold<int>(0, (sum, order) => sum + (order['qty'] ?? 1) as int);
     final totalAmount = orders.fold<double>(0.0, (sum, order) {
       final price = (order['price'] ?? 0.0).toDouble();
       final qty = (order['qty'] ?? 1).toDouble();
@@ -304,16 +328,20 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     };
   }
 
-  Map<String, dynamic> _processServerOrder(List<dynamic> orders, String transactionId, String paymentMethod) {
-    final orderItems = orders.map((order) => {
-      'product_name': order['product_name'] ?? 'Unknown Product',
-      'product_img': order['product_img'] ?? '',
-      'qty': order['qty'] ?? 1,
-      'price': order['price'] ?? 0.0,
-      'batch_no': order['batch_no'] ?? '',
-    }).toList();
+  Map<String, dynamic> _processServerOrder(
+      List<dynamic> orders, String transactionId, String paymentMethod) {
+    final orderItems = orders
+        .map((order) => {
+              'product_name': order['product_name'] ?? 'Unknown Product',
+              'product_img': order['product_img'] ?? '',
+              'qty': order['qty'] ?? 1,
+              'price': order['price'] ?? 0.0,
+              'batch_no': order['batch_no'] ?? '',
+            })
+        .toList();
 
-    final totalQuantity = orders.fold<int>(0, (sum, order) => sum + (order['qty'] ?? 1) as int);
+    final totalQuantity =
+        orders.fold<int>(0, (sum, order) => sum + (order['qty'] ?? 1) as int);
     final totalAmount = orders.fold<double>(0.0, (sum, order) {
       final price = (order['price'] ?? 0.0).toDouble();
       final qty = (order['qty'] ?? 1).toDouble();
@@ -334,17 +362,23 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
 
   List<dynamic> _removeDuplicates(List<dynamic> orders) {
     final uniqueOrders = <String, dynamic>{};
-    
+
     for (final order in orders) {
-      final paymentMethod = order['payment_method'] ?? order['payment_type'] ?? '';
+      final paymentMethod =
+          order['payment_method'] ?? order['payment_type'] ?? '';
       final isCashOnDelivery = _isCashOnDelivery(paymentMethod);
 
       String baseTransactionId;
       if (isCashOnDelivery) {
-        baseTransactionId = order['delivery_id'] ?? order['order_id'] ?? order['transaction_id'] ?? '';
+        baseTransactionId = order['delivery_id'] ??
+            order['order_id'] ??
+            order['transaction_id'] ??
+            '';
       } else {
         final deliveryId = order['delivery_id'] ?? '';
-        baseTransactionId = deliveryId.isNotEmpty ? deliveryId : (order['transaction_id'] ?? '');
+        baseTransactionId = deliveryId.isNotEmpty
+            ? deliveryId
+            : (order['transaction_id'] ?? '');
       }
 
       if (!uniqueOrders.containsKey(baseTransactionId)) {
@@ -354,7 +388,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
         final existingStatus = existingOrder['status'] ?? '';
         final newStatus = order['status'] ?? '';
 
-        if (_shouldReplaceOrderWithData(existingOrder, order, existingStatus, newStatus)) {
+        if (_shouldReplaceOrderWithData(
+            existingOrder, order, existingStatus, newStatus)) {
           uniqueOrders[baseTransactionId] = order;
         }
       }
@@ -412,8 +447,10 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                   child: CachedNetworkImage(
                     imageUrl: imageUrl,
                     fit: BoxFit.contain,
-                    placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
-                    errorWidget: (context, url, error) => const Icon(Icons.broken_image),
+                    placeholder: (context, url) =>
+                        const Center(child: CircularProgressIndicator()),
+                    errorWidget: (context, url, error) =>
+                        const Icon(Icons.broken_image),
                   ),
                 ),
               ),
@@ -442,7 +479,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     final orderDate = DateTime.tryParse(order['created_at'] ?? '');
     final isMultiItem = order['is_multi_item'] == true;
     final itemCount = order['item_count'] ?? 1;
-    final paymentMethod = order['payment_method'] ?? order['payment_type'] ?? '';
+    final paymentMethod =
+        order['payment_method'] ?? order['payment_type'] ?? '';
     final isCashOnDelivery = _isCashOnDelivery(paymentMethod);
 
     final productName = isMultiItem
@@ -454,12 +492,14 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     final status = order['status'] ?? 'Processing';
     final transactionId = order['transaction_id']?.toString() ?? '';
     final isExpanded = _expandedOrders.contains(transactionId);
-    
+
     List<dynamic> orderItems = [];
     if (isMultiItem) {
-      if (order['order_items'] is List && (order['order_items'] as List).isNotEmpty) {
+      if (order['order_items'] is List &&
+          (order['order_items'] as List).isNotEmpty) {
         orderItems = order['order_items'];
-      } else if (order['items'] is List && (order['items'] as List).isNotEmpty) {
+      } else if (order['items'] is List &&
+          (order['items'] as List).isNotEmpty) {
         orderItems = order['items'];
       }
     }
@@ -475,9 +515,20 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildOrderHeader(orderDate, isMultiItem, itemCount, isCashOnDelivery, status),
+              _buildOrderHeader(
+                  orderDate, isMultiItem, itemCount, isCashOnDelivery, status),
               const SizedBox(height: 14),
-              _buildOrderContent(productImg, productName, qty, order, isCashOnDelivery, total, isMultiItem, transactionId, isExpanded, orderItems),
+              _buildOrderContent(
+                  productImg,
+                  productName,
+                  qty,
+                  order,
+                  isCashOnDelivery,
+                  total,
+                  isMultiItem,
+                  transactionId,
+                  isExpanded,
+                  orderItems),
             ],
           ),
         ),
@@ -485,7 +536,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     );
   }
 
-  Widget _buildOrderHeader(DateTime? orderDate, bool isMultiItem, int itemCount, bool isCashOnDelivery, String status) {
+  Widget _buildOrderHeader(DateTime? orderDate, bool isMultiItem, int itemCount,
+      bool isCashOnDelivery, String status) {
     return Row(
       children: [
         Icon(Icons.calendar_today, size: 16, color: Colors.grey[500]),
@@ -546,7 +598,17 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     );
   }
 
-  Widget _buildOrderContent(String productImg, String productName, int qty, dynamic order, bool isCashOnDelivery, double total, bool isMultiItem, String transactionId, bool isExpanded, List<dynamic> orderItems) {
+  Widget _buildOrderContent(
+      String productImg,
+      String productName,
+      int qty,
+      dynamic order,
+      bool isCashOnDelivery,
+      double total,
+      bool isMultiItem,
+      String transactionId,
+      bool isExpanded,
+      List<dynamic> orderItems) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -607,7 +669,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
 
   Widget _buildProductImage(String productImg) {
     return GestureDetector(
-      onTap: () => productImg.isNotEmpty ? _showFullImageDialog(productImg) : null,
+      onTap: () =>
+          productImg.isNotEmpty ? _showFullImageDialog(productImg) : null,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: SizedBox(
@@ -619,8 +682,10 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                   fit: BoxFit.cover,
                   width: 70,
                   height: 70,
-                  placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
-                  errorWidget: (context, url, error) => const Icon(Icons.broken_image),
+                  placeholder: (context, url) =>
+                      const Center(child: CircularProgressIndicator()),
+                  errorWidget: (context, url, error) =>
+                      const Icon(Icons.broken_image),
                 )
               : Container(
                   width: 70,
@@ -668,10 +733,12 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: orderItems.map<Widget>((item) {
-                final name = item['product_name'] ?? item['name'] ?? 'Unknown Product';
+                final name =
+                    item['product_name'] ?? item['name'] ?? 'Unknown Product';
                 final qty = item['qty'] ?? item['quantity'] ?? 1;
                 final price = item['price'] ?? 0.0;
-                final imgUrl = getImageUrl(item['product_img'] ?? item['image']);
+                final imgUrl =
+                    getImageUrl(item['product_img'] ?? item['image']);
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
                   child: Row(
@@ -685,21 +752,31 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                                 width: 36,
                                 height: 36,
                                 fit: BoxFit.cover,
-                                placeholder: (context, url) => const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))),
-                                errorWidget: (context, url, error) => Icon(Icons.broken_image, size: 18, color: Colors.grey[400]),
+                                placeholder: (context, url) => const Center(
+                                    child: SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2))),
+                                errorWidget: (context, url, error) => Icon(
+                                    Icons.broken_image,
+                                    size: 18,
+                                    color: Colors.grey[400]),
                               )
                             : Container(
                                 width: 36,
                                 height: 36,
                                 color: Colors.grey[200],
-                                child: const Icon(Icons.inventory_2_outlined, color: Colors.grey, size: 18),
+                                child: const Icon(Icons.inventory_2_outlined,
+                                    color: Colors.grey, size: 18),
                               ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           name,
-                          style: const TextStyle(fontSize: 13, color: Colors.black87),
+                          style: const TextStyle(
+                              fontSize: 13, color: Colors.black87),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -711,7 +788,10 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                       const SizedBox(width: 8),
                       Text(
                         'GHS ${(price * (qty is num ? qty : 1)).toStringAsFixed(2)}',
-                        style: TextStyle(fontSize: 13, color: Colors.green[700], fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.green[700],
+                            fontWeight: FontWeight.w500),
                       ),
                     ],
                   ),
@@ -769,24 +849,127 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
 
   bool _isValidOrder(dynamic order) {
     if (order == null) return false;
-    final hasProductName = order['product_name'] != null && order['product_name'].toString().isNotEmpty;
-    final hasItems = order['items'] != null && order['items'] is List && (order['items'] as List).isNotEmpty;
+    final hasProductName = order['product_name'] != null &&
+        order['product_name'].toString().isNotEmpty;
+    final hasItems = order['items'] != null &&
+        order['items'] is List &&
+        (order['items'] as List).isNotEmpty;
     final hasCreatedAt = order['created_at'] != null;
     return hasProductName || hasItems || hasCreatedAt;
   }
 
-  bool _shouldReplaceOrderWithData(dynamic existingOrder, dynamic newOrder, String existingStatus, String newStatus) {
-    final existingHasProduct = existingOrder['product_name'] != null && existingOrder['product_name'].toString().isNotEmpty;
-    final newHasProduct = newOrder['product_name'] != null && newOrder['product_name'].toString().isNotEmpty;
+  bool _shouldReplaceOrderWithData(dynamic existingOrder, dynamic newOrder,
+      String existingStatus, String newStatus) {
+    final existingHasProduct = existingOrder['product_name'] != null &&
+        existingOrder['product_name'].toString().isNotEmpty;
+    final newHasProduct = newOrder['product_name'] != null &&
+        newOrder['product_name'].toString().isNotEmpty;
 
     if (newHasProduct && !existingHasProduct) return true;
     if (existingHasProduct && !newHasProduct) return false;
 
     const statusPriority = ['cancelled', 'pending', 'processing', 'completed'];
-    final existingIndex = statusPriority.indexWhere((status) => existingStatus.toLowerCase().contains(status));
-    final newIndex = statusPriority.indexWhere((status) => newStatus.toLowerCase().contains(status));
+    final existingIndex = statusPriority
+        .indexWhere((status) => existingStatus.toLowerCase().contains(status));
+    final newIndex = statusPriority
+        .indexWhere((status) => newStatus.toLowerCase().contains(status));
 
     return newIndex > existingIndex;
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: 5,
+        itemBuilder: (context, index) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  spreadRadius: 1,
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header skeleton
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      height: 16,
+                      width: 120,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    Container(
+                      height: 16,
+                      width: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Content skeleton
+                Row(
+                  children: [
+                    Container(
+                      width: 70,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            height: 16,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[300],
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            height: 14,
+                            width: 100,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[300],
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Widget _buildEmptyState() {
@@ -831,7 +1014,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -866,6 +1050,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
   }
 
   Widget _buildOrderList() {
+    debugPrint('🔍 Building order list with ${_orders.length} orders');
     return RefreshIndicator(
       onRefresh: _refreshOrders,
       color: Colors.green,
@@ -885,7 +1070,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
 
   Widget _buildLoadMoreIndicator() {
     if (!_hasMoreData) return const SizedBox.shrink();
-    
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Center(
@@ -971,11 +1156,12 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
         ],
       ),
       body: _isLoading
-          ? _buildLoadingState()
+          ? _buildLoadingSkeleton()
           : _error != null
               ? ErrorDisplay(
                   title: 'Error Loading Orders',
-                  message: _error ?? 'An error occurred while loading your orders',
+                  message:
+                      _error ?? 'An error occurred while loading your orders',
                   onRetry: _refreshOrders,
                 )
               : _orders.isEmpty

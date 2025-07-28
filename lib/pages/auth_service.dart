@@ -799,8 +799,6 @@ class AuthService {
     }
   }
 
-
-
   static Future<bool> validateCurrentPassword(String password) async {
     try {
       String? userEmail = await _secureStorage.read(key: loggedInUserKey);
@@ -1180,13 +1178,14 @@ class AuthService {
         return {'status': 'error', 'message': 'Not authenticated'};
       }
 
+      debugPrint('🔍 Fetching orders from API...');
       final response = await http.get(
         Uri.parse('$baseUrl/orders'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
         },
-      );
+      ).timeout(const Duration(seconds: 15));
 
       debugPrint('Orders API response status: \\${response.statusCode}');
       debugPrint('Orders API response body: \\${response.body}');

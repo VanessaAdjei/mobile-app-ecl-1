@@ -24,7 +24,7 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   bool _isRefreshing = false;
   String? _error;
   final ScrollController _scrollController = ScrollController();
-  
+
   // Cache for prescription data
   static List<Map<String, dynamic>>? _cachedPrescriptions;
   static DateTime? _lastFetchTime;
@@ -43,14 +43,21 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   }
 
   Future<void> _loadPrescriptions() async {
+    debugPrint('🔍 Loading prescriptions...');
     // Check if we have valid cached data
     if (_cachedPrescriptions != null && _lastFetchTime != null) {
       final timeSinceLastFetch = DateTime.now().difference(_lastFetchTime!);
-      if (timeSinceLastFetch < _cacheValidDuration) {
+      final isCacheValid = timeSinceLastFetch < _cacheValidDuration;
+      debugPrint(
+          '🔍 Cache check: ${isCacheValid ? 'HIT' : 'MISS'} (age: ${timeSinceLastFetch.inMinutes}min)');
+
+      if (isCacheValid) {
         setState(() {
           _prescriptions = _cachedPrescriptions!;
           _isLoading = false;
         });
+        debugPrint(
+            '🔍 Loaded ${_prescriptions.length} prescriptions from cache');
         return;
       }
     }
@@ -60,6 +67,7 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
 
   Future<void> _fetchPrescriptions() async {
     try {
+      debugPrint('🔍 Fetching prescriptions from API...');
       if (mounted) {
         setState(() {
           _isLoading = true;
@@ -80,12 +88,14 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['data'] != null) {
+                if (data['data'] != null) {
           final prescriptions = List<Map<String, dynamic>>.from(data['data']);
+          
+          debugPrint('🔍 Fetched ${prescriptions.length} prescriptions from API');
           
           // Cache the data
           _cachedPrescriptions = prescriptions;
@@ -104,7 +114,8 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
       } else if (response.statusCode == 401) {
         throw Exception('Your session has expired. Please log in again.');
       } else {
-        throw Exception('Unable to connect to the server (${response.statusCode})');
+        throw Exception(
+            'Unable to connect to the server (${response.statusCode})');
       }
     } catch (e) {
       if (mounted) {
@@ -121,12 +132,78 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
     setState(() {
       _isRefreshing = true;
     });
-    
+
     // Clear cache to force fresh data
     _cachedPrescriptions = null;
     _lastFetchTime = null;
-    
+
     await _fetchPrescriptions();
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: 5,
+        itemBuilder: (context, index) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  spreadRadius: 1,
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header skeleton
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      height: 16,
+                      width: 120,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    Container(
+                      height: 16,
+                      width: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Image skeleton
+                Container(
+                  width: double.infinity,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   void _showPrescriptionImage(String fileUrl) {
@@ -207,7 +284,7 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
         ),
       ),
       body: _isLoading
-          ? _buildLoadingState()
+          ? _buildLoadingSkeleton()
           : _error != null
               ? _buildErrorState()
               : _prescriptions.isEmpty

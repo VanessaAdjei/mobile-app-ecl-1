@@ -34,11 +34,19 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
   void _chooseFromGallery() async {
     setState(() => _isLoading = true);
     try {
-      final XFile? pickedFile =
-          await _picker.pickImage(source: ImageSource.gallery);
+      debugPrint('🔍 Selecting image from gallery...');
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920, // Optimize image size
+        maxHeight: 1080,
+        imageQuality: 85, // Reduce quality slightly for better performance
+      );
       if (pickedFile != null) {
         final File imageFile = File(pickedFile.path);
         final int fileSize = imageFile.lengthSync();
+        debugPrint(
+            '🔍 Selected image size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB');
+
         if (fileSize <= 10 * 1024 * 1024) {
           setState(() {
             _selectedImage = imageFile;
@@ -51,6 +59,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
         _showConfirmationSnackbar("No image selected.");
       }
     } catch (e) {
+      debugPrint('🔍 Error selecting image: $e');
       _showConfirmationSnackbar("Failed to upload image: $e");
     } finally {
       setState(() => _isLoading = false);
@@ -60,11 +69,18 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
   void _chooseFromCamera() async {
     setState(() => _isLoading = true);
     try {
-      final XFile? pickedFile =
-          await _picker.pickImage(source: ImageSource.camera);
+      debugPrint('🔍 Capturing image from camera...');
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1920, // Optimize image size
+        maxHeight: 1080,
+        imageQuality: 85, // Reduce quality slightly for better performance
+      );
       if (pickedFile != null) {
         final File imageFile = File(pickedFile.path);
         final int fileSize = imageFile.lengthSync();
+        debugPrint('🔍 Captured image size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB');
+        
         if (fileSize <= 10 * 1024 * 1024) {
           setState(() {
             _selectedImage = imageFile;
@@ -77,6 +93,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
         _showConfirmationSnackbar("No image captured.");
       }
     } catch (e) {
+      debugPrint('🔍 Error capturing image: $e');
       _showConfirmationSnackbar("Failed to capture image: $e");
     } finally {
       setState(() => _isLoading = false);
@@ -210,6 +227,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
       });
 
       try {
+        debugPrint('🔍 Starting prescription upload...');
         // Verify token is valid
         if (widget.token.isEmpty) {
           throw Exception('Please log in to upload a prescription');
@@ -247,6 +265,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
         }
 
         // Send request with timeout
+        debugPrint('🔍 Uploading prescription to server...');
         final streamedResponse = await request.send().timeout(
           const Duration(seconds: 30),
           onTimeout: () {
@@ -258,7 +277,9 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
 
         if (response.statusCode == 200 || response.statusCode == 201) {
           final data = json.decode(response.body);
+          debugPrint('🔍 Upload response: ${data['status']}');
           if (data['status'] == 'success') {
+            debugPrint('🔍 Prescription uploaded successfully');
             if (mounted) {
               SnackBarUtils.showSuccess(
                   context, 'Prescription uploaded successfully');
@@ -452,7 +473,21 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
             Container(
               color: Colors.black.withValues(alpha: 0.2),
               child: Center(
-                child: CircularProgressIndicator(color: theme.primaryColor),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(color: theme.primaryColor),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Processing image...',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
         ],
@@ -638,11 +673,11 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                   color: iconColor,
                   size: 28,
                 ),
-          label: const Padding(
-            padding: EdgeInsets.symmetric(vertical: 6.0),
+          label: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6.0),
             child: Text(
-              "Submit Prescription",
-              style: TextStyle(
+              _isSubmitting ? "Uploading..." : "Submit Prescription",
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 0.5,

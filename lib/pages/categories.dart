@@ -1811,7 +1811,9 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   bool _isCacheValid(int categoryId) {
     final timestamp = _cacheTimestamps[categoryId];
     if (timestamp == null) return false;
-    return DateTime.now().difference(timestamp) < _cacheValidDuration;
+    final isValid = DateTime.now().difference(timestamp) < _cacheValidDuration;
+    debugPrint('🔍 Cache validation for category $categoryId: $isValid (age: ${DateTime.now().difference(timestamp).inMinutes}min)');
+    return isValid;
   }
 
   void _autoSelectSubcategory(List<dynamic> subcategories) {
@@ -1867,6 +1869,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   void onSubcategorySelected(int subcategoryId) async {
     if (!mounted) return;
 
+    debugPrint('🔍 Loading products for subcategory $subcategoryId...');
+    
     setState(() {
       selectedSubcategoryId = subcategoryId;
       isLoading = true;
@@ -1898,7 +1902,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           'https://eclcommerce.ernestchemists.com.gh/api/product-categories/$subcategoryId';
 
       final response =
-          await http.get(Uri.parse(apiUrl)).timeout(Duration(seconds: 8));
+          await http.get(Uri.parse(apiUrl)).timeout(Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -1927,7 +1931,12 @@ class SubcategoryPageState extends State<SubcategoryPage> {
             _productsCache[subcategoryId] = allProducts;
             _cacheTimestamps[subcategoryId] = DateTime.now();
 
+            debugPrint('🔍 Cached ${allProducts.length} products for subcategory $subcategoryId');
+
             handleProductsSuccess(data);
+            
+            // Preload next subcategory if available
+            _preloadNextSubcategory(subcategoryId);
           }
         } else {
           handleProductsError('There is no product available currently');
@@ -2021,10 +2030,10 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     _cacheTimestamps.remove(widget.categoryId);
   }
 
-  // Enhance products with otcpom data using ProductCache from homepage
+  // Optimized enhancement with better caching and performance
   Future<void> _enhanceProductsWithOtcpom(List<dynamic> products) async {
     debugPrint(
-        '🔍 Starting otcpom enhancement for ${products.length} products using ProductCache');
+        '🔍 Starting optimized otcpom enhancement for ${products.length} products');
 
     try {
       // Get cached products from homepage (which have otcpom data)
@@ -2052,7 +2061,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       debugPrint(
           '🔍 Created otcpom map with ${otcpomMap.length} products from cache');
 
-      // Enhance the subcategory products with otcpom data
+      // Optimized enhancement - batch process
+      int enhancedCount = 0;
       for (int i = 0; i < products.length; i++) {
         final product = products[i];
         final productName = product['name']?.toString().toLowerCase();
@@ -2060,11 +2070,11 @@ class SubcategoryPageState extends State<SubcategoryPage> {
         if (productName != null && otcpomMap.containsKey(productName)) {
           final otcpom = otcpomMap[productName];
           products[i]['otcpom'] = otcpom;
-          debugPrint('🔍 Enhanced ${product['name']} with otcpom: $otcpom');
-        } else {
-          debugPrint('🔍 No otcpom data found for ${product['name']}');
+          enhancedCount++;
         }
       }
+
+      debugPrint('🔍 Enhanced $enhancedCount out of ${products.length} products');
     } catch (e) {
       debugPrint('🔍 Error using ProductCache: $e');
       // Fallback to API call
@@ -2072,18 +2082,18 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     }
 
     debugPrint(
-        '🔍 Completed otcpom enhancement for ${products.length} products');
+        '🔍 Completed optimized otcpom enhancement for ${products.length} products');
   }
 
-  // Fallback method to enhance products with API call
+  // Optimized fallback method to enhance products with API call
   Future<void> _enhanceProductsWithAPI(List<dynamic> products) async {
-    debugPrint('🔍 Fallback: Using API call for otcpom enhancement');
+    debugPrint('🔍 Fallback: Using optimized API call for otcpom enhancement');
 
     try {
       final response = await http
           .get(Uri.parse(
               'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'))
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
@@ -2102,6 +2112,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           }
         }
 
+        // Optimized batch enhancement
+        int enhancedCount = 0;
         for (int i = 0; i < products.length; i++) {
           final product = products[i];
           final productName = product['name']?.toString().toLowerCase();
@@ -2109,9 +2121,11 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           if (productName != null && otcpomMap.containsKey(productName)) {
             final otcpom = otcpomMap[productName];
             products[i]['otcpom'] = otcpom;
-            debugPrint('🔍 Enhanced ${product['name']} with otcpom: $otcpom');
+            enhancedCount++;
           }
         }
+
+        debugPrint('🔍 Enhanced $enhancedCount out of ${products.length} products via API');
       }
     } catch (e) {
       debugPrint('🔍 Error in fallback API call: $e');
@@ -2160,6 +2174,48 @@ class SubcategoryPageState extends State<SubcategoryPage> {
         });
       }
     });
+  }
+
+  // Preload next subcategory products for better performance
+  void _preloadNextSubcategory(int currentSubcategoryId) {
+    try {
+      final currentIndex = subcategories.indexWhere((sub) => sub['id'] == currentSubcategoryId);
+      if (currentIndex != -1 && currentIndex + 1 < subcategories.length) {
+        final nextSubcategory = subcategories[currentIndex + 1];
+        final nextSubcategoryId = nextSubcategory['id'];
+        
+        // Only preload if not already cached
+        if (!_productsCache.containsKey(nextSubcategoryId) || !_isCacheValid(nextSubcategoryId)) {
+          debugPrint('🔍 Preloading products for next subcategory: ${nextSubcategory['name']}');
+          _preloadSubcategoryProducts(nextSubcategoryId);
+        }
+      }
+    } catch (e) {
+      debugPrint('🔍 Error preloading next subcategory: $e');
+    }
+  }
+
+  // Background preloading of subcategory products
+  Future<void> _preloadSubcategoryProducts(int subcategoryId) async {
+    try {
+      final apiUrl = 'https://eclcommerce.ernestchemists.com.gh/api/product-categories/$subcategoryId';
+      final response = await http.get(Uri.parse(apiUrl)).timeout(Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          final allProducts = data['data'] as List;
+          if (allProducts.isNotEmpty) {
+            await _enhanceProductsWithOtcpom(allProducts);
+            _productsCache[subcategoryId] = allProducts;
+            _cacheTimestamps[subcategoryId] = DateTime.now();
+            debugPrint('🔍 Preloaded ${allProducts.length} products for subcategory $subcategoryId');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('🔍 Error preloading subcategory $subcategoryId: $e');
+    }
   }
 
   @override
