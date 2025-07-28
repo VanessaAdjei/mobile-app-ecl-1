@@ -9,13 +9,23 @@ class HealthTipsService {
   static const String _baseUrl =
       'https://health.gov/myhealthfinder/api/v4/topicsearch.json';
 
-  // Cache for health tips - will refresh on each page visit
+  // Enhanced cache for health tips with time-based expiration
   static List<HealthTip> _cachedTips = [];
   static bool _hasLoadedOnce = false;
-  static final int _lastFetchTime = 0;
+  static DateTime? _lastFetchTime;
+  static const Duration _cacheExpiration =
+      Duration(minutes: 30); // Cache for 30 minutes
 
   static bool get isCacheValid {
-    return _hasLoadedOnce && _cachedTips.isNotEmpty;
+    if (!_hasLoadedOnce || _cachedTips.isEmpty) return false;
+
+    // Check if cache has expired
+    if (_lastFetchTime != null) {
+      final timeSinceLastFetch = DateTime.now().difference(_lastFetchTime!);
+      return timeSinceLastFetch < _cacheExpiration;
+    }
+
+    return false;
   }
 
   static Future<List<HealthTip>> fetchHealthTips({
@@ -25,6 +35,14 @@ class HealthTipsService {
     String? gender,
   }) async {
     debugPrint('HealthTipsService: Starting fetchHealthTips');
+
+    // Check cache first for faster loading
+    if (isCacheValid) {
+      debugPrint('HealthTipsService: Using cached data');
+      final result = _cachedTips.take(limit).toList();
+      debugPrint('HealthTipsService: Returning ${result.length} cached tips');
+      return result;
+    }
 
     try {
       debugPrint('HealthTipsService: Fetching fresh data from API');
@@ -88,6 +106,7 @@ class HealthTipsService {
           // Cache the shuffled results and mark as loaded
           _cachedTips = shuffledTips;
           _hasLoadedOnce = true;
+          _lastFetchTime = DateTime.now();
 
           final result = _cachedTips.take(limit).toList();
           debugPrint(
@@ -108,6 +127,7 @@ class HealthTipsService {
               shuffledTips.shuffle(Random());
               _cachedTips = shuffledTips;
               _hasLoadedOnce = true;
+              _lastFetchTime = DateTime.now();
               final result = _cachedTips.take(limit).toList();
               return result;
             }

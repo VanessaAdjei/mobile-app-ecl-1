@@ -133,11 +133,16 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
 
   void _showLogoutDialog() {
     if (!mounted) return;
+    
+    // Store context reference before showing dialog
+    final currentContext = context;
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     final isDark = themeProvider.isDarkMode;
+    
     showDialog(
-      context: context,
-      builder: (BuildContext context) {
+      context: currentContext,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           backgroundColor: isDark ? Colors.grey[900] : Colors.white,
           shape:
@@ -174,7 +179,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: Text(
                 "Cancel",
                 style: GoogleFonts.poppins(
@@ -214,17 +219,30 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                 } catch (e) {
                   errorMsg = 'Error during logout: ${e.toString()}';
                 }
+                                if (!mounted) return;
+                
+                // Close the dialog first using dialog context
+                Navigator.of(dialogContext, rootNavigator: true).pop();
+
+                // Wait a bit to ensure the dialog is fully closed
+                await Future.delayed(Duration(milliseconds: 100));
+
                 if (!mounted) return;
-                Navigator.of(context, rootNavigator: true).pop();
+
                 if (logoutSuccess) {
                   setState(() {
                     _userLoggedIn = false;
                   });
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => LoggedOutScreen()),
-                    (route) => false,
-                  );
-                } else if (errorMsg != null) {
+
+                  // Use a safer navigation approach
+                  if (mounted) {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                          builder: (context) => LoggedOutScreen()),
+                      (route) => false,
+                    );
+                  }
+                } else if (errorMsg != null && mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(errorMsg),

@@ -1,4 +1,5 @@
 // pages/homepage.dart
+import 'package:eclapp/pages/pharmacists.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:eclapp/pages/storelocation.dart';
 import 'package:flutter/material.dart';
@@ -1273,10 +1274,10 @@ class _HomePageState extends State<HomePage>
               title: "Meet Our Pharmacists",
               color: Colors.blue[600]!,
               onTap: () {
-                // Navigator.push(
-                //   context,
-                //   MaterialPageRoute(builder: (context) => PharmacistsPage()),
-                // );
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => PharmacistsPage()),
+                );
               },
             ),
           ),
