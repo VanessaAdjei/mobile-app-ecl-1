@@ -246,12 +246,12 @@ class _DeliveryPageState extends State<DeliveryPage> {
                             horizontal: 16, vertical: 8),
                         child: Row(
                           children: [
-                            AppBackButton(
+                            BackButtonUtils.withConfirmation(
                               backgroundColor:
                                   Colors.white.withValues(alpha: 0.2),
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                              },
+                              title: 'Leave Delivery',
+                              message:
+                                  'Are you sure you want to leave the delivery page? Your information will be saved.',
                             ),
                             Expanded(
                               child: Center(
@@ -2041,10 +2041,4 @@ class _DeliveryPageState extends State<DeliveryPage> {
       debugPrint('Error loading stores: $e');
     }
   }
-
-
-
-
-
-
 }

@@ -266,8 +266,14 @@ class _HomePageState extends State<HomePage>
     }
   }
 
+  bool _isLoadingContent = false;
+
   Future<void> _loadAllContent() async {
     debugPrint('HomePage: _loadAllContent called');
+    if (!mounted || _isLoadingContent) return;
+    
+    _isLoadingContent = true;
+    
     try {
       // Load products first
       debugPrint('HomePage: Loading products');
@@ -288,6 +294,7 @@ class _HomePageState extends State<HomePage>
         });
       }
     } finally {
+      _isLoadingContent = false;
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -296,11 +303,15 @@ class _HomePageState extends State<HomePage>
         // Preload all product images for best UX
         HomepageOptimizationService().preloadAllProductImages(context);
       }
-      _refreshController.refreshCompleted();
+      if (_refreshController.isRefresh) {
+        _refreshController.refreshCompleted();
+      }
     }
   }
 
   Future<void> loadProducts() async {
+    if (!mounted) return;
+    
     // Always show skeleton for at least 800ms for better UX
     final skeletonStartTime = DateTime.now();
 
@@ -330,10 +341,12 @@ class _HomePageState extends State<HomePage>
     }
 
     try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+          _error = null;
+        });
+      }
 
       final response = await http
           .get(
@@ -810,7 +823,7 @@ class _HomePageState extends State<HomePage>
   }
 
   void _clearSearch() {
-    if (_searchController.text.isNotEmpty) {
+    if (_searchController.text.isNotEmpty && mounted) {
       _searchController.clear();
       setState(() {});
     }
@@ -823,52 +836,75 @@ class _HomePageState extends State<HomePage>
     WidgetsBinding.instance.addObserver(this);
     // Clear any old cached data to prevent type mismatches
 
-    _initializeOptimizationService();
-    _loadAllContent();
+    // Add a small delay to ensure proper initialization
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _initializeOptimizationService();
+        _loadAllContent();
+      }
+    });
     _scrollController.addListener(() {
-      if (_scrollController.offset > 100 && !_isScrolled) {
-        setState(() {
-          _isScrolled = true;
-        });
-      } else if (_scrollController.offset <= 100 && _isScrolled) {
-        setState(() {
-          _isScrolled = false;
-        });
+      if (mounted) {
+        if (_scrollController.offset > 100 && !_isScrolled) {
+          setState(() {
+            _isScrolled = true;
+          });
+        } else if (_scrollController.offset <= 100 && _isScrolled) {
+          setState(() {
+            _isScrolled = false;
+          });
+        }
       }
     });
 
     // Infinite carousel for popular products row
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (popularProducts.isNotEmpty && _popularScrollController.hasClients) {
+      if (mounted && popularProducts.isNotEmpty && _popularScrollController.hasClients) {
         final limitedPopularProducts =
             _getLimitedProducts(popularProducts, limit: 8);
-        _popularBaseIndex = limitedPopularProducts.length * 10;
-        _popularCurrentIndex = _popularBaseIndex;
-        _highlightedPopularIndex =
-            _popularCurrentIndex % limitedPopularProducts.length;
-        _popularScrollController.jumpTo(_popularCurrentIndex * 96.0);
+        if (limitedPopularProducts.isNotEmpty) {
+          _popularBaseIndex = limitedPopularProducts.length * 10;
+          _popularCurrentIndex = _popularBaseIndex;
+          _highlightedPopularIndex =
+              _popularCurrentIndex % limitedPopularProducts.length;
+          if (_popularScrollController.hasClients) {
+            _popularScrollController.jumpTo(_popularCurrentIndex * 96.0);
+          }
+        }
       }
     });
     _popularScrollTimer = Timer.periodic(Duration(seconds: 3), (timer) {
-      if (_popularScrollController.hasClients && popularProducts.isNotEmpty) {
+      if (mounted &&
+          _popularScrollController.hasClients &&
+          popularProducts.isNotEmpty &&
+          !_isLoadingContent) {
         final limitedPopularProducts =
             _getLimitedProducts(popularProducts, limit: 8);
-        final totalItems = limitedPopularProducts.length * _popularRepeatCount;
-        _popularCurrentIndex++;
-        setState(() {
-          _highlightedPopularIndex =
-              _popularCurrentIndex % limitedPopularProducts.length;
-        });
-        _popularScrollController.animateTo(
-          _popularCurrentIndex * 96.0,
-          duration: Duration(milliseconds: 1200),
-          curve: Curves.easeInOutCubic,
-        );
-        // If near the end, reset to the same item in the middle
-        if (_popularCurrentIndex >
-            totalItems - limitedPopularProducts.length * 5) {
-          _popularCurrentIndex = _popularBaseIndex;
-          _popularScrollController.jumpTo(_popularCurrentIndex * 96.0);
+        if (limitedPopularProducts.isNotEmpty) {
+          final totalItems =
+              limitedPopularProducts.length * _popularRepeatCount;
+          _popularCurrentIndex++;
+          if (mounted) {
+            setState(() {
+              _highlightedPopularIndex =
+                  _popularCurrentIndex % limitedPopularProducts.length;
+            });
+          }
+          if (_popularScrollController.hasClients) {
+            _popularScrollController.animateTo(
+              _popularCurrentIndex * 96.0,
+              duration: Duration(milliseconds: 1200),
+              curve: Curves.easeInOutCubic,
+            );
+            // If near the end, reset to the same item in the middle
+            if (_popularCurrentIndex >
+                totalItems - limitedPopularProducts.length * 5) {
+              _popularCurrentIndex = _popularBaseIndex;
+              if (_popularScrollController.hasClients) {
+                _popularScrollController.jumpTo(_popularCurrentIndex * 96.0);
+              }
+            }
+          }
         }
       }
     });
@@ -905,7 +941,7 @@ class _HomePageState extends State<HomePage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_products.isNotEmpty && _preloadedImages.isEmpty) {
+    if (mounted && _products.isNotEmpty && _preloadedImages.isEmpty) {
       _preloadImages(_products);
     }
   }
@@ -914,7 +950,7 @@ class _HomePageState extends State<HomePage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     // Clear search when app becomes active
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed && mounted) {
       _clearSearch();
     }
   }
@@ -1498,10 +1534,12 @@ class _HomePageState extends State<HomePage>
     if (_error != null) {
       return ErrorDisplayWidget(
         onRetry: () {
-          setState(() {
-            _error = null;
-          });
-          _loadAllContent();
+          if (mounted) {
+            setState(() {
+              _error = null;
+            });
+            _loadAllContent();
+          }
         },
       );
     }

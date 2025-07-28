@@ -63,6 +63,8 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   Timer? _skeletonTimer;
   final UniversalPageOptimizationService _optimizationService =
       UniversalPageOptimizationService();
+      
+
 
   @override
   void initState() {
@@ -738,7 +740,11 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                     if (otcpom.isEmpty) {
                       final cachedProducts = ProductCache.cachedProducts;
                       final matchingProduct = cachedProducts.firstWhere(
-                        (product) => product.urlName == (item['url_name'] ?? item['product']?['url_name'] ?? ''),
+                        (product) =>
+                            product.urlName ==
+                            (item['url_name'] ??
+                                item['product']?['url_name'] ??
+                                ''),
                         orElse: () => Product(
                           id: 0,
                           name: '',
@@ -853,9 +859,10 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             ],
           ),
         ),
-        leading: AppBackButton(
+        leading: BackButtonUtils.withConfirmation(
           backgroundColor: Colors.white.withValues(alpha: 0.2),
-          onPressed: () => Navigator.pop(context),
+          title: 'Leave Product',
+          message: 'Are you sure you want to leave this product page?',
         ),
         title: FutureBuilder<Product>(
           future: _productFuture,
@@ -1522,9 +1529,24 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                             'DEBUG: ItemPage urlName = \\${widget.urlName}');
                         debugPrint(
                             'DEBUG: isPrescribed = \\${widget.isPrescribed}');
-                        if (widget.isPrescribed) {
+                                                if (widget.isPrescribed) {
                           final token = await AuthService.getToken();
                           if (token == null || token == "guest-temp-token") {
+                            // Store product data in SharedPreferences for navigation after sign-in
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.setString('pending_prescription_product', product.name);
+                            await prefs.setString('pending_prescription_thumbnail', product.thumbnail ?? '');
+                            await prefs.setString('pending_prescription_id', product.id.toString());
+                            await prefs.setString('pending_prescription_price', product.price);
+                            await prefs.setString('pending_prescription_batch_no', product.batch_no ?? '');
+                            await prefs.setBool('has_pending_prescription', true);
+                            
+                            print('🔍 ItemDetail: Stored prescription data:');
+                            print('🔍 ItemDetail: Product Name: ${product.name}');
+                            print('🔍 ItemDetail: Product ID: ${product.id}');
+                            print('🔍 ItemDetail: Price: ${product.price}');
+                            print('🔍 ItemDetail: Batch No: ${product.batch_no}');
+ 
                             _showSignInRequiredDialog(context);
                             return;
                           }
@@ -1861,7 +1883,8 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 child: Stack(
                   children: [
                     ClipRRect(
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(10)),
                       child: product.thumbnail.isNotEmpty
                           ? CachedNetworkImage(
                               imageUrl: imageUrl,
@@ -1903,7 +1926,8 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         top: 4,
                         left: 4,
                         child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                           decoration: BoxDecoration(
                             color: Colors.red[700],
                             borderRadius: BorderRadius.circular(4),
@@ -2049,11 +2073,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => SignInScreen(
-                                onSuccess: () {
-                                  Navigator.pop(context);
-                                },
-                              ),
+                              builder: (context) => SignInScreen(),
                             ),
                           );
                         },
@@ -2091,8 +2111,9 @@ class ItemPageSkeleton extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.grey[300],
         elevation: 0,
-        leading:
-            AppBackButton(backgroundColor: Colors.grey[400] ?? Colors.grey),
+        leading: BackButtonUtils.simple(
+          backgroundColor: Colors.grey[400] ?? Colors.grey,
+        ),
         title: Container(
           width: 200,
           height: 24,

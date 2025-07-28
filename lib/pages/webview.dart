@@ -99,9 +99,8 @@ class _WebViewPageState extends State<WebViewPage> {
             letterSpacing: 0.3,
           ),
         ),
-        leading: AppBackButton(
+        leading: BackButtonUtils.simple(
           backgroundColor: Colors.white.withValues(alpha: 0.2),
-          onPressed: () => Navigator.pop(context),
         ),
       ),
       body: Stack(

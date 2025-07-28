@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'product_model.dart';
 import 'app_back_button.dart';
 import 'itemdetail.dart';
+import 'homepage.dart';
 import 'package:animations/animations.dart';
 
 class SectionProductsPage extends StatefulWidget {
@@ -265,292 +266,304 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
   @override
   Widget build(BuildContext context) {
     final products = _filteredProducts;
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(70),
-        child: AppBar(
-          backgroundColor: Colors.green.shade700,
-          elevation: 0,
-          centerTitle: true,
-          leading: AppBackButton(
-            backgroundColor: Colors.white.withValues(alpha: 0.2),
-            iconColor: Colors.white,
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          title: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text(
-                widget.sectionTitle,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 22,
-                  letterSpacing: 0.2,
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        // Let the AppBackButton handle the navigation
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(70),
+          child: AppBar(
+            backgroundColor: Colors.green.shade700,
+            elevation: 0,
+            centerTitle: true,
+            leading: BackButtonUtils.simple(
+              backgroundColor: Colors.white.withValues(alpha: 0.2),
+              iconColor: Colors.white,
+            ),
+            title: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  widget.sectionTitle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 22,
+                    letterSpacing: 0.2,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${products.length} products',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w400,
-                  fontSize: 12,
-                  letterSpacing: 0.1,
+                const SizedBox(height: 2),
+                Text(
+                  '${products.length} products',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w400,
+                    fontSize: 12,
+                    letterSpacing: 0.1,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Color(0xFF4ADE80), // Soft green accent
-                  borderRadius: BorderRadius.circular(2),
+                const SizedBox(height: 4),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Color(0xFF4ADE80), // Soft green accent
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
+                const SizedBox(height: 8),
+              ],
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.filter_alt_rounded, color: Colors.white),
+                tooltip: 'Filter',
+                onPressed: _openFilterSheet,
               ),
-              const SizedBox(height: 8),
             ],
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.filter_alt_rounded, color: Colors.white),
-              tooltip: 'Filter',
-              onPressed: _openFilterSheet,
+        ),
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFFF4F7FB), Color(0xFFE9ECF3)],
             ),
-          ],
-        ),
-      ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFF4F7FB), Color(0xFFE9ECF3)],
           ),
-        ),
-        child: products.isEmpty
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.shopping_bag_outlined,
-                        size: 64, color: Colors.grey[300]),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No products found in this section.',
-                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
-              )
-            : GridView.builder(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                physics: const BouncingScrollPhysics(),
-                itemCount: products.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: 0.8,
-                ),
-                itemBuilder: (context, index) {
-                  final product = products[index];
-                  return OpenContainer(
-                    transitionType: ContainerTransitionType.fadeThrough,
-                    openColor: Theme.of(context).scaffoldBackgroundColor,
-                    closedColor: Colors.transparent,
-                    closedElevation: 0,
-                    openElevation: 0,
-                    transitionDuration: Duration(milliseconds: 200),
-                    closedShape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    openBuilder: (context, _) => ItemPage(
-                      urlName: product.urlName,
-                      isPrescribed: product.otcpom?.toLowerCase() == 'pom',
-                    ),
-                    closedBuilder: (context, openContainer) => Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.06),
-                            blurRadius: 12,
-                            offset: const Offset(0, 3),
-                            spreadRadius: 0,
-                          ),
-                        ],
+          child: products.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.shopping_bag_outlined,
+                          size: 64, color: Colors.grey[300]),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No products found in this section.',
+                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                       ),
-                      child: ClipRRect(
+                    ],
+                  ),
+                )
+              : GridView.builder(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: products.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 0.8,
+                  ),
+                  itemBuilder: (context, index) {
+                    final product = products[index];
+                    return OpenContainer(
+                      transitionType: ContainerTransitionType.fadeThrough,
+                      openColor: Theme.of(context).scaffoldBackgroundColor,
+                      closedColor: Colors.transparent,
+                      closedElevation: 0,
+                      openElevation: 0,
+                      transitionDuration: Duration(milliseconds: 200),
+                      closedShape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: openContainer,
-                            child: Column(
-                              children: [
-                                // Image Section
-                                Expanded(
-                                  flex: 3,
-                                  child: Container(
-                                    width: double.infinity,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade50,
-                                    ),
-                                    child: Stack(
-                                      children: [
-                                        // Product Image
-                                        Center(
-                                          child: product.thumbnail.isNotEmpty
-                                              ? Image.network(
-                                                  product.thumbnail,
-                                                  fit: BoxFit.contain,
-                                                  width: double.infinity,
-                                                  height: double.infinity,
-                                                  errorBuilder: (context, error,
-                                                      stackTrace) {
-                                                    return Container(
-                                                      padding:
-                                                          const EdgeInsets.all(
-                                                              20),
-                                                      child: const Icon(
-                                                        Icons
-                                                            .image_not_supported_outlined,
-                                                        color: Colors.grey,
-                                                        size: 28,
-                                                      ),
-                                                    );
-                                                  },
-                                                  loadingBuilder: (context,
-                                                      child, loadingProgress) {
-                                                    if (loadingProgress ==
-                                                        null) {
-                                                      return child;
-                                                    }
-                                                    return const Center(
-                                                      child:
-                                                          CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        valueColor:
-                                                            AlwaysStoppedAnimation<
-                                                                Color>(
-                                                          Color(0xFF22C55E),
+                      ),
+                      openBuilder: (context, _) => ItemPage(
+                        urlName: product.urlName,
+                        isPrescribed: product.otcpom?.toLowerCase() == 'pom',
+                      ),
+                      closedBuilder: (context, openContainer) => Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.06),
+                              blurRadius: 12,
+                              offset: const Offset(0, 3),
+                              spreadRadius: 0,
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: openContainer,
+                              child: Column(
+                                children: [
+                                  // Image Section
+                                  Expanded(
+                                    flex: 3,
+                                    child: Container(
+                                      width: double.infinity,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade50,
+                                      ),
+                                      child: Stack(
+                                        children: [
+                                          // Product Image
+                                          Center(
+                                            child: product.thumbnail.isNotEmpty
+                                                ? Image.network(
+                                                    product.thumbnail,
+                                                    fit: BoxFit.contain,
+                                                    width: double.infinity,
+                                                    height: double.infinity,
+                                                    errorBuilder: (context,
+                                                        error, stackTrace) {
+                                                      return Container(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .all(20),
+                                                        child: const Icon(
+                                                          Icons
+                                                              .image_not_supported_outlined,
+                                                          color: Colors.grey,
+                                                          size: 28,
                                                         ),
-                                                      ),
-                                                    );
-                                                  },
-                                                )
-                                              : Container(
-                                                  padding:
-                                                      const EdgeInsets.all(20),
-                                                  child: const Icon(
-                                                    Icons
-                                                        .image_not_supported_outlined,
-                                                    color: Colors.grey,
-                                                    size: 28,
+                                                      );
+                                                    },
+                                                    loadingBuilder: (context,
+                                                        child,
+                                                        loadingProgress) {
+                                                      if (loadingProgress ==
+                                                          null) {
+                                                        return child;
+                                                      }
+                                                      return const Center(
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          valueColor:
+                                                              AlwaysStoppedAnimation<
+                                                                  Color>(
+                                                            Color(0xFF22C55E),
+                                                          ),
+                                                        ),
+                                                      );
+                                                    },
+                                                  )
+                                                : Container(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                            20),
+                                                    child: const Icon(
+                                                      Icons
+                                                          .image_not_supported_outlined,
+                                                      color: Colors.grey,
+                                                      size: 28,
+                                                    ),
+                                                  ),
+                                          ),
+                                          // Prescribed medicine badge
+                                          if (product.otcpom?.toLowerCase() ==
+                                              'pom')
+                                            Positioned(
+                                              top: 8,
+                                              left: 8,
+                                              child: Container(
+                                                padding: EdgeInsets.symmetric(
+                                                    horizontal: 4, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.red[700],
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  'Prescribed',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 8,
+                                                    fontWeight: FontWeight.w600,
                                                   ),
                                                 ),
-                                        ),
-                                        // Prescribed medicine badge
-                                        if (product.otcpom?.toLowerCase() ==
-                                            'pom')
-                                          Positioned(
-                                            top: 8,
-                                            left: 8,
-                                            child: Container(
-                                              padding: EdgeInsets.symmetric(
-                                                  horizontal: 4, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: Colors.red[700],
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
                                               ),
-                                              child: Text(
-                                                'Prescribed',
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  // Content Section
+                                  Expanded(
+                                    flex: 2,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          // Product Name
+                                          Text(
+                                            product.name,
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.black87,
+                                              height: 1.2,
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          // Bottom Row
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              // Price
+                                              Text(
+                                                'GHS ${product.price}',
                                                 style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 8,
+                                                  fontSize: 13,
                                                   fontWeight: FontWeight.w600,
+                                                  color: Colors.green[800],
+                                                  letterSpacing: 0.3,
                                                 ),
                                               ),
-                                            ),
+                                              // Simple action button
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.all(6),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFF22C55E)
+                                                      .withValues(alpha: 0.1),
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.arrow_forward_ios,
+                                                  color: Color(0xFF22C55E),
+                                                  size: 12,
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                ),
-                                // Content Section
-                                Expanded(
-                                  flex: 2,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(12),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        // Product Name
-                                        Text(
-                                          product.name,
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.black87,
-                                            height: 1.2,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        // Bottom Row
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            // Price
-                                            Text(
-                                              'GHS ${product.price}',
-                                              style: const TextStyle(
-                                                fontSize: 15,
-                                                fontWeight: FontWeight.bold,
-                                                color: Color(0xFF22C55E),
-                                              ),
-                                            ),
-                                            // Simple action button
-                                            Container(
-                                              padding: const EdgeInsets.all(6),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFF22C55E)
-                                                    .withValues(alpha: 0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(6),
-                                              ),
-                                              child: const Icon(
-                                                Icons.arrow_forward_ios,
-                                                color: Color(0xFF22C55E),
-                                                size: 12,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                },
-              ),
+                    );
+                  },
+                ),
+        ),
       ),
     );
   }

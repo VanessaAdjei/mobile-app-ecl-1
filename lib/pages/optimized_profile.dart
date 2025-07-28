@@ -156,7 +156,7 @@ class _OptimizedProfileState extends State<OptimizedProfile> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),
-        leading: const AppBackButton(),
+        leading: BackButtonUtils.simple(),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,

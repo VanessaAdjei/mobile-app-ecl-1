@@ -132,20 +132,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
               letterSpacing: 0.5,
             ),
           ),
-          leading: AppBackButton(
-            backgroundColor: Colors.white.withValues(alpha: 0.2),
-            iconColor: Colors.white,
-            onPressed: () {
-              if (Navigator.canPop(context)) {
-                Navigator.pop(context);
-              } else {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => HomePage()),
-                );
-              }
-            },
-          ),
+                  leading: BackButtonUtils.simple(
+          backgroundColor: Colors.white.withValues(alpha: 0.2),
+          iconColor: Colors.white,
+        ),
           actions: [
             Container(
               margin: EdgeInsets.only(right: 8),

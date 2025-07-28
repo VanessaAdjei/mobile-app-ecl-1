@@ -229,18 +229,8 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               centerTitle: true,
             ),
-            leading: AppBackButton(
+            leading: BackButtonUtils.simple(
               backgroundColor: Colors.white.withAlpha((255 * 0.2).toInt()),
-              onPressed: () {
-                if (Navigator.canPop(context)) {
-                  Navigator.pop(context);
-                } else {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => HomePage()),
-                  );
-                }
-              },
             ),
             actions: [
               Container(
@@ -367,11 +357,11 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               child: Text(
                 _userEmail,
-                                 style: GoogleFonts.poppins(
-                   fontSize: 14,
-                   color: Colors.white,
-                   fontWeight: FontWeight.w400,
-                 ),
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w400,
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -417,11 +407,11 @@ class _ProfileScreenState extends State<ProfileScreen>
               const SizedBox(width: 12),
               Text(
                 "Personal Information",
-                                 style: GoogleFonts.poppins(
-                   fontSize: 18,
-                   fontWeight: FontWeight.w500,
-                   color: textColor,
-                 ),
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                  color: textColor,
+                ),
               ),
             ],
           ),
@@ -484,10 +474,10 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               child: Text(
                 "Logout",
-                                 style: GoogleFonts.poppins(
-                   fontSize: 16,
-                   fontWeight: FontWeight.w500,
-                 ),
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ),
@@ -539,20 +529,20 @@ class _ProfileScreenState extends State<ProfileScreen>
             children: [
               Text(
                 label,
-                                 style: GoogleFonts.poppins(
-                   fontSize: 13,
-                   color: subtextColor,
-                   fontWeight: FontWeight.w400,
-                 ),
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: subtextColor,
+                  fontWeight: FontWeight.w400,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 value,
-                                 style: GoogleFonts.poppins(
-                   fontSize: 16,
-                   fontWeight: FontWeight.w500,
-                   color: textColor,
-                 ),
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: textColor,
+                ),
               ),
             ],
           ),

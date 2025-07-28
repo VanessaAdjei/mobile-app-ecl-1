@@ -313,18 +313,10 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => SignInScreen(
-          onSuccess: () async {
-            // Refresh login status and return to pharmacists page
-            if (mounted) {
-              await _checkLoginStatus();
-              Navigator.pop(context); // Close the sign in screen
-            }
-          },
-        ),
+        builder: (context) => SignInScreen(),
       ),
     );
-    
+
     // Also refresh login status when returning normally
     if (mounted) {
       await _checkLoginStatus();
@@ -1827,16 +1819,10 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         centerTitle: Theme.of(context).appBarTheme.centerTitle,
         leading: AppBackButton(
           backgroundColor: Colors.white.withValues(alpha: 0.2),
-          onPressed: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
-            } else {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => HomePage()),
-              );
-            }
-          },
+          showConfirmation: true,
+          confirmationTitle: 'Leave Pharmacists',
+          confirmationMessage:
+              'Are you sure you want to leave the pharmacists page?',
         ),
         title: Text(
           'Meet the Pharmacists',

@@ -8,6 +8,7 @@ import 'package:eclapp/pages/auth_service.dart';
 import 'package:eclapp/pages/authprovider.dart';
 import 'package:eclapp/pages/cartprovider.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SignInScreen extends StatefulWidget {
   final String? returnTo;
@@ -34,6 +35,8 @@ class _SignInScreenState extends State<SignInScreen> {
     _errorMessage = null;
   }
 
+
+
   @override
   void dispose() {
     _errorMessage = null;
@@ -41,6 +44,8 @@ class _SignInScreenState extends State<SignInScreen> {
     _passwordController.dispose();
     super.dispose();
   }
+
+
 
   String _getUserFriendlyError(String error) {
     if (error.toLowerCase().contains('socketexception') ||
@@ -154,13 +159,46 @@ class _SignInScreenState extends State<SignInScreen> {
           });
         }
         if (mounted) {
-          if (widget.returnTo != null) {
+          print('🔍 SignIn: Handling post-login navigation');
+          print('🔍 SignIn: onSuccess callback exists: ${widget.onSuccess != null}');
+          print('🔍 SignIn: returnTo exists: ${widget.returnTo != null}');
+          print('🔍 SignIn: onSuccess callback type: ${widget.onSuccess.runtimeType}');
+          print('🔍 SignIn: returnTo value: ${widget.returnTo}');
+          
+          // If onSuccess callback is provided, let it handle navigation
+          if (widget.onSuccess != null) {
+            print('🔍 SignIn: Calling onSuccess callback');
+            try {
+              widget.onSuccess!();
+              print('🔍 SignIn: onSuccess callback executed successfully');
+            } catch (e) {
+              print('🔍 SignIn: Error executing onSuccess callback: $e');
+            }
+            // Don't do any other navigation if onSuccess is provided
+            return;
+          } else if (widget.returnTo != null) {
+            print('🔍 SignIn: Navigating to returnTo: ${widget.returnTo}');
             Navigator.pushReplacementNamed(context, widget.returnTo!);
           } else {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const HomePage()),
-            );
+            // Check if there's pending prescription data
+            final prefs = await SharedPreferences.getInstance();
+            final hasPendingPrescription = prefs.getBool('has_pending_prescription') ?? false;
+            
+            print('🔍 SignIn: Checking for pending prescription: $hasPendingPrescription');
+            
+            if (hasPendingPrescription) {
+              print('🔍 SignIn: Found pending prescription, navigating to upload page');
+              // Don't clear the flag here - let main.dart handle it after retrieving data
+              
+              // Navigate to a special route that will handle the prescription upload
+              Navigator.pushReplacementNamed(context, '/prescription-upload');
+            } else {
+              print('🔍 SignIn: No pending prescription, navigating to HomePage');
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const HomePage()),
+              );
+            }
           }
         }
       } else {

@@ -19,6 +19,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'services/homepage_optimization_service.dart';
 import 'services/background_prefetch_service.dart';
 import 'pages/onboarding_splash_page.dart';
+import 'pages/prescription.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -97,6 +99,62 @@ class _MyAppState extends State<MyApp> {
     setState(() {
       _isLoggedIn = isLoggedIn;
     });
+  }
+
+  Future<Map<String, dynamic>> _getPrescriptionData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasPendingPrescription =
+        prefs.getBool('has_pending_prescription') ?? false;
+
+    print(
+        '🔍 Main: Checking for pending prescription: $hasPendingPrescription');
+
+    if (hasPendingPrescription) {
+      // Get the stored prescription data
+      final productName = prefs.getString('pending_prescription_product') ?? '';
+      final thumbnail = prefs.getString('pending_prescription_thumbnail') ?? '';
+      final productId = prefs.getString('pending_prescription_id') ?? '';
+      final price = prefs.getString('pending_prescription_price') ?? '';
+      final batchNo = prefs.getString('pending_prescription_batch_no') ?? '';
+
+      print('🔍 Main: Retrieved prescription data:');
+      print('🔍 Main: Product Name: $productName');
+      print('🔍 Main: Product ID: $productId');
+      print('🔍 Main: Price: $price');
+      print('🔍 Main: Batch No: $batchNo');
+
+      // Clear the pending prescription flag
+      await prefs.setBool('has_pending_prescription', false);
+
+      return {
+        'token': await AuthService.getToken() ?? '',
+        'item': {
+          'product': {
+            'name': productName,
+            'thumbnail': thumbnail,
+            'id': productId,
+          },
+          'price': price,
+          'batch_no': batchNo,
+        },
+      };
+    }
+
+    print('🔍 Main: No pending prescription found, returning empty data');
+
+    // Return empty data if no pending prescription
+    return {
+      'token': '',
+      'item': {
+        'product': {
+          'name': '',
+          'thumbnail': '',
+          'id': '',
+        },
+        'price': '',
+        'batch_no': '',
+      },
+    };
   }
 
   void _refreshAuthState() async {
@@ -284,6 +342,33 @@ class _MyAppState extends State<MyApp> {
                   : const HomePage(),
               routes: {
                 '/profile': (context) => Profile(),
+                '/prescription-upload': (context) =>
+                    FutureBuilder<Map<String, dynamic>>(
+                      future: _getPrescriptionData(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Scaffold(
+                            body: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+
+                        if (snapshot.hasData && snapshot.data != null) {
+                          print(
+                              '🔍 Main: Route handler - Creating PrescriptionUploadPage');
+                          print('🔍 Main: Token: ${snapshot.data!['token']}');
+                          print('🔍 Main: Item: ${snapshot.data!['item']}');
+
+                          return PrescriptionUploadPage(
+                            token: snapshot.data!['token'] ?? '',
+                            item: snapshot.data!['item'],
+                          );
+                        }
+
+                        // Fallback to HomePage if no data
+                        return const HomePage();
+                      },
+                    ),
               },
             ),
           );

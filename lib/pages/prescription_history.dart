@@ -92,15 +92,16 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-                if (data['data'] != null) {
+        if (data['data'] != null) {
           final prescriptions = List<Map<String, dynamic>>.from(data['data']);
-          
-          debugPrint('🔍 Fetched ${prescriptions.length} prescriptions from API');
-          
+
+          debugPrint(
+              '🔍 Fetched ${prescriptions.length} prescriptions from API');
+
           // Cache the data
           _cachedPrescriptions = prescriptions;
           _lastFetchTime = DateTime.now();
-          
+
           if (mounted) {
             setState(() {
               _prescriptions = prescriptions;
@@ -269,9 +270,8 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
             ],
           ),
         ),
-        leading: AppBackButton(
+        leading: BackButtonUtils.simple(
           backgroundColor: Colors.white.withValues(alpha: 0.2),
-          onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Uploaded Prescriptions',

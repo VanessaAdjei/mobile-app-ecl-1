@@ -699,23 +699,26 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        } else {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => HomePage()),
+            (route) => false,
+          );
+        }
+      },
+      child: Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: Theme.of(context).appBarTheme.elevation,
         centerTitle: Theme.of(context).appBarTheme.centerTitle,
-        leading: AppBackButton(
+        leading: BackButtonUtils.simple(
           backgroundColor: Colors.white.withValues(alpha: 0.2),
-          onPressed: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
-            } else {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const HomePage()),
-              );
-            }
-          },
         ),
         title: Text(
           'Store Locations',
@@ -760,8 +763,9 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildHeaderSection() {
     return Container(
@@ -1442,15 +1446,15 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
           suffixIcon: isLoading
               ? Container(
                   padding: EdgeInsets.all(4),
-                                      child: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(Colors.green.shade600),
-                      ),
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Colors.green.shade600),
                     ),
+                  ),
                 )
               : error != null
                   ? IconButton(

@@ -191,9 +191,8 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
             ],
           ),
         ),
-        leading: AppBackButton(
+        leading: BackButtonUtils.simple(
           backgroundColor: Colors.white.withValues(alpha: 0.2),
-          onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Track Order',

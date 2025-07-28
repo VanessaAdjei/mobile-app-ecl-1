@@ -65,8 +65,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     if (_cachedOrders != null && _lastFetchTime != null) {
       final timeSinceLastFetch = DateTime.now().difference(_lastFetchTime!);
       final isCacheValid = timeSinceLastFetch < _cacheValidDuration;
-      debugPrint('🔍 Cache check: ${isCacheValid ? 'HIT' : 'MISS'} (age: ${timeSinceLastFetch.inMinutes}min)');
-      
+      debugPrint(
+          '🔍 Cache check: ${isCacheValid ? 'HIT' : 'MISS'} (age: ${timeSinceLastFetch.inMinutes}min)');
+
       if (isCacheValid) {
         setState(() {
           _orders = _cachedOrders!;
@@ -1108,7 +1109,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
             ],
           ),
         ),
-        leading: AppBackButton(
+        leading: BackButtonUtils.custom(
           backgroundColor: Colors.white.withValues(alpha: 0.2),
           onPressed: () {
             Navigator.pushReplacement(

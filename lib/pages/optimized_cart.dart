@@ -184,7 +184,7 @@ class _OptimizedCartState extends State<OptimizedCart> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cart'),
-        leading: const AppBackButton(),
+        leading: BackButtonUtils.simple(),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,

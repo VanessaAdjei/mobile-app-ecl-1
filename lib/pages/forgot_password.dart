@@ -57,46 +57,53 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         // Try to parse the response
         try {
           final responseData = jsonDecode(response.body);
-                  debugPrint('Response data: $responseData');
-        debugPrint('Status: ${responseData['status']}');
-        
-        if (responseData['status'] == 'success' || responseData['message']?.toString().toLowerCase().contains('sent') == true) {
-          setState(() {
-            _feedback = responseData['message'] ??
-                'Password reset instructions sent! Check your email for further instructions.';
-            _feedbackColor = Colors.green;
-          });
-          // Navigate back to sign in page after a short delay
-          debugPrint('Success! Navigating to sign in page in 2 seconds...');
-          Future.delayed(const Duration(seconds: 2), () {
-            debugPrint('Attempting navigation...');
-            if (mounted) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => SignInScreen()),
-              );
-              debugPrint('Navigation completed');
-            } else {
-              debugPrint('Widget not mounted, cannot navigate');
-            }
-          });
-        } else {
-          setState(() {
-            _feedback = responseData['message'] ??
-                'Failed to send reset instructions. Please try again.';
-            _feedbackColor = Colors.orange;
-          });
-        }
+          debugPrint('Response data: $responseData');
+          debugPrint('Status: ${responseData['status']}');
+
+          if (responseData['status'] == 'success' ||
+              responseData['message']
+                      ?.toString()
+                      .toLowerCase()
+                      .contains('sent') ==
+                  true) {
+            setState(() {
+              _feedback = responseData['message'] ??
+                  'Password reset instructions sent! Check your email for further instructions.';
+              _feedbackColor = Colors.green;
+            });
+            // Navigate back to sign in page after a short delay
+            debugPrint('Success! Navigating to sign in page in 2 seconds...');
+            Future.delayed(const Duration(seconds: 2), () {
+              debugPrint('Attempting navigation...');
+              if (mounted) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => SignInScreen()),
+                );
+                debugPrint('Navigation completed');
+              } else {
+                debugPrint('Widget not mounted, cannot navigate');
+              }
+            });
+          } else {
+            setState(() {
+              _feedback = responseData['message'] ??
+                  'Failed to send reset instructions. Please try again.';
+              _feedbackColor = Colors.orange;
+            });
+          }
         } catch (parseError) {
           // If JSON parsing fails, use the raw response
-          debugPrint('JSON parsing failed, but status code is 200. Raw response: ${response.body}');
+          debugPrint(
+              'JSON parsing failed, but status code is 200. Raw response: ${response.body}');
           setState(() {
             _feedback =
                 'Password reset instructions sent! Check your email for further instructions.';
             _feedbackColor = Colors.green;
           });
           // Navigate back to sign in page after a short delay
-          debugPrint('Success (fallback)! Navigating to sign in page in 2 seconds...');
+          debugPrint(
+              'Success (fallback)! Navigating to sign in page in 2 seconds...');
           Future.delayed(const Duration(seconds: 2), () {
             debugPrint('Attempting navigation (fallback)...');
             if (mounted) {
@@ -243,20 +250,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               letterSpacing: 0.5,
             ),
           ),
-          leading: AppBackButton(
-            backgroundColor: Colors.white.withValues(alpha: 0.2),
-            iconColor: Colors.white,
-            onPressed: () {
-              if (Navigator.canPop(context)) {
-                Navigator.pop(context);
-              } else {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => HomePage()),
-                );
-              }
-            },
-          ),
+                  leading: BackButtonUtils.simple(
+          backgroundColor: Colors.white.withValues(alpha: 0.2),
+          iconColor: Colors.white,
+        ),
           actions: [
             Container(
               margin: EdgeInsets.only(right: 8),
@@ -373,7 +370,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           onPressed: () {
                             Navigator.pushReplacement(
                               context,
-                              MaterialPageRoute(builder: (context) => SignInScreen()),
+                              MaterialPageRoute(
+                                  builder: (context) => SignInScreen()),
                             );
                           },
                           style: ElevatedButton.styleFrom(

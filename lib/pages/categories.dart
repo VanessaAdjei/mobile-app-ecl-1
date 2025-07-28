@@ -685,12 +685,31 @@ class _CategoryPageState extends State<CategoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (widget.isBulkPurchase) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const BulkPurchasePage(),
+            ),
+          );
+        } else if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => HomePage()),
+          );
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: Theme.of(context).appBarTheme.elevation,
         centerTitle: Theme.of(context).appBarTheme.centerTitle,
-        leading: AppBackButton(
+        leading: BackButtonUtils.custom(
           backgroundColor: Theme.of(context).primaryColor,
           onPressed: () {
             if (widget.isBulkPurchase) {
@@ -726,8 +745,9 @@ class _CategoryPageState extends State<CategoryPage> {
         child: _isLoading ? _buildSkeletonWithLoading() : _buildMainContent(),
       ),
       bottomNavigationBar: CustomBottomNav(initialIndex: 2),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildSkeletonWithLoading() {
     return Stack(
@@ -1812,7 +1832,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     final timestamp = _cacheTimestamps[categoryId];
     if (timestamp == null) return false;
     final isValid = DateTime.now().difference(timestamp) < _cacheValidDuration;
-    debugPrint('🔍 Cache validation for category $categoryId: $isValid (age: ${DateTime.now().difference(timestamp).inMinutes}min)');
+    debugPrint(
+        '🔍 Cache validation for category $categoryId: $isValid (age: ${DateTime.now().difference(timestamp).inMinutes}min)');
     return isValid;
   }
 
@@ -1870,7 +1891,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     if (!mounted) return;
 
     debugPrint('🔍 Loading products for subcategory $subcategoryId...');
-    
+
     setState(() {
       selectedSubcategoryId = subcategoryId;
       isLoading = true;
@@ -1931,10 +1952,11 @@ class SubcategoryPageState extends State<SubcategoryPage> {
             _productsCache[subcategoryId] = allProducts;
             _cacheTimestamps[subcategoryId] = DateTime.now();
 
-            debugPrint('🔍 Cached ${allProducts.length} products for subcategory $subcategoryId');
+            debugPrint(
+                '🔍 Cached ${allProducts.length} products for subcategory $subcategoryId');
 
             handleProductsSuccess(data);
-            
+
             // Preload next subcategory if available
             _preloadNextSubcategory(subcategoryId);
           }
@@ -2074,7 +2096,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
         }
       }
 
-      debugPrint('🔍 Enhanced $enhancedCount out of ${products.length} products');
+      debugPrint(
+          '🔍 Enhanced $enhancedCount out of ${products.length} products');
     } catch (e) {
       debugPrint('🔍 Error using ProductCache: $e');
       // Fallback to API call
@@ -2125,7 +2148,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           }
         }
 
-        debugPrint('🔍 Enhanced $enhancedCount out of ${products.length} products via API');
+        debugPrint(
+            '🔍 Enhanced $enhancedCount out of ${products.length} products via API');
       }
     } catch (e) {
       debugPrint('🔍 Error in fallback API call: $e');
@@ -2179,14 +2203,17 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   // Preload next subcategory products for better performance
   void _preloadNextSubcategory(int currentSubcategoryId) {
     try {
-      final currentIndex = subcategories.indexWhere((sub) => sub['id'] == currentSubcategoryId);
+      final currentIndex =
+          subcategories.indexWhere((sub) => sub['id'] == currentSubcategoryId);
       if (currentIndex != -1 && currentIndex + 1 < subcategories.length) {
         final nextSubcategory = subcategories[currentIndex + 1];
         final nextSubcategoryId = nextSubcategory['id'];
-        
+
         // Only preload if not already cached
-        if (!_productsCache.containsKey(nextSubcategoryId) || !_isCacheValid(nextSubcategoryId)) {
-          debugPrint('🔍 Preloading products for next subcategory: ${nextSubcategory['name']}');
+        if (!_productsCache.containsKey(nextSubcategoryId) ||
+            !_isCacheValid(nextSubcategoryId)) {
+          debugPrint(
+              '🔍 Preloading products for next subcategory: ${nextSubcategory['name']}');
           _preloadSubcategoryProducts(nextSubcategoryId);
         }
       }
@@ -2198,8 +2225,10 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   // Background preloading of subcategory products
   Future<void> _preloadSubcategoryProducts(int subcategoryId) async {
     try {
-      final apiUrl = 'https://eclcommerce.ernestchemists.com.gh/api/product-categories/$subcategoryId';
-      final response = await http.get(Uri.parse(apiUrl)).timeout(Duration(seconds: 10));
+      final apiUrl =
+          'https://eclcommerce.ernestchemists.com.gh/api/product-categories/$subcategoryId';
+      final response =
+          await http.get(Uri.parse(apiUrl)).timeout(Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -2209,7 +2238,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
             await _enhanceProductsWithOtcpom(allProducts);
             _productsCache[subcategoryId] = allProducts;
             _cacheTimestamps[subcategoryId] = DateTime.now();
-            debugPrint('🔍 Preloaded ${allProducts.length} products for subcategory $subcategoryId');
+            debugPrint(
+                '🔍 Preloaded ${allProducts.length} products for subcategory $subcategoryId');
           }
         }
       }
@@ -3271,18 +3301,8 @@ class _ProductListPageState extends State<ProductListPage> {
             fontSize: 20,
           ),
         ),
-        leading: AppBackButton(
+        leading: BackButtonUtils.simple(
           backgroundColor: Colors.green[700] ?? Colors.green,
-          onPressed: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
-            } else {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => HomePage()),
-              );
-            }
-          },
         ),
       ),
       body: Column(

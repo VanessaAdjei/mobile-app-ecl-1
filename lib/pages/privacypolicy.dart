@@ -37,18 +37,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
             ],
           ),
         ),
-        leading: AppBackButton(
+        leading: BackButtonUtils.simple(
           backgroundColor: Colors.white.withValues(alpha: 0.2),
-          onPressed: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
-            } else {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => HomePage()),
-              );
-            }
-          },
         ),
         title: Text(
           'Privacy Statement',

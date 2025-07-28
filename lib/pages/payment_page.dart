@@ -603,12 +603,12 @@ class _PaymentPageState extends State<PaymentPage> {
                             horizontal: 16, vertical: 8),
                         child: Row(
                           children: [
-                            AppBackButton(
+                            BackButtonUtils.withConfirmation(
                               backgroundColor:
                                   Colors.white.withValues(alpha: 0.2),
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                              },
+                              title: 'Leave Payment',
+                              message:
+                                  'Are you sure you want to leave the payment page? Your progress will be saved.',
                             ),
                             Expanded(
                               child: Center(

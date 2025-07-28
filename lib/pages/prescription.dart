@@ -79,8 +79,9 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
       if (pickedFile != null) {
         final File imageFile = File(pickedFile.path);
         final int fileSize = imageFile.lengthSync();
-        debugPrint('🔍 Captured image size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB');
-        
+        debugPrint(
+            '🔍 Captured image size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB');
+
         if (fileSize <= 10 * 1024 * 1024) {
           setState(() {
             _selectedImage = imageFile;
@@ -345,18 +346,11 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
             ],
           ),
         ),
-        leading: AppBackButton(
+        leading: BackButtonUtils.withConfirmation(
           backgroundColor: Colors.white.withValues(alpha: 0.2),
-          onPressed: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
-            } else {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const HomePage()),
-              );
-            }
-          },
+          title: 'Leave Prescription',
+          message:
+              'Are you sure you want to leave? Your uploaded prescription will be lost.',
         ),
         title: Column(
           children: [

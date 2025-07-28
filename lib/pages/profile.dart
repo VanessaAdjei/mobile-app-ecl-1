@@ -133,12 +133,12 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
 
   void _showLogoutDialog() {
     if (!mounted) return;
-    
+
     // Store context reference before showing dialog
     final currentContext = context;
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     final isDark = themeProvider.isDarkMode;
-    
+
     showDialog(
       context: currentContext,
       barrierDismissible: false,
@@ -219,8 +219,8 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                 } catch (e) {
                   errorMsg = 'Error during logout: ${e.toString()}';
                 }
-                                if (!mounted) return;
-                
+                if (!mounted) return;
+
                 // Close the dialog first using dialog context
                 Navigator.of(dialogContext, rootNavigator: true).pop();
 
@@ -359,11 +359,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => SignInScreen(
-                                onSuccess: () {
-                                  Navigator.pop(context);
-                                },
-                              ),
+                              builder: (context) => SignInScreen(),
                             ),
                           );
                         },
@@ -404,393 +400,364 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
     final textColor = isDark ? Colors.white : Colors.black87;
     final subtextColor = isDark ? Colors.white70 : Colors.black54;
 
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) {
-        if (Navigator.canPop(context)) {
-          Navigator.pop(context);
-        } else {
-          // Switch to Home tab instead of closing app
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => HomePage()),
-            (route) => false,
-          );
-        }
-      },
-      child: Scaffold(
-        backgroundColor: backgroundColor,
-        body: CustomScrollView(
-          slivers: [
-            // Enhanced App Bar
-            SliverAppBar(
-              expandedHeight: 60,
-              floating: false,
-              pinned: true,
-              backgroundColor: Colors.green.shade700,
-              elevation: 4,
-              flexibleSpace: FlexibleSpaceBar(
-                background: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Colors.green.shade700,
-                        Colors.green.shade800,
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      body: CustomScrollView(
+        slivers: [
+          // Enhanced App Bar
+          SliverAppBar(
+            expandedHeight: 60,
+            floating: false,
+            pinned: true,
+            backgroundColor: Colors.green.shade700,
+            elevation: 4,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.green.shade700,
+                      Colors.green.shade800,
+                    ],
+                  ),
+                ),
+              ),
+              title: Text(
+                'Your Profile',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              centerTitle: true,
+            ),
+            leading: BackButtonUtils.simple(
+              backgroundColor: Colors.white.withAlpha((255 * 0.2).toInt()),
+            ),
+            actions: [
+              Container(
+                margin: const EdgeInsets.only(right: 16),
+                child: CartIconButton(
+                  iconColor: Colors.white,
+                  iconSize: 22,
+                  backgroundColor: Colors.transparent,
+                ),
+              ),
+            ],
+          ),
+
+          // Profile Content
+          SliverToBoxAdapter(
+            child: AnimatedBuilder(
+              animation: _contentAnimation,
+              builder: (context, child) {
+                return Transform.translate(
+                  offset: Offset(0, 50 * (1 - _contentAnimation.value)),
+                  child: Opacity(
+                    opacity: _contentAnimation.value,
+                    child: child,
+                  ),
+                );
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Enhanced Profile Header
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          primaryColor,
+                          primaryColor.withOpacity(0.8),
+                          primaryColor.withOpacity(0.6),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: primaryColor.withAlpha((255 * 0.3).toInt()),
+                          blurRadius: 30,
+                          offset: const Offset(0, 15),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 16),
+                        // Enhanced Profile Avatar
+                        Container(
+                          height: 100,
+                          width: 100,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 5),
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    Colors.black.withAlpha((255 * 0.3).toInt()),
+                                blurRadius: 20,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Colors.white,
+                                Colors.grey.shade100,
+                              ],
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.person,
+                            size: 60,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          _userLoggedIn ? _userName : "Guest User",
+                          style: GoogleFonts.poppins(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha((255 * 0.2).toInt()),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            _userLoggedIn
+                                ? _userEmail
+                                : "Please sign in to continue",
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
-                ),
-                title: Text(
-                  'Your Profile',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                centerTitle: true,
-              ),
-              leading: AppBackButton(
-                backgroundColor: Colors.white.withAlpha((255 * 0.2).toInt()),
-                onPressed: () {
-                  if (Navigator.canPop(context)) {
-                    Navigator.pop(context);
-                  } else {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (context) => HomePage()),
-                      (route) => false,
-                    );
-                  }
-                },
-              ),
-              actions: [
-                Container(
-                  margin: const EdgeInsets.only(right: 16),
-                  child: CartIconButton(
-                    iconColor: Colors.white,
-                    iconSize: 22,
-                    backgroundColor: Colors.transparent,
-                  ),
-                ),
-              ],
-            ),
 
-            // Profile Content
-            SliverToBoxAdapter(
-              child: AnimatedBuilder(
-                animation: _contentAnimation,
-                builder: (context, child) {
-                  return Transform.translate(
-                    offset: Offset(0, 50 * (1 - _contentAnimation.value)),
-                    child: Opacity(
-                      opacity: _contentAnimation.value,
-                      child: child,
-                    ),
-                  );
-                },
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Enhanced Profile Header
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            primaryColor,
-                            primaryColor.withOpacity(0.8),
-                            primaryColor.withOpacity(0.6),
-                          ],
+                  // Account Section Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: primaryColor.withAlpha((255 * 0.1).toInt()),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.account_circle_outlined,
+                            color: primaryColor,
+                            size: 24,
+                          ),
                         ),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: primaryColor.withAlpha((255 * 0.3).toInt()),
-                            blurRadius: 30,
-                            offset: const Offset(0, 15),
+                        const SizedBox(width: 12),
+                        Text(
+                          "Your Account",
+                          style: GoogleFonts.poppins(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: textColor,
                           ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          const SizedBox(height: 16),
-                          // Enhanced Profile Avatar
-                          Container(
-                            height: 100,
-                            width: 100,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 5),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black
-                                      .withAlpha((255 * 0.3).toInt()),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Colors.white,
-                                  Colors.grey.shade100,
-                                ],
-                              ),
-                            ),
-                            child: Icon(
-                              Icons.person,
-                              size: 60,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Text(
-                            _userLoggedIn ? _userName : "Guest User",
-                            style: GoogleFonts.poppins(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 6),
-                            decoration: BoxDecoration(
-                              color:
-                                  Colors.white.withAlpha((255 * 0.2).toInt()),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Text(
-                              _userLoggedIn
-                                  ? _userEmail
-                                  : "Please sign in to continue",
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                      ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Enhanced Profile Options
+                  _buildEnhancedProfileOption(
+                    context,
+                    Icons.notifications_outlined,
+                    "Notifications",
+                    "Manage your notifications",
+                    _userLoggedIn
+                        ? () => _navigateTo(NotificationsScreen())
+                        : () => _showSignInRequiredDialog(context,
+                            feature: 'notifications'),
+                    primaryColor,
+                    cardColor,
+                    textColor,
+                    subtextColor,
+                    0,
+                  ),
+                  _buildEnhancedProfileOption(
+                    context,
+                    Icons.person_outline,
+                    "Profile Information",
+                    "View your profile details",
+                    _userLoggedIn
+                        ? () => _navigateTo(ProfileScreen())
+                        : () => _showSignInRequiredDialog(context,
+                            feature: 'profile information'),
+                    primaryColor,
+                    cardColor,
+                    textColor,
+                    subtextColor,
+                    1,
+                  ),
+                  _buildEnhancedProfileOption(
+                    context,
+                    Icons.upload_file_outlined,
+                    "Uploaded Prescriptions",
+                    "View your uploaded prescriptions",
+                    _userLoggedIn
+                        ? () => _navigateTo(PrescriptionHistoryScreen())
+                        : () => _showSignInRequiredDialog(context,
+                            feature: 'uploaded prescriptions'),
+                    primaryColor,
+                    cardColor,
+                    textColor,
+                    subtextColor,
+                    2,
+                  ),
+                  _buildEnhancedProfileOption(
+                    context,
+                    Icons.shopping_bag_outlined,
+                    "Purchases",
+                    "View your order history",
+                    _userLoggedIn
+                        ? () => _navigateTo(PurchaseScreen())
+                        : () => _showSignInRequiredDialog(context,
+                            feature: 'order tracking and purchases'),
+                    primaryColor,
+                    cardColor,
+                    textColor,
+                    subtextColor,
+                    3,
+                  ),
+                  if (!_userLoggedIn)
+                    _buildEnhancedProfileOption(
+                      context,
+                      Icons.login,
+                      "Sign In",
+                      "Access your account and manage orders",
+                      _handleLogin,
+                      Colors.blue.shade400,
+                      cardColor,
+                      textColor,
+                      subtextColor,
+                      4,
                     ),
 
-                    // Account Section Header
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color:
-                                  primaryColor.withAlpha((255 * 0.1).toInt()),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(
-                              Icons.account_circle_outlined,
-                              color: primaryColor,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            "Your Account",
-                            style: GoogleFonts.poppins(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: textColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  const SizedBox(height: 30),
 
+                  // Support Section Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: primaryColor.withAlpha((255 * 0.1).toInt()),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.support_outlined,
+                            color: primaryColor,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          "Support & Information",
+                          style: GoogleFonts.poppins(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: textColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Enhanced Support Options
+                  _buildEnhancedProfileOption(
+                    context,
+                    Icons.info_outline,
+                    "About Us",
+                    "Learn more about our company",
+                    () => _navigateTo(AboutUsScreen()),
+                    primaryColor,
+                    cardColor,
+                    textColor,
+                    subtextColor,
+                    5,
+                  ),
+                  _buildEnhancedProfileOption(
+                    context,
+                    Icons.privacy_tip_outlined,
+                    "Privacy Statement",
+                    "Read our privacy statement",
+                    () => _navigateTo(PrivacyPolicyScreen()),
+                    primaryColor,
+                    cardColor,
+                    textColor,
+                    subtextColor,
+                    6,
+                  ),
+                  _buildEnhancedProfileOption(
+                    context,
+                    Icons.description_outlined,
+                    "Terms and Conditions",
+                    "Read our terms of service",
+                    () => _navigateTo(TermsAndConditionsScreen()),
+                    primaryColor,
+                    cardColor,
+                    textColor,
+                    subtextColor,
+                    7,
+                  ),
+
+                  if (_userLoggedIn) ...[
                     const SizedBox(height: 20),
-
-                    // Enhanced Profile Options
                     _buildEnhancedProfileOption(
                       context,
-                      Icons.notifications_outlined,
-                      "Notifications",
-                      "Manage your notifications",
-                      _userLoggedIn
-                          ? () => _navigateTo(NotificationsScreen())
-                          : () => _showSignInRequiredDialog(context,
-                              feature: 'notifications'),
-                      primaryColor,
+                      Icons.logout,
+                      "Logout",
+                      "Sign out from your account",
+                      _showLogoutDialog,
+                      Colors.red.shade400,
                       cardColor,
                       textColor,
                       subtextColor,
-                      0,
+                      8,
                     ),
-                    _buildEnhancedProfileOption(
-                      context,
-                      Icons.person_outline,
-                      "Profile Information",
-                      "View your profile details",
-                      _userLoggedIn
-                          ? () => _navigateTo(ProfileScreen())
-                          : () => _showSignInRequiredDialog(context,
-                              feature: 'profile information'),
-                      primaryColor,
-                      cardColor,
-                      textColor,
-                      subtextColor,
-                      1,
-                    ),
-                    _buildEnhancedProfileOption(
-                      context,
-                      Icons.upload_file_outlined,
-                      "Uploaded Prescriptions",
-                      "View your uploaded prescriptions",
-                      _userLoggedIn
-                          ? () => _navigateTo(PrescriptionHistoryScreen())
-                          : () => _showSignInRequiredDialog(context,
-                              feature: 'uploaded prescriptions'),
-                      primaryColor,
-                      cardColor,
-                      textColor,
-                      subtextColor,
-                      2,
-                    ),
-                    _buildEnhancedProfileOption(
-                      context,
-                      Icons.shopping_bag_outlined,
-                      "Purchases",
-                      "View your order history",
-                      _userLoggedIn
-                          ? () => _navigateTo(PurchaseScreen())
-                          : () => _showSignInRequiredDialog(context,
-                              feature: 'order tracking and purchases'),
-                      primaryColor,
-                      cardColor,
-                      textColor,
-                      subtextColor,
-                      3,
-                    ),
-                    if (!_userLoggedIn)
-                      _buildEnhancedProfileOption(
-                        context,
-                        Icons.login,
-                        "Sign In",
-                        "Access your account and manage orders",
-                        _handleLogin,
-                        Colors.blue.shade400,
-                        cardColor,
-                        textColor,
-                        subtextColor,
-                        4,
-                      ),
-
-                    const SizedBox(height: 30),
-
-                    // Support Section Header
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color:
-                                  primaryColor.withAlpha((255 * 0.1).toInt()),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(
-                              Icons.support_outlined,
-                              color: primaryColor,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            "Support & Information",
-                            style: GoogleFonts.poppins(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: textColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Enhanced Support Options
-                    _buildEnhancedProfileOption(
-                      context,
-                      Icons.info_outline,
-                      "About Us",
-                      "Learn more about our company",
-                      () => _navigateTo(AboutUsScreen()),
-                      primaryColor,
-                      cardColor,
-                      textColor,
-                      subtextColor,
-                      5,
-                    ),
-                    _buildEnhancedProfileOption(
-                      context,
-                      Icons.privacy_tip_outlined,
-                      "Privacy Statement",
-                      "Read our privacy statement",
-                      () => _navigateTo(PrivacyPolicyScreen()),
-                      primaryColor,
-                      cardColor,
-                      textColor,
-                      subtextColor,
-                      6,
-                    ),
-                    _buildEnhancedProfileOption(
-                      context,
-                      Icons.description_outlined,
-                      "Terms and Conditions",
-                      "Read our terms of service",
-                      () => _navigateTo(TermsAndConditionsScreen()),
-                      primaryColor,
-                      cardColor,
-                      textColor,
-                      subtextColor,
-                      7,
-                    ),
-
-                    if (_userLoggedIn) ...[
-                      const SizedBox(height: 20),
-                      _buildEnhancedProfileOption(
-                        context,
-                        Icons.logout,
-                        "Logout",
-                        "Sign out from your account",
-                        _showLogoutDialog,
-                        Colors.red.shade400,
-                        cardColor,
-                        textColor,
-                        subtextColor,
-                        8,
-                      ),
-                    ],
-
-                    const SizedBox(height: 30),
                   ],
-                ),
+
+                  const SizedBox(height: 30),
+                ],
               ),
             ),
-          ],
-        ),
-        bottomNavigationBar: CustomBottomNav(initialIndex: 3),
+          ),
+        ],
       ),
+      bottomNavigationBar: CustomBottomNav(initialIndex: 3),
     );
   }
 

@@ -170,9 +170,22 @@ class _CartState extends State<Cart> {
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
 
-    return Consumer<CartProvider>(
-      builder: (context, cart, child) {
-        return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        } else {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => HomePage()),
+            (route) => false,
+          );
+        }
+      },
+      child: Consumer<CartProvider>(
+        builder: (context, cart, child) {
+          return Scaffold(
           backgroundColor: Colors.grey[50],
           body: Stack(
             children: [
@@ -208,21 +221,8 @@ class _CartState extends State<Cart> {
                               horizontal: 16, vertical: 8),
                           child: Row(
                             children: [
-                              AppBackButton(
-                                backgroundColor:
-                                    Colors.white.withValues(alpha: 0.2),
-                                onPressed: () {
-                                  debugPrint("Back tapped");
-                                  if (Navigator.canPop(context)) {
-                                    Navigator.pop(context);
-                                  } else {
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                          builder: (context) => HomePage()),
-                                    );
-                                  }
-                                },
+                              BackButtonUtils.simple(
+                                backgroundColor: Colors.white.withValues(alpha: 0.2),
                               ),
                               Expanded(
                                 child: Center(
@@ -776,8 +776,9 @@ class _CartState extends State<Cart> {
           ),
         );
       },
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildProgressLine({required bool isActive}) {
     return Container(
