@@ -621,7 +621,25 @@ class CartProvider with ChangeNotifier {
       } else {
         debugPrint(
             'Failed to add/update cart item on server: ${response.statusCode}');
-        // Still sync to get current server state
+
+        // Handle specific error cases
+        if (response.statusCode == 404) {
+          debugPrint('⚠️ Product not found (404) - keeping item locally');
+          debugPrint('Product: ${item.name}');
+          debugPrint('Product ID: ${item.productId}');
+          debugPrint('Server Product ID: ${item.serverProductId}');
+          debugPrint('Response: ${response.body}');
+          // Keep item locally, don't sync
+          return;
+        } else if (response.statusCode == 500) {
+          debugPrint('⚠️ Server error (500) - keeping item locally');
+          debugPrint('Product: ${item.name}');
+          debugPrint('Response: ${response.body}');
+          // Keep item locally, don't sync
+          return;
+        }
+
+        // For other errors, still sync to get current server state
         await syncWithApi();
       }
     } catch (e) {
@@ -793,7 +811,98 @@ class CartProvider with ChangeNotifier {
   // Track ongoing quantity updates to prevent conflicts
   final Map<String, bool> _ongoingUpdates = {};
 
+    // Method to check if an item is currently being updated
+  bool isItemUpdating(String itemId) {
+    final item = _cartItems.firstWhere(
+      (item) => item.id == itemId,
+      orElse: () => CartItem(
+        id: '',
+        productId: '',
+        name: '',
+        price: 0.0,
+        image: '',
+        batchNo: '',
+        urlName: '',
+        totalPrice: 0.0,
+      ),
+    );
+    
+    if (item.id.isEmpty) return false;
+    
+    final updateKey = '${item.id}_${item.productId}';
+    return _ongoingUpdates[updateKey] == true;
+  }
+
+  // Method to check if any item is currently being updated
+  bool get isAnyItemUpdating => _ongoingUpdates.values.any((isUpdating) => isUpdating);
+
+  // Method to get count of items being updated
+  int get updatingItemsCount => _ongoingUpdates.values.where((isUpdating) => isUpdating).length;
+
+  // New method that uses item ID instead of index
+  Future<void> updateQuantityById(String itemId, int newQuantity) async {
+    debugPrint('🔍 CartProvider: updateQuantityById called');
+    debugPrint('🔍 CartProvider: Item ID: $itemId');
+    debugPrint('🔍 CartProvider: New Quantity: $newQuantity');
+
+    // Find item by ID instead of index
+    final itemIndex = _cartItems.indexWhere((item) => item.id == itemId);
+    if (itemIndex == -1) {
+      debugPrint('⚠️ Item not found with ID: $itemId');
+      return;
+    }
+
+    final item = _cartItems[itemIndex];
+    final oldQuantity = item.quantity;
+    final updateKey = '${item.id}_${item.productId}';
+
+    debugPrint('🔍 CartProvider: Item: ${item.name}');
+    debugPrint('🔍 CartProvider: Old Quantity: $oldQuantity');
+    debugPrint('🔍 CartProvider: Update Key: $updateKey');
+    debugPrint('🔍 CartProvider: Item ID: ${item.id}');
+    debugPrint('🔍 CartProvider: Item Name: ${item.name}');
+
+    // Check if there's already an ongoing update for this item
+    if (_ongoingUpdates[updateKey] == true) {
+      debugPrint('⏳ Update already in progress for ${item.name} - skipping...');
+      return;
+    }
+
+    debugPrint('=== SIMPLE QUANTITY UPDATE ===');
+    debugPrint('Product Name: ${item.name}');
+    debugPrint('Old Quantity: $oldQuantity');
+    debugPrint('New Quantity: $newQuantity');
+    debugPrint('Cart Item ID: ${item.id}');
+
+    // Mark this item as being updated
+    _ongoingUpdates[updateKey] = true;
+
+    // Update local state immediately for UI responsiveness
+    _cartItems[itemIndex].updateQuantity(newQuantity);
+    await _saveUserCarts();
+    notifyListeners();
+
+    debugPrint('✅ Quantity updated locally - will sync with server');
+
+    if (await AuthService.isLoggedIn()) {
+      try {
+        await _simpleQuantityUpdate(item, newQuantity);
+      } finally {
+        // Always clear the ongoing update flag
+        _ongoingUpdates[updateKey] = false;
+        debugPrint('✅ Update completed for ${item.name}');
+      }
+    } else {
+      // Clear the flag if not logged in
+      _ongoingUpdates[updateKey] = false;
+    }
+  }
+
   Future<void> updateQuantity(int index, int newQuantity) async {
+    debugPrint('🔍 CartProvider: updateQuantity called');
+    debugPrint('🔍 CartProvider: Index: $index');
+    debugPrint('🔍 CartProvider: New Quantity: $newQuantity');
+
     if (index < 0 || index >= _cartItems.length) {
       debugPrint('⚠️ Invalid index for quantity update: $index');
       return;
@@ -802,6 +911,12 @@ class CartProvider with ChangeNotifier {
     final item = _cartItems[index];
     final oldQuantity = item.quantity;
     final updateKey = '${item.id}_${item.productId}';
+
+    debugPrint('🔍 CartProvider: Item: ${item.name}');
+    debugPrint('🔍 CartProvider: Old Quantity: $oldQuantity');
+    debugPrint('🔍 CartProvider: Update Key: $updateKey');
+    debugPrint('🔍 CartProvider: Item ID: ${item.id}');
+    debugPrint('🔍 CartProvider: Item Name: ${item.name}');
 
     // Check if there's already an ongoing update for this item
     if (_ongoingUpdates[updateKey] == true) {
@@ -865,6 +980,19 @@ class CartProvider with ChangeNotifier {
 
       debugPrint('Remove Response: ${removeResponse.statusCode}');
       debugPrint('Remove Body: ${removeResponse.body}');
+
+      // Check if remove was successful
+      if (removeResponse.statusCode != 200 &&
+          removeResponse.statusCode != 201) {
+        debugPrint('❌ Remove operation failed - keeping item locally');
+        debugPrint('Status: ${removeResponse.statusCode}');
+        debugPrint('Response: ${removeResponse.body}');
+
+        // If remove fails, don't try to add - just keep the item locally
+        _showSyncError(
+            'Server temporarily unavailable. Item remains in cart with previous quantity.');
+        return;
+      }
 
       // Step 2: Add the item back with new quantity
       debugPrint('=== STEP 2: ADD WITH NEW QUANTITY ===');

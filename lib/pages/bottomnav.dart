@@ -53,6 +53,11 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
       _selectedIndex = index;
     });
 
+    // Add a small delay to prevent navigation conflicts
+    await Future.delayed(Duration(milliseconds: 50));
+
+    if (!mounted) return;
+
     switch (index) {
       case 0:
         debugPrint('🔍 HOME BUTTON PRESSED ===');

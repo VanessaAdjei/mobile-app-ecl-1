@@ -207,16 +207,24 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                 bool logoutSuccess = false;
                 String? errorMsg;
                 try {
+                  print('🔍 Profile: Starting logout process');
                   await AuthService.logout();
+                  print('🔍 Profile: AuthService.logout() completed');
                   try {
                     await authProvider.logout();
+                    print('🔍 Profile: authProvider.logout() completed');
                   } catch (e) {
+                    print('🔍 Profile: authProvider.logout() error: $e');
                     // ignore: empty_catches
                   }
                   await cartProvider.handleUserLogout();
+                  print('🔍 Profile: cartProvider.handleUserLogout() completed');
                   userProvider.clearUserData();
+                  print('🔍 Profile: userProvider.clearUserData() completed');
                   logoutSuccess = true;
+                  print('🔍 Profile: Logout successful');
                 } catch (e) {
+                  print('🔍 Profile: Logout error: $e');
                   errorMsg = 'Error during logout: ${e.toString()}';
                 }
                 if (!mounted) return;
@@ -230,17 +238,28 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                 if (!mounted) return;
 
                 if (logoutSuccess) {
+                  print('🔍 Profile: Setting userLoggedIn to false');
                   setState(() {
                     _userLoggedIn = false;
                   });
 
-                  // Use a safer navigation approach
+                  // Use a safer navigation approach with delay
                   if (mounted) {
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(
-                          builder: (context) => LoggedOutScreen()),
-                      (route) => false,
-                    );
+                    print('🔍 Profile: Starting navigation delay');
+                    await Future.delayed(Duration(milliseconds: 200));
+                    if (mounted) {
+                      print('🔍 Profile: Navigating to LoggedOutScreen');
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                            builder: (context) => LoggedOutScreen()),
+                        (route) => false,
+                      );
+                      print('🔍 Profile: Navigation completed');
+                    } else {
+                      print('🔍 Profile: Widget not mounted after delay');
+                    }
+                  } else {
+                    print('🔍 Profile: Widget not mounted before delay');
                   }
                 } else if (errorMsg != null && mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
