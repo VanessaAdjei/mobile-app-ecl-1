@@ -18,6 +18,7 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
     private val CHANNEL = "com.yourcompany.expresspay"
     private val NOTIFICATION_CHANNEL = "ecl_notifications"
     private var pendingResult: MethodChannel.Result? = null
+    private var notificationPayload: String? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -61,6 +62,15 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
                     val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     val enabled = notificationManager.areNotificationsEnabled()
                     result.success(enabled)
+                }
+                "getNotificationPayload" -> {
+                    println("🔧 Android: Handling getNotificationPayload")
+                    result.success(notificationPayload)
+                }
+                "onNotificationOpened" -> {
+                    println("🔧 Android: Handling onNotificationOpened")
+                    // This is called from Android side, no need to do anything here
+                    result.success(null)
                 }
                 else -> {
                     println("🔧 Android: Method not implemented: ${call.method}")
@@ -150,6 +160,37 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
         handlePaymentResult(paymentCompleted, errorMessage)
     }
     
+    // Handle when app is opened from notification
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        println("🔧 Android: onNewIntent called")
+        
+        intent?.let {
+            val payload = it.getStringExtra("notification_payload")
+            val action = it.action
+            
+            println("🔧 Android: Intent action: $action")
+            println("🔧 Android: Received notification payload: $payload")
+            
+            if (payload != null) {
+                notificationPayload = payload
+                
+                // Immediately send the payload to Flutter with action
+                try {
+                    val notificationChannel = MethodChannel(flutterEngine?.dartExecutor?.binaryMessenger, NOTIFICATION_CHANNEL)
+                    val data = mapOf(
+                        "payload" to payload,
+                        "action" to (action ?: "OPEN_NOTIFICATIONS")
+                    )
+                    notificationChannel.invokeMethod("onNotificationOpened", data)
+                    println("🔧 Android: Sent payload to Flutter immediately with action: $action")
+                } catch (e: Exception) {
+                    println("🔧 Android: Error sending payload to Flutter: $e")
+                }
+            }
+        }
+    }
+    
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -169,14 +210,24 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
     private fun showNotification(id: Int, title: String, body: String, payload: String?) {
         createNotificationChannel()
         
+        // Create different intents based on notification type
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra("notification_payload", payload)
+            
+            // Add specific action for faster routing
+            if (payload != null && payload.contains("order_placed")) {
+                action = "OPEN_ORDER_TRACKING"
+            } else if (payload != null && payload.contains("test")) {
+                action = "OPEN_NOTIFICATIONS"
+            } else {
+                action = "OPEN_NOTIFICATIONS"
+            }
         }
 
         val pendingIntent = PendingIntent.getActivity(
             this,
-            0,
+            id, // Use unique ID for each notification
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )

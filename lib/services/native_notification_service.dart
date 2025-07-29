@@ -5,9 +5,14 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'notification_handler_service.dart';
+import '../pages/order_tracking_page.dart';
 
 class NativeNotificationService {
   static const MethodChannel _channel = MethodChannel('ecl_notifications');
+  static final GlobalKey<NavigatorState> _globalNavigatorKey =
+      GlobalKey<NavigatorState>();
+  static String? _pendingNotificationPayload;
 
   /// Initialize the notification service
   static Future<void> initialize() async {
@@ -24,12 +29,99 @@ class NativeNotificationService {
           await _channel.invokeMethod('requestPermissions');
       debugPrint('📱 Native: Permission result: $permissionResult');
 
+      // Set up method call handler for immediate notification handling
+      _channel.setMethodCallHandler((call) async {
+        debugPrint('📱 Native: Received method call: ${call.method}');
+        if (call.method == 'onNotificationOpened') {
+          final data = call.arguments as Map<String, dynamic>?;
+          if (data != null) {
+            final payload = data['payload'] as String?;
+            final action = data['action'] as String?;
+            debugPrint(
+                '📱 Native: Notification opened with payload: $payload, action: $action');
+
+            // Handle the notification immediately with action
+            if (payload != null && payload.isNotEmpty) {
+              _handleNotificationImmediately(payload, action);
+            }
+          }
+        }
+        return null;
+      });
+
       debugPrint('📱 Native: Notification service initialized successfully');
     } catch (e) {
       debugPrint('Error initializing native notification service: $e');
       debugPrint('Error stack trace: ${StackTrace.current}');
       // Don't throw the error, just log it and continue
       debugPrint('📱 Native: Continuing without native notifications...');
+    }
+  }
+
+    /// Handle notification immediately when app is opened from notification
+  static void _handleNotificationImmediately(String payload, String? action) {
+    debugPrint('📱 Native: Handling notification immediately: $payload, action: $action');
+    
+    // Use a global navigator key to handle navigation
+    if (_globalNavigatorKey.currentState != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          // Handle based on action for faster routing
+          if (action == 'OPEN_ORDER_TRACKING') {
+            _handleOrderTrackingNavigation(payload);
+          } else {
+            NotificationHandlerService.handleNotificationPayload(
+              _globalNavigatorKey.currentContext!,
+              payload,
+            );
+          }
+          debugPrint('📱 Native: Notification handled successfully');
+        } catch (e) {
+          debugPrint('📱 Native: Error handling notification: $e');
+        }
+      });
+    } else {
+      debugPrint('📱 Native: Navigator not ready yet, storing payload');
+      _pendingNotificationPayload = payload;
+    }
+  }
+
+  /// Handle order tracking navigation directly for faster response
+  static void _handleOrderTrackingNavigation(String payload) {
+    try {
+      final Map<String, dynamic> data = json.decode(payload);
+      final String orderId = data['order_id']?.toString() ?? '';
+      final String orderNumber = data['order_number']?.toString() ?? '';
+      
+      if (orderId.isNotEmpty && orderNumber.isNotEmpty) {
+        // Create order details map for OrderTrackingPage
+        final Map<String, dynamic> orderDetails = {
+          'id': orderId,
+          'order_number': orderNumber,
+          'status': data['status'] ?? 'Order Placed',
+          'total_amount': data['total_amount'] ?? '0.00',
+          'payment_method': data['payment_method'] ?? 'Unknown',
+          'items': data['items'] ?? [],
+          'created_at': data['created_at'] ?? DateTime.now().toIso8601String(),
+        };
+        
+        // Navigate directly to order tracking page
+        _globalNavigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (context) => OrderTrackingPage(
+              orderDetails: orderDetails,
+            ),
+          ),
+        );
+        debugPrint('📱 Native: Direct navigation to order tracking');
+      }
+    } catch (e) {
+      debugPrint('📱 Native: Error in direct order tracking navigation: $e');
+      // Fallback to general handler
+      NotificationHandlerService.handleNotificationPayload(
+        _globalNavigatorKey.currentContext!,
+        payload,
+      );
     }
   }
 
@@ -70,8 +162,36 @@ class NativeNotificationService {
     await showNotification(
       title: 'Test Notification 📱',
       body: 'This is a test notification from ECL Pharmacy App!',
-      payload: 'test',
+      payload: json.encode({
+        'type': 'test',
+        'message': 'Test notification',
+      }),
     );
+  }
+
+  /// Get notification payload when app is opened from notification
+  static Future<String?> getNotificationPayload() async {
+    try {
+      debugPrint('📱 Native: Getting notification payload...');
+      final payload = await _channel.invokeMethod('getNotificationPayload');
+      debugPrint('📱 Native: Received payload: $payload');
+      return payload as String?;
+    } catch (e) {
+      debugPrint('Error getting notification payload: $e');
+      return null;
+    }
+  }
+
+  /// Get the global navigator key for notification handling
+  static GlobalKey<NavigatorState> get globalNavigatorKey =>
+      _globalNavigatorKey;
+
+  /// Check if there's a pending notification payload
+  static String? get pendingNotificationPayload => _pendingNotificationPayload;
+
+  /// Clear pending notification payload
+  static void clearPendingNotificationPayload() {
+    _pendingNotificationPayload = null;
   }
 
   /// Show order placed notification

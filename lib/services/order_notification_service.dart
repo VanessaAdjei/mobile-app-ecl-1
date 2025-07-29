@@ -70,11 +70,18 @@ class OrderNotificationService {
       try {
         await NativeNotificationService.showNotification(
           title: 'Order Placed Successfully! 🎉',
-          body: 'Order #${orderData['order_number']} has been placed successfully.',
+          body:
+              'Order #${orderData['order_number']} has been placed successfully.',
           payload: json.encode({
             'type': 'order_placed',
             'order_id': orderData['id']?.toString() ?? '',
             'order_number': orderData['order_number']?.toString() ?? '',
+            'status': orderData['status'] ?? 'Order Placed',
+            'total_amount': orderData['total_amount'] ?? '0.00',
+            'payment_method': orderData['payment_method'] ?? 'Unknown',
+            'items': orderData['items'] ?? [],
+            'created_at':
+                orderData['created_at'] ?? DateTime.now().toIso8601String(),
           }),
         );
       } catch (e) {

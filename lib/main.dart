@@ -24,6 +24,7 @@ import 'pages/notification_provider.dart';
 import 'services/background_order_checker.dart';
 import 'services/order_notification_service.dart';
 import 'services/native_notification_service.dart';
+import 'services/notification_handler_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -86,15 +87,18 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool? _isFirstLaunch;
   bool _isLoggedIn = false;
+  String? _pendingNotificationPayload;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _checkFirstLaunch();
     _checkAuthStatus();
+    _handleNotificationPayload();
   }
 
   Future<void> _checkFirstLaunch() async {
@@ -109,6 +113,25 @@ class _MyAppState extends State<MyApp> {
     setState(() {
       _isLoggedIn = isLoggedIn;
     });
+  }
+
+  /// Handle notification payload when app is opened from notification
+  Future<void> _handleNotificationPayload() async {
+    try {
+      debugPrint('📱 Main: Checking for notification payload...');
+      final payload = await NativeNotificationService.getNotificationPayload();
+
+      if (payload != null && payload.isNotEmpty) {
+        debugPrint('📱 Main: Found notification payload: $payload');
+        // Store the payload to handle it when the app is fully loaded
+        // We'll handle it in the build method when we have access to context
+        _pendingNotificationPayload = payload;
+      } else {
+        debugPrint('📱 Main: No notification payload found');
+      }
+    } catch (e) {
+      debugPrint('📱 Main: Error checking notification payload: $e');
+    }
   }
 
   Future<Map<String, dynamic>> _getPrescriptionData() async {
@@ -172,6 +195,12 @@ class _MyAppState extends State<MyApp> {
     setState(() {
       _isLoggedIn = isLoggedIn;
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override
@@ -352,6 +381,7 @@ class _MyAppState extends State<MyApp> {
                   brightness: Brightness.dark,
                 ).copyWith(surface: Colors.grey.shade900),
               ),
+              navigatorKey: NativeNotificationService.globalNavigatorKey,
               home: _isFirstLaunch == true
                   ? OnboardingSplashPage(
                       onFinish: () async {
@@ -398,6 +428,51 @@ class _MyAppState extends State<MyApp> {
         },
       ),
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _handlePendingNotification();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // Check for notifications when app is resumed
+      _handlePendingNotification();
+    }
+  }
+
+  /// Handle pending notification payload after app is fully loaded
+  void _handlePendingNotification() {
+    // Check both local and native pending notifications
+    final localPayload = _pendingNotificationPayload;
+    final nativePayload = NativeNotificationService.pendingNotificationPayload;
+    
+    final payload = localPayload ?? nativePayload;
+    
+    if (payload != null) {
+      debugPrint('📱 Main: Handling pending notification payload');
+      
+      // Use a post-frame callback to ensure the app is fully built
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          debugPrint('📱 Main: Processing notification payload: $payload');
+          
+          // Handle the notification payload
+          NotificationHandlerService.handleNotificationPayload(
+            context,
+            payload,
+          );
+          
+          // Clear all pending payloads
+          _pendingNotificationPayload = null;
+          NativeNotificationService.clearPendingNotificationPayload();
+        }
+      });
+    }
   }
 }
 
