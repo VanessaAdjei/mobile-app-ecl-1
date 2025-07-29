@@ -63,8 +63,6 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   Timer? _skeletonTimer;
   final UniversalPageOptimizationService _optimizationService =
       UniversalPageOptimizationService();
-      
-
 
   @override
   void initState() {
@@ -373,6 +371,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         backgroundColor: Colors.green.shade600,
         duration: Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
@@ -391,6 +390,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         backgroundColor: Colors.red.shade600,
         duration: Duration(seconds: 3),
         behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
@@ -953,27 +953,31 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   }
 
                   final product = snapshot.data!;
-                  return SingleChildScrollView(
-                    physics: AlwaysScrollableScrollPhysics(),
-                    padding: EdgeInsets.only(bottom: 60),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Enhanced Product Image Gallery
-                        _buildProductImageGallery(product),
+                  return InteractiveViewer(
+                    minScale: 0.5,
+                    maxScale: 3.0,
+                    child: SingleChildScrollView(
+                      physics: AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.only(bottom: 60),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Enhanced Product Image Gallery
+                          _buildProductImageGallery(product),
 
-                        // Product Info Card
-                        _buildProductInfoCard(product, theme),
+                          // Product Info Card
+                          _buildProductInfoCard(product, theme),
 
-                        // Quantity Selector
-                        _buildQuantitySelector(product),
+                          // Quantity Selector
+                          _buildQuantitySelector(product),
 
-                        // Action Buttons
-                        _buildActionButtons(product),
+                          // Action Buttons
+                          _buildActionButtons(product),
 
-                        // Related Products
-                        _buildRelatedProductsSection(product),
-                      ],
+                          // Related Products
+                          _buildRelatedProductsSection(product),
+                        ],
+                      ),
                     ),
                   );
                 },
@@ -1529,24 +1533,34 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                             'DEBUG: ItemPage urlName = \\${widget.urlName}');
                         debugPrint(
                             'DEBUG: isPrescribed = \\${widget.isPrescribed}');
-                                                if (widget.isPrescribed) {
+                        if (widget.isPrescribed) {
                           final token = await AuthService.getToken();
                           if (token == null || token == "guest-temp-token") {
                             // Store product data in SharedPreferences for navigation after sign-in
                             final prefs = await SharedPreferences.getInstance();
-                            await prefs.setString('pending_prescription_product', product.name);
-                            await prefs.setString('pending_prescription_thumbnail', product.thumbnail ?? '');
-                            await prefs.setString('pending_prescription_id', product.id.toString());
-                            await prefs.setString('pending_prescription_price', product.price);
-                            await prefs.setString('pending_prescription_batch_no', product.batch_no ?? '');
-                            await prefs.setBool('has_pending_prescription', true);
-                            
+                            await prefs.setString(
+                                'pending_prescription_product', product.name);
+                            await prefs.setString(
+                                'pending_prescription_thumbnail',
+                                product.thumbnail ?? '');
+                            await prefs.setString('pending_prescription_id',
+                                product.id.toString());
+                            await prefs.setString(
+                                'pending_prescription_price', product.price);
+                            await prefs.setString(
+                                'pending_prescription_batch_no',
+                                product.batch_no ?? '');
+                            await prefs.setBool(
+                                'has_pending_prescription', true);
+
                             print('🔍 ItemDetail: Stored prescription data:');
-                            print('🔍 ItemDetail: Product Name: ${product.name}');
+                            print(
+                                '🔍 ItemDetail: Product Name: ${product.name}');
                             print('🔍 ItemDetail: Product ID: ${product.id}');
                             print('🔍 ItemDetail: Price: ${product.price}');
-                            print('🔍 ItemDetail: Batch No: ${product.batch_no}');
- 
+                            print(
+                                '🔍 ItemDetail: Batch No: ${product.batch_no}');
+
                             _showSignInRequiredDialog(context);
                             return;
                           }

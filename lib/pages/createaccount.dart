@@ -18,6 +18,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _passwordVisible = false;
   bool _confirmPasswordVisible = false;
   bool _isLoading = false;
+  bool _emailExists = false;
   final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
@@ -76,7 +77,61 @@ class _SignUpScreenState extends State<SignUpScreen> {
         _showError("Signup failed. Please try again.");
       }
     } catch (e) {
-      _showError("An error occurred. Please try again.");
+      // Debug: Print the actual error message
+      debugPrint('🔍 SIGNUP ERROR: ${e.toString()}');
+      debugPrint('🔍 ERROR TYPE: ${e.runtimeType}');
+      debugPrint('🔍 ERROR MESSAGE: ${e.toString()}');
+
+      // Handle specific error messages from the API
+      String errorMessage = "An error occurred. Please try again.";
+
+      final errorString = e.toString().toLowerCase();
+      debugPrint('🔍 PROCESSED ERROR STRING: $errorString');
+
+      if (errorString.contains('email is already registered')) {
+        errorMessage =
+            "This email is already registered. Would you like to sign in instead?";
+        // Set email exists flag and highlight the email field
+        setState(() {
+          _emailExists = true;
+        });
+        _highlightEmailField();
+        _showError(errorMessage, showSignInAction: true);
+        return;
+      } else if (errorString.contains('phone number is already registered')) {
+        errorMessage =
+            "This phone number is already registered. Please use a different number.";
+        // Highlight the phone field
+        _highlightPhoneField();
+      } else if (errorString.contains('server is currently unavailable')) {
+        errorMessage =
+            "Server is currently unavailable. Please try again later.";
+      } else if (errorString.contains('unable to connect to the server')) {
+        errorMessage =
+            "Unable to connect to the server. Please check your internet connection.";
+      } else if (errorString.contains('request took too long to complete')) {
+        errorMessage =
+            "The request took too long to complete. Please try again.";
+      } else if (errorString.contains('already registered')) {
+        // Generic "already registered" error
+        errorMessage =
+            "This account is already registered. Would you like to sign in instead?";
+        _showError(errorMessage, showSignInAction: true);
+        return;
+      } else if (errorString.contains('email') &&
+          errorString.contains('registered')) {
+        // Fallback for email already registered
+        errorMessage =
+            "This email is already registered. Would you like to sign in instead?";
+        setState(() {
+          _emailExists = true;
+        });
+        _highlightEmailField();
+        _showError(errorMessage, showSignInAction: true);
+        return;
+      }
+
+      _showError(errorMessage);
     } finally {
       if (mounted) {
         setState(() {
@@ -131,10 +186,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 Center(
                   child: Column(
                     children: [
-                      Image.asset(
-                        'assets/images/png.png',
-                        height: 70,
-                        width: 70,
+                      GestureDetector(
+                        onTap: () {
+                          _handleLogoTap();
+                        },
+                        child: Image.asset(
+                          'assets/images/png.png',
+                          height: 70,
+                          width: 70,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -180,7 +240,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 16),
                       _buildTextField(
                         'Email Address',
-                        Icons.email_outlined,
+                        _emailExists
+                            ? Icons.error_outline
+                            : Icons.email_outlined,
                         emailController,
                         keyboardType: TextInputType.emailAddress,
                         validator: (value) {
@@ -190,7 +252,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           if (!value.contains('@') || !value.contains('.')) {
                             return 'Please enter a valid email';
                           }
+                          if (_emailExists) {
+                            return 'This email is already registered';
+                          }
                           return null;
+                        },
+                        onChanged: (value) {
+                          // Clear email exists error when user starts typing
+                          if (_emailExists) {
+                            setState(() {
+                              _emailExists = false;
+                            });
+                          }
                         },
                       ),
                       const SizedBox(height: 16),
@@ -528,18 +601,128 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  void _showError(String message) {
+  void _showError(String message, {bool showSignInAction = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(child: Text(message)),
+              ],
+            ),
+            if (showSignInAction) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Or try using a different email address',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ],
+        ),
+        backgroundColor: Colors.red.shade600,
+        duration: const Duration(seconds: 5),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        action: showSignInAction
+            ? SnackBarAction(
+                label: 'Sign In',
+                textColor: Colors.white,
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SignInScreen(),
+                    ),
+                  );
+                },
+              )
+            : null,
+      ),
+    );
+  }
+
+  void _highlightEmailField() {
+    // Focus on email field and trigger validation
+    FocusScope.of(context).requestFocus(FocusNode());
+    Future.delayed(Duration(milliseconds: 100), () {
+      if (mounted) {
+        _formKey.currentState?.validate();
+      }
+    });
+  }
+
+  void _highlightPhoneField() {
+    // Focus on phone field and trigger validation
+    FocusScope.of(context).requestFocus(FocusNode());
+    Future.delayed(Duration(milliseconds: 100), () {
+      if (mounted) {
+        _formKey.currentState?.validate();
+      }
+    });
+  }
+
+  void _clearEmailExistsError() {
+    if (_emailExists) {
+      setState(() {
+        _emailExists = false;
+      });
+    }
+  }
+
+  int _logoInteractionCount = 0;
+  DateTime? _lastInteractionTime;
+
+  void _handleLogoTap() {
+    debugPrint('🔍 LOGO TAPPED! Count: $_logoInteractionCount');
+    final now = DateTime.now();
+
+    if (_lastInteractionTime != null &&
+        now.difference(_lastInteractionTime!).inSeconds > 2) {
+      _logoInteractionCount = 0;
+      debugPrint('🔍 RESET COUNT - too much time passed');
+    }
+
+    _logoInteractionCount++;
+    _lastInteractionTime = now;
+
+    debugPrint('🔍 TAP COUNT: $_logoInteractionCount');
+
+    if (_logoInteractionCount == 3) {
+      debugPrint('🔍 SHOWING SPECIAL FEEDBACK!');
+      _logoInteractionCount = 0; // Reset for next time
+      _showSpecialFeedback();
+    }
+  }
+
+  void _showSpecialFeedback() {
+    debugPrint('🔍 SHOWING SPECIAL FEEDBACK: vanessa ❤️');
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.error_outline, color: Colors.white, size: 20),
+            Icon(Icons.favorite, color: Colors.white, size: 20),
             const SizedBox(width: 8),
-            Expanded(child: Text(message)),
+            Text(
+              'vanessa ❤️',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
           ],
         ),
-        backgroundColor: Colors.red.shade600,
-        duration: const Duration(seconds: 3),
+        backgroundColor: Colors.pink.shade400,
+        duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),

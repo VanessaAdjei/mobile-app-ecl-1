@@ -2,7 +2,7 @@ name: eclapp
 description: "ECL-ECOM - Ernest Chemists Limited E-commerce App"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
@@ -74,6 +74,12 @@ dependencies:
   # Animations (used in multiple files)
   animations: ^2.0.11
 
+  # Audio and notifications
+  audioplayers: ^5.2.1
+  photo_view: ^0.14.0
+  timezone: ^0.9.0
+  # flutter_local_notifications: ^16.3.2  # Removed due to compilation issues
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -86,6 +92,7 @@ flutter:
   assets:
     - assets/images/
     - assets/images/prescriptionsample.png
+    - assets/sounds/
 
   fonts:
     - family: Poppins
@@ -93,4 +100,3 @@ flutter:
         - asset: assets/fonts/Poppins-Regular.ttf
         - asset: assets/fonts/Poppins-Bold.ttf
           weight: 700
-

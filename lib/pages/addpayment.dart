@@ -77,8 +77,11 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
         setState(() {
           _isLoading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to load payment methods: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Failed to load payment methods: $e'),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
+        ));
       }
     }
   }
@@ -124,9 +127,11 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
       await _savePaymentMethods();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text("Payment method saved successfully"),
           backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
         ));
         setState(() {
           _clearForm();
@@ -141,6 +146,8 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Failed to save payment method: $e'),
           backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
         ));
       }
     }
@@ -209,7 +216,7 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
             style: TextStyle(
                 fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
           ),
-                  leading: BackButtonUtils.simple(),
+          leading: BackButtonUtils.simple(),
           actions: [
             CartIconButton(
               iconColor: Colors.white,

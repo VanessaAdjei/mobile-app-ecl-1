@@ -16,6 +16,7 @@ import 'cart_item.dart';
 import 'order_tracking_page.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'cart.dart';
+import '../services/order_notification_service.dart';
 
 class ExpressPayChannel {
   static const MethodChannel _channel =
@@ -276,7 +277,7 @@ class _PaymentPageState extends State<PaymentPage> {
         'request': 'submit',
         'order_id': 'ORDER_${DateTime.now().millisecondsSinceEpoch}',
         'currency': 'GHS',
-        'amount': total.toStringAsFixed(2),
+        'amount': total.toString(),
         'order_desc': orderDesc,
         'user_name': _userEmail,
         'first_name': firstName,
@@ -365,7 +366,7 @@ class _PaymentPageState extends State<PaymentPage> {
               paymentParams: params,
               purchasedItems: purchasedItems,
               initialStatus: 'pending',
-              initialTransactionId: transactionId,
+              initialTransactionId: transactionId.toString(),
               paymentSuccess: true,
               paymentVerified: true,
               paymentToken: null,
@@ -400,7 +401,7 @@ class _PaymentPageState extends State<PaymentPage> {
           final orderResult = await AuthService.createCashOnDeliveryOrder(
             items: orderItems,
             totalAmount: total,
-            orderId: transactionId!,
+            orderId: transactionId.toString(),
             paymentMethod: selectedPaymentMethod,
             promoCode: _appliedPromoCode,
           );
@@ -432,6 +433,51 @@ class _PaymentPageState extends State<PaymentPage> {
           } else {
             // Clear the cart after successful order creation
             cart.clearCart();
+
+            // Create order placed notification
+            try {
+              final orderData = {
+                'id': transactionId!,
+                'transaction_id': transactionId!,
+                'order_number': transactionId!,
+                'total_amount': total.toString(),
+                'status': 'Order Placed',
+                'payment_method': selectedPaymentMethod,
+                'items': orderItems,
+                'created_at': DateTime.now().toIso8601String(),
+              };
+              await OrderNotificationService.createOrderPlacedNotification(
+                  orderData);
+              debugPrint(
+                  '📱 Order placed notification created for order #${transactionId!}');
+
+              // Show SnackBar notification
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Order placed successfully! Check notifications for updates.',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 4),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                );
+              }
+            } catch (e) {
+              debugPrint('Error creating order placed notification: $e');
+            }
           }
         } catch (e) {
           // Ignore order creation errors for now
@@ -504,7 +550,8 @@ class _PaymentPageState extends State<PaymentPage> {
               onPaymentComplete: (success, token) async {
                 if (success && token != null) {
                   try {
-                    final result = await _verifyPayment(token, transactionId!);
+                    final result =
+                        await _verifyPayment(token, transactionId.toString());
                     final statusText =
                         result['status']?.toString().toLowerCase() ?? '';
 
@@ -1408,8 +1455,6 @@ class _PaymentPageState extends State<PaymentPage> {
     final subtotal = cart.calculateSubtotal();
     final deliveryFee = 0.00;
     final total = subtotal + deliveryFee - _discountAmount;
-
-
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -3193,7 +3238,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       debugPrint('[DEBUG] Payment Status Check - Request Headers: $headers');
       debugPrint(
           '[DEBUG] Payment Status Check - Request Body: ${jsonEncode(requestBody)}');
-      
+
       debugPrint('[DEBUG] Making HTTP request to check-payment endpoint...');
       final response = await http
           .post(

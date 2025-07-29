@@ -12,6 +12,7 @@ import 'auth_service.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/error_display.dart';
 import 'order_tracking_page.dart';
+import '../services/order_notification_service.dart';
 
 class PurchaseScreen extends StatefulWidget {
   const PurchaseScreen({super.key});
@@ -108,6 +109,14 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
             _currentPage = 1;
             _hasMoreData = processedOrders.length >= _pageSize;
           });
+
+          // Track order status changes for notifications
+          // try {
+          //   await OrderNotificationService.trackOrderStatusChanges(
+          //       processedOrders.cast<Map<String, dynamic>>());
+          // } catch (e) {
+          //   debugPrint('Error tracking order status changes: $e');
+          // }
         }
       } else {
         throw Exception(result['message'] ?? 'Failed to load orders');

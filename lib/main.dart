@@ -20,7 +20,10 @@ import 'services/homepage_optimization_service.dart';
 import 'services/background_prefetch_service.dart';
 import 'pages/onboarding_splash_page.dart';
 import 'pages/prescription.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'pages/notification_provider.dart';
+import 'services/background_order_checker.dart';
+import 'services/order_notification_service.dart';
+import 'services/native_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -65,6 +68,13 @@ void main() async {
 
   // Print guest id for testing
   await AuthService.getToken();
+
+  // Start background order checking for notifications
+  BackgroundOrderChecker.startPeriodicChecking();
+
+  // Initialize notification services
+  await OrderNotificationService.initializeNotifications();
+  await NativeNotificationService.initialize();
 
   runApp(const MyApp());
 }
@@ -179,6 +189,19 @@ class _MyAppState extends State<MyApp> {
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(
+          create: (context) {
+            final notificationProvider = NotificationProvider();
+            notificationProvider.initialize();
+
+            // Connect notification service with provider for immediate badge updates
+            OrderNotificationService.setBadgeUpdateCallback((count) {
+              notificationProvider.updateBadgeCount(count);
+            });
+
+            return notificationProvider;
+          },
+        ),
         ChangeNotifierProvider(
           create: (context) {
             final authProvider = AuthProvider();

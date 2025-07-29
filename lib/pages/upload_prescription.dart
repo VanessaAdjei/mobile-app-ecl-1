@@ -28,8 +28,6 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
   bool _isUploading = false;
   bool _isSubmitting = false;
 
-
-
   Future<bool> _checkLoginStatus() async {
     try {
       // Use a simpler check that doesn't require network verification
@@ -68,12 +66,13 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                   ),
                 );
                 print('🔍 Upload: SignInScreen closed');
-                
+
                 // Check if user is now logged in
                 final isLoggedIn = await _checkLoginStatus();
                 print('🔍 Upload: After SignInScreen, isLoggedIn: $isLoggedIn');
                 if (isLoggedIn && mounted) {
-                  print('🔍 Upload: User logged in, continuing with image picker');
+                  print(
+                      '🔍 Upload: User logged in, continuing with image picker');
                   _pickImageAfterLogin();
                 }
               },
@@ -122,10 +121,10 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
     }
   }
 
-      Future<void> _submitPrescription() async {
+  Future<void> _submitPrescription() async {
     final isLoggedIn = await _checkLoginStatus();
     print('🔍 Submit: Checking login status - isLoggedIn: $isLoggedIn');
-    
+
     if (!isLoggedIn) {
       if (mounted) {
         // Show a simple message asking user to log in
@@ -145,12 +144,13 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                   ),
                 );
                 print('🔍 Submit: SignInScreen closed');
-                
+
                 // Check if user is now logged in
                 final isLoggedIn = await _checkLoginStatus();
                 print('🔍 Submit: After SignInScreen, isLoggedIn: $isLoggedIn');
                 if (isLoggedIn && mounted) {
-                  print('🔍 Submit: User logged in, continuing with submission');
+                  print(
+                      '🔍 Submit: User logged in, continuing with submission');
                   _submitPrescriptionAfterLogin();
                 }
               },
@@ -160,7 +160,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
       }
       return;
     }
-    
+
     print('🔍 Submit: User already logged in, proceeding with submission');
     _submitPrescriptionAfterLogin();
   }

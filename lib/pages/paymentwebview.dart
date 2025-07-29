@@ -4,6 +4,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'payment_page.dart';
 import 'cart_item.dart';
 import 'auth_service.dart';
+import '../services/order_notification_service.dart';
 
 class PaymentWebView extends StatefulWidget {
   final String url;
@@ -48,11 +49,49 @@ class _PaymentWebViewState extends State<PaymentWebView> {
     } catch (e) {}
   }
 
+  /// Create notification for successful online payment
+  Future<void> _createOnlinePaymentNotification() async {
+    try {
+      final orderId = widget.paymentParams['order_id'] ?? '';
+      final totalAmount = widget.paymentParams['amount']?.toString() ?? '0';
+
+      // Create order data for notification
+      final orderData = {
+        'id': orderId,
+        'transaction_id': orderId,
+        'order_number': orderId,
+        'total_amount': totalAmount,
+        'status': 'Order Placed',
+        'payment_method': widget.paymentMethod,
+        'items': widget.purchasedItems
+            .map((item) => {
+                  'name': item.name,
+                  'price': item.price,
+                  'quantity': item.quantity,
+                })
+            .toList(),
+        'created_at': DateTime.now().toIso8601String(),
+      };
+
+      // Create notification
+      await OrderNotificationService.createOrderPlacedNotification(orderData);
+
+      debugPrint('📱 Online payment notification created for order #$orderId');
+    } catch (e) {
+      debugPrint('Error creating online payment notification: $e');
+    }
+  }
+
   void _navigateToConfirmation(bool success) async {
     // Check auth state before navigation
     await _checkAndRefreshAuth();
 
     if (!mounted) return;
+
+    // Create notification if payment was successful
+    if (success) {
+      await _createOnlinePaymentNotification();
+    }
 
     // First pop the WebView
     Navigator.pop(context);
@@ -134,11 +173,26 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       onPopInvoked: (didPop) async {
         if (!mounted) return;
 
+        debugPrint('🔍 PopScope triggered - didPop: $didPop');
+
+        // Only show cancel dialog if user is actually trying to exit
+        // If didPop is true, it means the system handled the pop automatically
+        // We only want to show dialog when user manually tries to exit
+        if (didPop) {
+          debugPrint('🔍 PopScope handled automatically - not showing dialog');
+          return;
+        }
+
         // Use a flag to prevent multiple dialogs
         if (_isShowingDialog) return;
         _isShowingDialog = true;
 
         try {
+          // Add a small delay to prevent navigation conflicts
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          debugPrint('🔍 Showing cancel payment dialog from PopScope');
+
           // Show confirmation dialog with error handling
           final shouldPop = await showDialog<bool>(
             context: context,
@@ -229,14 +283,46 @@ class _PaymentWebViewState extends State<PaymentWebView> {
           );
 
           if (shouldPop == true && mounted) {
-            // Simply pop back to the previous screen (payment page)
-            Navigator.pop(context, false);
+            // Add a small delay to prevent navigation conflicts
+            await Future.delayed(const Duration(milliseconds: 100));
+
+            if (mounted) {
+              try {
+                if (Navigator.canPop(context)) {
+                  Navigator.pop(context, false);
+                } else {
+                  Navigator.of(context).maybePop(false);
+                }
+              } catch (e) {
+                debugPrint('Error popping from dialog: $e');
+                // Final fallback
+                try {
+                  Navigator.of(context).maybePop(false);
+                } catch (finalError) {
+                  debugPrint('Final dialog fallback failed: $finalError');
+                }
+              }
+            }
           }
         } catch (e) {
           debugPrint('Error showing cancel dialog: $e');
-          // If dialog fails, just pop back
+          // If dialog fails, just pop back with safety checks
           if (mounted) {
-            Navigator.pop(context, false);
+            try {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context, false);
+              } else {
+                Navigator.of(context).maybePop(false);
+              }
+            } catch (e) {
+              debugPrint('Error popping after dialog error: $e');
+              // Final fallback - just try to go back
+              try {
+                Navigator.of(context).maybePop(false);
+              } catch (finalError) {
+                debugPrint('Final navigation fallback failed: $finalError');
+              }
+            }
           }
         } finally {
           _isShowingDialog = false;
@@ -285,6 +371,8 @@ class _PaymentWebViewState extends State<PaymentWebView> {
                                   icon: const Icon(Icons.arrow_back,
                                       color: Colors.white, size: 20),
                                   onPressed: () async {
+                                    debugPrint(
+                                        '🔍 Back button pressed manually');
                                     final shouldPop = await showDialog<bool>(
                                       context: context,
                                       builder: (context) => Dialog(
@@ -398,8 +486,21 @@ class _PaymentWebViewState extends State<PaymentWebView> {
                                         ),
                                       ),
                                     );
-                                    if (shouldPop == true) {
-                                      Navigator.pop(context, false);
+                                    if (shouldPop == true && mounted) {
+                                      // Add a small delay to prevent navigation conflicts
+                                      await Future.delayed(
+                                          const Duration(milliseconds: 100));
+
+                                      if (mounted &&
+                                          Navigator.canPop(context)) {
+                                        try {
+                                          Navigator.pop(context, false);
+                                        } catch (e) {
+                                          debugPrint(
+                                              'Error popping from back button: $e');
+                                          Navigator.of(context).maybePop(false);
+                                        }
+                                      }
                                     }
                                   },
                                 ),

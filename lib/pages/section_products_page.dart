@@ -356,14 +356,14 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                 )
               : GridView.builder(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
                   physics: const BouncingScrollPhysics(),
                   itemCount: products.length,
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 16,
-                    childAspectRatio: 0.8,
+                    childAspectRatio: 1.1,
                   ),
                   itemBuilder: (context, index) {
                     final product = products[index];
@@ -404,7 +404,7 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                                 children: [
                                   // Image Section
                                   Expanded(
-                                    flex: 3,
+                                    flex: 2,
                                     child: Container(
                                       width: double.infinity,
                                       decoration: BoxDecoration(
@@ -496,27 +496,29 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                                   ),
                                   // Content Section
                                   Expanded(
-                                    flex: 2,
+                                    flex: 1,
                                     child: Padding(
-                                      padding: const EdgeInsets.all(12),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
                                       child: Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
+                                            MainAxisAlignment.start,
                                         children: [
                                           // Product Name
                                           Text(
                                             product.name,
                                             style: const TextStyle(
-                                              fontSize: 13,
+                                              fontSize: 11,
                                               fontWeight: FontWeight.w600,
                                               color: Colors.black87,
-                                              height: 1.2,
+                                              height: 1.0,
                                             ),
-                                            maxLines: 2,
+                                            maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                           ),
+                                          const SizedBox(height: 2),
                                           // Bottom Row
                                           Row(
                                             mainAxisAlignment:
@@ -526,28 +528,14 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                                               Text(
                                                 'GHS ${product.price}',
                                                 style: TextStyle(
-                                                  fontSize: 13,
+                                                  fontSize: 11,
                                                   fontWeight: FontWeight.w600,
                                                   color: Colors.green[800],
                                                   letterSpacing: 0.3,
                                                 ),
                                               ),
-                                              // Simple action button
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.all(6),
-                                                decoration: BoxDecoration(
-                                                  color: const Color(0xFF22C55E)
-                                                      .withValues(alpha: 0.1),
-                                                  borderRadius:
-                                                      BorderRadius.circular(6),
-                                                ),
-                                                child: const Icon(
-                                                  Icons.arrow_forward_ios,
-                                                  color: Color(0xFF22C55E),
-                                                  size: 12,
-                                                ),
-                                              ),
+                                              // Empty space to maintain layout
+                                              const SizedBox(width: 16),
                                             ],
                                           ),
                                         ],

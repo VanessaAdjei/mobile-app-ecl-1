@@ -22,6 +22,7 @@ import 'package:eclapp/pages/prescription_history.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import '../widgets/cart_icon_button.dart';
 import 'authprovider.dart';
+import 'notification_provider.dart';
 
 class Profile extends StatefulWidget {
   const Profile({super.key});
@@ -218,7 +219,8 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     // ignore: empty_catches
                   }
                   await cartProvider.handleUserLogout();
-                  print('🔍 Profile: cartProvider.handleUserLogout() completed');
+                  print(
+                      '🔍 Profile: cartProvider.handleUserLogout() completed');
                   userProvider.clearUserData();
                   print('🔍 Profile: userProvider.clearUserData() completed');
                   logoutSuccess = true;
@@ -607,20 +609,31 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                   const SizedBox(height: 20),
 
                   // Enhanced Profile Options
-                  _buildEnhancedProfileOption(
-                    context,
-                    Icons.notifications_outlined,
-                    "Notifications",
-                    "Manage your notifications",
-                    _userLoggedIn
-                        ? () => _navigateTo(NotificationsScreen())
-                        : () => _showSignInRequiredDialog(context,
-                            feature: 'notifications'),
-                    primaryColor,
-                    cardColor,
-                    textColor,
-                    subtextColor,
-                    0,
+                  Selector<NotificationProvider, int>(
+                    selector: (context, provider) => provider.unreadCount,
+                    builder: (context, unreadCount, child) {
+                      return _buildEnhancedProfileOption(
+                        context,
+                        Icons.notifications_outlined,
+                        "Notifications",
+                        "Manage your notifications",
+                        _userLoggedIn
+                            ? () async {
+                                // Mark all notifications as read when opening
+                                final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+                                await notificationProvider.markAllAsRead();
+                                _navigateTo(NotificationsScreen());
+                              }
+                            : () => _showSignInRequiredDialog(context,
+                                feature: 'notifications'),
+                        primaryColor,
+                        cardColor,
+                        textColor,
+                        subtextColor,
+                        0,
+                        badgeCount: unreadCount,
+                      );
+                    },
                   ),
                   _buildEnhancedProfileOption(
                     context,
@@ -790,8 +803,9 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
     Color cardColor,
     Color textColor,
     Color subtextColor,
-    int index,
-  ) {
+    int index, {
+    int? badgeCount,
+  }) {
     return TweenAnimationBuilder(
       tween: Tween<double>(begin: 0, end: 1),
       duration: Duration(milliseconds: 600 + (index * 150)),
@@ -878,17 +892,46 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: subtextColor.withAlpha((255 * 0.1).toInt()),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.arrow_forward_ios,
-                      size: 14,
-                      color: subtextColor,
-                    ),
+                  Row(
+                    children: [
+                      if (badgeCount != null && badgeCount > 0)
+                        Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.red.withValues(alpha: 0.3),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            badgeCount.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: subtextColor.withAlpha((255 * 0.1).toInt()),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.arrow_forward_ios,
+                          size: 14,
+                          color: subtextColor,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

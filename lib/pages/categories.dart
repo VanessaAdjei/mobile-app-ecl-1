@@ -706,48 +706,48 @@ class _CategoryPageState extends State<CategoryPage> {
       },
       child: Scaffold(
         appBar: AppBar(
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-        elevation: Theme.of(context).appBarTheme.elevation,
-        centerTitle: Theme.of(context).appBarTheme.centerTitle,
-        leading: BackButtonUtils.custom(
-          backgroundColor: Theme.of(context).primaryColor,
-          onPressed: () {
-            if (widget.isBulkPurchase) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const BulkPurchasePage(),
-                ),
-              );
-            } else if (Navigator.canPop(context)) {
-              Navigator.pop(context);
-            } else {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => HomePage()),
-              );
-            }
-          },
-        ),
-        title: Text(
-          'Categories',
-          style: Theme.of(context).appBarTheme.titleTextStyle,
-        ),
-        actions: [
-          CartIconButton(
-            iconColor: Colors.white,
-            iconSize: 24,
+          backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+          elevation: Theme.of(context).appBarTheme.elevation,
+          centerTitle: Theme.of(context).appBarTheme.centerTitle,
+          leading: BackButtonUtils.custom(
+            backgroundColor: Theme.of(context).primaryColor,
+            onPressed: () {
+              if (widget.isBulkPurchase) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const BulkPurchasePage(),
+                  ),
+                );
+              } else if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => HomePage()),
+                );
+              }
+            },
           ),
-        ],
+          title: Text(
+            'Categories',
+            style: Theme.of(context).appBarTheme.titleTextStyle,
+          ),
+          actions: [
+            CartIconButton(
+              iconColor: Colors.white,
+              iconSize: 24,
+            ),
+          ],
+        ),
+        backgroundColor: Colors.grey[50],
+        body: SafeArea(
+          child: _isLoading ? _buildSkeletonWithLoading() : _buildMainContent(),
+        ),
+        bottomNavigationBar: CustomBottomNav(initialIndex: 2),
       ),
-      backgroundColor: Colors.grey[50],
-      body: SafeArea(
-        child: _isLoading ? _buildSkeletonWithLoading() : _buildMainContent(),
-      ),
-      bottomNavigationBar: CustomBottomNav(initialIndex: 2),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildSkeletonWithLoading() {
     return Stack(

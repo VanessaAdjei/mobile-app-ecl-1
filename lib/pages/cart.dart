@@ -429,47 +429,48 @@ class _CartState extends State<Cart> {
                   ),
                 ],
               ),
-                                      child: SafeArea(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Loading indicator for checkout when items are updating
-                                if (cart.isAnyItemUpdating)
-                                  Container(
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange.shade50,
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: Colors.orange.shade200),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        SizedBox(
-                                          width: 12,
-                                          height: 12,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(
-                                              Colors.orange.shade600,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Updating cart...',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.orange.shade700,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Loading indicator for checkout when items are updating
+                      if (cart.isAnyItemUpdating)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.orange.shade200),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.orange.shade600,
                                   ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Updating cart...',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.orange.shade700,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       // Order Summary
                       Container(
                         padding: const EdgeInsets.all(12),
@@ -537,7 +538,8 @@ class _CartState extends State<Cart> {
                           color: Colors.transparent,
                           child: InkWell(
                             borderRadius: BorderRadius.circular(8),
-                            onTap: (cart.isAnyItemUpdating || cart.cartItems.isEmpty)
+                            onTap: (cart.isAnyItemUpdating ||
+                                    cart.cartItems.isEmpty)
                                 ? null
                                 : () async {
                                     if (!_isLoggedIn) {
@@ -1149,7 +1151,8 @@ class _CartState extends State<Cart> {
                             // Loading indicator when item is being updated
                             if (cart.isItemUpdating(item.id))
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 8),
                                 child: SizedBox(
                                   width: 12,
                                   height: 12,

@@ -6,6 +6,9 @@ import 'homepage.dart' as home;
 import 'categories.dart';
 import 'cart.dart';
 import 'profile.dart';
+import 'notification_provider.dart';
+import '../services/order_notification_service.dart';
+import 'notifications.dart';
 
 class CustomBottomNav extends StatefulWidget {
   final int initialIndex;
@@ -21,12 +24,18 @@ class CustomBottomNav extends StatefulWidget {
 
 class _CustomBottomNavState extends State<CustomBottomNav> {
   late int _selectedIndex;
+  bool _isNavigating = false;
 
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
     _checkLoginStatus();
+
+    // Check for new notifications when the app becomes active
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForNewNotifications();
+    });
   }
 
   Future<void> _checkLoginStatus() async {
@@ -34,12 +43,64 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     await cartProvider.refreshLoginStatus();
   }
 
+  Future<void> _checkForNewNotifications() async {
+    try {
+      final unreadCount = await OrderNotificationService.getUnreadCount();
+
+      if (unreadCount > 0 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.notifications_active, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'You have $unreadCount new notification${unreadCount > 1 ? 's' : ''}!',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            action: SnackBarAction(
+              label: 'View',
+              textColor: Colors.white,
+              onPressed: () {
+                // Check if widget is still mounted before navigating
+                if (mounted) {
+                  // Navigate directly to notifications page
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const NotificationsScreen(),
+                    ),
+                  );
+                }
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error checking for new notifications: $e');
+    }
+  }
+
   void _onItemTapped(int index) async {
     debugPrint('🔍 BOTTOM NAV TAPPED ===');
     debugPrint('Index: $index');
     debugPrint('Current Index: $_selectedIndex');
-    debugPrint('Can Pop: ${Navigator.canPop(context)}');
-    debugPrint('Route Count: ${Navigator.of(context).widget.observers.length}');
+
+    // Prevent multiple rapid taps
+    if (_isNavigating) {
+      debugPrint('🔍 ALREADY NAVIGATING - IGNORING TAP ===');
+      return;
+    }
 
     // Only return early if we're actually on the same page AND it's not the home button
     // For home button (index 0), we always want to navigate regardless of current index
@@ -49,69 +110,78 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
       return;
     }
 
+    // Set navigating flag
+    _isNavigating = true;
+
+    // Update the selected index first
     setState(() {
       _selectedIndex = index;
     });
 
-    // Add a small delay to prevent navigation conflicts
-    await Future.delayed(Duration(milliseconds: 50));
+    // Use a longer delay to ensure the widget tree is stable
+    await Future.delayed(Duration(milliseconds: 200));
 
-    if (!mounted) return;
-
-    switch (index) {
-      case 0:
-        debugPrint('🔍 HOME BUTTON PRESSED ===');
-        // For home button, clear the entire navigation stack
-        try {
-          // First, try to pop all routes until we can't pop anymore
-          while (Navigator.canPop(context)) {
-            Navigator.pop(context);
-          }
-
-          // Then push the home page
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const home.HomePage(),
-            ),
-          );
-          debugPrint('🔍 HOME NAVIGATION COMPLETED ===');
-        } catch (e) {
-          debugPrint('🔍 HOME NAVIGATION ERROR: $e ===');
-          // Final fallback: try simple push replacement
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const home.HomePage(),
-            ),
-          );
-        }
-        break;
-      case 1:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const Cart(),
-          ),
-        );
-        break;
-      case 2:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const CategoryPage(),
-          ),
-        );
-        break;
-      case 3:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const Profile(),
-          ),
-        );
-        break;
+    if (!mounted) {
+      _isNavigating = false;
+      return;
     }
+
+    // Use WidgetsBinding.instance.addPostFrameCallback to ensure navigation happens after the frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        _isNavigating = false;
+        return;
+      }
+      
+      try {
+        switch (index) {
+          case 0:
+            debugPrint('🔍 HOME BUTTON PRESSED ===');
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const home.HomePage(),
+              ),
+            );
+            break;
+          case 1:
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const Cart(),
+              ),
+            );
+            break;
+          case 2:
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const CategoryPage(),
+              ),
+            );
+            break;
+          case 3:
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const Profile(),
+              ),
+            );
+            break;
+        }
+      } catch (e) {
+        debugPrint('🔍 NAVIGATION ERROR: $e ===');
+      } finally {
+        // Reset navigating flag after a delay
+        Future.delayed(Duration(milliseconds: 500), () {
+          if (mounted) {
+            setState(() {
+              _isNavigating = false;
+            });
+          }
+        });
+      }
+    });
   }
 
   @override
@@ -201,8 +271,44 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
               icon: Icon(Icons.grid_view),
               label: 'Categories',
             ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.person),
+            BottomNavigationBarItem(
+              icon: Consumer<NotificationProvider>(
+                builder: (context, notificationProvider, child) {
+                  debugPrint(
+                      '📱 BottomNav: Unread count: ${notificationProvider.unreadCount}');
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(Icons.person),
+                      if (notificationProvider.unreadCount > 0)
+                        Positioned(
+                          right: -6,
+                          top: -3,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              color: Colors.orange,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              '${notificationProvider.unreadCount}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
               label: 'Profile',
             ),
           ],

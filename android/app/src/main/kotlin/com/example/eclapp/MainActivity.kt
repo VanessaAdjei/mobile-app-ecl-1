@@ -6,13 +6,70 @@ import io.flutter.plugin.common.MethodChannel
 import com.expresspaygh.api.ExpressPayApi
 import com.expresspaygh.api.ExpressPayApi.ExpressPayPaymentCompletionListener
 import org.json.JSONObject
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import androidx.core.app.NotificationCompat
 
 class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
     private val CHANNEL = "com.yourcompany.expresspay"
+    private val NOTIFICATION_CHANNEL = "ecl_notifications"
     private var pendingResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        
+        println("🔧 Android: MainActivity configureFlutterEngine called")
+        
+        // Set up notification channel
+        println("🔧 Android: Setting up notification method channel...")
+        val notificationChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NOTIFICATION_CHANNEL)
+        notificationChannel.setMethodCallHandler { call, result ->
+            println("🔧 Android: Received method call: ${call.method}")
+            when (call.method) {
+                "requestPermissions" -> {
+                    println("🔧 Android: Handling requestPermissions")
+                    // Permissions are handled automatically on Android 13+
+                    result.success("Permissions requested successfully")
+                }
+                "test" -> {
+                    println("🔧 Android: Handling test method")
+                    result.success("Android method channel is working!")
+                }
+                "showNotification" -> {
+                    println("🔧 Android: Handling showNotification")
+                    val id = call.argument<Int>("id") ?: 0
+                    val title = call.argument<String>("title") ?: ""
+                    val body = call.argument<String>("body") ?: ""
+                    val payload = call.argument<String>("payload")
+                    
+                    println("🔧 Android: Showing notification - ID: $id, Title: $title, Body: $body")
+                    showNotification(id, title, body, payload)
+                    result.success(null)
+                }
+                "cancelAllNotifications" -> {
+                    println("🔧 Android: Handling cancelAllNotifications")
+                    val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    notificationManager.cancelAll()
+                    result.success(null)
+                }
+                "areNotificationsEnabled" -> {
+                    println("🔧 Android: Handling areNotificationsEnabled")
+                    val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    val enabled = notificationManager.areNotificationsEnabled()
+                    result.success(enabled)
+                }
+                else -> {
+                    println("🔧 Android: Method not implemented: ${call.method}")
+                    result.notImplemented()
+                }
+            }
+        }
+        println("🔧 Android: Notification method channel setup complete")
+        
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             if (call.method == "startExpressPay") {
                 val params = call.arguments as? HashMap<String, String>
@@ -91,5 +148,50 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
     // This is called by the SDK when payment is finished
     override fun onExpressPayPaymentFinished(paymentCompleted: Boolean, errorMessage: String?) {
         handlePaymentResult(paymentCompleted, errorMessage)
+    }
+    
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                "ecl_notifications",
+                "ECL Notifications",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifications for ECL Pharmacy App"
+                enableLights(true)
+                enableVibration(true)
+            }
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+    
+    private fun showNotification(id: Int, title: String, body: String, payload: String?) {
+        createNotificationChannel()
+        
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            putExtra("notification_payload", payload)
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(this, "ecl_notifications")
+            .setContentTitle(title)
+            .setContentText(body)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .setColor(0xFF22C55E.toInt()) // Green color
+            .build()
+
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(id, notification)
     }
 }

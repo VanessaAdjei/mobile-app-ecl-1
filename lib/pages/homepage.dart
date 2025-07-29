@@ -271,9 +271,9 @@ class _HomePageState extends State<HomePage>
   Future<void> _loadAllContent() async {
     debugPrint('HomePage: _loadAllContent called');
     if (!mounted || _isLoadingContent) return;
-    
+
     _isLoadingContent = true;
-    
+
     try {
       // Load products first
       debugPrint('HomePage: Loading products');
@@ -311,7 +311,7 @@ class _HomePageState extends State<HomePage>
 
   Future<void> loadProducts() async {
     if (!mounted) return;
-    
+
     // Always show skeleton for at least 800ms for better UX
     final skeletonStartTime = DateTime.now();
 
@@ -775,6 +775,8 @@ class _HomePageState extends State<HomePage>
                             backgroundColor: Colors.green.shade600,
                             duration: const Duration(seconds: 2),
                             behavior: SnackBarBehavior.floating,
+                            margin: const EdgeInsets.only(
+                                top: 16.0, left: 16.0, right: 16.0),
                           ),
                         );
                       },
@@ -859,7 +861,9 @@ class _HomePageState extends State<HomePage>
 
     // Infinite carousel for popular products row
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && popularProducts.isNotEmpty && _popularScrollController.hasClients) {
+      if (mounted &&
+          popularProducts.isNotEmpty &&
+          _popularScrollController.hasClients) {
         final limitedPopularProducts =
             _getLimitedProducts(popularProducts, limit: 8);
         if (limitedPopularProducts.isNotEmpty) {
@@ -1606,14 +1610,17 @@ class _HomePageState extends State<HomePage>
                     ),
 
                     SliverToBoxAdapter(
-                      child: _buildProductSection(
-                        'Drugs',
-                        Colors.green[700]!,
-                        _getLimitedProducts(drugsSectionProducts),
-                        'drugs',
-                        fontSize: cardFontSize,
-                        padding: cardPadding,
-                        imageHeight: cardImageHeight,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 16.0),
+                        child: _buildProductSection(
+                          'Drugs',
+                          Colors.green[700]!,
+                          _getLimitedProducts(drugsSectionProducts),
+                          'drugs',
+                          fontSize: cardFontSize,
+                          padding: cardPadding,
+                          imageHeight: cardImageHeight,
+                        ),
                       ),
                     ),
                     // Special Offers Section

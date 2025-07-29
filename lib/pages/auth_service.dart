@@ -191,11 +191,53 @@ class AuthService {
           )
           .timeout(const Duration(seconds: 15));
 
+      debugPrint(
+          '🔍 AUTH SERVICE: Response status code: ${response.statusCode}');
+      debugPrint('🔍 AUTH SERVICE: Response body: ${response.body}');
+
       if (response.statusCode == 201) {
         return true;
+      } else if (response.statusCode == 200) {
+        // Handle 200 status with errors (some APIs return 200 with error details)
+        try {
+          final data = json.decode(response.body);
+          final errors = data['errors'] ?? {};
+          debugPrint('🔍 AUTH SERVICE: 200 errors: $errors');
+          
+          if (errors['email'] != null) {
+            final emailError = errors['email'];
+            if (emailError is List && emailError.isNotEmpty) {
+              final errorMessage = emailError[0].toString();
+              if (errorMessage.toLowerCase().contains('already been taken')) {
+                throw Exception(
+                    'This email is already registered. Please use a different email or sign in.');
+              }
+            }
+            throw Exception(
+                'This email is already registered. Please use a different email or sign in.');
+          } else if (errors['phone'] != null) {
+            throw Exception(
+                'This phone number is already registered. Please use a different number.');
+          }
+          
+          // If no specific errors, check if there's a success field
+          if (data['success'] == false) {
+            throw Exception(data['message'] ?? 'Please check your information and try again.');
+          }
+          
+          // If we reach here, it might be a successful response with errors
+          return true;
+        } catch (e) {
+          if (e.toString().contains('email is already registered')) {
+            rethrow;
+          }
+          throw Exception('Please check your information and try again.');
+        }
       } else if (response.statusCode == 422) {
         final data = json.decode(response.body);
         final errors = data['errors'] ?? {};
+        debugPrint('🔍 AUTH SERVICE: 422 errors: $errors');
+
         if (errors['email'] != null) {
           throw Exception(
               'This email is already registered. Please use a different email or sign in.');
@@ -204,6 +246,34 @@ class AuthService {
               'This phone number is already registered. Please use a different number.');
         }
         throw Exception('Please check your information and try again.');
+      } else if (response.statusCode == 400) {
+        // Handle 400 Bad Request - might contain email already exists error
+        try {
+          final data = json.decode(response.body);
+          debugPrint('🔍 AUTH SERVICE: 400 response data: $data');
+
+          // Check for email error in message
+          final message = data['message']?.toString().toLowerCase() ?? '';
+          if (message.contains('email') && message.contains('already')) {
+            throw Exception(
+                'This email is already registered. Please use a different email or sign in.');
+          }
+
+          // Check for email error in errors object
+          final errors = data['errors'] ?? {};
+          if (errors['email'] != null) {
+            throw Exception(
+                'This email is already registered. Please use a different email or sign in.');
+          }
+
+          throw Exception(data['message'] ??
+              'Please check your information and try again.');
+        } catch (e) {
+          if (e.toString().contains('email is already registered')) {
+            rethrow;
+          }
+          throw Exception('Please check your information and try again.');
+        }
       } else if (response.statusCode >= 500) {
         throw Exception(
             'Server is currently unavailable. Please try again later.');
