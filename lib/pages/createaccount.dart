@@ -704,7 +704,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   void _showSpecialFeedback() {
-    debugPrint('🔍 SHOWING SPECIAL FEEDBACK: vanessa ❤️');
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -712,7 +711,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             Icon(Icons.favorite, color: Colors.white, size: 20),
             const SizedBox(width: 8),
             Text(
-              'vanessa ❤️',
+              'v❤️',
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,

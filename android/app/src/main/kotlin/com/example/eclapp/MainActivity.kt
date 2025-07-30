@@ -27,7 +27,8 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
         
         // Set up notification channel
         println("🔧 Android: Setting up notification method channel...")
-        val notificationChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NOTIFICATION_CHANNEL)
+        val binaryMessenger = flutterEngine.dartExecutor.binaryMessenger
+        val notificationChannel = MethodChannel(binaryMessenger, NOTIFICATION_CHANNEL)
         notificationChannel.setMethodCallHandler { call, result ->
             println("🔧 Android: Received method call: ${call.method}")
             when (call.method) {
@@ -80,7 +81,8 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
         }
         println("🔧 Android: Notification method channel setup complete")
         
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+        val expressPayChannel = MethodChannel(binaryMessenger, CHANNEL)
+        expressPayChannel.setMethodCallHandler { call, result ->
             if (call.method == "startExpressPay") {
                 val params = call.arguments as? HashMap<String, String>
                 if (params != null) {
@@ -161,32 +163,36 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
     }
     
     // Handle when app is opened from notification
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         println("🔧 Android: onNewIntent called")
         
-        intent?.let {
-            val payload = it.getStringExtra("notification_payload")
-            val action = it.action
+        val payload = intent.getStringExtra("notification_payload")
+        val action = intent.action
+        
+        println("🔧 Android: Intent action: $action")
+        println("🔧 Android: Received notification payload: $payload")
+        
+        if (payload != null) {
+            notificationPayload = payload
             
-            println("🔧 Android: Intent action: $action")
-            println("🔧 Android: Received notification payload: $payload")
-            
-            if (payload != null) {
-                notificationPayload = payload
-                
-                // Immediately send the payload to Flutter with action
-                try {
-                    val notificationChannel = MethodChannel(flutterEngine?.dartExecutor?.binaryMessenger, NOTIFICATION_CHANNEL)
+            // Immediately send the payload to Flutter with action
+            try {
+                val binaryMessenger = flutterEngine?.dartExecutor?.binaryMessenger
+                if (binaryMessenger != null) {
+                    val notificationChannel = MethodChannel(binaryMessenger, NOTIFICATION_CHANNEL)
                     val data = mapOf(
                         "payload" to payload,
                         "action" to (action ?: "OPEN_NOTIFICATIONS")
                     )
-                    notificationChannel.invokeMethod("onNotificationOpened", data)
+                    // Use invokeMethod with null result for faster execution
+                    notificationChannel.invokeMethod("onNotificationOpened", data, null)
                     println("🔧 Android: Sent payload to Flutter immediately with action: $action")
-                } catch (e: Exception) {
-                    println("🔧 Android: Error sending payload to Flutter: $e")
+                } else {
+                    println("🔧 Android: binaryMessenger is null, cannot send payload to Flutter")
                 }
+            } catch (e: Exception) {
+                println("🔧 Android: Error sending payload to Flutter: $e")
             }
         }
     }
@@ -210,9 +216,9 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
     private fun showNotification(id: Int, title: String, body: String, payload: String?) {
         createNotificationChannel()
         
-        // Create different intents based on notification type
+        // Create optimized intent for faster app launch
         val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("notification_payload", payload)
             
             // Add specific action for faster routing
@@ -240,6 +246,8 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .setColor(0xFF22C55E.toInt()) // Green color
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .build()
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

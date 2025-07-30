@@ -25,6 +25,8 @@ class CustomBottomNav extends StatefulWidget {
 class _CustomBottomNavState extends State<CustomBottomNav> {
   late int _selectedIndex;
   bool _isNavigating = false;
+  bool _notificationSnackbarShown = false;
+  bool _disposed = false;
 
   @override
   void initState() {
@@ -38,6 +40,14 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     });
   }
 
+  @override
+  void dispose() {
+    _disposed = true;
+    // Don't access context during dispose - it can cause issues
+    // The snackbars will be cleared automatically when the widget is disposed
+    super.dispose();
+  }
+
   Future<void> _checkLoginStatus() async {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
     await cartProvider.refreshLoginStatus();
@@ -47,44 +57,67 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     try {
       final unreadCount = await OrderNotificationService.getUnreadCount();
 
-      if (unreadCount > 0 && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.notifications_active, color: Colors.white),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'You have $unreadCount new notification${unreadCount > 1 ? 's' : ''}!',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 4),
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            action: SnackBarAction(
-              label: 'View',
-              textColor: Colors.white,
-              onPressed: () {
-                // Check if widget is still mounted before navigating
-                if (mounted) {
-                  // Navigate directly to notifications page
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const NotificationsScreen(),
+      if (unreadCount > 0 &&
+          mounted &&
+          !_disposed &&
+          !_notificationSnackbarShown) {
+        // Clear any existing snackbars first
+        if (mounted && !_disposed) {
+          ScaffoldMessenger.of(context).clearSnackBars();
+        }
+
+        // Set flag to prevent multiple snackbars
+        _notificationSnackbarShown = true;
+
+        if (mounted && !_disposed) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.notifications_active, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'You have $unreadCount new notification${unreadCount > 1 ? 's' : ''}!',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                  );
-                }
-              },
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration:
+                  const Duration(seconds: 2), // Reduced from 4 to 2 seconds
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+              action: SnackBarAction(
+                label: 'View',
+                textColor: Colors.white,
+                onPressed: () {
+                  // Check if widget is still mounted before navigating
+                  if (mounted) {
+                    // Navigate directly to notifications page
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotificationsScreen(),
+                      ),
+                    );
+                  }
+                },
+              ),
             ),
-          ),
-        );
+          );
+        }
+
+        // Reset flag after a delay to allow future snackbars
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted && !_disposed) {
+            setState(() {
+              _notificationSnackbarShown = false;
+            });
+          }
+        });
       }
     } catch (e) {
       debugPrint('Error checking for new notifications: $e');
@@ -95,6 +128,11 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     debugPrint('🔍 BOTTOM NAV TAPPED ===');
     debugPrint('Index: $index');
     debugPrint('Current Index: $_selectedIndex');
+
+    // Clear any snackbars when user navigates
+    if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+    }
 
     // Prevent multiple rapid taps
     if (_isNavigating) {
@@ -132,7 +170,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
         _isNavigating = false;
         return;
       }
-      
+
       try {
         switch (index) {
           case 0:
@@ -174,7 +212,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
       } finally {
         // Reset navigating flag after a delay
         Future.delayed(Duration(milliseconds: 500), () {
-          if (mounted) {
+          if (mounted && !_disposed) {
             setState(() {
               _isNavigating = false;
             });

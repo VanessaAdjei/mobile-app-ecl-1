@@ -434,50 +434,8 @@ class _PaymentPageState extends State<PaymentPage> {
             // Clear the cart after successful order creation
             cart.clearCart();
 
-            // Create order placed notification
-            try {
-              final orderData = {
-                'id': transactionId!,
-                'transaction_id': transactionId!,
-                'order_number': transactionId!,
-                'total_amount': total.toString(),
-                'status': 'Order Placed',
-                'payment_method': selectedPaymentMethod,
-                'items': orderItems,
-                'created_at': DateTime.now().toIso8601String(),
-              };
-              await OrderNotificationService.createOrderPlacedNotification(
-                  orderData);
-              debugPrint(
-                  '📱 Order placed notification created for order #${transactionId!}');
-
-              // Show SnackBar notification
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        Icon(Icons.check_circle, color: Colors.white),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Order placed successfully! Check notifications for updates.',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                    backgroundColor: Colors.green,
-                    duration: const Duration(seconds: 4),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                  ),
-                );
-              }
-            } catch (e) {
-              debugPrint('Error creating order placed notification: $e');
-            }
+            // Don't create notification here - it will be created in OrderConfirmationPage
+            // after the order is properly confirmed
           }
         } catch (e) {
           // Ignore order creation errors for now
@@ -590,14 +548,18 @@ class _PaymentPageState extends State<PaymentPage> {
         throw Exception('Payment Failed, try again');
       }
     } catch (e) {
-      setState(() {
-        _paymentError = e.toString();
-      });
-      _showPaymentFailureDialog(e.toString());
+      if (mounted) {
+        setState(() {
+          _paymentError = e.toString();
+        });
+        _showPaymentFailureDialog(e.toString());
+      }
     } finally {
-      setState(() {
-        _isProcessingPayment = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isProcessingPayment = false;
+        });
+      }
     }
   }
 
@@ -2255,6 +2217,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       _paymentSuccess = true;
       _statusMessage = "Order successfully placed! You will pay on delivery.";
       _isLoading = false;
+
+      // Create notification for COD orders immediately since they're confirmed
+      _createPaymentSuccessNotification();
     } else {
       // For online payments, show loading and check status
       _status = "pending";
@@ -2286,6 +2251,42 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     }
     // Otherwise, treat as filename
     return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
+  }
+
+  /// Create notification for successful payment verification
+  Future<void> _createPaymentSuccessNotification() async {
+    try {
+      final orderId = widget.initialTransactionId ?? '';
+      final totalAmount = widget.paymentParams['amount']?.toString() ?? '0';
+
+      // Create order data for notification
+      final orderData = {
+        'id': orderId,
+        'transaction_id': orderId,
+        'order_number': orderId,
+        'total_amount': totalAmount,
+        'status': 'Payment Verified',
+        'payment_method': widget.paymentMethod,
+        'items': widget.purchasedItems
+            .map((item) => {
+                  'name': item.name,
+                  'price': item.price,
+                  'quantity': item.quantity,
+                  'imageUrl': item.image,
+                  'batchNo': item.batchNo,
+                })
+            .toList(),
+        'created_at': DateTime.now().toIso8601String(),
+      };
+
+      // Create notification only after payment is verified as successful
+      await OrderNotificationService.createOrderPlacedNotification(orderData);
+
+      debugPrint(
+          '📱 Payment verified notification created for order #$orderId');
+    } catch (e) {
+      debugPrint('Error creating payment success notification: $e');
+    }
   }
 
   void _startStatusChecking() {
@@ -2352,6 +2353,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             // Reset empty response tracking
             _firstEmptyResponseTime = null;
             _emptyResponseCount = 0;
+
+            // Create notification only after payment is verified as successful
+            _createPaymentSuccessNotification();
           } else if (_status?.toLowerCase() == 'failed') {
             _statusCheckTimer?.cancel(); // Stop automatic checks
             _buttonShowTimer?.cancel(); // Cancel the button show timer

@@ -88,10 +88,8 @@ class _PaymentWebViewState extends State<PaymentWebView> {
 
     if (!mounted) return;
 
-    // Create notification if payment was successful
-    if (success) {
-      await _createOnlinePaymentNotification();
-    }
+    // Don't create notification here - wait for actual payment verification
+    // The notification will be created in OrderConfirmationPage after verification
 
     // First pop the WebView
     Navigator.pop(context);
@@ -114,11 +112,46 @@ class _PaymentWebViewState extends State<PaymentWebView> {
     );
   }
 
+  /// Show WebView error dialog
+  void _showWebViewError(String message) {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Payment Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              Navigator.pop(context); // Go back to payment page
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     _checkAndRefreshAuth(); // Check auth state when page loads
 
+    _initializeWebView();
+  }
+
+  @override
+  void dispose() {
+    // Clean up WebView resources to prevent memory leaks
+    _controller.clearCache();
+    super.dispose();
+  }
+
+  /// Initialize WebView with crash prevention
+  void _initializeWebView() {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
@@ -161,8 +194,30 @@ class _PaymentWebViewState extends State<PaymentWebView> {
             }
             return NavigationDecision.navigate;
           },
+          onWebResourceError: (WebResourceError error) {
+            debugPrint('WebView Error: ${error.description}');
+            debugPrint('WebView Error Code: ${error.errorCode}');
+
+            // Handle specific error codes
+            if (error.errorCode == -6) {
+              // Network error - show user-friendly message
+              _showWebViewError(
+                  'Network connection error. Please check your internet connection and try again.');
+            } else if (error.errorCode == -8) {
+              // Timeout error
+              _showWebViewError('Connection timeout. Please try again.');
+            } else {
+              // Generic error
+              _showWebViewError(
+                  'Payment page loading error. Please try again.');
+            }
+          },
         ),
       )
+      ..setBackgroundColor(Colors.white)
+      ..enableZoom(false)
+      ..setUserAgent(
+          'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36')
       ..loadRequest(Uri.parse(widget.url));
   }
 

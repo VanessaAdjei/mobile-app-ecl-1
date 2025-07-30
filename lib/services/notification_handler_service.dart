@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:eclapp/pages/notifications.dart';
 import 'package:eclapp/pages/order_tracking_page.dart';
+import '../services/native_notification_service.dart';
 
 class NotificationHandlerService {
   static const String _notificationPayloadKey = 'notification_payload';
@@ -38,12 +39,13 @@ class NotificationHandlerService {
           break;
         default:
           debugPrint('📱 Handler: Unknown notification type: $type');
-          _navigateToNotifications(context);
+          // Navigate immediately without delay
+          _navigateToNotificationsImmediately(context);
           break;
       }
     } catch (e) {
       debugPrint('📱 Handler: Error processing payload: $e');
-      _navigateToNotifications(context);
+      _navigateToNotificationsImmediately(context);
     }
   }
 
@@ -52,32 +54,9 @@ class NotificationHandlerService {
       BuildContext context, Map<String, dynamic> data) {
     debugPrint('📱 Handler: Handling order placed notification');
 
-    final String orderId = data['order_id']?.toString() ?? '';
-    final String orderNumber = data['order_number']?.toString() ?? '';
-
-    if (orderId.isNotEmpty && orderNumber.isNotEmpty) {
-      // Create order details map for OrderTrackingPage
-      final Map<String, dynamic> orderDetails = {
-        'id': orderId,
-        'order_number': orderNumber,
-        'status': data['status'] ?? 'Order Placed',
-        'total_amount': data['total_amount'] ?? '0.00',
-        'payment_method': data['payment_method'] ?? 'Unknown',
-        'items': data['items'] ?? [],
-        'created_at': data['created_at'] ?? DateTime.now().toIso8601String(),
-      };
-
-      // Navigate to order tracking page
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => OrderTrackingPage(
-            orderDetails: orderDetails,
-          ),
-        ),
-      );
-    } else {
-      _navigateToNotifications(context);
-    }
+    // Navigate to notifications page instead of order tracking page
+    // Users can then choose to view order details from the notifications list
+    _navigateToNotificationsImmediately(context);
   }
 
   /// Handle order status notification
@@ -85,32 +64,9 @@ class NotificationHandlerService {
       BuildContext context, Map<String, dynamic> data) {
     debugPrint('📱 Handler: Handling order status notification');
 
-    final String orderId = data['order_id']?.toString() ?? '';
-    final String orderNumber = data['order_number']?.toString() ?? '';
-
-    if (orderId.isNotEmpty && orderNumber.isNotEmpty) {
-      // Create order details map for OrderTrackingPage
-      final Map<String, dynamic> orderDetails = {
-        'id': orderId,
-        'order_number': orderNumber,
-        'status': data['status'] ?? 'Order Updated',
-        'total_amount': data['total_amount'] ?? '0.00',
-        'payment_method': data['payment_method'] ?? 'Unknown',
-        'items': data['items'] ?? [],
-        'created_at': data['created_at'] ?? DateTime.now().toIso8601String(),
-      };
-
-      // Navigate to order tracking page
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => OrderTrackingPage(
-            orderDetails: orderDetails,
-          ),
-        ),
-      );
-    } else {
-      _navigateToNotifications(context);
-    }
+    // Navigate to notifications page instead of order tracking page
+    // Users can then choose to view order details from the notifications list
+    _navigateToNotificationsImmediately(context);
   }
 
   /// Handle delivery notification
@@ -118,32 +74,9 @@ class NotificationHandlerService {
       BuildContext context, Map<String, dynamic> data) {
     debugPrint('📱 Handler: Handling delivery notification');
 
-    final String orderId = data['order_id']?.toString() ?? '';
-    final String orderNumber = data['order_number']?.toString() ?? '';
-
-    if (orderId.isNotEmpty && orderNumber.isNotEmpty) {
-      // Create order details map for OrderTrackingPage
-      final Map<String, dynamic> orderDetails = {
-        'id': orderId,
-        'order_number': orderNumber,
-        'status': data['status'] ?? 'Out for Delivery',
-        'total_amount': data['total_amount'] ?? '0.00',
-        'payment_method': data['payment_method'] ?? 'Unknown',
-        'items': data['items'] ?? [],
-        'created_at': data['created_at'] ?? DateTime.now().toIso8601String(),
-      };
-
-      // Navigate to order tracking page
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => OrderTrackingPage(
-            orderDetails: orderDetails,
-          ),
-        ),
-      );
-    } else {
-      _navigateToNotifications(context);
-    }
+    // Navigate to notifications page instead of order tracking page
+    // Users can then choose to view order details from the notifications list
+    _navigateToNotificationsImmediately(context);
   }
 
   /// Handle test notification
@@ -157,12 +90,36 @@ class NotificationHandlerService {
   static void _navigateToNotifications(BuildContext context) {
     debugPrint('📱 Handler: Navigating to notifications page');
 
-    // Navigate to notifications page
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const NotificationsScreen(),
-      ),
-    );
+    // Navigate to notifications page using global navigator key
+    final navigatorKey = NativeNotificationService.globalNavigatorKey;
+    if (navigatorKey.currentState != null) {
+      navigatorKey.currentState!.push(
+        MaterialPageRoute(
+          builder: (context) => const NotificationsScreen(),
+        ),
+      );
+    } else {
+      debugPrint(
+          '📱 Handler: Navigator not available for notifications navigation');
+    }
+  }
+
+  /// Navigate to notifications page immediately without delay
+  static void _navigateToNotificationsImmediately(BuildContext context) {
+    debugPrint('📱 Handler: Navigating to notifications page immediately');
+
+    // Navigate to notifications page immediately using global navigator key
+    final navigatorKey = NativeNotificationService.globalNavigatorKey;
+    if (navigatorKey.currentState != null) {
+      navigatorKey.currentState!.pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => const NotificationsScreen(),
+        ),
+      );
+    } else {
+      debugPrint(
+          '📱 Handler: Navigator not available for notifications navigation');
+    }
   }
 
   /// Check if app was opened from notification

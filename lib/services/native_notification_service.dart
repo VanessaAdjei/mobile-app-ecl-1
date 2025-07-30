@@ -40,9 +40,18 @@ class NativeNotificationService {
             debugPrint(
                 '📱 Native: Notification opened with payload: $payload, action: $action');
 
-            // Handle the notification immediately with action
+            // Store the payload for later handling
             if (payload != null && payload.isNotEmpty) {
-              _handleNotificationImmediately(payload, action);
+              _pendingNotificationPayload = payload;
+              debugPrint(
+                  '📱 Native: Stored notification payload for later handling');
+            }
+
+            // Handle the notification immediately with action (non-blocking)
+            if (payload != null && payload.isNotEmpty) {
+              // Use microtask for faster execution
+              Future.microtask(
+                  () => _handleNotificationImmediately(payload, action));
             }
           }
         }
@@ -58,28 +67,28 @@ class NativeNotificationService {
     }
   }
 
-    /// Handle notification immediately when app is opened from notification
+  /// Handle notification immediately when app is opened from notification
   static void _handleNotificationImmediately(String payload, String? action) {
-    debugPrint('📱 Native: Handling notification immediately: $payload, action: $action');
-    
+    debugPrint(
+        '📱 Native: Handling notification immediately: $payload, action: $action');
+
     // Use a global navigator key to handle navigation
     if (_globalNavigatorKey.currentState != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        try {
-          // Handle based on action for faster routing
-          if (action == 'OPEN_ORDER_TRACKING') {
-            _handleOrderTrackingNavigation(payload);
-          } else {
-            NotificationHandlerService.handleNotificationPayload(
-              _globalNavigatorKey.currentContext!,
-              payload,
-            );
-          }
-          debugPrint('📱 Native: Notification handled successfully');
-        } catch (e) {
-          debugPrint('📱 Native: Error handling notification: $e');
+      // Use immediate execution for faster response
+      try {
+        // Handle based on action for faster routing
+        if (action == 'OPEN_ORDER_TRACKING') {
+          _handleOrderTrackingNavigation(payload);
+        } else {
+          NotificationHandlerService.handleNotificationPayload(
+            _globalNavigatorKey.currentContext!,
+            payload,
+          );
         }
-      });
+        debugPrint('📱 Native: Notification handled successfully');
+      } catch (e) {
+        debugPrint('📱 Native: Error handling notification: $e');
+      }
     } else {
       debugPrint('📱 Native: Navigator not ready yet, storing payload');
       _pendingNotificationPayload = payload;
@@ -92,7 +101,7 @@ class NativeNotificationService {
       final Map<String, dynamic> data = json.decode(payload);
       final String orderId = data['order_id']?.toString() ?? '';
       final String orderNumber = data['order_number']?.toString() ?? '';
-      
+
       if (orderId.isNotEmpty && orderNumber.isNotEmpty) {
         // Create order details map for OrderTrackingPage
         final Map<String, dynamic> orderDetails = {
@@ -104,7 +113,7 @@ class NativeNotificationService {
           'items': data['items'] ?? [],
           'created_at': data['created_at'] ?? DateTime.now().toIso8601String(),
         };
-        
+
         // Navigate directly to order tracking page
         _globalNavigatorKey.currentState?.push(
           MaterialPageRoute(
@@ -191,6 +200,7 @@ class NativeNotificationService {
 
   /// Clear pending notification payload
   static void clearPendingNotificationPayload() {
+    debugPrint('📱 Native: Clearing pending notification payload');
     _pendingNotificationPayload = null;
   }
 

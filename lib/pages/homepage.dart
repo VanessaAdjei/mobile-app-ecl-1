@@ -83,6 +83,124 @@ class ProductCache {
   }
 }
 
+class SafeTypeAheadField extends StatefulWidget {
+  final TextEditingController controller;
+  final Function(String) onSubmitted;
+  final Future<List<Product>> Function(String) suggestionsCallback;
+  final Widget Function(BuildContext, Product) itemBuilder;
+  final Function(Product) onSuggestionSelected;
+  final Widget Function(BuildContext)? noItemsFoundBuilder;
+  final bool hideOnEmpty;
+  final bool hideOnLoading;
+  final Duration debounceDuration;
+  final SuggestionsBoxDecoration suggestionsBoxDecoration;
+  final double suggestionsBoxVerticalOffset;
+  final SuggestionsBoxController? suggestionsBoxController;
+
+  const SafeTypeAheadField({
+    super.key,
+    required this.controller,
+    required this.onSubmitted,
+    required this.suggestionsCallback,
+    required this.itemBuilder,
+    required this.onSuggestionSelected,
+    this.noItemsFoundBuilder,
+    this.hideOnEmpty = true,
+    this.hideOnLoading = false,
+    this.debounceDuration = const Duration(milliseconds: 300),
+    required this.suggestionsBoxDecoration,
+    this.suggestionsBoxVerticalOffset = 0,
+    this.suggestionsBoxController,
+  });
+
+  @override
+  State<SafeTypeAheadField> createState() => _SafeTypeAheadFieldState();
+}
+
+class _SafeTypeAheadFieldState extends State<SafeTypeAheadField> {
+  bool _isDisposed = false;
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isDisposed || !mounted) {
+      return const SizedBox.shrink();
+    }
+
+    try {
+      return TypeAheadField<Product>(
+        textFieldConfiguration: TextFieldConfiguration(
+          controller: widget.controller,
+          decoration: InputDecoration(
+            hintText: 'Search medicines, products...',
+            prefixIcon: Icon(Icons.search, color: Colors.grey),
+            filled: true,
+            fillColor: Colors.grey[100],
+            suffixIcon: widget.controller.text.isNotEmpty
+                ? IconButton(
+                    icon: Icon(Icons.clear),
+                    onPressed: () {
+                      if (mounted && !_isDisposed) {
+                        widget.controller.clear();
+                        setState(() {});
+                      }
+                    },
+                  )
+                : null,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(30),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: EdgeInsets.symmetric(vertical: 12),
+          ),
+          onSubmitted: (value) {
+            if (mounted && !_isDisposed) {
+              widget.onSubmitted(value);
+            }
+          },
+        ),
+        suggestionsCallback: (pattern) async {
+          if (pattern.isEmpty || !mounted || _isDisposed) {
+            return [];
+          }
+          try {
+            return await widget.suggestionsCallback(pattern);
+          } catch (e) {
+            debugPrint('SafeTypeAheadField suggestions error: $e');
+            return [];
+          }
+        },
+        itemBuilder: (context, suggestion) {
+          if (!mounted || _isDisposed) {
+            return const SizedBox.shrink();
+          }
+          return widget.itemBuilder(context, suggestion);
+        },
+        onSuggestionSelected: (suggestion) {
+          if (mounted && !_isDisposed) {
+            widget.onSuggestionSelected(suggestion);
+          }
+        },
+        noItemsFoundBuilder: widget.noItemsFoundBuilder,
+        hideOnEmpty: widget.hideOnEmpty,
+        hideOnLoading: widget.hideOnLoading,
+        debounceDuration: widget.debounceDuration,
+        suggestionsBoxDecoration: widget.suggestionsBoxDecoration,
+        suggestionsBoxVerticalOffset: widget.suggestionsBoxVerticalOffset,
+        suggestionsBoxController: widget.suggestionsBoxController,
+      );
+    } catch (e) {
+      debugPrint('SafeTypeAheadField build error: $e');
+      return const SizedBox.shrink();
+    }
+  }
+}
+
 class ErrorDisplayWidget extends StatelessWidget {
   final VoidCallback? onRetry;
 
@@ -1011,149 +1129,244 @@ class _HomePageState extends State<HomePage>
           16.0, 40.0, 16.0, 8.0), // Further increased top padding
       child: SizedBox(
         height: 48,
-        child: TypeAheadField<Product>(
-          textFieldConfiguration: TextFieldConfiguration(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Search medicines, products...',
-              prefixIcon: Icon(Icons.search, color: Colors.grey),
-              filled: true,
-              fillColor: Colors.grey[100],
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: Icon(Icons.clear),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() {});
-                      },
-                    )
-                  : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: EdgeInsets.symmetric(vertical: 12),
-            ),
-            onSubmitted: (value) {
-              if (value.trim().isNotEmpty) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SearchResultsPage(
-                      query: value.trim(),
-                      products: _products,
-                    ),
-                  ),
-                ).then((_) => _clearSearch());
-              }
-            },
-          ),
-          suggestionsCallback: (pattern) async {
-            if (pattern.isEmpty) {
-              return [];
+        child: Builder(
+          builder: (context) {
+            // Check if widget is still mounted and context is valid
+            if (!mounted) {
+              return const SizedBox.shrink();
             }
-            try {
-              final response = await http
-                  .get(
-                    Uri.parse(
-                        'https://eclcommerce.ernestchemists.com.gh/api/search/$pattern'),
-                  )
-                  .timeout(Duration(seconds: 10));
 
-              if (response.statusCode == 200) {
-                final data = json.decode(response.body);
-                final List productsData = data['data'] ?? [];
-                final products = productsData.map<Product>((item) {
-                  return Product(
-                    id: item['id'] ?? 0,
-                    name: item['name'] ?? 'No name',
-                    description: item['tag_description'] ?? '',
-                    urlName: item['url_name'] ?? '',
-                    status: item['status'] ?? '',
-                    batch_no: item['batch_no'] ?? '',
-                    price: (item['price'] ?? item['selling_price'] ?? 0)
-                        .toString(),
-                    thumbnail: item['thumbnail'] ?? item['image'] ?? '',
-                    quantity: item['quantity']?.toString() ?? '',
-                    category: item['category'] ?? '',
-                    route: item['route'] ?? '',
+            try {
+              return SafeTypeAheadField(
+                controller: _searchController,
+                onSubmitted: (value) {
+                  if (value.trim().isNotEmpty) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SearchResultsPage(
+                          query: value.trim(),
+                          products: _products,
+                        ),
+                      ),
+                    ).then((_) => _clearSearch());
+                  }
+                },
+                suggestionsCallback: (pattern) async {
+                  if (pattern.isEmpty || !mounted) {
+                    return [];
+                  }
+                  try {
+                    final response = await http
+                        .get(
+                          Uri.parse(
+                              'https://eclcommerce.ernestchemists.com.gh/api/search/$pattern'),
+                        )
+                        .timeout(Duration(seconds: 10));
+
+                    if (response.statusCode == 200) {
+                      final data = json.decode(response.body);
+                      final List productsData = data['data'] ?? [];
+                      final products = productsData.map<Product>((item) {
+                        return Product(
+                          id: item['id'] ?? 0,
+                          name: item['name'] ?? 'No name',
+                          description: item['tag_description'] ?? '',
+                          urlName: item['url_name'] ?? '',
+                          status: item['status'] ?? '',
+                          batch_no: item['batch_no'] ?? '',
+                          price: (item['price'] ?? item['selling_price'] ?? 0)
+                              .toString(),
+                          thumbnail: item['thumbnail'] ?? item['image'] ?? '',
+                          quantity: item['quantity']?.toString() ?? '',
+                          category: item['category'] ?? '',
+                          route: item['route'] ?? '',
+                        );
+                      }).toList();
+                      if (products.length > 1) {
+                        return [
+                          Product(
+                            id: -1,
+                            name: '__VIEW_MORE__',
+                            description: '',
+                            urlName: '',
+                            status: '',
+                            price: '',
+                            thumbnail: '',
+                            quantity: '',
+                            batch_no: '',
+                            category: '',
+                            route: '',
+                          ),
+                          ...products.take(6),
+                        ];
+                      }
+                      return products;
+                    } else {
+                      throw Exception('Server error');
+                    }
+                  } on TimeoutException {
+                    return [];
+                  } on http.ClientException {
+                    return [];
+                  } catch (e) {
+                    return [];
+                  }
+                },
+                itemBuilder: (context, Product suggestion) {
+                  if (!mounted) {
+                    return const SizedBox.shrink();
+                  }
+                  if (suggestion.name == '__VIEW_MORE__') {
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      child: ListTile(
+                        leading: Icon(Icons.list, color: Colors.green[700]),
+                        title: Text(
+                          'View All Results',
+                          style: GoogleFonts.poppins(
+                            color: Colors.green[700],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  final matchingProduct = _products.firstWhere(
+                    (p) => p.id == suggestion.id || p.name == suggestion.name,
+                    orElse: () => suggestion,
                   );
-                }).toList();
-                if (products.length > 1) {
-                  return [
-                    Product(
-                      id: -1,
-                      name: '__VIEW_MORE__',
-                      description: '',
-                      urlName: '',
-                      status: '',
-                      price: '',
-                      thumbnail: '',
-                      quantity: '',
-                      batch_no: '',
-                      category: '',
-                      route: '',
+                  final imageUrl = getProductImageUrl(
+                      matchingProduct.thumbnail.isNotEmpty
+                          ? matchingProduct.thumbnail
+                          : suggestion.thumbnail);
+                  return Container(
+                    margin:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(9),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.03),
+                          blurRadius: 4,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
+                      border: Border.all(
+                          color: Colors.grey.withValues(alpha: 0.06)),
                     ),
-                    ...products.take(6),
-                  ];
-                }
-                return products;
-              } else {
-                throw Exception('Server error');
-              }
-            } on TimeoutException {
-              return [];
-            } on http.ClientException {
-              return [];
-            } catch (e) {
-              return [];
-            }
-          },
-          itemBuilder: (context, Product suggestion) {
-            if (suggestion.name == '__VIEW_MORE__') {
-              return Container(
-                decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: ListTile(
-                  leading: Icon(Icons.list, color: Colors.green[700]),
-                  title: Text(
-                    'View All Results',
-                    style: GoogleFonts.poppins(
-                      color: Colors.green[700],
-                      fontWeight: FontWeight.bold,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(9),
+                      onTap: () {
+                        final matchingProduct = _products.firstWhere(
+                          (p) =>
+                              p.id == suggestion.id ||
+                              p.name == suggestion.name,
+                          orElse: () => suggestion,
+                        );
+                        final urlName = matchingProduct.urlName.isNotEmpty
+                            ? matchingProduct.urlName
+                            : suggestion.urlName;
+
+                        if (suggestion.name == '__VIEW_MORE__') {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SearchResultsPage(
+                                query: _searchController.text,
+                                products: _products,
+                              ),
+                            ),
+                          ).then((_) => _clearSearch());
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ItemPage(
+                                urlName: urlName,
+                                isPrescribed:
+                                    matchingProduct.otcpom?.toLowerCase() ==
+                                        'pom',
+                              ),
+                            ),
+                          ).then((_) => _clearSearch());
+                        }
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 6),
+                        child: Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(7),
+                              child: CachedNetworkImage(
+                                imageUrl: imageUrl,
+                                width: 36,
+                                height: 36,
+                                fit: BoxFit.cover,
+                                memCacheWidth: 200,
+                                memCacheHeight: 200,
+                                maxWidthDiskCache: 200,
+                                maxHeightDiskCache: 200,
+                                fadeInDuration: Duration(milliseconds: 100),
+                                fadeOutDuration: Duration(milliseconds: 100),
+                                placeholder: (context, url) => Container(
+                                  width: 24,
+                                  height: 24,
+                                  alignment: Alignment.center,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                                errorWidget: (context, url, error) => Icon(
+                                    Icons.broken_image,
+                                    size: 20,
+                                    color: Colors.grey[400]),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    suggestion.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  if (suggestion.price.isNotEmpty &&
+                                      suggestion.price != '0')
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2.0),
+                                      child: Text(
+                                        'GH₵ ${suggestion.price}',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.green[700],
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              );
-            }
-            final matchingProduct = _products.firstWhere(
-              (p) => p.id == suggestion.id || p.name == suggestion.name,
-              orElse: () => suggestion,
-            );
-            final imageUrl = getProductImageUrl(
-                matchingProduct.thumbnail.isNotEmpty
-                    ? matchingProduct.thumbnail
-                    : suggestion.thumbnail);
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(9),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.03),
-                    blurRadius: 4,
-                    offset: Offset(0, 1),
-                  ),
-                ],
-                border: Border.all(color: Colors.grey.withValues(alpha: 0.06)),
-              ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(9),
-                onTap: () {
+                  );
+                },
+                onSuggestionSelected: (Product suggestion) {
                   final matchingProduct = _products.firstWhere(
                     (p) => p.id == suggestion.id || p.name == suggestion.name,
                     orElse: () => suggestion,
@@ -1161,7 +1374,6 @@ class _HomePageState extends State<HomePage>
                   final urlName = matchingProduct.urlName.isNotEmpty
                       ? matchingProduct.urlName
                       : suggestion.urlName;
-
                   if (suggestion.name == '__VIEW_MORE__') {
                     Navigator.push(
                       context,
@@ -1185,119 +1397,27 @@ class _HomePageState extends State<HomePage>
                     ).then((_) => _clearSearch());
                   }
                 },
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(7),
-                        child: CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          width: 36,
-                          height: 36,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 200,
-                          memCacheHeight: 200,
-                          maxWidthDiskCache: 200,
-                          maxHeightDiskCache: 200,
-                          fadeInDuration: Duration(milliseconds: 100),
-                          fadeOutDuration: Duration(milliseconds: 100),
-                          placeholder: (context, url) => Container(
-                            width: 24,
-                            height: 24,
-                            alignment: Alignment.center,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          errorWidget: (context, url, error) => Icon(
-                              Icons.broken_image,
-                              size: 20,
-                              color: Colors.grey[400]),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              suggestion.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            if (suggestion.price.isNotEmpty &&
-                                suggestion.price != '0')
-                              Padding(
-                                padding: const EdgeInsets.only(top: 2.0),
-                                child: Text(
-                                  'GH₵ ${suggestion.price}',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.green[700],
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                noItemsFoundBuilder: (context) => Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Text('No products found',
+                      style: TextStyle(color: Colors.grey)),
                 ),
-              ),
-            );
-          },
-          onSuggestionSelected: (Product suggestion) {
-            final matchingProduct = _products.firstWhere(
-              (p) => p.id == suggestion.id || p.name == suggestion.name,
-              orElse: () => suggestion,
-            );
-            final urlName = matchingProduct.urlName.isNotEmpty
-                ? matchingProduct.urlName
-                : suggestion.urlName;
-            if (suggestion.name == '__VIEW_MORE__') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SearchResultsPage(
-                    query: _searchController.text,
-                    products: _products,
-                  ),
+                hideOnEmpty: true,
+                hideOnLoading: false,
+                debounceDuration: Duration(milliseconds: 10),
+                suggestionsBoxDecoration: SuggestionsBoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  elevation: 10,
                 ),
-              ).then((_) => _clearSearch());
-            } else {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ItemPage(
-                    urlName: urlName,
-                    isPrescribed:
-                        matchingProduct.otcpom?.toLowerCase() == 'pom',
-                  ),
-                ),
-              ).then((_) => _clearSearch());
+                suggestionsBoxVerticalOffset: 0,
+                suggestionsBoxController: null,
+              );
+            } catch (e) {
+              debugPrint('SafeTypeAheadField error: $e');
+              return const SizedBox.shrink();
             }
           },
-          noItemsFoundBuilder: (context) => Padding(
-            padding: const EdgeInsets.all(12.0),
-            child:
-                Text('No products found', style: TextStyle(color: Colors.grey)),
-          ),
-          hideOnEmpty: true,
-          hideOnLoading: false,
-          debounceDuration: Duration(milliseconds: 10),
-          suggestionsBoxDecoration: SuggestionsBoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            elevation: 10,
-          ),
-          suggestionsBoxVerticalOffset: 0,
-          suggestionsBoxController: null,
         ),
       ),
     );

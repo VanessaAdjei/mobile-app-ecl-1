@@ -442,6 +442,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       // Check for notifications when app is resumed
       _handlePendingNotification();
+      _checkForNotificationPayload();
     }
   }
 
@@ -450,28 +451,44 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // Check both local and native pending notifications
     final localPayload = _pendingNotificationPayload;
     final nativePayload = NativeNotificationService.pendingNotificationPayload;
-    
+
     final payload = localPayload ?? nativePayload;
-    
+
     if (payload != null) {
       debugPrint('📱 Main: Handling pending notification payload');
-      
+
       // Use a post-frame callback to ensure the app is fully built
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           debugPrint('📱 Main: Processing notification payload: $payload');
-          
+
           // Handle the notification payload
           NotificationHandlerService.handleNotificationPayload(
             context,
             payload,
           );
-          
+
           // Clear all pending payloads
           _pendingNotificationPayload = null;
           NativeNotificationService.clearPendingNotificationPayload();
         }
       });
+    }
+  }
+
+  /// Check for notification payload when app is resumed
+  Future<void> _checkForNotificationPayload() async {
+    try {
+      debugPrint('📱 Main: Checking for notification payload on resume...');
+      final payload = await NativeNotificationService.getNotificationPayload();
+
+      if (payload != null && payload.isNotEmpty) {
+        debugPrint('📱 Main: Found notification payload on resume: $payload');
+        _pendingNotificationPayload = payload;
+        _handlePendingNotification();
+      }
+    } catch (e) {
+      debugPrint('📱 Main: Error checking notification payload on resume: $e');
     }
   }
 }
