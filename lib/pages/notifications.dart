@@ -525,12 +525,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             width: 16,
                             height: 16,
                             decoration: BoxDecoration(
-                              color: Colors.red,
+                              color: Colors.green,
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 3),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.red.withValues(alpha: 0.6),
+                                  color: Colors.green.withValues(alpha: 0.6),
                                   blurRadius: 6,
                                   offset: const Offset(0, 2),
                                 ),
@@ -609,34 +609,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 ),
                               ),
                             ),
-                            if (!isRead)
-                              Container(
-                                width: 14,
-                                height: 14,
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                  border:
-                                      Border.all(color: Colors.white, width: 2),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.red.withValues(alpha: 0.5),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '!',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
                           ],
                         ),
                       ],
@@ -682,11 +654,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   String _getActionText(String? iconType) {
-    // All notifications now lead to order tracking
     return 'Track Order';
   }
 
-  /// Handle notification action - navigate to order tracking
   void _handleNotificationAction(Map<String, dynamic> notification) {
     final orderId = notification['order_id']?.toString() ?? '';
     final orderNumber = notification['order_number']?.toString() ?? '';

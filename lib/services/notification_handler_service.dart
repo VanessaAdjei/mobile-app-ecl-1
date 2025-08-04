@@ -9,7 +9,7 @@ import '../services/native_notification_service.dart';
 class NotificationHandlerService {
   static const String _notificationPayloadKey = 'notification_payload';
 
-  /// Handle notification payload when app is opened from notification
+
   static void handleNotificationPayload(BuildContext context, String? payload) {
     if (payload == null || payload.isEmpty) {
       debugPrint('📱 Handler: No payload to handle');
@@ -23,7 +23,6 @@ class NotificationHandlerService {
       final String type = data['type']?.toString() ?? '';
       debugPrint('📱 Handler: Notification type: $type');
 
-      // Handle immediately without delay for faster response
       switch (type) {
         case 'order_placed':
           _handleOrderPlacedNotification(context, data);
@@ -39,7 +38,7 @@ class NotificationHandlerService {
           break;
         default:
           debugPrint('📱 Handler: Unknown notification type: $type');
-          // Navigate immediately without delay
+
           _navigateToNotificationsImmediately(context);
           break;
       }
@@ -49,13 +48,10 @@ class NotificationHandlerService {
     }
   }
 
-  /// Handle order placed notification
   static void _handleOrderPlacedNotification(
       BuildContext context, Map<String, dynamic> data) {
     debugPrint('📱 Handler: Handling order placed notification');
 
-    // Navigate to notifications page instead of order tracking page
-    // Users can then choose to view order details from the notifications list
     _navigateToNotificationsImmediately(context);
   }
 
@@ -64,8 +60,6 @@ class NotificationHandlerService {
       BuildContext context, Map<String, dynamic> data) {
     debugPrint('📱 Handler: Handling order status notification');
 
-    // Navigate to notifications page instead of order tracking page
-    // Users can then choose to view order details from the notifications list
     _navigateToNotificationsImmediately(context);
   }
 
@@ -74,23 +68,18 @@ class NotificationHandlerService {
       BuildContext context, Map<String, dynamic> data) {
     debugPrint('📱 Handler: Handling delivery notification');
 
-    // Navigate to notifications page instead of order tracking page
-    // Users can then choose to view order details from the notifications list
     _navigateToNotificationsImmediately(context);
   }
 
-  /// Handle test notification
   static void _handleTestNotification(
       BuildContext context, Map<String, dynamic> data) {
     debugPrint('📱 Handler: Handling test notification');
     _navigateToNotifications(context);
   }
 
-  /// Navigate to notifications page
   static void _navigateToNotifications(BuildContext context) {
     debugPrint('📱 Handler: Navigating to notifications page');
 
-    // Navigate to notifications page using global navigator key
     final navigatorKey = NativeNotificationService.globalNavigatorKey;
     if (navigatorKey.currentState != null) {
       navigatorKey.currentState!.push(
@@ -104,14 +93,12 @@ class NotificationHandlerService {
     }
   }
 
-  /// Navigate to notifications page immediately without delay
   static void _navigateToNotificationsImmediately(BuildContext context) {
     debugPrint('📱 Handler: Navigating to notifications page immediately');
 
-    // Navigate to notifications page immediately using global navigator key
     final navigatorKey = NativeNotificationService.globalNavigatorKey;
     if (navigatorKey.currentState != null) {
-      navigatorKey.currentState!.pushReplacement(
+      navigatorKey.currentState!.push(
         MaterialPageRoute(
           builder: (context) => const NotificationsScreen(),
         ),
@@ -122,10 +109,7 @@ class NotificationHandlerService {
     }
   }
 
-  /// Check if app was opened from notification
   static String? getNotificationPayload() {
-    // This will be called from Android side
-    // For now, we'll handle it through the method channel
     return null;
   }
 }

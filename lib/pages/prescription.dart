@@ -465,22 +465,85 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
           ),
           if (_isLoading)
             Container(
-              color: Colors.black.withValues(alpha: 0.2),
+              color: Colors.black.withValues(alpha: 0.3),
               child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(color: theme.primaryColor),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Processing image...',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          shape: BoxShape.circle,
+                        ),
+                        child: CircularProgressIndicator(
+                          color: Colors.green.shade700,
+                          strokeWidth: 3,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Processing Image',
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Please wait while we upload your prescription...',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_circle_outline,
+                              color: Colors.green.shade700,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Optimizing for upload',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: Colors.green.shade700,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

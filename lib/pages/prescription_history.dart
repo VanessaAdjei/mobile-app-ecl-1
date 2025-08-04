@@ -142,67 +142,84 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   }
 
   Widget _buildLoadingSkeleton() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: 5,
-        itemBuilder: (context, index) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  spreadRadius: 1,
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header skeleton
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      height: 16,
-                      width: 120,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                    Container(
-                      height: 16,
-                      width: 80,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                // Image skeleton
-                Container(
-                  width: double.infinity,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(8),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: CircularProgressIndicator(
+                color: Colors.green.shade700,
+                strokeWidth: 3,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Loading Prescriptions',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Please wait while we fetch your prescription history...',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 6,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.green.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.medical_services_outlined,
+                    color: Colors.green.shade700,
+                    size: 16,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 6),
+                  Text(
+                    'Fetching from server',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.green.shade700,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
