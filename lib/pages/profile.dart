@@ -618,10 +618,8 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         "Notifications",
                         "Manage your notifications",
                         _userLoggedIn
-                            ? () async {
-                                // Mark all notifications as read when opening
-                                final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
-                                await notificationProvider.markAllAsRead();
+                            ? () {
+                                // Do NOT mark all as read here - let user read notifications manually
                                 _navigateTo(NotificationsScreen());
                               }
                             : () => _showSignInRequiredDialog(context,
