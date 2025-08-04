@@ -313,14 +313,14 @@ class OrderNotificationService {
 
     // Create message based on number of items
     if (itemNames.length == 1) {
-      return 'Your order #$orderNumber for ${itemNames.first} has been placed and is being processed. Total: $totalAmount';
+      return 'Your order #$orderNumber for ${itemNames.first} has been placed and is being processed.';
     } else if (itemNames.length <= 3) {
       final itemList = itemNames.join(', ');
-      return 'Your order #$orderNumber for $itemList has been placed and is being processed. Total: $totalAmount';
+      return 'Your order #$orderNumber for $itemList has been placed and is being processed.';
     } else {
       final firstItems = itemNames.take(2).join(', ');
       final remainingCount = itemNames.length - 2;
-      return 'Your order #$orderNumber for $firstItems and $remainingCount more items has been placed and is being processed. Total: $totalAmount';
+      return 'Your order #$orderNumber for $firstItems and $remainingCount more items has been placed and is being processed.';
     }
   }
 
@@ -338,7 +338,7 @@ class OrderNotificationService {
     try {
       double? parsedAmount = double.tryParse(cleanAmount);
       if (parsedAmount != null) {
-        final formatted = 'GH₵${parsedAmount.toStringAsFixed(2)}';
+        final formatted = 'GHS${parsedAmount.toStringAsFixed(2)}';
         debugPrint('📱 Formatted amount: "$formatted"');
         return formatted;
       }
@@ -346,8 +346,7 @@ class OrderNotificationService {
       debugPrint('Error parsing amount: $e');
     }
 
-    // If parsing fails, just add GH₵ prefix
-    final fallback = 'GH₵$amount';
+    final fallback = 'GHS$amount';
     debugPrint('📱 Fallback amount: "$fallback"');
     return fallback;
   }

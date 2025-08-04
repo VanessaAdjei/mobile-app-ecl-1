@@ -22,6 +22,7 @@ import 'pages/onboarding_splash_page.dart';
 import 'pages/prescription.dart';
 import 'pages/notification_provider.dart';
 import 'services/background_order_checker.dart';
+import 'services/background_cart_checker.dart';
 import 'services/order_notification_service.dart';
 import 'services/native_notification_service.dart';
 import 'services/notification_handler_service.dart';
@@ -76,6 +77,9 @@ void main() async {
   // Initialize notification services
   await OrderNotificationService.initializeNotifications();
   await NativeNotificationService.initialize();
+
+  // Start background cart checking (will be initialized with CartProvider)
+  debugPrint('🛒 Main: Background cart checker ready for initialization');
 
   runApp(const MyApp());
 }

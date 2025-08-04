@@ -172,7 +172,7 @@ class _OptimizedCartState extends State<OptimizedCart> {
 
     overlay.insert(overlayEntry);
 
-    Timer(duration ?? const Duration(seconds: 3), () {
+    Timer(duration ?? const Duration(seconds: 2), () {
       if (overlayEntry.mounted) {
         overlayEntry.remove();
       }

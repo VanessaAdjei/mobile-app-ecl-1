@@ -562,7 +562,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
                                 Expanded(
                                   child: Center(
                                     child: Text(
-                                      'Payment Gateway',
+                                      'Payment',
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 16,

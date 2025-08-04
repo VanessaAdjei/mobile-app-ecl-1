@@ -2,9 +2,11 @@
 import 'package:flutter/foundation.dart';
 import 'cart_item.dart';
 import 'dart:convert';
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_service.dart';
 import 'package:http/http.dart' as http;
+import '../services/background_cart_checker.dart';
 
 class CartProvider with ChangeNotifier {
   // Map to store carts for different users
@@ -42,11 +44,23 @@ class CartProvider with ChangeNotifier {
 
   CartProvider() {
     _initializeCart();
+    _initializeBackgroundChecker();
   }
 
   Future<void> _initializeCart() async {
     await _loadUserCarts();
     await _checkCurrentUser();
+  }
+
+  Future<void> _initializeBackgroundChecker() async {
+    try {
+      // Initialize background cart checker with this CartProvider instance
+      await BackgroundCartChecker().initialize(this);
+      debugPrint('🛒 CartProvider: Background cart checker initialized');
+    } catch (e) {
+      debugPrint(
+          '🛒 CartProvider: Error initializing background cart checker: $e');
+    }
   }
 
   Future<void> _checkCurrentUser() async {
@@ -141,7 +155,7 @@ class CartProvider with ChangeNotifier {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
         },
-      ).timeout(const Duration(seconds: 10)); // timeout
+      ).timeout(const Duration(seconds: 5)); // reduced timeout
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -811,7 +825,7 @@ class CartProvider with ChangeNotifier {
   // Track ongoing quantity updates to prevent conflicts
   final Map<String, bool> _ongoingUpdates = {};
 
-    // Method to check if an item is currently being updated
+  // Method to check if an item is currently being updated
   bool isItemUpdating(String itemId) {
     final item = _cartItems.firstWhere(
       (item) => item.id == itemId,
@@ -826,18 +840,20 @@ class CartProvider with ChangeNotifier {
         totalPrice: 0.0,
       ),
     );
-    
+
     if (item.id.isEmpty) return false;
-    
+
     final updateKey = '${item.id}_${item.productId}';
     return _ongoingUpdates[updateKey] == true;
   }
 
   // Method to check if any item is currently being updated
-  bool get isAnyItemUpdating => _ongoingUpdates.values.any((isUpdating) => isUpdating);
+  bool get isAnyItemUpdating =>
+      _ongoingUpdates.values.any((isUpdating) => isUpdating);
 
   // Method to get count of items being updated
-  int get updatingItemsCount => _ongoingUpdates.values.where((isUpdating) => isUpdating).length;
+  int get updatingItemsCount =>
+      _ongoingUpdates.values.where((isUpdating) => isUpdating).length;
 
   // New method that uses item ID instead of index
   Future<void> updateQuantityById(String itemId, int newQuantity) async {
@@ -882,11 +898,29 @@ class CartProvider with ChangeNotifier {
     await _saveUserCarts();
     notifyListeners();
 
+    // Add fallback timer to clear update flag after maximum time
+    Timer(const Duration(seconds: 10), () {
+      if (_ongoingUpdates[updateKey] == true) {
+        debugPrint('⏰ Fallback timer: Clearing update flag for ${item.name}');
+        _ongoingUpdates[updateKey] = false;
+        notifyListeners();
+      }
+    });
+
     debugPrint('✅ Quantity updated locally - will sync with server');
 
     if (await AuthService.isLoggedIn()) {
       try {
-        await _simpleQuantityUpdate(item, newQuantity);
+        // Add timeout to prevent infinite loading
+        await _simpleQuantityUpdate(item, newQuantity)
+            .timeout(const Duration(seconds: 8), onTimeout: () {
+          debugPrint('⏰ Update timeout for ${item.name}');
+          throw TimeoutException('Update timed out');
+        });
+      } catch (e) {
+        debugPrint('⚠️ Update error for ${item.name}: $e');
+        // Show user-friendly error message
+        _showSyncError('Update timed out. Please try again.');
       } finally {
         // Always clear the ongoing update flag
         _ongoingUpdates[updateKey] = false;
@@ -938,11 +972,29 @@ class CartProvider with ChangeNotifier {
     await _saveUserCarts();
     notifyListeners();
 
+    // Add fallback timer to clear update flag after maximum time
+    Timer(const Duration(seconds: 10), () {
+      if (_ongoingUpdates[updateKey] == true) {
+        debugPrint('⏰ Fallback timer: Clearing update flag for ${item.name}');
+        _ongoingUpdates[updateKey] = false;
+        notifyListeners();
+      }
+    });
+
     debugPrint('✅ Quantity updated locally - will sync with server');
 
     if (await AuthService.isLoggedIn()) {
       try {
-        await _simpleQuantityUpdate(item, newQuantity);
+        // Add timeout to prevent infinite loading
+        await _simpleQuantityUpdate(item, newQuantity)
+            .timeout(const Duration(seconds: 8), onTimeout: () {
+          debugPrint('⏰ Update timeout for ${item.name}');
+          throw TimeoutException('Update timed out');
+        });
+      } catch (e) {
+        debugPrint('⚠️ Update error for ${item.name}: $e');
+        // Show user-friendly error message
+        _showSyncError('Update timed out. Please try again.');
       } finally {
         // Always clear the ongoing update flag
         _ongoingUpdates[updateKey] = false;
@@ -1178,7 +1230,7 @@ class CartProvider with ChangeNotifier {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
         },
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(const Duration(seconds: 3));
 
       debugPrint('Validation Response Status: ${response.statusCode}');
       debugPrint('Validation Response Body: ${response.body}');
@@ -1382,7 +1434,7 @@ class CartProvider with ChangeNotifier {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
         },
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(const Duration(seconds: 3));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

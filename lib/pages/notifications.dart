@@ -27,12 +27,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   final ScrollController _scrollController = ScrollController();
   final Map<String, DateTime> _lastRefreshTimes = {};
 
-  // Performance optimizations
   final Map<String, bool> _expandedGroups = {};
   final Map<String, List<Map<String, dynamic>>> _cachedNotifications = {};
   bool _isDisposed = false;
 
-  // Performance optimizations
   final PerformanceService _performanceService = PerformanceService();
 
   @override
@@ -42,10 +40,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       _checkLoginStatus();
     });
 
-    // Add scroll listener for infinite scroll optimization
     _scrollController.addListener(_onScroll);
 
-    // Add timeout to prevent view from staying too long
     Future.delayed(const Duration(seconds: 30), () {
       if (mounted && isLoading) {
         setState(() {
@@ -85,6 +81,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (_isDisposed) return;
 
     _performanceService.startTimer('notifications_loading');
+
+    // Force refresh unread count when loading notifications
+    try {
+      final notificationProvider =
+          Provider.of<NotificationProvider>(context, listen: false);
+      await notificationProvider.refreshUnreadCount();
+    } catch (e) {
+      debugPrint('Error refreshing unread count: $e');
+    }
 
     try {
       // Check if we need to refresh (avoid unnecessary API calls)
@@ -423,6 +428,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final iconData = _getNotificationIcon(notification);
     final iconColor = _getNotificationColor(notification);
 
+    // Debug logging
+    debugPrint('📱 Notification Card Debug:');
+    debugPrint('📱 Notification ID: ${notification['id']}');
+    debugPrint('📱 is_read raw value: ${notification['is_read']}');
+    debugPrint('📱 isRead converted: $isRead');
+    debugPrint('📱 Title: ${notification['title']}');
+
     // Format timestamp
     String timeText = '';
     try {
@@ -497,18 +509,43 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Notification icon
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: iconColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      iconData,
-                      color: iconColor,
-                      size: 24,
-                    ),
+                  Stack(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: iconColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          iconData,
+                          color: iconColor,
+                          size: 24,
+                        ),
+                      ),
+                      if (!isRead)
+                        Positioned(
+                          right: -2,
+                          top: -2,
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: Colors.orange,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.orange.withValues(alpha: 0.4),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(width: 16),
 
@@ -571,11 +608,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             ),
                             if (!isRead)
                               Container(
-                                width: 8,
-                                height: 8,
+                                width: 10,
+                                height: 10,
                                 decoration: BoxDecoration(
-                                  color: Colors.green[500],
+                                  color: Colors.orange,
                                   shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color:
+                                          Colors.orange.withValues(alpha: 0.3),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 1),
+                                    ),
+                                  ],
                                 ),
                               ),
                           ],
@@ -1048,7 +1093,43 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     _showNotificationDetails(notification);
   }
 
+  void _markNotificationAsRead(Map<String, dynamic> notification) {
+    debugPrint('📱 MARKING NOTIFICATION AS READ:');
+    debugPrint('📱 Notification ID: ${notification['id']}');
+    debugPrint('📱 Notification Title: ${notification['title']}');
+
+    // Find the notification in the grouped notifications and mark it as read
+    final dateKey = _getDateKey(notification);
+    final notifications = groupedNotifications[dateKey] ?? [];
+
+    for (int i = 0; i < notifications.length; i++) {
+      if (notifications[i]['id'] == notification['id']) {
+        debugPrint('📱 Found notification to mark as read');
+        // Mark as read
+        notifications[i]['is_read'] = true;
+
+        // Update the grouped notifications
+        setState(() {
+          groupedNotifications[dateKey] = notifications;
+        });
+
+        // Save to SharedPreferences
+        _saveNotifications();
+
+        // Update unread count
+        final notificationProvider =
+            Provider.of<NotificationProvider>(context, listen: false);
+        notificationProvider.refreshUnreadCount();
+        debugPrint('📱 Notification marked as read successfully');
+        break;
+      }
+    }
+  }
+
   void _showNotificationDetails(Map<String, dynamic> notification) {
+    // Mark notification as read
+    _markNotificationAsRead(notification);
+
     final items = notification['items'] ?? [];
     final orderNumber = notification['order_number']?.toString() ?? '';
     final totalAmount = notification['total_amount']?.toString() ?? '0.00';
@@ -1171,12 +1252,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       fontSize: 14,
                                     ),
                                   ),
-                                  Text(
-                                    orderNumber,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                      color: Colors.grey.shade800,
+                                  Flexible(
+                                    child: Text(
+                                      orderNumber,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                        color: Colors.grey.shade800,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.end,
                                     ),
                                   ),
                                 ],
@@ -1223,12 +1308,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       fontSize: 14,
                                     ),
                                   ),
-                                  Text(
-                                    '$totalAmount',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                      color: Colors.green.shade700,
+                                  Flexible(
+                                    child: Text(
+                                      '$totalAmount',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                        color: Colors.green.shade700,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.end,
                                     ),
                                   ),
                                 ],

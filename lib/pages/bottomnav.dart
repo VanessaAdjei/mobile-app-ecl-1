@@ -25,7 +25,6 @@ class CustomBottomNav extends StatefulWidget {
 class _CustomBottomNavState extends State<CustomBottomNav> {
   late int _selectedIndex;
   bool _isNavigating = false;
-  bool _notificationSnackbarShown = false;
   bool _disposed = false;
 
   @override
@@ -55,19 +54,25 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
 
   Future<void> _checkForNewNotifications() async {
     try {
-      final unreadCount = await OrderNotificationService.getUnreadCount();
+      final unreadCount =
+          await OrderNotificationService.getCurrentUnreadCount();
 
+      // Use NotificationProvider to check if snackbar was already shown globally
+      final notificationProvider =
+          Provider.of<NotificationProvider>(context, listen: false);
+
+      // Only show snackbar if there are unread notifications AND it hasn't been shown recently
       if (unreadCount > 0 &&
           mounted &&
           !_disposed &&
-          !_notificationSnackbarShown) {
+          !notificationProvider.hasShownSnackbar) {
         // Clear any existing snackbars first
         if (mounted && !_disposed) {
           ScaffoldMessenger.of(context).clearSnackBars();
         }
 
-        // Set flag to prevent multiple snackbars
-        _notificationSnackbarShown = true;
+        // Mark as shown globally
+        notificationProvider.markSnackbarAsShown();
 
         if (mounted && !_disposed) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -85,8 +90,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
                 ],
               ),
               backgroundColor: Colors.green,
-              duration:
-                  const Duration(seconds: 2), // Reduced from 4 to 2 seconds
+              duration: const Duration(seconds: 3),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
@@ -96,6 +100,9 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
                 onPressed: () {
                   // Check if widget is still mounted before navigating
                   if (mounted) {
+                    // Reset the notification flag since user is viewing notifications
+                    notificationProvider.resetSnackbarFlag();
+
                     // Navigate directly to notifications page
                     Navigator.push(
                       context,
@@ -111,13 +118,14 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
         }
 
         // Reset flag after a delay to allow future snackbars
-        Future.delayed(const Duration(seconds: 3), () {
+        Future.delayed(const Duration(seconds: 10), () {
           if (mounted && !_disposed) {
-            setState(() {
-              _notificationSnackbarShown = false;
-            });
+            notificationProvider.resetSnackbarFlag();
           }
         });
+      } else if (unreadCount == 0) {
+        // If there are no unread notifications, reset the flag immediately
+        notificationProvider.resetSnackbarFlag();
       }
     } catch (e) {
       debugPrint('Error checking for new notifications: $e');
