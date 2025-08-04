@@ -1107,36 +1107,36 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     _showNotificationDetails(notification);
   }
 
-  void _markNotificationAsRead(Map<String, dynamic> notification) {
-    debugPrint('📱 MARKING NOTIFICATION AS READ:');
-    debugPrint('📱 Notification ID: ${notification['id']}');
-    debugPrint('📱 Notification Title: ${notification['title']}');
+  Future<void> _markNotificationAsRead(
+      Map<String, dynamic> notification) async {
+    final notificationId = notification['id'].toString();
 
-    // Find the notification in the grouped notifications and mark it as read
-    final dateKey = _getDateKey(notification);
-    final notifications = groupedNotifications[dateKey] ?? [];
+    try {
+      // Use the proper service method to mark as read
+      await OrderNotificationService.markAsRead(notificationId);
 
-    for (int i = 0; i < notifications.length; i++) {
-      if (notifications[i]['id'] == notification['id']) {
-        debugPrint('📱 Found notification to mark as read');
-        // Mark as read
-        notifications[i]['is_read'] = true;
+      // Update local state
+      final dateKey = _getDateKey(notification);
+      if (groupedNotifications.containsKey(dateKey)) {
+        final notifications = groupedNotifications[dateKey]!;
+        for (int i = 0; i < notifications.length; i++) {
+          if (notifications[i]['id'] == notification['id']) {
+            notifications[i]['is_read'] = true;
 
-        // Update the grouped notifications
-        setState(() {
-          groupedNotifications[dateKey] = notifications;
-        });
-
-        // Save to SharedPreferences
-        _saveNotifications();
-
-        // Update unread count
-        final notificationProvider =
-            Provider.of<NotificationProvider>(context, listen: false);
-        notificationProvider.refreshUnreadCount();
-        debugPrint('📱 Notification marked as read successfully');
-        break;
+            setState(() {
+              groupedNotifications[dateKey] = notifications;
+            });
+            break;
+          }
+        }
       }
+
+      // Update unread count
+      final notificationProvider =
+          Provider.of<NotificationProvider>(context, listen: false);
+      await notificationProvider.refreshUnreadCount();
+    } catch (e) {
+      debugPrint('📱 Error marking notification as read: $e');
     }
   }
 
@@ -1154,7 +1154,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       builder: (context) => WillPopScope(
         onWillPop: () async {
           // Mark notification as read when dialog is dismissed
-          _markNotificationAsRead(notification);
+          await _markNotificationAsRead(notification);
           return true;
         },
         child: Dialog(
@@ -1208,9 +1208,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         ),
                       ),
                       IconButton(
-                        onPressed: () {
+                        onPressed: () async {
                           // Mark notification as read when dialog is closed
-                          _markNotificationAsRead(notification);
+                          await _markNotificationAsRead(notification);
                           Navigator.pop(context);
                         },
                         icon: Icon(
