@@ -2218,7 +2218,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       _statusMessage = "Order successfully placed! You will pay on delivery.";
       _isLoading = false;
 
-      // Clear cart for COD orders immediately
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final cartProvider = Provider.of<CartProvider>(context, listen: false);
         cartProvider.clearCart();
