@@ -1245,11 +1245,20 @@ class CartProvider with ChangeNotifier {
   }
 
   void clearCart() async {
-    if (_currentUserId == null) return;
-
+    // Clear cart regardless of login status
     _cartItems.clear();
+
+    // Also clear from user carts map
+    if (_currentUserId != null) {
+      _userCarts[_currentUserId!] = [];
+    } else {
+      _userCarts['guest_id'] = [];
+    }
+
     await _saveUserCarts();
     notifyListeners();
+
+    debugPrint('🛒 CartProvider: Cart cleared successfully');
   }
 
   double calculateTotal() {
@@ -1467,6 +1476,16 @@ class CartProvider with ChangeNotifier {
       ).timeout(const Duration(seconds: 3));
     } catch (e) {
       debugPrint('⚠️ Remove from server error: $e');
+    }
+  }
+
+  Future<void> testBackgroundCheck() async {
+    debugPrint('🛒 CartProvider: Testing background cart check...');
+    try {
+      await BackgroundCartChecker().forceCartCheck();
+      debugPrint('🛒 CartProvider: Background cart check completed');
+    } catch (e) {
+      debugPrint('🛒 CartProvider: Error testing background cart check: $e');
     }
   }
 }

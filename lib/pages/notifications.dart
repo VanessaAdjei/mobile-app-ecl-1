@@ -665,7 +665,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     debugPrint('📱 Order ID: $orderId');
     debugPrint('📱 Order Number: $orderNumber');
 
-    // Close the notification dialog first
     Navigator.pop(context);
 
     // Create order details map for tracking page
@@ -709,7 +708,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       debugPrint('📱 Navigation successful!');
     } catch (e) {
       debugPrint('📱 Navigation error: $e');
-      // Fallback - show a message and try to navigate to a simpler page
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error navigating to tracking page: $e'),
@@ -720,7 +719,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
       );
 
-      // Try to navigate to purchases page as fallback
       try {
         Navigator.pushNamed(context, '/purchases');
       } catch (fallbackError) {
@@ -729,7 +727,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  /// Build colorful main notification icon widget
+ 
   Widget _buildColorfulMainIcon(String? iconType) {
     switch (iconType) {
       case 'product':

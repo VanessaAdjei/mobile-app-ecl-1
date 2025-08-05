@@ -2218,6 +2218,12 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       _statusMessage = "Order successfully placed! You will pay on delivery.";
       _isLoading = false;
 
+      // Clear cart for COD orders immediately
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final cartProvider = Provider.of<CartProvider>(context, listen: false);
+        cartProvider.clearCart();
+      });
+
       // Create notification for COD orders immediately since they're confirmed
       _createPaymentSuccessNotification();
     } else {
@@ -2353,6 +2359,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             // Reset empty response tracking
             _firstEmptyResponseTime = null;
             _emptyResponseCount = 0;
+
+            // Clear cart after successful payment verification
+            final cartProvider =
+                Provider.of<CartProvider>(context, listen: false);
+            cartProvider.clearCart();
 
             // Create notification only after payment is verified as successful
             _createPaymentSuccessNotification();
