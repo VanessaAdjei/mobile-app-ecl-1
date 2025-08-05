@@ -136,7 +136,6 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  // Enhanced product fetching with caching and optimization
   Future<Product> _fetchProductDetailsWithCache(String urlName) async {
     final result = await _optimizationService.fetchData(
       'product_details_$urlName',
@@ -160,7 +159,6 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         );
   }
 
-  // Enhanced related products fetching with caching and optimization
   Future<List<Product>> _fetchRelatedProductsWithCache(String urlName) async {
     final result = await _optimizationService.fetchData(
       'related_products_$urlName',
@@ -171,11 +169,10 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   void _addToCart(BuildContext context, Product product) async {
-    _addToCartWithQuantity(context, product, 1);
+    _addToCartWithQuantity(context, product);
   }
 
-  void _addToCartWithQuantity(
-      BuildContext context, Product product, int quantity) async {
+  void _addToCartWithQuantity(BuildContext context, Product product) async {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
     debugPrint('🔍 ADDING TO CART ===');
@@ -184,22 +181,21 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     debugPrint('Batch Number: ${product.batch_no}');
     debugPrint('Price: ${product.price}');
     debugPrint('URL Name: ${product.urlName}');
-    debugPrint('Quantity: $quantity');
+    debugPrint('Quantity: ${this.quantity}');
     debugPrint('========================');
 
     try {
       final cartItem = CartItem(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         productId: product.id.toString(),
-        originalProductId:
-            product.id.toString(), // Preserve original product ID
+        originalProductId: product.id.toString(),
         name: product.name,
         price: double.tryParse(product.price) ?? 0.0,
-        quantity: quantity,
+        quantity: this.quantity,
         image: product.thumbnail,
         batchNo: product.batch_no,
         urlName: product.urlName,
-        totalPrice: (double.tryParse(product.price) ?? 0.0) * quantity,
+        totalPrice: (double.tryParse(product.price) ?? 0.0) * this.quantity,
       );
 
       debugPrint('🔍 CREATED CART ITEM ===');
@@ -208,12 +204,23 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       debugPrint('Cart Item Total Price: ${cartItem.totalPrice}');
       debugPrint('========================');
 
+      // Store the original quantity for the success message
+      final originalQuantity = this.quantity;
+
+      // Reset quantity to 1 BEFORE adding to cart
+      setState(() {
+        quantity = 1;
+      });
+
+      debugPrint('✅ Quantity reset to 1 before adding to cart');
+      debugPrint('🔍 Current quantity after reset: $quantity');
+
       cartProvider.addToCart(cartItem);
 
       if (mounted) {
         await _flyToCartAnimation(context);
-        _showSuccessSnackBar(
-            context, '${quantity}x ${product.name} has been added to cart');
+        _showSuccessSnackBar(context,
+            '${originalQuantity}x ${product.name} has been added to cart');
         _scaleController.forward().then((_) => _scaleController.reverse());
       }
     } catch (e) {
@@ -1357,6 +1364,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildQuantitySelector(Product product) {
+    debugPrint('🔍 Building quantity selector with quantity: $quantity');
     return Animate(
       effects: [
         FadeEffect(duration: 400.ms, delay: 300.ms),
@@ -1582,7 +1590,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                             ),
                           );
                         } else {
-                          _addToCartWithQuantity(context, product, quantity);
+                          _addToCartWithQuantity(context, product);
                         }
                       },
                       style: ElevatedButton.styleFrom(

@@ -1006,7 +1006,7 @@ class CartProvider with ChangeNotifier {
     }
   }
 
-  // Simple quantity update using remove-and-add approach
+  // Smart quantity update that prevents duplicates
   Future<void> _simpleQuantityUpdate(CartItem item, int newQuantity) async {
     try {
       final token = await AuthService.getToken();
@@ -1015,79 +1015,102 @@ class CartProvider with ChangeNotifier {
         return;
       }
 
-      debugPrint('🔄 SIMPLE QUANTITY UPDATE: Remove and Add approach');
+      debugPrint('🔄 SMART QUANTITY UPDATE: Preventing duplicates');
 
-      // Step 1: Remove the current item from cart
-      debugPrint('=== STEP 1: REMOVE CURRENT ITEM ===');
-      final removeResponse = await http.post(
+      // Step 1: Remove ALL instances of this product from cart first
+      debugPrint('=== STEP 1: REMOVE ALL INSTANCES ===');
+      await _removeAllProductInstances(item, token);
+
+      // Step 2: Add single item with correct quantity
+      debugPrint('=== STEP 2: ADD SINGLE ITEM ===');
+      await _addSingleItemWithQuantity(item, newQuantity, token);
+
+      debugPrint('✅ Smart quantity update completed');
+    } catch (e) {
+      debugPrint('❌ Smart quantity update error: $e');
+      _showSyncError('Quantity update failed. Please try again.');
+    }
+  }
+
+  // Remove all instances of a product from cart
+  Future<void> _removeAllProductInstances(CartItem item, String token) async {
+    try {
+      // Get current cart from server to find all instances
+      final cartResponse = await http.get(
         Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart'),
+            'https://eclcommerce.ernestchemists.com.gh/api/check-out/${await AuthService.getHashedLink()}'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
-          'Content-Type': 'application/json',
         },
-        body: jsonEncode({'cart_id': item.id}),
       );
 
-      debugPrint('Remove Response: ${removeResponse.statusCode}');
-      debugPrint('Remove Body: ${removeResponse.body}');
+      if (cartResponse.statusCode == 200) {
+        final cartData = jsonDecode(cartResponse.body);
+        final cartItems = cartData['cart_items'] as List? ?? [];
 
-      // Check if remove was successful
-      if (removeResponse.statusCode != 200 &&
-          removeResponse.statusCode != 201) {
-        debugPrint('❌ Remove operation failed - keeping item locally');
-        debugPrint('Status: ${removeResponse.statusCode}');
-        debugPrint('Response: ${removeResponse.body}');
+        // Find all items with the same product name and batch
+        final itemsToRemove = cartItems.where((serverItem) {
+          final serverProductName =
+              serverItem['product_name']?.toString() ?? '';
+          final serverBatchNo = serverItem['batch_no']?.toString() ?? '';
+          return serverProductName.toLowerCase() == item.name.toLowerCase() &&
+              serverBatchNo == item.batchNo;
+        }).toList();
 
-        // If remove fails, don't try to add - just keep the item locally
-        _showSyncError(
-            'Server temporarily unavailable. Item remains in cart with previous quantity.');
-        return;
+        debugPrint('Found ${itemsToRemove.length} instances to remove');
+
+        // Remove each instance
+        for (final serverItem in itemsToRemove) {
+          final itemId = serverItem['id']?.toString();
+          if (itemId != null) {
+            await http.post(
+              Uri.parse(
+                  'https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart'),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode({'cart_id': itemId}),
+            );
+            debugPrint('Removed item ID: $itemId');
+          }
+        }
       }
+    } catch (e) {
+      debugPrint('⚠️ Error removing product instances: $e');
+    }
+  }
 
-      // Step 2: Add the item back with new quantity
-      debugPrint('=== STEP 2: ADD WITH NEW QUANTITY ===');
-
-      // Get the correct product ID - prioritize original product ID for updates
-      debugPrint('🔍 PRODUCT ID SELECTION ===');
-      debugPrint('Server Product ID: ${item.serverProductId}');
-      debugPrint('Original Product ID: ${item.originalProductId}');
-      debugPrint('Product ID: ${item.productId}');
-
+  // Add single item with correct quantity
+  Future<void> _addSingleItemWithQuantity(
+      CartItem item, int quantity, String token) async {
+    try {
+      // Get the correct product ID
       int? productId;
-
-      // For quantity updates, always use original product ID first, then fallback to server product ID
       if (item.originalProductId != null) {
         productId = int.tryParse(item.originalProductId!);
-        debugPrint('✅ Using originalProductId: $productId (always preferred)');
+        debugPrint('✅ Using originalProductId: $productId');
       } else if (item.serverProductId != null) {
         productId = item.serverProductId;
-        debugPrint('✅ Using serverProductId: $productId (fallback)');
+        debugPrint('✅ Using serverProductId: $productId');
       } else {
         productId = int.tryParse(item.productId);
-        debugPrint('✅ Using productId: $productId (last resort)');
+        debugPrint('✅ Using productId: $productId');
       }
 
       if (productId == null) {
         debugPrint('❌ No valid product ID found');
-        debugPrint('All product ID fields are null or invalid');
         return;
       }
 
       final addRequestBody = {
         'productID': productId,
-        'quantity': newQuantity,
+        'quantity': quantity,
       };
 
-      debugPrint('🔍 ADD REQUEST DETAILS ===');
-      debugPrint('Product Name: ${item.name}');
-      debugPrint('Product ID being sent: $productId');
-      debugPrint('Quantity being sent: $newQuantity');
-      debugPrint('Request Body: ${jsonEncode(addRequestBody)}');
-      debugPrint(
-          'Request URL: https://eclcommerce.ernestchemists.com.gh/api/check-auth');
-      debugPrint('================================');
+      debugPrint('Adding item: ${item.name} with quantity: $quantity');
 
       final addResponse = await http.post(
         Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
@@ -1103,105 +1126,16 @@ class CartProvider with ChangeNotifier {
       debugPrint('Add Body: ${addResponse.body}');
 
       if (addResponse.statusCode == 200 || addResponse.statusCode == 201) {
-        debugPrint('✅ Quantity update successful');
-
-        // Parse the response to check if the correct product was added
-        try {
-          final responseData = jsonDecode(addResponse.body);
-          if (responseData['items'] != null && responseData['items'] is List) {
-            final items = responseData['items'] as List;
-            if (items.isNotEmpty) {
-              final addedItem = items.first;
-              final addedProductName =
-                  addedItem['product_name']?.toString() ?? '';
-              final addedProductId = addedItem['product_id']?.toString() ?? '';
-
-              debugPrint('🔍 VERIFYING ADDED PRODUCT ===');
-              debugPrint('Expected Product: ${item.name}');
-              debugPrint('Added Product: $addedProductName');
-              debugPrint('Expected Product ID: $productId');
-              debugPrint('Added Product ID: $addedProductId');
-
-              // Check if the added product matches what we expected
-              if (addedProductName.toLowerCase() != item.name.toLowerCase() ||
-                  addedProductId != productId.toString()) {
-                debugPrint('⚠️ PRODUCT MISMATCH DETECTED ===');
-                debugPrint('Backend added different product than requested');
-                debugPrint(
-                    'This may indicate product substitution or backend issues');
-
-                // Show user-friendly message about product substitution
-                _showSyncError(
-                    'Product was updated with available alternative. Please check your cart.');
-              }
-            }
-          }
-        } catch (e) {
-          debugPrint('⚠️ Could not parse add response: $e');
-        }
-
+        debugPrint('✅ Single item added successfully');
         // Sync with server to get updated cart state
         await syncWithApi();
-      } else if (addResponse.statusCode == 404) {
-        debugPrint(
-            '⚠️ Product not found (404) - trying alternative product ID');
-        debugPrint('Response body: ${addResponse.body}');
-
-        // Try with server product ID as fallback if original product ID failed
-        if (item.serverProductId != null &&
-            item.serverProductId.toString() != item.originalProductId) {
-          debugPrint('🔄 RETRYING WITH SERVER PRODUCT ID ===');
-          final serverProductId = item.serverProductId;
-
-          debugPrint('Trying with server product ID: $serverProductId');
-
-          final retryRequestBody = {
-            'productID': serverProductId,
-            'quantity': newQuantity,
-          };
-
-          final retryResponse = await http.post(
-            Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(retryRequestBody),
-          );
-
-          debugPrint('Retry Response: ${retryResponse.statusCode}');
-          debugPrint('Retry Body: ${retryResponse.body}');
-
-          if (retryResponse.statusCode == 200 ||
-              retryResponse.statusCode == 201) {
-            debugPrint('✅ Quantity update successful with server product ID');
-            await syncWithApi();
-            return;
-          }
-        }
-
-        // If all attempts fail, keep the item locally but show error
-        debugPrint('❌ All product ID attempts failed - keeping item locally');
-        _showSyncError(
-            'Quantity update failed. Item remains in cart with previous quantity.');
-        // Don't sync with server as it might remove the item
       } else {
-        debugPrint('❌ Failed to update quantity on server');
-        debugPrint('Response status: ${addResponse.statusCode}');
-        debugPrint('Response body: ${addResponse.body}');
-
-        _showSyncError(
-            'Quantity update failed. Item remains in cart with previous quantity.');
-        // Don't sync with server as it might remove the item
+        debugPrint('❌ Failed to add single item');
+        _showSyncError('Failed to update quantity. Please try again.');
       }
     } catch (e) {
-      debugPrint('❌ Error in simple quantity update: $e');
-
-      _showSyncError(
-          'Server temporarily unavailable. Item remains in cart with previous quantity.');
-      // Don't sync with server as it might remove the item
+      debugPrint('❌ Error adding single item: $e');
+      _showSyncError('Failed to update quantity. Please try again.');
     }
   }
 
@@ -1486,6 +1420,111 @@ class CartProvider with ChangeNotifier {
       debugPrint('🛒 CartProvider: Background cart check completed');
     } catch (e) {
       debugPrint('🛒 CartProvider: Error testing background cart check: $e');
+    }
+  }
+
+  /// Clean up duplicate items in cart
+  Future<void> cleanupDuplicateItems() async {
+    debugPrint('🧹 CartProvider: Cleaning up duplicate items...');
+
+    final Map<String, CartItem> uniqueItems = {};
+    final List<CartItem> cleanedItems = [];
+
+    for (final item in _cartItems) {
+      final key = '${item.name.toLowerCase()}_${item.batchNo}';
+
+      if (uniqueItems.containsKey(key)) {
+        // Merge quantities
+        final existingItem = uniqueItems[key]!;
+        final mergedQuantity = existingItem.quantity + item.quantity;
+        uniqueItems[key] = existingItem.copyWith(quantity: mergedQuantity);
+        debugPrint(
+            '🔗 Merged duplicate: ${item.name} (${item.quantity} + ${existingItem.quantity} = $mergedQuantity)');
+      } else {
+        uniqueItems[key] = item;
+        cleanedItems.add(item);
+      }
+    }
+
+    if (cleanedItems.length != _cartItems.length) {
+      _cartItems = uniqueItems.values.toList();
+      await _saveUserCarts();
+      notifyListeners();
+      debugPrint(
+          '✅ Cleaned up ${_cartItems.length - cleanedItems.length} duplicate items');
+    } else {
+      debugPrint('✅ No duplicate items found');
+    }
+  }
+
+  /// Clean up server-side duplicates and sync
+  Future<void> cleanupServerDuplicates() async {
+    debugPrint('🧹 CartProvider: Cleaning up server-side duplicates...');
+
+    try {
+      final token = await AuthService.getToken();
+      if (token == null) return;
+
+      // Get current cart from server
+      final cartResponse = await http.get(
+        Uri.parse(
+            'https://eclcommerce.ernestchemists.com.gh/api/check-out/${await AuthService.getHashedLink()}'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (cartResponse.statusCode == 200) {
+        final cartData = jsonDecode(cartResponse.body);
+        final cartItems = cartData['cart_items'] as List? ?? [];
+
+        // Group items by product name and batch
+        final Map<String, List<Map<String, dynamic>>> groupedItems = {};
+
+        for (final item in cartItems) {
+          final productName = item['product_name']?.toString() ?? '';
+          final batchNo = item['batch_no']?.toString() ?? '';
+          final key = '${productName.toLowerCase()}_$batchNo';
+
+          if (!groupedItems.containsKey(key)) {
+            groupedItems[key] = [];
+          }
+          groupedItems[key]!.add(item);
+        }
+
+        // Remove duplicates, keeping only the first item of each group
+        for (final entry in groupedItems.entries) {
+          final items = entry.value;
+          if (items.length > 1) {
+            debugPrint('Found ${items.length} duplicates for ${entry.key}');
+
+            // Keep the first item, remove the rest
+            for (int i = 1; i < items.length; i++) {
+              final itemId = items[i]['id']?.toString();
+              if (itemId != null) {
+                await http.post(
+                  Uri.parse(
+                      'https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart'),
+                  headers: {
+                    'Authorization': 'Bearer $token',
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                  },
+                  body: jsonEncode({'cart_id': itemId}),
+                );
+                debugPrint('Removed duplicate item ID: $itemId');
+              }
+            }
+          }
+        }
+
+        // Sync with server to get updated cart state
+        await syncWithApi();
+        debugPrint('✅ Server-side duplicates cleaned up');
+      }
+    } catch (e) {
+      debugPrint('❌ Error cleaning up server duplicates: $e');
     }
   }
 }
