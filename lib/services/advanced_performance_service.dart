@@ -4,9 +4,8 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
+
 import 'package:cached_network_image/cached_network_image.dart';
-import '../pages/product_model.dart';
 
 class AdvancedPerformanceService {
   static final AdvancedPerformanceService _instance =
@@ -35,7 +34,7 @@ class AdvancedPerformanceService {
   final Map<String, ImageProvider> _imageProviders = {};
 
   // Memory management
-  bool _isLowMemory = false;
+  final bool _isLowMemory = false;
   Timer? _memoryCleanupTimer;
 
   // Configuration

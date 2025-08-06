@@ -4,7 +4,6 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'payment_page.dart';
 import 'cart_item.dart';
 import 'auth_service.dart';
-import '../services/order_notification_service.dart';
 
 class PaymentWebView extends StatefulWidget {
   final String url;
@@ -23,10 +22,10 @@ class PaymentWebView extends StatefulWidget {
   });
 
   @override
-  _PaymentWebViewState createState() => _PaymentWebViewState();
+  PaymentWebViewState createState() => PaymentWebViewState();
 }
 
-class _PaymentWebViewState extends State<PaymentWebView> {
+class PaymentWebViewState extends State<PaymentWebView> {
   late final WebViewController _controller;
   bool _isLoading = true;
   bool _isShowingDialog = false;
@@ -47,39 +46,6 @@ class _PaymentWebViewState extends State<PaymentWebView> {
         }
       }
     } catch (e) {}
-  }
-
-  /// Create notification for successful online payment
-  Future<void> _createOnlinePaymentNotification() async {
-    try {
-      final orderId = widget.paymentParams['order_id'] ?? '';
-      final totalAmount = widget.paymentParams['amount']?.toString() ?? '0';
-
-      // Create order data for notification
-      final orderData = {
-        'id': orderId,
-        'transaction_id': orderId,
-        'order_number': orderId,
-        'total_amount': totalAmount,
-        'status': 'Order Placed',
-        'payment_method': widget.paymentMethod,
-        'items': widget.purchasedItems
-            .map((item) => {
-                  'name': item.name,
-                  'price': item.price,
-                  'quantity': item.quantity,
-                })
-            .toList(),
-        'created_at': DateTime.now().toIso8601String(),
-      };
-
-      // Create notification
-      await OrderNotificationService.createOrderPlacedNotification(orderData);
-
-      debugPrint('📱 Online payment notification created for order #$orderId');
-    } catch (e) {
-      debugPrint('Error creating online payment notification: $e');
-    }
   }
 
   void _navigateToConfirmation(bool success) async {
@@ -225,7 +191,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (didPop, result) async {
         if (!mounted) return;
 
         debugPrint('🔍 PopScope triggered - didPop: $didPop');

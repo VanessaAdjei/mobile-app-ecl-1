@@ -31,7 +31,7 @@ class AppBackButton extends StatelessWidget {
       shape: const CircleBorder(),
       child: InkWell(
         borderRadius: BorderRadius.circular(100),
-        splashColor: iconColor.withOpacity(0.2),
+        splashColor: iconColor.withValues(alpha: 0.2),
         onTap: onPressed ?? () => _handleBackNavigation(context),
         child: Container(
           padding: const EdgeInsets.all(8),
@@ -40,7 +40,7 @@ class AppBackButton extends StatelessWidget {
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -81,7 +81,10 @@ class AppBackButton extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -110,7 +113,10 @@ class AppBackButton extends StatelessWidget {
             child: Text(
               'Cancel',
               style: GoogleFonts.poppins(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.7),
               ),
             ),
           ),
@@ -150,7 +156,7 @@ class BackButtonUtils {
     Widget fallbackPage = const HomePage(),
   }) {
     return AppBackButton(
-      backgroundColor: backgroundColor ?? Colors.white.withOpacity(0.2),
+      backgroundColor: backgroundColor ?? Colors.white.withValues(alpha: 0.2),
       iconColor: iconColor ?? Colors.white,
       showConfirmation: true,
       confirmationTitle: title,
@@ -166,7 +172,7 @@ class BackButtonUtils {
     Widget fallbackPage = const HomePage(),
   }) {
     return AppBackButton(
-      backgroundColor: backgroundColor ?? Colors.white.withOpacity(0.2),
+      backgroundColor: backgroundColor ?? Colors.white.withValues(alpha: 0.2),
       iconColor: iconColor ?? Colors.white,
       showConfirmation: false,
       fallbackPage: fallbackPage,
@@ -180,7 +186,7 @@ class BackButtonUtils {
     Color? iconColor,
   }) {
     return AppBackButton(
-      backgroundColor: backgroundColor ?? Colors.white.withOpacity(0.2),
+      backgroundColor: backgroundColor ?? Colors.white.withValues(alpha: 0.2),
       iconColor: iconColor ?? Colors.white,
       onPressed: onPressed,
     );

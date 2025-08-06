@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'homepage.dart';
+
 import 'package:dotted_border/dotted_border.dart';
 import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -266,7 +266,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
         }
 
         // Send request with timeout
-        debugPrint('🔍 Uploading prescription to server...');
+        debugPrint('🔍 Uploading prescription ...');
         final streamedResponse = await request.send().timeout(
           const Duration(seconds: 30),
           onTimeout: () {

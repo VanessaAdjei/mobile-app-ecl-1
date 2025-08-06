@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pages/cart.dart';
 import '../pages/cartprovider.dart';
-import 'package:eclapp/pages/auth_service.dart';
 
 class CartIconButton extends StatefulWidget {
   final Color? iconColor;
@@ -24,8 +23,6 @@ class CartIconButton extends StatefulWidget {
 }
 
 class _CartIconButtonState extends State<CartIconButton> {
-  bool _userLoggedIn = false;
-
   @override
   void initState() {
     super.initState();
@@ -33,10 +30,9 @@ class _CartIconButtonState extends State<CartIconButton> {
   }
 
   Future<void> _checkLoginStatus() async {
-    final loggedIn = await AuthService.isLoggedIn();
     if (mounted) {
       setState(() {
-        _userLoggedIn = loggedIn;
+        // User login status updated
       });
     }
   }

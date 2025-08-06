@@ -2,9 +2,7 @@
 // pages/optimized_profile.dart
 // pages/optimized_profile.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
@@ -20,10 +18,10 @@ class OptimizedProfile extends StatefulWidget {
   const OptimizedProfile({super.key});
 
   @override
-  _OptimizedProfileState createState() => _OptimizedProfileState();
+  OptimizedProfileState createState() => OptimizedProfileState();
 }
 
-class _OptimizedProfileState extends State<OptimizedProfile> {
+class OptimizedProfileState extends State<OptimizedProfile> {
   final UniversalPageOptimizationService _optimizationService =
       UniversalPageOptimizationService();
 
@@ -44,7 +42,7 @@ class _OptimizedProfileState extends State<OptimizedProfile> {
 
     try {
       // Check auth status and load profile data concurrently
-      final futures = await Future.wait([
+      await Future.wait([
         _checkAuthStatus(),
         _loadProfileData(),
       ]);

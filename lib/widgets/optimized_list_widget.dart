@@ -62,7 +62,7 @@ class OptimizedListView<T> extends StatefulWidget {
 
 class _OptimizedListViewState<T> extends State<OptimizedListView<T>> {
   late final ScrollController _scrollController;
-  final List<int> _visibleItems = [];
+
   bool _isScrolling = false;
 
   @override

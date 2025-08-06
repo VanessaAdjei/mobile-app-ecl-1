@@ -30,7 +30,7 @@ class CategoryOptimizationService {
   // In-memory cache
   List<dynamic> _cachedCategories = [];
   List<dynamic> _cachedProducts = [];
-  Map<int, bool> _subcategoryCache = {}; // Cache for subcategory info
+  final Map<int, bool> _subcategoryCache = {}; // Cache for subcategory info
   DateTime? _categoriesCacheTime;
   DateTime? _productsCacheTime;
   bool _isLoadingCategories = false;
@@ -270,7 +270,7 @@ class CategoryOptimizationService {
           debugPrint('🔍 First product otcpom: ${productData['otcpom']}');
         }
 
-                // Convert to the format expected by categories page
+        // Convert to the format expected by categories page
         final allProducts = dataList.map<dynamic>((item) {
           final productData = item['product'] as Map<String, dynamic>;
           final convertedProduct = {
@@ -291,13 +291,14 @@ class CategoryOptimizationService {
             'selfcare': productData['selfcare'],
             'accessories': productData['accessories'],
           };
-          
+
           return convertedProduct;
         }).toList();
-        
+
         // Debug first few products
         for (int i = 0; i < allProducts.length && i < 3; i++) {
-          debugPrint('🔍 Converted product ${allProducts[i]['name']}: otcpom=${allProducts[i]['otcpom']}');
+          debugPrint(
+              '🔍 Converted product ${allProducts[i]['name']}: otcpom=${allProducts[i]['otcpom']}');
         }
 
         // Limit cache size
@@ -326,148 +327,6 @@ class CategoryOptimizationService {
     } finally {
       _isLoadingProducts = false;
     }
-  }
-
-  // Fetch products for a specific category with optimized timeouts
-  Future<List<dynamic>> _fetchProductsForCategory(dynamic category) async {
-    try {
-      debugPrint(
-          'Fetching products for category: ${category['name']} (ID: ${category['id']})');
-
-      // Get subcategories first with shorter timeout
-      final subcategoriesResponse = await http
-          .get(
-            Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/categories/${category['id']}'),
-          )
-          .timeout(const Duration(seconds: 6)); // Reduced from 10 to 6 seconds
-
-      if (subcategoriesResponse.statusCode == 200) {
-        final subcategoriesData = json.decode(subcategoriesResponse.body);
-        debugPrint(
-            'Subcategories response for ${category['name']}: ${subcategoriesData['data']?.length ?? 0} subcategories');
-
-        if (subcategoriesData['success'] == true) {
-          final subcategories = subcategoriesData['data'] as List;
-
-          // Cache subcategory information for fast navigation
-          _subcategoryCache[category['id']] = subcategories.isNotEmpty;
-
-          // If no subcategories, try to fetch products directly from the category
-          if (subcategories.isEmpty) {
-            debugPrint(
-                'No subcategories found for ${category['name']}, trying direct product fetch');
-            return await _fetchProductsDirectlyFromCategory(category);
-          }
-
-          // Fetch products for all subcategories concurrently
-          final futures = <Future<List<dynamic>>>[];
-
-          for (final subcategory in subcategories) {
-            futures.add(_fetchProductsForSubcategory(category, subcategory));
-          }
-
-          final productLists = await Future.wait(futures);
-          final categoryProducts = <dynamic>[];
-
-          for (final productList in productLists) {
-            categoryProducts.addAll(productList);
-          }
-
-          debugPrint(
-              'Found ${categoryProducts.length} products for category ${category['name']}');
-          return categoryProducts;
-        }
-      }
-    } catch (e) {
-      debugPrint(
-          'Failed to fetch products for category ${category['name']}: $e');
-      // Continue with other categories
-    }
-    return <dynamic>[];
-  }
-
-  // Fetch products directly from a category (for categories without subcategories)
-  Future<List<dynamic>> _fetchProductsDirectlyFromCategory(
-      dynamic category) async {
-    try {
-      debugPrint(
-          'Fetching products directly from category ${category['name']} (ID: ${category['id']})');
-
-      final response = await http
-          .get(Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/product-categories/${category['id']}'))
-          .timeout(const Duration(seconds: 6));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-
-        if (data['success'] == true && data['data'] != null) {
-          final products = data['data'] as List;
-          debugPrint(
-              'Found ${products.length} products directly in category ${category['name']}');
-
-          return products
-              .map((product) => {
-                    ...product,
-                    'category_id': category['id'],
-                    'category_name': category['name'],
-                  })
-              .toList();
-        }
-      }
-    } catch (e) {
-      debugPrint(
-          'Failed to fetch products directly from category ${category['name']}: $e');
-    }
-    return <dynamic>[];
-  }
-
-  // Fetch products for a specific subcategory with optimized timeout
-  Future<List<dynamic>> _fetchProductsForSubcategory(
-      dynamic category, dynamic subcategory) async {
-    try {
-      final subcategoryId = subcategory['id'];
-      final subcategoryName = subcategory['name'];
-
-      debugPrint('🔍 Fetching products for subcategory: $subcategoryName (ID: $subcategoryId)');
-
-      final response = await http
-          .get(Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/product-categories/$subcategoryId'))
-          .timeout(const Duration(seconds: 6)); // Reduced from 10 to 6 seconds
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-
-        if (data['success'] == true && data['data'] != null) {
-          final products = data['data'] as List;
-          
-          debugPrint('🔍 Found ${products.length} products for subcategory $subcategoryName');
-
-          final enhancedProducts = products
-              .map((product) => {
-                    ...product,
-                    'category_id': category['id'],
-                    'category_name': category['name'],
-                    'subcategory_id': subcategoryId,
-                    'subcategory_name': subcategoryName,
-                  })
-              .toList();
-          
-          // Enhance products with otcpom data
-          debugPrint('🔍 Enhancing ${enhancedProducts.length} products with otcpom data for subcategory $subcategoryName');
-          await _enhanceProductsWithOtcpom(enhancedProducts);
-          
-          return enhancedProducts;
-        }
-      }
-    } catch (e) {
-      debugPrint(
-          'Failed to fetch products for subcategory ${subcategory['name']}: $e');
-      // Continue with other subcategories
-    }
-    return <dynamic>[];
   }
 
   // Cache categories
@@ -678,17 +537,22 @@ class CategoryOptimizationService {
 
   // Enhance products with otcpom data by fetching from individual product API
   Future<void> _enhanceProductsWithOtcpom(List<dynamic> products) async {
-    debugPrint('🔍 Starting otcpom enhancement for ${products.length} products');
-    
+    debugPrint(
+        '🔍 Starting otcpom enhancement for ${products.length} products');
+
     for (int i = 0; i < products.length; i++) {
       final product = products[i];
       final productId = product['id'];
-      
+
       try {
-        debugPrint('🔍 Fetching otcpom for product ${i + 1}/${products.length}: ${product['name']}');
-        final response = await http.get(
-          Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/products/$productId'),
-        ).timeout(const Duration(seconds: 3));
+        debugPrint(
+            '🔍 Fetching otcpom for product ${i + 1}/${products.length}: ${product['name']}');
+        final response = await http
+            .get(
+              Uri.parse(
+                  'https://eclcommerce.ernestchemists.com.gh/api/products/$productId'),
+            )
+            .timeout(const Duration(seconds: 3));
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
@@ -708,7 +572,8 @@ class CategoryOptimizationService {
         debugPrint('🔍 Error enhancing ${product['name']}: $e');
       }
     }
-    
-    debugPrint('🔍 Completed otcpom enhancement for ${products.length} products');
+
+    debugPrint(
+        '🔍 Completed otcpom enhancement for ${products.length} products');
   }
 }

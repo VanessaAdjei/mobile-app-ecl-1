@@ -4,7 +4,6 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:eclapp/pages/auth_service.dart';
 import 'app_back_button.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:eclapp/widgets/error_display.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eclapp/widgets/optimized_image_widget.dart';
@@ -14,14 +13,14 @@ class PrescriptionHistoryScreen extends StatefulWidget {
   const PrescriptionHistoryScreen({super.key});
 
   @override
-  _PrescriptionHistoryScreenState createState() =>
-      _PrescriptionHistoryScreenState();
+  PrescriptionHistoryScreenState createState() =>
+      PrescriptionHistoryScreenState();
 }
 
-class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
+class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   List<Map<String, dynamic>> _prescriptions = [];
   bool _isLoading = true;
-  bool _isRefreshing = false;
+
   String? _error;
   final ScrollController _scrollController = ScrollController();
 
@@ -106,7 +105,7 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
             setState(() {
               _prescriptions = prescriptions;
               _isLoading = false;
-              _isRefreshing = false;
+              // Refresh completed
             });
           }
         } else {
@@ -123,7 +122,7 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
         setState(() {
           _error = e.toString().replaceAll('Exception: ', '');
           _isLoading = false;
-          _isRefreshing = false;
+          // Refresh completed
         });
       }
     }
@@ -131,7 +130,7 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
 
   Future<void> _refreshPrescriptions() async {
     setState(() {
-      _isRefreshing = true;
+      // Refresh started
     });
 
     // Clear cache to force fresh data
@@ -208,7 +207,7 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'Fetching from server',
+                    'Fetching your uploaded prescriptions',
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       color: Colors.green.shade700,
@@ -307,27 +306,6 @@ class _PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
               : _prescriptions.isEmpty
                   ? _buildEmptyState()
                   : _buildPrescriptionsList(),
-    );
-  }
-
-  Widget _buildLoadingState() {
-    return ListView.builder(
-      itemCount: 5,
-      padding: const EdgeInsets.all(16),
-      itemBuilder: (context, index) {
-        return Shimmer.fromColors(
-          baseColor: Colors.grey[300]!,
-          highlightColor: Colors.grey[100]!,
-          child: Container(
-            height: 100,
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
-      },
     );
   }
 

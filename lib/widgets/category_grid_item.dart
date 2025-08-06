@@ -30,7 +30,6 @@ class CategoryGridItem extends StatefulWidget {
 
 class _CategoryGridItemState extends State<CategoryGridItem>
     with SingleTickerProviderStateMixin {
-  bool _isPressed = false;
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
 
@@ -57,17 +56,17 @@ class _CategoryGridItemState extends State<CategoryGridItem>
   }
 
   void _handleTapDown() {
-    setState(() => _isPressed = true);
+    setState(() {});
     _animationController.forward();
   }
 
   void _handleTapUp() {
-    setState(() => _isPressed = false);
+    setState(() {});
     _animationController.reverse();
   }
 
   void _handleTapCancel() {
-    setState(() => _isPressed = false);
+    setState(() {});
     _animationController.reverse();
   }
 
@@ -161,7 +160,8 @@ class _CategoryGridItemState extends State<CategoryGridItem>
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.green.shade700.withValues(alpha: 0.9),
+                                color: Colors.green.shade700
+                                    .withValues(alpha: 0.9),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(

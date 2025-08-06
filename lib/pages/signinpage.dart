@@ -17,16 +17,16 @@ class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key, this.onSuccess, this.returnTo});
 
   @override
-  _SignInScreenState createState() => _SignInScreenState();
+  SignInScreenState createState() => SignInScreenState();
 }
 
-class _SignInScreenState extends State<SignInScreen> {
+class SignInScreenState extends State<SignInScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
-  final bool _isResettingPassword = false;
+
   String? _errorMessage;
 
   @override
@@ -35,8 +35,6 @@ class _SignInScreenState extends State<SignInScreen> {
     _errorMessage = null;
   }
 
-
-
   @override
   void dispose() {
     _errorMessage = null;
@@ -44,8 +42,6 @@ class _SignInScreenState extends State<SignInScreen> {
     _passwordController.dispose();
     super.dispose();
   }
-
-
 
   String _getUserFriendlyError(String error) {
     if (error.toLowerCase().contains('socketexception') ||
@@ -159,41 +155,48 @@ class _SignInScreenState extends State<SignInScreen> {
           });
         }
         if (mounted) {
-          print('🔍 SignIn: Handling post-login navigation');
-          print('🔍 SignIn: onSuccess callback exists: ${widget.onSuccess != null}');
-          print('🔍 SignIn: returnTo exists: ${widget.returnTo != null}');
-          print('🔍 SignIn: onSuccess callback type: ${widget.onSuccess.runtimeType}');
-          print('🔍 SignIn: returnTo value: ${widget.returnTo}');
-          
+          debugPrint('🔍 SignIn: Handling post-login navigation');
+          debugPrint(
+              '🔍 SignIn: onSuccess callback exists: ${widget.onSuccess != null}');
+          debugPrint('🔍 SignIn: returnTo exists: ${widget.returnTo != null}');
+          debugPrint(
+              '🔍 SignIn: onSuccess callback type: ${widget.onSuccess.runtimeType}');
+          debugPrint('🔍 SignIn: returnTo value: ${widget.returnTo}');
+
           // If onSuccess callback is provided, let it handle navigation
           if (widget.onSuccess != null) {
-            print('🔍 SignIn: Calling onSuccess callback');
+            debugPrint('🔍 SignIn: Calling onSuccess callback');
             try {
               widget.onSuccess!();
-              print('🔍 SignIn: onSuccess callback executed successfully');
+              debugPrint('🔍 SignIn: onSuccess callback executed successfully');
             } catch (e) {
-              print('🔍 SignIn: Error executing onSuccess callback: $e');
+              debugPrint('🔍 SignIn: Error executing onSuccess callback: $e');
             }
-            // Don't do any other navigation if onSuccess is provided
+            // Navigate back to the previous page after successful callback
+            Navigator.pop(context);
             return;
           } else if (widget.returnTo != null) {
-            print('🔍 SignIn: Navigating to returnTo: ${widget.returnTo}');
+            debugPrint('🔍 SignIn: Navigating to returnTo: ${widget.returnTo}');
             Navigator.pushReplacementNamed(context, widget.returnTo!);
           } else {
             // Check if there's pending prescription data
             final prefs = await SharedPreferences.getInstance();
-            final hasPendingPrescription = prefs.getBool('has_pending_prescription') ?? false;
-            
-            print('🔍 SignIn: Checking for pending prescription: $hasPendingPrescription');
-            
+            final hasPendingPrescription =
+                prefs.getBool('has_pending_prescription') ?? false;
+
+            debugPrint(
+                '🔍 SignIn: Checking for pending prescription: $hasPendingPrescription');
+
             if (hasPendingPrescription) {
-              print('🔍 SignIn: Found pending prescription, navigating to upload page');
+              debugPrint(
+                  '🔍 SignIn: Found pending prescription, navigating to upload page');
               // Don't clear the flag here - let main.dart handle it after retrieving data
-              
+
               // Navigate to a special route that will handle the prescription upload
               Navigator.pushReplacementNamed(context, '/prescription-upload');
             } else {
-              print('🔍 SignIn: No pending prescription, navigating to HomePage');
+              debugPrint(
+                  '🔍 SignIn: No pending prescription, navigating to HomePage');
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const HomePage()),

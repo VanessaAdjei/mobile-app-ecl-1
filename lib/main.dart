@@ -22,10 +22,15 @@ import 'pages/onboarding_splash_page.dart';
 import 'pages/prescription.dart';
 import 'pages/notification_provider.dart';
 import 'services/background_order_checker.dart';
-import 'services/background_cart_checker.dart';
+
 import 'services/order_notification_service.dart';
 import 'services/native_notification_service.dart';
 import 'services/notification_handler_service.dart';
+import 'services/health_tips_service.dart';
+import 'services/background_cart_sync_service.dart';
+import 'services/background_order_tracking_service.dart';
+import 'services/background_store_data_service.dart';
+import 'services/background_inventory_monitor_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,24 +66,28 @@ void main() async {
   unawaited(OptimizedHomepageService().getProducts());
   unawaited(OptimizedHomepageService().getBanners());
 
-  // Start background prefetching for better performance
   unawaited(BackgroundPrefetchService().smartPrefetch());
 
   AuthService.init().catchError((e) {
     debugPrint('Background auth initialization error: $e');
   });
 
-  // Print guest id for testing
   await AuthService.getToken();
 
-  // Start background order checking for notifications
   BackgroundOrderChecker.startPeriodicChecking();
 
-  // Initialize notification services
+  HealthTipsService.startBackgroundService();
+
+  BackgroundCartSyncService.startBackgroundSync();
+
+  BackgroundOrderTrackingService.startBackgroundTracking();
+
+  BackgroundStoreDataService.startBackgroundPreloading();
+  BackgroundInventoryMonitorService.startBackgroundMonitoring();
+
   await OrderNotificationService.initializeNotifications();
   await NativeNotificationService.initialize();
 
-  // Start background cart checking (will be initialized with CartProvider)
   debugPrint('🛒 Main: Background cart checker ready for initialization');
 
   runApp(const MyApp());
@@ -143,7 +152,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     final hasPendingPrescription =
         prefs.getBool('has_pending_prescription') ?? false;
 
-    print(
+    debugPrint(
         '🔍 Main: Checking for pending prescription: $hasPendingPrescription');
 
     if (hasPendingPrescription) {
@@ -154,11 +163,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       final price = prefs.getString('pending_prescription_price') ?? '';
       final batchNo = prefs.getString('pending_prescription_batch_no') ?? '';
 
-      print('🔍 Main: Retrieved prescription data:');
-      print('🔍 Main: Product Name: $productName');
-      print('🔍 Main: Product ID: $productId');
-      print('🔍 Main: Price: $price');
-      print('🔍 Main: Batch No: $batchNo');
+      debugPrint('🔍 Main: Retrieved prescription data:');
+      debugPrint('🔍 Main: Product Name: $productName');
+      debugPrint('🔍 Main: Product ID: $productId');
+      debugPrint('🔍 Main: Price: $price');
+      debugPrint('🔍 Main: Batch No: $batchNo');
 
       // Clear the pending prescription flag
       await prefs.setBool('has_pending_prescription', false);
@@ -177,7 +186,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       };
     }
 
-    print('🔍 Main: No pending prescription found, returning empty data');
+    debugPrint('🔍 Main: No pending prescription found, returning empty data');
 
     // Return empty data if no pending prescription
     return {
@@ -411,10 +420,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                         }
 
                         if (snapshot.hasData && snapshot.data != null) {
-                          print(
+                          debugPrint(
                               '🔍 Main: Route handler - Creating PrescriptionUploadPage');
-                          print('🔍 Main: Token: ${snapshot.data!['token']}');
-                          print('🔍 Main: Item: ${snapshot.data!['item']}');
+                          debugPrint(
+                              '🔍 Main: Token: ${snapshot.data!['token']}');
+                          debugPrint(
+                              '🔍 Main: Item: ${snapshot.data!['item']}');
 
                           return PrescriptionUploadPage(
                             token: snapshot.data!['token'] ?? '',

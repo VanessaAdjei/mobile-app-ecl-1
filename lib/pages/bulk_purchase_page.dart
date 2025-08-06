@@ -205,7 +205,7 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, result) {
         // Prevent back navigation
         // PopScope handles the navigation automatically
       },

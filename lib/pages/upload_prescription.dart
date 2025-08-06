@@ -5,7 +5,7 @@ import 'dart:io';
 import 'product_model.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_back_button.dart';
-import 'auth_service.dart';
+
 import 'signinpage.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -32,20 +32,20 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
     try {
       // Use a simpler check that doesn't require network verification
       final token = await const FlutterSecureStorage().read(key: 'auth_token');
-      print('🔍 Token check: ${token != null ? 'EXISTS' : 'NULL'}');
+      debugPrint('🔍 Token check: ${token != null ? 'EXISTS' : 'NULL'}');
       if (token != null) {
-        print('🔍 Token length: ${token.length}');
+        debugPrint('🔍 Token length: ${token.length}');
       }
       return token != null;
     } catch (e) {
-      print('🔍 Error checking login status: $e');
+      debugPrint('🔍 Error checking login status: $e');
       return false;
     }
   }
 
   Future<void> _pickImage() async {
     final isLoggedIn = await _checkLoginStatus();
-    print('🔍 Upload: Checking login status - isLoggedIn: $isLoggedIn');
+    debugPrint('🔍 Upload: Checking login status - isLoggedIn: $isLoggedIn');
 
     if (!isLoggedIn) {
       if (mounted) {
@@ -58,20 +58,22 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
               label: 'Sign In',
               textColor: Colors.white,
               onPressed: () async {
-                print('🔍 Upload: Opening SignInScreen without any parameters');
+                debugPrint(
+                    '🔍 Upload: Opening SignInScreen without any parameters');
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => SignInScreen(),
                   ),
                 );
-                print('🔍 Upload: SignInScreen closed');
+                debugPrint('🔍 Upload: SignInScreen closed');
 
                 // Check if user is now logged in
                 final isLoggedIn = await _checkLoginStatus();
-                print('🔍 Upload: After SignInScreen, isLoggedIn: $isLoggedIn');
+                debugPrint(
+                    '🔍 Upload: After SignInScreen, isLoggedIn: $isLoggedIn');
                 if (isLoggedIn && mounted) {
-                  print(
+                  debugPrint(
                       '🔍 Upload: User logged in, continuing with image picker');
                   _pickImageAfterLogin();
                 }
@@ -83,7 +85,8 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
       return;
     }
 
-    print('🔍 Upload: User already logged in, proceeding with image picker');
+    debugPrint(
+        '🔍 Upload: User already logged in, proceeding with image picker');
     _pickImageAfterLogin();
   }
 
@@ -123,7 +126,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
 
   Future<void> _submitPrescription() async {
     final isLoggedIn = await _checkLoginStatus();
-    print('🔍 Submit: Checking login status - isLoggedIn: $isLoggedIn');
+    debugPrint('🔍 Submit: Checking login status - isLoggedIn: $isLoggedIn');
 
     if (!isLoggedIn) {
       if (mounted) {
@@ -136,20 +139,22 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
               label: 'Sign In',
               textColor: Colors.white,
               onPressed: () async {
-                print('🔍 Submit: Opening SignInScreen without any parameters');
+                debugPrint(
+                    '🔍 Submit: Opening SignInScreen without any parameters');
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => SignInScreen(),
                   ),
                 );
-                print('🔍 Submit: SignInScreen closed');
+                debugPrint('🔍 Submit: SignInScreen closed');
 
                 // Check if user is now logged in
                 final isLoggedIn = await _checkLoginStatus();
-                print('🔍 Submit: After SignInScreen, isLoggedIn: $isLoggedIn');
+                debugPrint(
+                    '🔍 Submit: After SignInScreen, isLoggedIn: $isLoggedIn');
                 if (isLoggedIn && mounted) {
-                  print(
+                  debugPrint(
                       '🔍 Submit: User logged in, continuing with submission');
                   _submitPrescriptionAfterLogin();
                 }
@@ -161,7 +166,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
       return;
     }
 
-    print('🔍 Submit: User already logged in, proceeding with submission');
+    debugPrint('🔍 Submit: User already logged in, proceeding with submission');
     _submitPrescriptionAfterLogin();
   }
 

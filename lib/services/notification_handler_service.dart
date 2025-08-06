@@ -1,15 +1,12 @@
 // services/notification_handler_service.dart
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+
 import 'package:flutter/material.dart';
 import 'package:eclapp/pages/notifications.dart';
-import 'package:eclapp/pages/order_tracking_page.dart';
+
 import '../services/native_notification_service.dart';
 
 class NotificationHandlerService {
-  static const String _notificationPayloadKey = 'notification_payload';
-
-
   static void handleNotificationPayload(BuildContext context, String? payload) {
     if (payload == null || payload.isEmpty) {
       debugPrint('📱 Handler: No payload to handle');

@@ -1,7 +1,7 @@
 // pages/tandc.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'HomePage.dart';
+
 import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:google_fonts/google_fonts.dart';

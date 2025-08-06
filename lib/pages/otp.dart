@@ -28,10 +28,10 @@ class OtpVerificationScreen extends StatefulWidget {
   });
 
   @override
-  _OtpVerificationScreenState createState() => _OtpVerificationScreenState();
+  OtpVerificationScreenState createState() => OtpVerificationScreenState();
 }
 
-class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
+class OtpVerificationScreenState extends State<OtpVerificationScreen> {
   final List<TextEditingController> otpControllers = List.generate(
     5,
     (index) => TextEditingController(),
@@ -339,7 +339,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                             color: Colors.green.shade50,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.green.shade200.withValues(alpha: 0.3),
+                                color: Colors.green.shade200
+                                    .withValues(alpha: 0.3),
                                 blurRadius: 15,
                                 offset: const Offset(0, 5),
                               ),

@@ -53,10 +53,10 @@ class PaymentPage extends StatefulWidget {
   });
 
   @override
-  _PaymentPageState createState() => _PaymentPageState();
+  PaymentPageState createState() => PaymentPageState();
 }
 
-class _PaymentPageState extends State<PaymentPage> {
+class PaymentPageState extends State<PaymentPage> {
   String selectedPaymentMethod = 'Online Payment';
   bool savePaymentMethod = false;
   bool _isProcessingPayment = false;
@@ -64,10 +64,8 @@ class _PaymentPageState extends State<PaymentPage> {
   String _userEmail = "No email available";
   String _phoneNumber = "No phone number available";
   String? _paymentError;
-  String? _lastPaymentToken;
   String expressPaymentForm =
       'https://eclcommerce.ernestchemists.com.gh/api/expresspayment';
-  final bool _paymentSuccess = false;
   bool _showAllItems = false; // Add this state variable
 
   // Promo code variables
@@ -566,7 +564,6 @@ class _PaymentPageState extends State<PaymentPage> {
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
-    final theme = Theme.of(context);
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -921,33 +918,9 @@ class _PaymentPageState extends State<PaymentPage> {
             Container(
               color: Colors.black.withValues(alpha: 0.2),
               child: Center(
-                child: CircularProgressIndicator(color: theme.primaryColor),
+                child: CircularProgressIndicator(color: Colors.green.shade600),
               ),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorBanner() {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.red.shade50,
-        border: Border.all(color: Colors.red.shade200),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.error_outline, color: Colors.red.shade700),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              _paymentError ?? 'An error occurred with your payment',
-              style: TextStyle(color: Colors.red.shade700),
-            ),
-          ),
         ],
       ),
     );
@@ -1745,216 +1718,6 @@ class _PaymentPageState extends State<PaymentPage> {
     );
   }
 
-  Widget _buildPromoCodeSection() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 6,
-              offset: Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Icon(
-                    Icons.local_offer,
-                    color: Colors.blue[700],
-                    size: 16,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'PROMO CODE',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: Colors.grey[800],
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Promo Code Input
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey[50],
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.grey[300]!),
-                    ),
-                    child: TextField(
-                      controller: _promoCodeController,
-                      decoration: InputDecoration(
-                        hintText: 'Enter promo code',
-                        hintStyle: TextStyle(
-                          color: Colors.grey[500],
-                          fontSize: 12,
-                        ),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        suffixIcon: _appliedPromoCode != null
-                            ? Icon(
-                                Icons.check_circle,
-                                color: Colors.green[600],
-                                size: 18,
-                              )
-                            : null,
-                      ),
-                      style: TextStyle(fontSize: 12),
-                      enabled: _appliedPromoCode == null,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (_appliedPromoCode == null)
-                  SizedBox(
-                    height: 38,
-                    child: ElevatedButton(
-                      onPressed: _isApplyingPromo ? null : _applyPromoCode,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[600],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                      child: _isApplyingPromo
-                          ? SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : Text(
-                              'Apply',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                    ),
-                  )
-                else
-                  SizedBox(
-                    height: 38,
-                    child: ElevatedButton(
-                      onPressed: _removePromoCode,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red[600],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                      child: Text(
-                        'Remove',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-
-            // Promo Code Status
-            if (_promoError != null) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.red.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      color: Colors.red[600],
-                      size: 14,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        _promoError!,
-                        style: TextStyle(
-                          color: Colors.red[600],
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-
-            if (_appliedPromoCode != null) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.green.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.check_circle_outline,
-                      color: Colors.green[600],
-                      size: 14,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'Promo code "$_appliedPromoCode" applied! You saved GHS ${_discountAmount.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          color: Colors.green[600],
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _applyPromoCode() async {
     final promoCode = _promoCodeController.text.trim();
     if (promoCode.isEmpty) {
@@ -2142,27 +1905,6 @@ class _PaymentPageState extends State<PaymentPage> {
       },
     );
   }
-
-  void _showPaymentInProgressDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Payment In Progress'),
-          content: const Text(
-              'A payment is already in progress. Please wait for the current payment to complete.'),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('OK'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
 }
 
 class OrderConfirmationPage extends StatefulWidget {
@@ -2188,16 +1930,15 @@ class OrderConfirmationPage extends StatefulWidget {
   });
 
   @override
-  _OrderConfirmationPageState createState() => _OrderConfirmationPageState();
+  OrderConfirmationPageState createState() => OrderConfirmationPageState();
 }
 
-class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
+class OrderConfirmationPageState extends State<OrderConfirmationPage> {
   String? _status;
   String? _statusMessage;
   String? _transactionId;
   bool _isLoading = true;
   bool _paymentSuccess = false;
-  bool _hasFetchedStatus = false;
   bool _showCheckStatusButton = false;
   Timer? _statusCheckTimer;
   Timer? _buttonShowTimer;
@@ -2261,6 +2002,13 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   /// Create notification for successful payment verification
   Future<void> _createPaymentSuccessNotification() async {
     try {
+      // Check if user is logged in (not a guest)
+      final isLoggedIn = await AuthService.isLoggedIn();
+      if (!isLoggedIn) {
+        debugPrint('📱 Skipping notification for guest user payment');
+        return;
+      }
+
       final orderId = widget.initialTransactionId ?? '';
       final totalAmount = widget.paymentParams['amount']?.toString() ?? '0';
 
@@ -2400,7 +2148,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     final total = widget.purchasedItems
         .fold<double>(0, (sum, item) => sum + (item.price * item.quantity));
     final topPadding = MediaQuery.of(context).padding.top;
-    final theme = Theme.of(context);
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -2515,7 +2262,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       setState(() {
                         _status = result['status'];
                         _statusMessage = result['message'];
-                        _hasFetchedStatus = true;
                       });
                     } finally {
                       setState(() => _isLoading = false);
@@ -3098,61 +2844,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     );
   }
 
-  Widget _buildStatusCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Payment Status',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 12),
-            if (_isLoading)
-              Center(child: CircularProgressIndicator())
-            else if (_hasFetchedStatus) ...[
-              Row(
-                children: [
-                  Icon(
-                    _getStatusIcon(_status),
-                    color: _getStatusColor(_status),
-                    size: 24,
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    _getStatusLabel(_status),
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: _getStatusColor(_status),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 8),
-              Text(
-                _statusMessage ?? '',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
   Color _getStatusColor(String? status) {
     if (status?.toLowerCase() == 'loading') {
       return Colors.blue;
@@ -3163,18 +2854,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       return Colors.red;
     }
     return Colors.orange;
-  }
-
-  IconData _getStatusIcon(String? status) {
-    if (status?.toLowerCase() == 'loading') {
-      return Icons.hourglass_empty;
-    } else if (status?.toLowerCase() == 'success' ||
-        widget.paymentMethod.toLowerCase() == 'cash on delivery') {
-      return Icons.check_circle;
-    } else if (status?.toLowerCase() == 'failed') {
-      return Icons.error;
-    }
-    return Icons.pending;
   }
 
   String _getStatusLabel(String? status) {
@@ -3497,10 +3176,10 @@ class WebViewPage extends StatefulWidget {
   });
 
   @override
-  _WebViewPageState createState() => _WebViewPageState();
+  WebViewPageState createState() => WebViewPageState();
 }
 
-class _WebViewPageState extends State<WebViewPage> {
+class WebViewPageState extends State<WebViewPage> {
   late WebViewController _webViewController;
   bool _isLoading = true;
 

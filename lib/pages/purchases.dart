@@ -12,25 +12,22 @@ import 'auth_service.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/error_display.dart';
 import 'order_tracking_page.dart';
-import '../services/order_notification_service.dart';
 
 class PurchaseScreen extends StatefulWidget {
   const PurchaseScreen({super.key});
 
   @override
-  _PurchaseScreenState createState() => _PurchaseScreenState();
+  PurchaseScreenState createState() => PurchaseScreenState();
 }
 
-class _PurchaseScreenState extends State<PurchaseScreen> {
+class PurchaseScreenState extends State<PurchaseScreen> {
   final Set<String> _expandedOrders = {};
   bool _isLoading = true;
-  bool _isRefreshing = false;
   String? _error;
   List<dynamic> _orders = [];
   final ScrollController _scrollController = ScrollController();
 
   // Pagination
-  int _currentPage = 1;
   bool _hasMoreData = true;
   bool _isLoadingMore = false;
   static const int _pageSize = 20;
@@ -105,8 +102,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
           setState(() {
             _orders = processedOrders;
             _isLoading = false;
-            _isRefreshing = false;
-            _currentPage = 1;
+            // Refresh completed
             _hasMoreData = processedOrders.length >= _pageSize;
           });
 
@@ -126,7 +122,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
         setState(() {
           _error = e.toString().replaceAll('Exception: ', '');
           _isLoading = false;
-          _isRefreshing = false;
+          // Refresh completed
         });
       }
     }
@@ -150,7 +146,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
 
   Future<void> _refreshOrders() async {
     setState(() {
-      _isRefreshing = true;
+      // Refresh started
     });
 
     // Clear cache to force fresh data
@@ -903,7 +899,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
+                  color: Colors.grey.withValues(alpha: 0.1),
                   spreadRadius: 1,
                   blurRadius: 4,
                   offset: const Offset(0, 2),
@@ -1035,27 +1031,6 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildLoadingState() {
-    return ListView.builder(
-      itemCount: 5,
-      padding: const EdgeInsets.all(16),
-      itemBuilder: (context, index) {
-        return Shimmer.fromColors(
-          baseColor: Colors.grey[300]!,
-          highlightColor: Colors.grey[100]!,
-          child: Container(
-            height: 120,
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
-      },
     );
   }
 

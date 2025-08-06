@@ -1,6 +1,6 @@
 // pages/cart.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+
 import 'package:provider/provider.dart';
 import 'package:eclapp/pages/homepage.dart';
 import 'cartprovider.dart';
@@ -17,10 +17,10 @@ class Cart extends StatefulWidget {
   const Cart({super.key});
 
   @override
-  _CartState createState() => _CartState();
+  CartState createState() => CartState();
 }
 
-class _CartState extends State<Cart> {
+class CartState extends State<Cart> {
   String deliveryOption = 'Delivery';
 
   String? selectedRegion;
@@ -172,7 +172,7 @@ class _CartState extends State<Cart> {
 
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
 
         if (Navigator.canPop(context)) {
@@ -1133,15 +1133,15 @@ class _CartState extends State<Cart> {
                                     onPressed: cart.isItemUpdating(item.id)
                                         ? null
                                         : () {
-                                            print(
+                                            debugPrint(
                                                 '🔍 Cart: Minus button pressed for ${item.name}');
-                                            print(
+                                            debugPrint(
                                                 '🔍 Cart: Current quantity: ${item.quantity}');
-                                            print(
+                                            debugPrint(
                                                 '🔍 Cart: New quantity will be: ${item.quantity - 1}');
-                                            print(
+                                            debugPrint(
                                                 '🔍 Cart: Item index: $index');
-                                            print(
+                                            debugPrint(
                                                 '🔍 Cart: Item ID: ${item.id}');
 
                                             // Use item ID instead of index for reliable updates
@@ -1153,7 +1153,7 @@ class _CartState extends State<Cart> {
                                   )
                                 : OptimizedDeleteButton(
                                     onPressed: () {
-                                      print(
+                                      debugPrint(
                                           '🔍 Cart: Delete button pressed for ${item.name}');
                                       cart.removeFromCart(item.id);
                                     },

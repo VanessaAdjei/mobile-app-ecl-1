@@ -286,10 +286,10 @@ class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
   @override
-  _HomePageState createState() => _HomePageState();
+  HomePageState createState() => HomePageState();
 }
 
-class _HomePageState extends State<HomePage>
+class HomePageState extends State<HomePage>
     with
         SingleTickerProviderStateMixin,
         WidgetsBindingObserver,
@@ -319,14 +319,11 @@ class _HomePageState extends State<HomePage>
   List<Product> accessoriesProducts = [];
   List<Product> drugsSectionProducts = [];
 
-  // Image preloading controller
   final Map<String, bool> _preloadedImages = {};
 
-  // Optimization service
   final HomepageOptimizationService _optimizationService =
       HomepageOptimizationService();
 
-  // Popular products horizontal row
   final ScrollController _popularScrollController = ScrollController();
   Timer? _popularScrollTimer;
   int _highlightedPopularIndex = 0;

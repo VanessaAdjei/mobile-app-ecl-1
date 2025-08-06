@@ -1,9 +1,8 @@
 // services/order_notification_service.dart
 import 'dart:convert';
-import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'native_notification_service.dart';
 
 class OrderNotificationService {
@@ -11,7 +10,6 @@ class OrderNotificationService {
   static const String _unreadCountKey = 'unread_notification_count';
 
   // Audio player for notification sounds
-  static final AudioPlayer _audioPlayer = AudioPlayer();
 
   // Callback for immediate badge updates
   static Function(int)? _onBadgeUpdate;
@@ -285,17 +283,10 @@ class OrderNotificationService {
     }
   }
 
-  /// Update unread count in SharedPreferences (legacy method)
-  static Future<void> _updateUnreadCount() async {
-    await _updateUnreadCountOptimized();
-  }
-
   /// Generate order message with purchased items
   static String _generateOrderMessage(Map<String, dynamic> orderData) {
     final orderNumber = orderData['order_number'] ?? orderData['id'] ?? '';
     final items = orderData['items'] as List<dynamic>? ?? [];
-    final totalAmount =
-        _formatAmount(orderData['total_amount']?.toString() ?? '');
 
     if (items.isEmpty) {
       return 'Your order #$orderNumber has been placed and is being processed.';

@@ -1146,38 +1146,6 @@ class CartProvider with ChangeNotifier {
     // For now, we'll just log the error
   }
 
-  // Validate if product is still available on server
-  Future<bool> _validateProductAvailability(String productId) async {
-    try {
-      final token = await AuthService.getToken();
-      if (token == null) return false;
-
-      debugPrint('🔍 VALIDATING PRODUCT AVAILABILITY ===');
-      debugPrint('Product ID to validate: $productId');
-      debugPrint(
-          'Validation URL: https://eclcommerce.ernestchemists.com.gh/api/product/$productId');
-
-      final response = await http.get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/product/$productId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 3));
-
-      debugPrint('Validation Response Status: ${response.statusCode}');
-      debugPrint('Validation Response Body: ${response.body}');
-      debugPrint('Product available: ${response.statusCode == 200}');
-      debugPrint('=====================================');
-
-      return response.statusCode == 200;
-    } catch (e) {
-      debugPrint('Product validation error: $e');
-      return false;
-    }
-  }
-
   void clearCart() async {
     // Clear cart regardless of login status
     _cartItems.clear();

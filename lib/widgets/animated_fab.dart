@@ -28,7 +28,7 @@ class _AnimatedFABState extends State<AnimatedFAB>
   late AnimationController _scaleController;
   late AnimationController _rotationController;
   late AnimationController _bounceController;
-  
+
   late Animation<double> _scaleAnimation;
   late Animation<double> _rotationAnimation;
   late Animation<double> _bounceAnimation;
@@ -36,17 +36,17 @@ class _AnimatedFABState extends State<AnimatedFAB>
   @override
   void initState() {
     super.initState();
-    
+
     _scaleController = AnimationController(
       duration: const Duration(milliseconds: 150),
       vsync: this,
     );
-    
+
     _rotationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    
+
     _bounceController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -99,27 +99,26 @@ class _AnimatedFABState extends State<AnimatedFAB>
     });
   }
 
-  void _onTapCancel() {
-    _scaleController.reverse();
-  }
-
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge([_scaleController, _rotationController, _bounceController]),
+      animation: Listenable.merge(
+          [_scaleController, _rotationController, _bounceController]),
       builder: (context, child) {
         return Transform.scale(
           scale: _scaleAnimation.value * (0.8 + 0.2 * _bounceAnimation.value),
           child: Transform.rotate(
             angle: _rotationAnimation.value,
             child: FloatingActionButton(
-              onPressed: widget.onPressed != null ? () {
-                _onTapDown();
-                Future.delayed(const Duration(milliseconds: 100), () {
-                  _onTapUp();
-                  widget.onPressed!();
-                });
-              } : null,
+              onPressed: widget.onPressed != null
+                  ? () {
+                      _onTapDown();
+                      Future.delayed(const Duration(milliseconds: 100), () {
+                        _onTapUp();
+                        widget.onPressed!();
+                      });
+                    }
+                  : null,
               backgroundColor: widget.backgroundColor,
               foregroundColor: widget.foregroundColor,
               tooltip: widget.tooltip,
@@ -215,5 +214,4 @@ class _AnimatedFABWithLabelState extends State<AnimatedFABWithLabel>
       },
     );
   }
-} 
- 
+}

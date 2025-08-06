@@ -139,10 +139,10 @@ class MainActivity extends StatefulWidget {
   const MainActivity({super.key});
 
   @override
-  _MainActivityState createState() => _MainActivityState();
+  MainActivityState createState() => MainActivityState();
 }
 
-class _MainActivityState extends State<MainActivity> {
+class MainActivityState extends State<MainActivity> {
   late ExpressPayApi expressPayApi;
 
   @override

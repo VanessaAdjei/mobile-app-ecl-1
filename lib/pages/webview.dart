@@ -17,10 +17,10 @@ class WebViewPage extends StatefulWidget {
   });
 
   @override
-  _WebViewPageState createState() => _WebViewPageState();
+  WebViewPageState createState() => WebViewPageState();
 }
 
-class _WebViewPageState extends State<WebViewPage> {
+class WebViewPageState extends State<WebViewPage> {
   late final WebViewController _controller;
   bool _isLoading = true;
   String? _webViewError;

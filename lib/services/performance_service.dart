@@ -24,7 +24,7 @@ class PerformanceService {
   final int _maxMetrics = 100;
 
   // Cache configuration
-  static const String _cacheKey = 'image_cache_settings';
+
   static const String _lastCleanupKey = 'last_cache_cleanup';
 
   // Cache configuration

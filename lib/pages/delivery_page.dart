@@ -14,10 +14,10 @@ class DeliveryPage extends StatefulWidget {
   const DeliveryPage({super.key});
 
   @override
-  _DeliveryPageState createState() => _DeliveryPageState();
+  DeliveryPageState createState() => DeliveryPageState();
 }
 
-class _DeliveryPageState extends State<DeliveryPage> {
+class DeliveryPageState extends State<DeliveryPage> {
   String deliveryOption = 'delivery';
   double deliveryFee = 0.00;
   final TextEditingController _nameController = TextEditingController();

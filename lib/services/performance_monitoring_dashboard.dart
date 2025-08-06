@@ -11,13 +11,17 @@ class PerformanceMonitoringDashboard extends StatefulWidget {
   const PerformanceMonitoringDashboard({super.key});
 
   @override
-  _PerformanceMonitoringDashboardState createState() => _PerformanceMonitoringDashboardState();
+  PerformanceMonitoringDashboardState createState() =>
+      PerformanceMonitoringDashboardState();
 }
 
-class _PerformanceMonitoringDashboardState extends State<PerformanceMonitoringDashboard> {
-  final UniversalPageOptimizationService _optimizationService = UniversalPageOptimizationService();
-  final AdvancedPerformanceService _performanceService = AdvancedPerformanceService();
-  
+class PerformanceMonitoringDashboardState
+    extends State<PerformanceMonitoringDashboard> {
+  final UniversalPageOptimizationService _optimizationService =
+      UniversalPageOptimizationService();
+  final AdvancedPerformanceService _performanceService =
+      AdvancedPerformanceService();
+
   Map<String, dynamic> _performanceStats = {};
   Map<String, dynamic> _cacheStats = {};
   List<Map<String, dynamic>> _recentEvents = [];
@@ -49,11 +53,14 @@ class _PerformanceMonitoringDashboardState extends State<PerformanceMonitoringDa
     try {
       final stats = _optimizationService.getPagePerformanceStats();
       final cacheStats = await _getCacheStatistics();
-      final events = _performanceService.events.take(20).map((event) => {
-        'name': event.type,
-        'timestamp': event.timestamp.toIso8601String(),
-        'data': event.data,
-      }).toList();
+      final events = _performanceService.events
+          .take(20)
+          .map((event) => {
+                'name': event.type,
+                'timestamp': event.timestamp.toIso8601String(),
+                'data': event.data,
+              })
+          .toList();
 
       if (mounted) {
         setState(() {
@@ -63,29 +70,33 @@ class _PerformanceMonitoringDashboardState extends State<PerformanceMonitoringDa
         });
       }
     } catch (e) {
-      developer.log('Failed to load performance data: $e', name: 'PerformanceDashboard');
+      developer.log('Failed to load performance data: $e',
+          name: 'PerformanceDashboard');
     }
   }
 
   Future<Map<String, dynamic>> _getCacheStatistics() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final keys = prefs.getKeys().where((key) => key.startsWith('perf_cache_')).toList();
-      
+      final keys = prefs
+          .getKeys()
+          .where((key) => key.startsWith('perf_cache_'))
+          .toList();
+
       int totalCacheEntries = 0;
       int validCacheEntries = 0;
       int expiredCacheEntries = 0;
-      
+
       for (final key in keys) {
         totalCacheEntries++;
         final timeKey = key.replaceFirst('perf_cache_', 'perf_cache_time_');
         final timestamp = prefs.getInt(timeKey);
-        
+
         if (timestamp != null) {
           final cacheTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
           final now = DateTime.now();
           final difference = now.difference(cacheTime);
-          
+
           if (difference.inMinutes < 30) {
             validCacheEntries++;
           } else {
@@ -93,12 +104,14 @@ class _PerformanceMonitoringDashboardState extends State<PerformanceMonitoringDa
           }
         }
       }
-      
+
       return {
         'total_entries': totalCacheEntries,
         'valid_entries': validCacheEntries,
         'expired_entries': expiredCacheEntries,
-        'cache_hit_rate': totalCacheEntries > 0 ? (validCacheEntries / totalCacheEntries * 100).toStringAsFixed(1) : '0.0',
+        'cache_hit_rate': totalCacheEntries > 0
+            ? (validCacheEntries / totalCacheEntries * 100).toStringAsFixed(1)
+            : '0.0',
       };
     } catch (e) {
       return {
@@ -275,7 +288,7 @@ class _PerformanceMonitoringDashboardState extends State<PerformanceMonitoringDa
   Widget _buildEventItem(Map<String, dynamic> event) {
     final timestamp = DateTime.parse(event['timestamp']);
     final timeAgo = DateTime.now().difference(timestamp);
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -435,14 +448,18 @@ class _PerformanceMonitoringDashboardState extends State<PerformanceMonitoringDa
   }
 
   Color _getCacheHitRateColor() {
-    final rate = double.tryParse(_performanceStats['cache_hit_rate']?.toString() ?? '0') ?? 0;
+    final rate = double.tryParse(
+            _performanceStats['cache_hit_rate']?.toString() ?? '0') ??
+        0;
     if (rate >= 80) return Colors.green;
     if (rate >= 60) return Colors.orange;
     return Colors.red;
   }
 
   Color _getResponseTimeColor() {
-    final time = double.tryParse(_performanceStats['avg_response_time']?.toString() ?? '0') ?? 0;
+    final time = double.tryParse(
+            _performanceStats['avg_response_time']?.toString() ?? '0') ??
+        0;
     if (time <= 500) return Colors.green;
     if (time <= 1000) return Colors.orange;
     return Colors.red;
@@ -530,9 +547,10 @@ class _PerformanceMonitoringDashboardState extends State<PerformanceMonitoringDa
         'cache_stats': _cacheStats,
         'recent_events': _recentEvents,
       };
-      
-      developer.log('Performance Data Export: $data', name: 'PerformanceDashboard');
-      
+
+      developer.log('Performance Data Export: $data',
+          name: 'PerformanceDashboard');
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Performance data exported to console'),
@@ -560,16 +578,20 @@ class _PerformanceMonitoringDashboardState extends State<PerformanceMonitoringDa
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('🎯 Cache Hit Rate < 80%:'),
-              Text('• Increase cache duration\n• Preload more data\n• Optimize cache keys'),
+              Text(
+                  '• Increase cache duration\n• Preload more data\n• Optimize cache keys'),
               SizedBox(height: 16),
               Text('⏱️ Response Time > 1000ms:'),
-              Text('• Implement request batching\n• Use concurrent loading\n• Optimize API endpoints'),
+              Text(
+                  '• Implement request batching\n• Use concurrent loading\n• Optimize API endpoints'),
               SizedBox(height: 16),
               Text('🖼️ Image Loading Issues:'),
-              Text('• Preload critical images\n• Use appropriate sizes\n• Implement lazy loading'),
+              Text(
+                  '• Preload critical images\n• Use appropriate sizes\n• Implement lazy loading'),
               SizedBox(height: 16),
               Text('🔄 Frequent Cache Misses:'),
-              Text('• Review cache invalidation\n• Adjust cache duration\n• Monitor cache size'),
+              Text(
+                  '• Review cache invalidation\n• Adjust cache duration\n• Monitor cache size'),
             ],
           ),
         ),
@@ -582,4 +604,4 @@ class _PerformanceMonitoringDashboardState extends State<PerformanceMonitoringDa
       ),
     );
   }
-} 
+}

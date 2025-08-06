@@ -136,7 +136,7 @@ class OptimizedAnimationController {
         )
         .shimmer(
           duration: duration ?? const Duration(milliseconds: 2000),
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withValues(alpha: 0.1),
         );
   }
 }
@@ -281,7 +281,7 @@ class OptimizedSkeleton extends StatelessWidget {
         )
         .shimmer(
           duration: const Duration(milliseconds: 1500),
-          color: Colors.white.withOpacity(0.3),
+          color: Colors.white.withValues(alpha: 0.3),
         );
   }
 }
@@ -307,7 +307,7 @@ class OptimizedShimmer extends StatelessWidget {
         )
         .shimmer(
           duration: duration ?? const Duration(milliseconds: 1500),
-          color: color ?? Colors.white.withOpacity(0.3),
+          color: color ?? Colors.white.withValues(alpha: 0.3),
         );
   }
 }

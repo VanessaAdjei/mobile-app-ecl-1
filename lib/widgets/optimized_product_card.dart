@@ -1,9 +1,10 @@
 // widgets/optimized_product_card.dart
 import 'package:flutter/material.dart';
-import 'package:animations/animations.dart';
+
 import '../pages/product_model.dart';
 import '../pages/itemdetail.dart';
 import '../services/advanced_performance_service.dart';
+import '../services/stock_utility_service.dart';
 
 class OptimizedProductCard extends StatefulWidget {
   final Product product;
@@ -40,7 +41,8 @@ class _OptimizedProductCardState extends State<OptimizedProductCard>
   late Animation<double> _fadeAnimation;
   bool _isHovered = false;
 
-  final AdvancedPerformanceService _performanceService = AdvancedPerformanceService();
+  final AdvancedPerformanceService _performanceService =
+      AdvancedPerformanceService();
 
   @override
   void initState() {
@@ -94,7 +96,7 @@ class _OptimizedProductCardState extends State<OptimizedProductCard>
       setState(() {
         _isHovered = isHovered;
       });
-      
+
       if (isHovered) {
         _animationController.forward();
       } else {
@@ -125,10 +127,12 @@ class _OptimizedProductCardState extends State<OptimizedProductCard>
                   padding: EdgeInsets.all(padding),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: widget.borderRadius ?? BorderRadius.circular(12),
+                    borderRadius:
+                        widget.borderRadius ?? BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: _isHovered ? 0.15 : 0.08),
+                        color: Colors.black
+                            .withValues(alpha: _isHovered ? 0.15 : 0.08),
                         blurRadius: _isHovered ? 8 : 4,
                         offset: Offset(0, _isHovered ? 4 : 2),
                         spreadRadius: _isHovered ? 1 : 0,
@@ -150,17 +154,20 @@ class _OptimizedProductCardState extends State<OptimizedProductCard>
                                 width: double.infinity,
                                 height: imageHeight,
                                 child: _performanceService.getOptimizedImage(
-                                  imageUrl: _getProductImageUrl(widget.product.thumbnail),
+                                  imageUrl: _getProductImageUrl(
+                                      widget.product.thumbnail),
                                   width: double.infinity,
                                   height: imageHeight,
                                   fit: BoxFit.cover,
                                   borderRadius: BorderRadius.circular(8),
-                                  placeholder: (context, url) => _buildImagePlaceholder(),
-                                  errorWidget: (context, url, error) => _buildImageError(),
+                                  placeholder: (context, url) =>
+                                      _buildImagePlaceholder(),
+                                  errorWidget: (context, url, error) =>
+                                      _buildImageError(),
                                 ),
                               ),
                             ),
-                            
+
                             // Prescription badge
                             if (widget.product.otcpom?.toLowerCase() == 'pom')
                               Positioned(
@@ -185,10 +192,9 @@ class _OptimizedProductCardState extends State<OptimizedProductCard>
                                   ),
                                 ),
                               ),
-                            
-                            // Stock indicator
-                            if (widget.product.quantity == '0' || 
-                                widget.product.quantity == '')
+
+                            if (!StockUtilityService.isProductInStock(
+                                widget.product.quantity))
                               Positioned(
                                 top: 8,
                                 right: 8,
@@ -214,9 +220,9 @@ class _OptimizedProductCardState extends State<OptimizedProductCard>
                           ],
                         ),
                       ),
-                      
+
                       const SizedBox(height: 8),
-                      
+
                       // Product name
                       if (widget.showName)
                         Expanded(
@@ -233,7 +239,7 @@ class _OptimizedProductCardState extends State<OptimizedProductCard>
                             ),
                           ),
                         ),
-                      
+
                       // Price section
                       if (widget.showPrice)
                         Expanded(
@@ -249,8 +255,8 @@ class _OptimizedProductCardState extends State<OptimizedProductCard>
                                   color: Colors.green[700],
                                 ),
                               ),
-                              if (widget.product.quantity != '0' && 
-                                  widget.product.quantity.isNotEmpty)
+                              if (StockUtilityService.isProductInStock(
+                                  widget.product.quantity))
                                 Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 4,
@@ -401,4 +407,4 @@ class OptimizedGridProductCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(6),
     );
   }
-} 
+}

@@ -16,11 +16,11 @@ class PerformanceMonitorWidget extends StatefulWidget {
   });
 
   @override
-  _PerformanceMonitorWidgetState createState() =>
-      _PerformanceMonitorWidgetState();
+  PerformanceMonitorWidgetState createState() =>
+      PerformanceMonitorWidgetState();
 }
 
-class _PerformanceMonitorWidgetState extends State<PerformanceMonitorWidget> {
+class PerformanceMonitorWidgetState extends State<PerformanceMonitorWidget> {
   final UniversalPageOptimizationService _optimizationService =
       UniversalPageOptimizationService();
   Map<String, dynamic> _performanceStats = {};

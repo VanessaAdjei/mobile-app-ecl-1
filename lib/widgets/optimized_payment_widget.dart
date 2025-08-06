@@ -443,8 +443,7 @@ class _OptimizedPaymentWidgetState extends State<OptimizedPaymentWidget> {
               const SizedBox(height: 8),
               ...cart.cartItems
                   .take(_showAllItems ? cart.cartItems.length : 3)
-                  .map((item) => _buildOrderItem(item))
-                  ,
+                  .map((item) => _buildOrderItem(item)),
               if (cart.cartItems.length > 3) ...[
                 const SizedBox(height: 4),
                 _buildShowMoreButton(cart.cartItems.length),

@@ -30,7 +30,6 @@ class PaymentOptimizationService {
       'https://eclcommerce.ernestchemists.com.gh/api';
   static const String _expressPaymentEndpoint = '/expresspayment';
   static const String _checkPaymentEndpoint = '/check-payment';
-  static const String _codEndpoint = '/pay-on-delivery';
 
   // Performance tracking
   final PerformanceService _performanceService = PerformanceService();

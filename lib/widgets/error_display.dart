@@ -484,19 +484,29 @@ class SnackBarAnimation extends Animation<double> {
   const SnackBarAnimation();
 
   @override
-  void addListener(VoidCallback listener) {}
+  void addListener(VoidCallback listener) {
+    // No-op implementation
+  }
 
   @override
-  void addStatusListener(AnimationStatusListener listener) {}
+  void addStatusListener(AnimationStatusListener listener) {
+    // No-op implementation
+  }
 
   @override
-  void removeListener(VoidCallback listener) {}
+  void removeListener(VoidCallback listener) {
+    // No-op implementation
+  }
 
   @override
-  void removeStatusListener(AnimationStatusListener listener) {}
+  void removeStatusListener(AnimationStatusListener listener) {
+    // No-op implementation
+  }
 
   @override
-  void dispose() {}
+  void dispose() {
+    // No-op implementation
+  }
 
   @override
   AnimationStatus get status => AnimationStatus.completed;

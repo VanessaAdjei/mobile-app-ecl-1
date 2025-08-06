@@ -15,10 +15,10 @@ class StoreSelectionPage extends StatefulWidget {
   const StoreSelectionPage({super.key});
 
   @override
-  _StoreSelectionPageState createState() => _StoreSelectionPageState();
+  StoreSelectionPageState createState() => StoreSelectionPageState();
 }
 
-class _StoreSelectionPageState extends State<StoreSelectionPage>
+class StoreSelectionPageState extends State<StoreSelectionPage>
     with TickerProviderStateMixin {
   // API Data
   List<dynamic> regions = [];
@@ -701,7 +701,7 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, result) {
         if (Navigator.canPop(context)) {
           Navigator.pop(context);
         } else {
@@ -1705,11 +1705,7 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
     final storeAddress = store['address'] ?? '';
     final storeHours = '8:00 AM - 8:00 PM';
     final isOpen = _isStoreOpen();
-    final storeRating = (store['rating'] ?? 0.0).toDouble();
-
     // Get distance if available
-    final distance = store['distance'];
-    final locationService = LocationService();
 
     return Card(
       margin: EdgeInsets.only(bottom: 12),
@@ -1836,23 +1832,24 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
                                   size: 12, color: Colors.orange.shade500),
                             ),
                             SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                storeAddress,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  color: Colors.grey.shade600,
+                            if (store['region_name'] != null &&
+                                store['city_name'] != null)
+                              Expanded(
+                                child: Text(
+                                  '${store['city_name']}, ${store['region_name']}',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    color: Colors.grey.shade600,
+                                  ),
                                 ),
                               ),
-                            ),
                           ],
                         ),
-                        if (store['region_name'] != null &&
-                            store['city_name'] != null)
+                        if (storeAddress.isNotEmpty)
                           Padding(
                             padding: EdgeInsets.only(left: 28),
                             child: Text(
-                              '${store['city_name']}, ${store['region_name']}',
+                              storeAddress,
                               style: GoogleFonts.poppins(
                                 fontSize: 11,
                                 color: Colors.grey.shade500,
@@ -1956,136 +1953,6 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
       }
     }
     return false;
-  }
-
-  Widget _buildRegionCitySelection() {
-    return ListView(
-      padding: EdgeInsets.symmetric(horizontal: 16),
-      children: [
-        // Header
-        Container(
-          margin: EdgeInsets.only(bottom: 16),
-          padding: EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.green.shade50, Colors.green.shade100],
-            ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.store, color: Colors.green.shade600, size: 24),
-              SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Select a region and city to view stores',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade800,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Regions List
-        ...regions.map((region) => _buildRegionCard(region)),
-      ],
-    );
-  }
-
-  Widget _buildRegionCard(dynamic region) {
-    final regionName = region['description'] ?? 'Unknown Region';
-    final isExpanded =
-        selectedRegion != null && selectedRegion['id'] == region['id'];
-
-    return Card(
-      margin: EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ExpansionTile(
-        leading: Icon(Icons.location_city, color: Colors.green.shade600),
-        title: Text(
-          regionName,
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: Text(
-          'Tap to view cities',
-          style: GoogleFonts.poppins(
-            fontSize: 12,
-            color: Colors.grey.shade600,
-          ),
-        ),
-        children: [
-          if (isExpanded) _buildCitiesList(region),
-        ],
-        onExpansionChanged: (expanded) {
-          if (expanded) {
-            setState(() {
-              selectedRegion = region;
-              selectedCity = null;
-              stores = [];
-            });
-            _loadCities(region);
-          } else {
-            setState(() {
-              selectedRegion = null;
-              selectedCity = null;
-              stores = [];
-            });
-          }
-        },
-      ),
-    );
-  }
-
-  Widget _buildCitiesList(dynamic region) {
-    if (isLoadingCities) {
-      return Container(
-        padding: EdgeInsets.all(16),
-        child: Center(
-          child: CircularProgressIndicator(color: Colors.green.shade600),
-        ),
-      );
-    }
-
-    if (citiesError != null) {
-      return Container(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Text(
-              'Error loading cities: $citiesError',
-              style: TextStyle(color: Colors.red),
-            ),
-            SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () => _loadCities(region),
-              child: Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (cities.isEmpty) {
-      return Container(
-        padding: EdgeInsets.all(16),
-        child: Text(
-          'No cities found in this region',
-          style: TextStyle(color: Colors.grey),
-        ),
-      );
-    }
-
-    return Column(
-      children: cities.map((city) => _buildCityCard(city)).toList(),
-    );
   }
 
   Widget _buildCityCard(dynamic city) {
@@ -2210,10 +2077,6 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
     final sortedStores = _sortStores(filteredStores);
     debugPrint('📍 Returning sorted stores count: ${sortedStores.length}');
     return sortedStores;
-  }
-
-  List<dynamic> _getFilteredStores() {
-    return stores;
   }
 
   Future<void> _launchMaps(String storeName, String storeAddress) async {

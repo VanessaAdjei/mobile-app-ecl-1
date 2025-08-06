@@ -14,7 +14,7 @@ import 'package:provider/provider.dart';
 import 'auth_service.dart';
 import 'bottomnav.dart';
 import 'notifications.dart';
-import 'HomePage.dart';
+
 import 'app_back_button.dart';
 import 'cartprovider.dart';
 import '../main.dart';
@@ -37,7 +37,6 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
   bool _userLoggedIn = false;
   late AnimationController _headerAnimationController;
   late AnimationController _contentAnimationController;
-  late Animation<double> _headerAnimation;
   late Animation<double> _contentAnimation;
 
   @override
@@ -53,11 +52,6 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
     _contentAnimationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
-    );
-
-    _headerAnimation = CurvedAnimation(
-      parent: _headerAnimationController,
-      curve: Curves.easeOutCubic,
     );
 
     _contentAnimation = CurvedAnimation(
@@ -208,60 +202,58 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                 bool logoutSuccess = false;
                 String? errorMsg;
                 try {
-                  print('🔍 Profile: Starting logout process');
+                  debugPrint(' Starting logout process');
                   await AuthService.logout();
-                  print('🔍 Profile: AuthService.logout() completed');
+                  debugPrint(' AuthService.logout() completed');
                   try {
                     await authProvider.logout();
-                    print('🔍 Profile: authProvider.logout() completed');
+                    debugPrint('🔍 Profile: authProvider.logout() completed');
                   } catch (e) {
-                    print('🔍 Profile: authProvider.logout() error: $e');
+                    debugPrint('🔍 Profile: authProvider.logout() error: $e');
                     // ignore: empty_catches
                   }
                   await cartProvider.handleUserLogout();
-                  print(
+                  debugPrint(
                       '🔍 Profile: cartProvider.handleUserLogout() completed');
                   userProvider.clearUserData();
-                  print('🔍 Profile: userProvider.clearUserData() completed');
+                  debugPrint(
+                      '🔍 Profile: userProvider.clearUserData() completed');
                   logoutSuccess = true;
-                  print('🔍 Profile: Logout successful');
+                  debugPrint('🔍 Profile: Logout successful');
                 } catch (e) {
-                  print('🔍 Profile: Logout error: $e');
+                  debugPrint('🔍 Profile: Logout error: $e');
                   errorMsg = 'Error during logout: ${e.toString()}';
                 }
                 if (!mounted) return;
 
-                // Close the dialog first using dialog context
                 Navigator.of(dialogContext, rootNavigator: true).pop();
 
-                // Wait a bit to ensure the dialog is fully closed
                 await Future.delayed(Duration(milliseconds: 100));
 
                 if (!mounted) return;
 
                 if (logoutSuccess) {
-                  print('🔍 Profile: Setting userLoggedIn to false');
+                  debugPrint('🔍 Profile: Setting userLoggedIn to false');
                   setState(() {
                     _userLoggedIn = false;
                   });
 
-                  // Use a safer navigation approach with delay
                   if (mounted) {
-                    print('🔍 Profile: Starting navigation delay');
+                    debugPrint('🔍 Profile: Starting navigation delay');
                     await Future.delayed(Duration(milliseconds: 200));
                     if (mounted) {
-                      print('🔍 Profile: Navigating to LoggedOutScreen');
+                      debugPrint('🔍 Profile: Navigating to LoggedOutScreen');
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(
                             builder: (context) => LoggedOutScreen()),
                         (route) => false,
                       );
-                      print('🔍 Profile: Navigation completed');
+                      debugPrint('🔍 Profile: Navigation completed');
                     } else {
-                      print('🔍 Profile: Widget not mounted after delay');
+                      debugPrint('🔍 Profile: Widget not mounted after delay');
                     }
                   } else {
-                    print('🔍 Profile: Widget not mounted before delay');
+                    debugPrint('🔍 Profile: Widget not mounted before delay');
                   }
                 } else if (errorMsg != null && mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -283,7 +275,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
     );
   }
 
-  // Handle login navigation
+  // login navigation
   void _handleLogin() {
     Navigator.push(
       context,
@@ -497,8 +489,8 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         end: Alignment.bottomRight,
                         colors: [
                           primaryColor,
-                          primaryColor.withOpacity(0.8),
-                          primaryColor.withOpacity(0.6),
+                          primaryColor.withValues(alpha: 0.8),
+                          primaryColor.withValues(alpha: 0.6),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(24),

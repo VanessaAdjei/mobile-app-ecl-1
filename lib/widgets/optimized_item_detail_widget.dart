@@ -44,7 +44,6 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
   bool isDescriptionExpanded = false;
   PageController? _imagePageController;
   int _currentImageIndex = 0;
-  final List<String> _productImages = [];
 
   // Animation controllers
   late AnimationController _fadeController;
@@ -52,8 +51,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
   late AnimationController _quantityController;
 
   // Loading states
-  final bool _isLoadingProduct = false;
-  final bool _isLoadingRelated = false;
+
   bool _isAddingToCart = false;
 
   @override

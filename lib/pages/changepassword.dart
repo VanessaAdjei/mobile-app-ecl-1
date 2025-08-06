@@ -1,9 +1,9 @@
 // pages/changepassword.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'HomePage.dart';
+
 import 'app_back_button.dart';
-import 'package:http/http.dart' as http;
+
 import 'forgot_password.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -12,10 +12,10 @@ class ChangePasswordPage extends StatefulWidget {
   const ChangePasswordPage({super.key});
 
   @override
-  _ChangePasswordPageState createState() => _ChangePasswordPageState();
+  ChangePasswordPageState createState() => ChangePasswordPageState();
 }
 
-class _ChangePasswordPageState extends State<ChangePasswordPage> {
+class ChangePasswordPageState extends State<ChangePasswordPage> {
   final _formKey = GlobalKey<FormState>();
   final _storage = FlutterSecureStorage();
 
@@ -132,10 +132,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
               letterSpacing: 0.5,
             ),
           ),
-                  leading: BackButtonUtils.simple(
-          backgroundColor: Colors.white.withValues(alpha: 0.2),
-          iconColor: Colors.white,
-        ),
+          leading: BackButtonUtils.simple(
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
+            iconColor: Colors.white,
+          ),
           actions: [
             Container(
               margin: EdgeInsets.only(right: 8),

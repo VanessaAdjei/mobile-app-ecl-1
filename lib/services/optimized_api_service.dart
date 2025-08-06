@@ -24,8 +24,6 @@ class OptimizedApiService {
   static const Duration _timeout = Duration(seconds: 15);
 
   // Retry configuration
-  static const int _maxRetries = 3;
-  static const Duration _retryDelay = Duration(seconds: 2);
 
   // Initialize the service
   Future<void> initialize() async {
@@ -210,22 +208,6 @@ class OptimizedApiService {
       }
     } catch (e) {
       optimizationService.endTimer('API_DELETE_$endpoint');
-      rethrow;
-    }
-  }
-
-  // Retry mechanism for failed requests
-  Future<T> _retryRequest<T>(
-    Future<T> Function() requestFunction,
-    int retryCount,
-  ) async {
-    try {
-      return await requestFunction();
-    } catch (e) {
-      if (retryCount < _maxRetries) {
-        await Future.delayed(_retryDelay * (retryCount + 1));
-        return _retryRequest(requestFunction, retryCount + 1);
-      }
       rethrow;
     }
   }

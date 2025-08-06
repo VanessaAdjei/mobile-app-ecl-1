@@ -35,10 +35,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
   int _currentPage = 0;
 
   late AnimationController _animController;
-  Animation<double>? _iconScaleAnim;
-  late Animation<double> _fadeAnim;
   VideoPlayerController? _videoController;
-  Future<void>? _initializeVideoPlayerFuture;
   bool _videoInitFailed = false;
 
   @override
@@ -48,14 +45,11 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
-    _iconScaleAnim =
-        CurvedAnimation(parent: _animController, curve: Curves.elasticOut);
-    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeIn);
     _animController.forward();
 
     _videoController =
         VideoPlayerController.asset('assets/images/Mobile browsers.mp4');
-    _initializeVideoPlayerFuture = _videoController!.initialize().then((_) {
+    _videoController!.initialize().then((_) {
       _videoController!.setLooping(true);
       _videoController!.setVolume(0);
       _videoController!.play();
@@ -643,7 +637,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
         Container(
           padding: EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: iconColor.withOpacity(0.1),
+            color: iconColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(

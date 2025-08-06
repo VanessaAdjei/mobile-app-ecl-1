@@ -1,8 +1,7 @@
 // services/performance_monitor.dart
 // services/performance_monitor.dart
 import 'dart:async';
-import 'dart:developer' as developer;
-import 'package:flutter/foundation.dart';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'background_prefetch_service.dart';

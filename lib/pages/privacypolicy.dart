@@ -4,7 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'Cart.dart';
-import 'HomePage.dart';
+
 import 'app_back_button.dart';
 
 class PrivacyPolicyScreen extends StatelessWidget {

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'product_model.dart';
 import 'app_back_button.dart';
 import 'itemdetail.dart';
-import 'homepage.dart';
+
 import 'package:animations/animations.dart';
 
 class SectionProductsPage extends StatefulWidget {
@@ -21,7 +21,6 @@ class SectionProductsPage extends StatefulWidget {
 }
 
 class _SectionProductsPageState extends State<SectionProductsPage> {
-  final int _tappedIndex = -1;
   List<Product> _filteredProducts = [];
   String _sortOption = 'NameAsc';
   String _selectedCategory = 'All';
@@ -268,7 +267,7 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
     final products = _filteredProducts;
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, result) {
         // Let the AppBackButton handle the navigation
         if (Navigator.canPop(context)) {
           Navigator.pop(context);

@@ -1,7 +1,6 @@
 // pages/aboutus.dart
 import 'package:flutter/material.dart';
 import 'Cart.dart';
-import 'HomePage.dart';
 import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';

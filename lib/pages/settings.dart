@@ -15,7 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'aboutus.dart';
 import 'loggedout.dart';
 import 'notifications.dart';
-import 'homepage.dart';
+
 import 'app_back_button.dart';
 import 'package:eclapp/pages/auth_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -25,10 +25,10 @@ class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  _SettingsScreenState createState() => _SettingsScreenState();
+  SettingsScreenState createState() => SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class SettingsScreenState extends State<SettingsScreen> {
   File? _profileImage;
   final ImagePicker _picker = ImagePicker();
   String _userName = "User";
@@ -161,7 +161,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         isDark ? Colors.grey.shade900 : Colors.grey.shade100;
     final cardColor = isDark ? Colors.grey.shade800 : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
-    final subtextColor = isDark ? Colors.white70 : Colors.black54;
 
     return Scaffold(
       backgroundColor: backgroundColor,

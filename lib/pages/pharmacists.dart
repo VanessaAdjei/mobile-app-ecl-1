@@ -6,7 +6,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
-import 'homepage.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../services/health_tips_service.dart';
@@ -38,11 +38,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   DateTime _selectedDate = DateTime.now().add(Duration(days: 1));
   TimeOfDay _selectedTime = TimeOfDay.now();
 
-  final bool _nameInvalid = false;
-  final bool _phoneInvalid = false;
-  final bool _emailInvalid = false;
-  final bool _symptomsInvalid = false;
-
   final List<String> _consultationTypes = [
     'WhatsApp',
     'Zoom',
@@ -58,6 +53,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   List<HealthTip> _healthTips = [];
   bool _isLoadingHealthTips = false;
   bool _isUserLoggedIn = false;
+
+  // Local cache for health tips
+  static List<HealthTip> _cachedHealthTips = [];
+  static DateTime? _lastHealthTipsCacheTime;
+  static const Duration _healthTipsCacheExpiration = Duration(minutes: 15);
 
   @override
   void initState() {
@@ -90,33 +90,79 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       _isLoadingHealthTips = true;
     });
 
-    // Show instant fallback tips while loading
+
+    final backgroundTips = HealthTipsService.getCurrentTips(limit: 4);
+    if (backgroundTips.isNotEmpty) {
+      setState(() {
+        _healthTips = backgroundTips;
+        _isLoadingHealthTips = false;
+      });
+      debugPrint('PharmacistsPage: Using background service cached tips');
+      return;
+    }
+
+    
+    if (_isLocalCacheValid()) {
+      setState(() {
+        _healthTips = _cachedHealthTips;
+        _isLoadingHealthTips = false;
+      });
+      debugPrint('PharmacistsPage: Using local cached health tips');
+      return;
+    }
+
+  
     _showInstantFallbackTips();
 
-    try {
-      // Use a shorter timeout for faster loading
-      final tips = await HealthTipsService.fetchHealthTips(limit: 4)
-          .timeout(Duration(seconds: 8));
+  
+    _loadFreshHealthTipsInBackground();
+  }
 
-      if (mounted) {
-        setState(() {
-          _healthTips = tips;
-          _isLoadingHealthTips = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoadingHealthTips = false;
-        });
-      }
-      // Keep empty list if loading fails
-      debugPrint('Error loading health tips: $e');
-    }
+
+  Future<void> _refreshHealthTips() async {
+    // Show instant feedback
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('Refreshing health insights...'),
+          ],
+        ),
+        backgroundColor: Colors.blue[600],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: Duration(seconds: 3),
+      ),
+    );
+
+
+    _cachedHealthTips.clear();
+    _lastHealthTipsCacheTime = null;
+
+
+    await _loadFreshHealthTipsInBackground();
+  }
+
+  bool _isLocalCacheValid() {
+    if (_cachedHealthTips.isEmpty) return false;
+    if (_lastHealthTipsCacheTime == null) return false;
+
+    final timeSinceLastCache =
+        DateTime.now().difference(_lastHealthTipsCacheTime!);
+    return timeSinceLastCache < _healthTipsCacheExpiration;
   }
 
   void _showInstantFallbackTips() {
-    // Show instant fallback tips while API loads
+    
     final instantTips = [
       HealthTip(
         title: 'Stay Hydrated',
@@ -164,6 +210,69 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       _healthTips = instantTips;
       _isLoadingHealthTips = false;
     });
+  }
+
+  Future<void> _loadFreshHealthTipsInBackground() async {
+    try {
+      final backgroundTips = HealthTipsService.getCurrentTips(limit: 4);
+      if (backgroundTips.isNotEmpty) {
+        setState(() {
+          _healthTips = backgroundTips;
+          _isLoadingHealthTips = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.refresh, color: Colors.white, size: 16),
+                SizedBox(width: 8),
+                Text('Health insights updated'),
+              ],
+            ),
+            backgroundColor: Colors.green[600],
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      final tips = await HealthTipsService.fetchHealthTips(limit: 4)
+          .timeout(Duration(seconds: 6));
+
+      if (mounted && tips.isNotEmpty) {
+        // Cache the fresh tips locally
+        _cachedHealthTips = tips;
+        _lastHealthTipsCacheTime = DateTime.now();
+
+        setState(() {
+          _healthTips = tips;
+          _isLoadingHealthTips = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.refresh, color: Colors.white, size: 16),
+                SizedBox(width: 8),
+                Text('Health insights updated'),
+              ],
+            ),
+            backgroundColor: Colors.green[600],
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error loading fresh health tips: $e');
+    }
   }
 
   Future<void> _checkLoginStatus() async {
@@ -309,15 +418,38 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   }
 
   void _navigateToLogin() async {
-    // Navigate to sign in page with return callback
-    final result = await Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => SignInScreen(),
+        builder: (context) => SignInScreen(
+          onSuccess: () async {
+            if (mounted) {
+              await _checkLoginStatus();
+
+              // Show success message
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.white, size: 16),
+                      SizedBox(width: 8),
+                      Text('Welcome back! You can now book consultations.'),
+                    ],
+                  ),
+                  backgroundColor: Colors.green[600],
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            }
+          },
+        ),
       ),
     );
 
-    // Also refresh login status when returning normally
+    // Check if we returned from login and refresh status
     if (mounted) {
       await _checkLoginStatus();
     }
@@ -526,65 +658,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     _emailController.dispose();
     _symptomsController.dispose();
     super.dispose();
-  }
-
-  void _showContactOptions(BuildContext context, String phoneNumber) {
-    showModalBottomSheet(
-      context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Icon(Icons.call, color: Colors.green),
-                title: Text('Call'),
-                onTap: () {
-                  if (Navigator.canPop(context)) {
-                    Navigator.pop(context);
-                  }
-                  _launchPhoneDialer(phoneNumber);
-                },
-              ),
-              ListTile(
-                leading:
-                    FaIcon(FontAwesomeIcons.whatsapp, color: Color(0xFF25D366)),
-                title: Text('WhatsApp'),
-                onTap: () {
-                  if (Navigator.canPop(context)) {
-                    Navigator.pop(context);
-                  }
-                  _launchWhatsApp(phoneNumber,
-                      "Hello, I'd like to speak with a pharmacist.");
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _launchPhoneDialer(String phoneNumber) async {
-    final Uri callUri = Uri.parse("tel:$phoneNumber");
-    if (await canLaunchUrl(callUri)) {
-      await launchUrl(callUri);
-    }
-  }
-
-  void _launchWhatsApp(String phoneNumber, String message) async {
-    if (!phoneNumber.startsWith('+')) {
-      phoneNumber = '+233${phoneNumber.substring(1)}';
-    }
-    String whatsappUrl =
-        'whatsapp://send?phone=$phoneNumber&text=${Uri.encodeComponent(message)}';
-    if (await canLaunchUrl(Uri.parse(whatsappUrl))) {
-      await launchUrl(Uri.parse(whatsappUrl));
-    }
   }
 
   void _showHealthTipDetails(HealthTip tip) {
@@ -1760,56 +1833,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     );
   }
 
-  void _submitBooking() {
-    // Here you would typically send the booking to your backend
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content:
-            Text('Consultation booked successfully! We\'ll contact you soon.'),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-    Navigator.pop(context);
-  }
-
-  bool _containsAny(String text, List<String> keywords) {
-    return keywords.any((keyword) => text.contains(keyword));
-  }
-
-  // Color-coded message gradients based on severity
-  List<Color> _getMessageGradient(String message) {
-    message = message.toLowerCase();
-
-    // Emergency/Urgent - Red gradient
-    if (message.contains('🚨') ||
-        message.contains('emergency') ||
-        message.contains('call 911') ||
-        message.contains('immediate')) {
-      return [Colors.red[400]!, Colors.red[600]!];
-    }
-
-    // Warning - Orange gradient
-    if (message.contains('⚠️') ||
-        message.contains('seek medical') ||
-        message.contains('medical attention') ||
-        message.contains('severe')) {
-      return [Colors.orange[400]!, Colors.orange[600]!];
-    }
-
-    // Information - Blue gradient
-    if (message.contains('information') ||
-        message.contains('guidance') ||
-        message.contains('management') ||
-        message.contains('care')) {
-      return [Colors.blue[400]!, Colors.blue[600]!];
-    }
-
-    // Default - Green gradient
-    return [Colors.green[400]!, Colors.green[500]!];
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1899,8 +1922,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   _buildModernVirtualConsultationCard(),
                   SizedBox(height: 20),
                   // Health Blogs Section
-                  _buildModernSectionHeaderWithRefresh('Health Insights',
-                      Icons.article, 'Latest health articles', _loadHealthTips),
+                  _buildModernSectionHeaderWithRefresh(
+                      'Health Insights',
+                      Icons.article,
+                      'Latest health articles',
+                      _refreshHealthTips),
                   SizedBox(height: 12),
                   _buildModernHealthBlogsSection(),
                   SizedBox(height: 100), // Space for chat button

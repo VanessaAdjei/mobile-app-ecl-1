@@ -1,25 +1,25 @@
 // services/universal_page_optimization_service.dart
 import 'dart:async';
-import 'dart:convert';
+
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+
 import 'advanced_performance_service.dart';
 
 class UniversalPageOptimizationService {
-  static final UniversalPageOptimizationService _instance = UniversalPageOptimizationService._internal();
+  static final UniversalPageOptimizationService _instance =
+      UniversalPageOptimizationService._internal();
   factory UniversalPageOptimizationService() => _instance;
   UniversalPageOptimizationService._internal();
 
   // Performance service
-  final AdvancedPerformanceService _performanceService = AdvancedPerformanceService();
+  final AdvancedPerformanceService _performanceService =
+      AdvancedPerformanceService();
 
   // Cache configuration
   static const Duration _defaultCacheDuration = Duration(minutes: 30);
-  static const Duration _shortCacheDuration = Duration(minutes: 15);
-  static const Duration _longCacheDuration = Duration(hours: 2);
 
   // Loading states
   final Map<String, bool> _isLoading = {};
@@ -28,12 +28,10 @@ class UniversalPageOptimizationService {
   // Initialize the service
   Future<void> initialize() async {
     await _performanceService.initialize();
-    developer.log('Universal Page Optimization Service initialized', name: 'PageOptimization');
+    developer.log('Universal Page Optimization Service initialized',
+        name: 'PageOptimization');
   }
 
-  // ==================== UNIVERSAL DATA FETCHING ====================
-
-  /// Universal data fetching with intelligent caching
   Future<T?> fetchData<T>(
     String cacheKey,
     Future<T> Function() fetchFunction, {
@@ -56,7 +54,8 @@ class UniversalPageOptimizationService {
       return data;
     } catch (e) {
       _performanceService.stopTimer(timerName);
-      developer.log('Failed to fetch data for $cacheKey: $e', name: 'PageOptimization');
+      developer.log('Failed to fetch data for $cacheKey: $e',
+          name: 'PageOptimization');
       rethrow;
     }
   }
@@ -73,11 +72,11 @@ class UniversalPageOptimizationService {
 
     try {
       final futures = <String, Future<dynamic>>{};
-      
+
       for (final entry in fetchFunctions.entries) {
         final cacheKey = entry.key;
         final fetchFunction = entry.value;
-        
+
         futures[cacheKey] = _performanceService.getCachedData(
           cacheKey,
           fetchFunction,
@@ -88,7 +87,7 @@ class UniversalPageOptimizationService {
 
       final results = await Future.wait(futures.values);
       final data = <String, dynamic>{};
-      
+
       int index = 0;
       for (final key in futures.keys) {
         data[key] = results[index];
@@ -99,7 +98,8 @@ class UniversalPageOptimizationService {
       return data;
     } catch (e) {
       _performanceService.stopTimer(timerName);
-      developer.log('Failed to fetch multiple data: $e', name: 'PageOptimization');
+      developer.log('Failed to fetch multiple data: $e',
+          name: 'PageOptimization');
       rethrow;
     }
   }
@@ -243,13 +243,15 @@ class UniversalPageOptimizationService {
   Future<void> clearAllPageCaches() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final keys = prefs.getKeys().where((key) => key.startsWith('perf_cache_'));
+      final keys =
+          prefs.getKeys().where((key) => key.startsWith('perf_cache_'));
       for (final key in keys) {
         await prefs.remove(key);
       }
       developer.log('Cleared all page caches', name: 'PageOptimization');
     } catch (e) {
-      developer.log('Failed to clear page caches: $e', name: 'PageOptimization');
+      developer.log('Failed to clear page caches: $e',
+          name: 'PageOptimization');
     }
   }
 
@@ -281,7 +283,7 @@ class UniversalPageOptimizationService {
     }
 
     final base = baseUrl ?? 'https://adm-ecommerce.ernestchemists.com.gh';
-    
+
     if (imagePath.startsWith('/uploads/')) {
       return '$base$imagePath';
     }
@@ -453,4 +455,4 @@ class UniversalPageOptimizationService {
     _debounceTimers.clear();
     _isLoading.clear();
   }
-} 
+}

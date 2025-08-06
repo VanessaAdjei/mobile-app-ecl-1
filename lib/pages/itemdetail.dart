@@ -37,10 +37,10 @@ class ItemPage extends StatefulWidget {
   });
 
   @override
-  State<ItemPage> createState() => _ItemPageState();
+  State<ItemPage> createState() => ItemPageState();
 }
 
-class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
+class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   late Future<Product> _productFuture;
   late Future<List<Product>> _relatedProductsFuture;
   int quantity = 1;
@@ -50,9 +50,6 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   PageController? _imagePageController;
   int _currentImageIndex = 0;
   final List<String> _productImages = [];
-
-  // Key for storing quantity preferences
-  static const String _quantityPrefsKey = 'product_quantities';
 
   // Animation controllers
   late AnimationController _fadeController;
@@ -168,10 +165,6 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     return result ?? [];
   }
 
-  void _addToCart(BuildContext context, Product product) async {
-    _addToCartWithQuantity(context, product);
-  }
-
   void _addToCartWithQuantity(BuildContext context, Product product) async {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
@@ -285,84 +278,6 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     await animationController.forward();
     entry.remove();
     animationController.dispose();
-  }
-
-  void _removeFromCart(BuildContext context, Product product) async {
-    final cartProvider = Provider.of<CartProvider>(context, listen: false);
-
-    debugPrint('🔍 REMOVING FROM CART ===');
-    debugPrint('Product ID: ${product.id}');
-    debugPrint('Product Name: ${product.name}');
-    debugPrint('Batch Number: ${product.batch_no}');
-    debugPrint('URL Name: ${product.urlName}');
-    debugPrint('========================');
-
-    try {
-      // Find the cart item to remove
-      final cartItems = cartProvider.cartItems;
-      final itemToRemove = cartItems.firstWhere(
-        (item) =>
-            item.productId == product.id.toString() &&
-            item.batchNo == product.batch_no,
-        orElse: () => CartItem(
-          id: '',
-          productId: product.id.toString(),
-          name: product.name,
-          price: 0.0,
-          quantity: 0,
-          image: '',
-          batchNo: product.batch_no,
-          urlName: product.urlName,
-          totalPrice: 0.0,
-        ),
-      );
-
-      if (itemToRemove.id.isNotEmpty) {
-        await cartProvider.removeFromCart(itemToRemove.id);
-
-        if (mounted) {
-          _showSuccessSnackBar(
-              context, '${product.name} has been removed from cart');
-          // Update the quantity display
-          setState(() {
-            quantity = _getCartQuantity(product);
-          });
-        }
-      } else {
-        if (mounted) {
-          _showErrorSnackBar(context, 'Item not found in cart');
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        _showErrorSnackBar(context, 'Error removing item from cart: $e');
-      }
-    }
-  }
-
-  // Get current quantity of this product in cart
-  int _getCartQuantity(Product product) {
-    final cartProvider = Provider.of<CartProvider>(context, listen: false);
-    final cartItems = cartProvider.cartItems;
-
-    final cartItem = cartItems.firstWhere(
-      (item) =>
-          item.productId == product.id.toString() &&
-          item.batchNo == product.batch_no,
-      orElse: () => CartItem(
-        id: '',
-        productId: product.id.toString(),
-        name: product.name,
-        price: 0.0,
-        quantity: 0,
-        image: '',
-        batchNo: product.batch_no,
-        urlName: product.urlName,
-        totalPrice: 0.0,
-      ),
-    );
-
-    return cartItem.quantity;
   }
 
   void _showSuccessSnackBar(BuildContext context, String message) {
@@ -648,77 +563,6 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     debugPrint('================================');
 
     return finalName;
-  }
-
-  // Load saved quantity for this product
-  Future<void> _loadSavedQuantity() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final quantityPrefs = prefs.getString(_quantityPrefsKey);
-
-      if (quantityPrefs != null) {
-        final Map<String, dynamic> prefsMap = json.decode(quantityPrefs);
-        final savedQuantity = prefsMap[widget.urlName];
-
-        if (savedQuantity != null &&
-            savedQuantity is int &&
-            savedQuantity > 0) {
-          setState(() {
-            quantity = savedQuantity;
-          });
-          debugPrint('🔍 LOADED SAVED QUANTITY ===');
-          debugPrint('Product: ${widget.urlName}');
-          debugPrint('Saved Quantity: $quantity');
-          debugPrint('==========================');
-        }
-      }
-    } catch (e) {
-      debugPrint('Error loading saved quantity: $e');
-    }
-  }
-
-  // Save quantity for this product
-  Future<void> _saveQuantity() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final quantityPrefs = prefs.getString(_quantityPrefsKey);
-
-      Map<String, dynamic> prefsMap = {};
-      if (quantityPrefs != null) {
-        prefsMap = json.decode(quantityPrefs);
-      }
-
-      prefsMap[widget.urlName] = quantity;
-
-      await prefs.setString(_quantityPrefsKey, json.encode(prefsMap));
-
-      debugPrint('🔍 SAVED QUANTITY ===');
-      debugPrint('Product: ${widget.urlName}');
-      debugPrint('Quantity: $quantity');
-      debugPrint('====================');
-    } catch (e) {
-      debugPrint('Error saving quantity: $e');
-    }
-  }
-
-  Future<void> _clearSavedQuantity() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final quantityPrefs = prefs.getString(_quantityPrefsKey);
-
-      if (quantityPrefs != null) {
-        Map<String, dynamic> prefsMap = json.decode(quantityPrefs);
-        prefsMap.remove(widget.urlName);
-
-        await prefs.setString(_quantityPrefsKey, json.encode(prefsMap));
-
-        debugPrint('🔍 CLEARED SAVED QUANTITY ===');
-        debugPrint('Product: ${widget.urlName}');
-        debugPrint('============================');
-      }
-    } catch (e) {
-      debugPrint('Error clearing saved quantity: $e');
-    }
   }
 
   Future<List<Product>> fetchRelatedProducts(String urlName) async {
@@ -1589,23 +1433,26 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                 'pending_prescription_product', product.name);
                             await prefs.setString(
                                 'pending_prescription_thumbnail',
-                                product.thumbnail ?? '');
+                                product.thumbnail);
                             await prefs.setString('pending_prescription_id',
                                 product.id.toString());
                             await prefs.setString(
                                 'pending_prescription_price', product.price);
                             await prefs.setString(
                                 'pending_prescription_batch_no',
-                                product.batch_no ?? '');
+                                product.batch_no);
                             await prefs.setBool(
                                 'has_pending_prescription', true);
 
-                            print('🔍 ItemDetail: Stored prescription data:');
-                            print(
+                            debugPrint(
+                                '🔍 ItemDetail: Stored prescription data:');
+                            debugPrint(
                                 '🔍 ItemDetail: Product Name: ${product.name}');
-                            print('🔍 ItemDetail: Product ID: ${product.id}');
-                            print('🔍 ItemDetail: Price: ${product.price}');
-                            print(
+                            debugPrint(
+                                '🔍 ItemDetail: Product ID: ${product.id}');
+                            debugPrint(
+                                '🔍 ItemDetail: Price: ${product.price}');
+                            debugPrint(
                                 '🔍 ItemDetail: Batch No: ${product.batch_no}');
 
                             _showSignInRequiredDialog(context);
@@ -1639,7 +1486,7 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         ),
                         elevation: 0,
                         backgroundColor: widget.isPrescribed
-                            ? Colors.red[600]
+                            ? Colors.red.shade600
                             : Colors.transparent,
                         shadowColor: Colors.transparent,
                       ),

@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_service.dart';
-import 'HomePage.dart';
+
 import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
 
@@ -11,10 +11,10 @@ class AddPaymentPage extends StatefulWidget {
   const AddPaymentPage({super.key});
 
   @override
-  _AddPaymentPageState createState() => _AddPaymentPageState();
+  AddPaymentPageState createState() => AddPaymentPageState();
 }
 
-class _AddPaymentPageState extends State<AddPaymentPage> {
+class AddPaymentPageState extends State<AddPaymentPage> {
   String? _selectedPaymentMethod;
   String? _selectedMoMoProvider;
   List<Map<String, String>> _paymentMethods = [];

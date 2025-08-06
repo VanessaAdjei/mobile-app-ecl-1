@@ -670,14 +670,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     });
   }
 
-  void _clearEmailExistsError() {
-    if (_emailExists) {
-      setState(() {
-        _emailExists = false;
-      });
-    }
-  }
-
   int _logoInteractionCount = 0;
   DateTime? _lastInteractionTime;
 

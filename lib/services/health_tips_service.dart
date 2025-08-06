@@ -1,6 +1,7 @@
 // services/health_tips_service.dart
 import 'dart:convert';
 import 'dart:math';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import '../models/health_tip.dart';
 import 'package:flutter/foundation.dart';
@@ -16,6 +17,92 @@ class HealthTipsService {
   static const Duration _cacheExpiration =
       Duration(minutes: 30); // Cache for 30 minutes
 
+  // Background service properties
+  static Timer? _backgroundTimer;
+  static bool _isBackgroundServiceRunning = false;
+  static const Duration _backgroundRefreshInterval = Duration(minutes: 10);
+  static const Duration _initialLoadDelay = Duration(seconds: 5);
+
+  // Background service management
+  static void startBackgroundService() {
+    if (_isBackgroundServiceRunning) return;
+
+    debugPrint('HealthTipsService: Starting background service');
+    _isBackgroundServiceRunning = true;
+
+    // Initial load after a short delay
+    Timer(_initialLoadDelay, () {
+      _loadTipsInBackground();
+    });
+
+    // Set up periodic background refresh
+    _backgroundTimer = Timer.periodic(_backgroundRefreshInterval, (timer) {
+      _loadTipsInBackground();
+    });
+  }
+
+  static void stopBackgroundService() {
+    debugPrint('HealthTipsService: Stopping background service');
+    _isBackgroundServiceRunning = false;
+    _backgroundTimer?.cancel();
+    _backgroundTimer = null;
+  }
+
+  static Future<void> _loadTipsInBackground() async {
+    try {
+      debugPrint('HealthTipsService: Background refresh started');
+
+      final tips = await _fetchTipsFromAPI();
+      if (tips.isNotEmpty) {
+        _cachedTips = tips;
+        _hasLoadedOnce = true;
+        _lastFetchTime = DateTime.now();
+        debugPrint(
+            'HealthTipsService: Background refresh successful - ${tips.length} tips cached');
+      }
+    } catch (e) {
+      debugPrint('HealthTipsService: Background refresh failed: $e');
+    }
+  }
+
+  static Future<List<HealthTip>> _fetchTipsFromAPI() async {
+    try {
+      final Map<String, String> queryParams = {'Lang': 'en'};
+      final uri = Uri.parse(_baseUrl).replace(queryParameters: queryParams);
+
+      final response = await http.get(uri).timeout(Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        try {
+          final healthfinderResponse = MyHealthfinderResponse.fromJson(data);
+          if (healthfinderResponse.tips.isNotEmpty) {
+            final shuffledTips =
+                List<HealthTip>.from(healthfinderResponse.tips);
+            shuffledTips.shuffle(Random());
+            return shuffledTips;
+          }
+        } catch (parseError) {
+          debugPrint(
+              'HealthTipsService: Error parsing API response: $parseError');
+
+          // Try simpler parsing as fallback
+          final simpleTips = _parseSimpleResponse(data);
+          if (simpleTips.isNotEmpty) {
+            final shuffledTips = List<HealthTip>.from(simpleTips);
+            shuffledTips.shuffle(Random());
+            return shuffledTips;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('HealthTipsService: API fetch error: $e');
+    }
+
+    return [];
+  }
+
   static bool get isCacheValid {
     if (!_hasLoadedOnce || _cachedTips.isEmpty) return false;
 
@@ -28,6 +115,17 @@ class HealthTipsService {
     return false;
   }
 
+  // Get current cached tips for instant access
+  static List<HealthTip> getCurrentTips({int limit = 6}) {
+    if (isCacheValid) {
+      return _cachedTips.take(limit).toList();
+    }
+    return [];
+  }
+
+  // Check if background service is running
+  static bool get isBackgroundServiceRunning => _isBackgroundServiceRunning;
+
   static Future<List<HealthTip>> fetchHealthTips({
     int limit = 6,
     String? category,
@@ -36,121 +134,42 @@ class HealthTipsService {
   }) async {
     debugPrint('HealthTipsService: Starting fetchHealthTips');
 
-    // Check cache first for faster loading
+    // Start background service if not running
+    if (!_isBackgroundServiceRunning) {
+      startBackgroundService();
+    }
+
+    // Check cache first for instant response
     if (isCacheValid) {
       debugPrint('HealthTipsService: Using cached data');
       final result = _cachedTips.take(limit).toList();
-      debugPrint('HealthTipsService: Returning ${result.length} cached tips');
+      debugPrint(
+          'HealthTipsService: Returning ${result.length} cached tips instantly');
       return result;
     }
 
+    // If no cache, try to fetch immediately but with shorter timeout
     try {
-      debugPrint('HealthTipsService: Fetching fresh data from API');
+      debugPrint('HealthTipsService: Cache miss, fetching fresh data');
+      final tips = await _fetchTipsFromAPI().timeout(Duration(seconds: 4));
 
-      // Build query parameters - use simpler approach that works
-      final Map<String, String> queryParams = {};
+      if (tips.isNotEmpty) {
+        _cachedTips = tips;
+        _hasLoadedOnce = true;
+        _lastFetchTime = DateTime.now();
 
-      // For v3 API, use minimal parameters to get general health tips
-      queryParams['Lang'] = 'en';
-      // Don't use specific TopicId, Age, or Sex as they often return 0 results
-      // The v3 API returns general health topics without specific parameters
-
-      // Build URL with query parameters
-      final uri = Uri.parse(_baseUrl).replace(queryParameters: queryParams);
-      debugPrint('HealthTipsService: Making request to: $uri');
-
-      final response = await http.get(uri).timeout(Duration(seconds: 15));
-      debugPrint('HealthTipsService: Response status: ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        debugPrint(
-            'HealthTipsService: Response data keys: ${data.keys.toList()}');
-        debugPrint('HealthTipsService: Full response data: $data');
-
-        // Add more detailed debugging
-        if (data.containsKey('Result')) {
-          final result = data['Result'];
-          debugPrint('HealthTipsService: Result keys: ${result.keys.toList()}');
-          if (result.containsKey('Resources')) {
-            final resources = result['Resources'];
-            debugPrint(
-                'HealthTipsService: Resources keys: ${resources.keys.toList()}');
-            if (resources.containsKey('Resource')) {
-              final resourceList = resources['Resource'];
-              debugPrint(
-                  'HealthTipsService: Resource list length: ${resourceList.length}');
-              if (resourceList.isNotEmpty) {
-                debugPrint(
-                    'HealthTipsService: First resource: ${resourceList[0]}');
-              }
-            }
-          }
-        }
-
-        try {
-          final healthfinderResponse = MyHealthfinderResponse.fromJson(data);
-          debugPrint(
-              'HealthTipsService: Parsed ${healthfinderResponse.tips.length} tips');
-
-          if (healthfinderResponse.tips.isEmpty) {
-            debugPrint(
-                'HealthTipsService: No tips parsed, throwing exception to use fallback');
-            throw Exception('No tips found in API response');
-          }
-
-          // Shuffle the tips for variety
-          final shuffledTips = List<HealthTip>.from(healthfinderResponse.tips);
-          shuffledTips.shuffle(Random());
-
-          // Cache the shuffled results and mark as loaded
-          _cachedTips = shuffledTips;
-          _hasLoadedOnce = true;
-          _lastFetchTime = DateTime.now();
-
-          final result = _cachedTips.take(limit).toList();
-          debugPrint(
-              'HealthTipsService: Returning ${result.length} fresh, shuffled tips');
-          return result;
-        } catch (parseError) {
-          debugPrint(
-              'HealthTipsService: Error parsing API response: $parseError');
-
-          // Try a simpler parsing approach as fallback
-          try {
-            debugPrint('HealthTipsService: Trying simpler parsing approach');
-            final simpleTips = _parseSimpleResponse(data);
-            if (simpleTips.isNotEmpty) {
-              debugPrint(
-                  'HealthTipsService: Simple parsing successful, got ${simpleTips.length} tips');
-              final shuffledTips = List<HealthTip>.from(simpleTips);
-              shuffledTips.shuffle(Random());
-              _cachedTips = shuffledTips;
-              _hasLoadedOnce = true;
-              _lastFetchTime = DateTime.now();
-              final result = _cachedTips.take(limit).toList();
-              return result;
-            }
-          } catch (simpleError) {
-            debugPrint(
-                'HealthTipsService: Simple parsing also failed: $simpleError');
-          }
-
-          throw Exception('Failed to parse health tips: $parseError');
-        }
-      } else {
-        debugPrint(
-            'HealthTipsService: API error - status ${response.statusCode}');
-        throw Exception('Failed to load health tips: ${response.statusCode}');
+        final result = _cachedTips.take(limit).toList();
+        debugPrint('HealthTipsService: Returning ${result.length} fresh tips');
+        return result;
       }
     } catch (e) {
-      debugPrint('HealthTipsService: Exception caught: $e');
-      // Return randomized fallback tips if API fails
-      final fallbackTips = _getRandomizedFallbackTips(limit);
-      debugPrint(
-          'HealthTipsService: Returning ${fallbackTips.length} randomized fallback tips');
-      return fallbackTips;
+      debugPrint('HealthTipsService: Immediate fetch failed: $e');
     }
+
+    // Return fallback tips if everything fails
+    debugPrint('HealthTipsService: Using fallback tips');
+    final fallbackTips = _getRandomizedFallbackTips(limit);
+    return fallbackTips;
   }
 
   static List<HealthTip> _parseSimpleResponse(Map<String, dynamic> data) {
@@ -206,52 +225,6 @@ class HealthTipsService {
     }
 
     return tips;
-  }
-
-  static List<String> _getRandomCategories() {
-    return [
-      'wellness', // No TopicId - works well
-      'prevention', // No TopicId - works well
-      'nutrition', // TopicId 311 - may work
-      'exercise', // TopicId 312 - may work
-      'heart health', // TopicId 305 - may work
-      'diabetes', // TopicId 306 - may work
-      'mental health', // TopicId 308 - may work
-      'pregnancy', // TopicId 309 - may work
-      'cancer', // TopicId 307 - may work
-      'vaccinations', // TopicId 310 - seems to return 0 results
-    ];
-  }
-
-  static String _getTopicIdForCategory(String category) {
-    // Map categories to MyHealthfinder topic IDs
-    switch (category.toLowerCase()) {
-      case 'heart health':
-      case 'cardiovascular':
-        return '305'; // Heart Health
-      case 'diabetes':
-        return '306'; // Diabetes
-      case 'cancer':
-        return '307'; // Cancer
-      case 'mental health':
-        return '308'; // Mental Health
-      case 'pregnancy':
-      case 'women\'s health':
-        return '309'; // Pregnancy
-      case 'vaccinations':
-      case 'immunizations':
-        return '310'; // Immunizations - seems to return 0 results
-      case 'nutrition':
-      case 'diet':
-        return '311'; // Nutrition
-      case 'exercise':
-      case 'physical activity':
-        return '312'; // Physical Activity
-      case 'wellness':
-      case 'prevention':
-      default:
-        return ''; // Return all topics - this works best
-    }
   }
 
   static List<HealthTip> _getRandomizedFallbackTips(int limit) {

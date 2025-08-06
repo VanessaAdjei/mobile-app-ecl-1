@@ -17,18 +17,16 @@ class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  _NotificationsScreenState createState() => _NotificationsScreenState();
+  NotificationsScreenState createState() => NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen> {
+class NotificationsScreenState extends State<NotificationsScreen> {
   final Map<String, List<Map<String, dynamic>>> groupedNotifications = {};
   bool isLoading = true;
-  bool _isRefreshing = false;
+
   final ScrollController _scrollController = ScrollController();
   final Map<String, DateTime> _lastRefreshTimes = {};
 
-  final Map<String, bool> _expandedGroups = {};
-  final Map<String, List<Map<String, dynamic>>> _cachedNotifications = {};
   bool _isDisposed = false;
 
   final PerformanceService _performanceService = PerformanceService();
@@ -103,7 +101,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }
 
       setState(() {
-        _isRefreshing = true;
+        // Refresh started
       });
 
       // Get notifications from the new service with timeout
@@ -163,7 +161,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (mounted) {
         setState(() {
           isLoading = false;
-          _isRefreshing = false;
         });
       }
       _performanceService.stopTimer('notifications_loading');
@@ -203,13 +200,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } catch (e) {
       // Silently handle saving errors
     }
-  }
-
-  void _toggleExpand(String group, int index) {
-    setState(() {
-      final key = '$group-$index';
-      _expandedGroups[key] = !(_expandedGroups[key] ?? false);
-    });
   }
 
   @override
@@ -686,7 +676,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       'id': orderId,
       'order_number': orderNumber,
       'total_amount': notification['total_amount'],
-      'order_items': mappedItems, // Use the correct field name
+      'order_items': mappedItems,
       'status': notification['status'] ?? 'pending',
       'created_at': notification['timestamp'],
     };
@@ -727,302 +717,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
- 
-  Widget _buildColorfulMainIcon(String? iconType) {
-    switch (iconType) {
-      case 'product':
-        return Icon(
-          Icons.shopping_cart,
-          color: Colors.orange.shade600,
-          size: 24,
-        );
-      case 'confirmation':
-        return Icon(
-          Icons.receipt,
-          color: Colors.green.shade600,
-          size: 24,
-        );
-      case 'shipping':
-        return Icon(
-          Icons.local_shipping,
-          color: Colors.blue.shade600,
-          size: 24,
-        );
-      case 'delivered':
-        return Icon(
-          Icons.star,
-          color: Colors.purple.shade600,
-          size: 24,
-        );
-      default:
-        return Icon(
-          Icons.notifications,
-          color: Colors.grey.shade600,
-          size: 24,
-        );
-    }
-  }
-
-  /// Build enhanced item card with modern design
-  Widget _buildEnhancedItemCard(Map<String, dynamic> item) {
-    final itemName = item['name']?.toString() ??
-        item['product_name']?.toString() ??
-        'Unknown Item';
-    final quantity = item['quantity']?.toString() ?? '1';
-    final price =
-        item['price']?.toString() ?? item['total_price']?.toString() ?? '0.00';
-    final rawImageUrl = item['image']?.toString() ??
-        item['product_image']?.toString() ??
-        item['image_url']?.toString() ??
-        item['product_image_url']?.toString() ??
-        item['imageUrl']?.toString() ??
-        '';
-
-    final imageUrl = _getImageUrl(rawImageUrl);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.green.shade200,
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Product image with enhanced styling
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: Colors.grey.shade100,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: imageUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: imageUrl,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 140,
-                      memCacheHeight: 140,
-                      placeholder: (context, url) => Container(
-                        color: Colors.grey.shade200,
-                        child: Icon(
-                          Icons.image,
-                          color: Colors.grey.shade400,
-                          size: 24,
-                        ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        color: Colors.grey.shade200,
-                        child: Icon(
-                          Icons.image_not_supported,
-                          color: Colors.grey.shade400,
-                          size: 24,
-                        ),
-                      ),
-                    )
-                  : Container(
-                      color: Colors.grey.shade200,
-                      child: Icon(
-                        Icons.inventory,
-                        color: Colors.grey.shade400,
-                        size: 24,
-                      ),
-                    ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          // Item details with enhanced styling
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  itemName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'Qty: $quantity',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.green.shade700,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      'GHS $price',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green.shade700,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Build item card with image and details
-  Widget _buildItemCard(Map<String, dynamic> item) {
-    final itemName = item['name']?.toString() ??
-        item['product_name']?.toString() ??
-        'Unknown Item';
-    final quantity = item['quantity']?.toString() ?? '1';
-    final price =
-        item['price']?.toString() ?? item['total_price']?.toString() ?? '0.00';
-    final rawImageUrl = item['image']?.toString() ??
-        item['product_image']?.toString() ??
-        item['image_url']?.toString() ??
-        item['product_image_url']?.toString() ??
-        item['imageUrl']?.toString() ??
-        '';
-
-    final imageUrl = _getImageUrl(rawImageUrl);
-
-    // Debug logging
-    debugPrint('📱 Building item card for: $itemName');
-    debugPrint('📱 Item data: $item');
-    debugPrint('📱 Raw image URL: $rawImageUrl');
-    debugPrint('📱 Processed image URL: $imageUrl');
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          // Product image
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: imageUrl.isNotEmpty
-                ? CachedNetworkImage(
-                    imageUrl: imageUrl,
-                    width: 60,
-                    height: 60,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 120,
-                    memCacheHeight: 120,
-                    placeholder: (context, url) => Container(
-                      width: 60,
-                      height: 60,
-                      color: Colors.grey.shade200,
-                      child: Icon(
-                        Icons.image,
-                        color: Colors.grey.shade400,
-                        size: 20,
-                      ),
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      width: 60,
-                      height: 60,
-                      color: Colors.grey.shade200,
-                      child: Icon(
-                        Icons.image_not_supported,
-                        color: Colors.grey.shade400,
-                        size: 20,
-                      ),
-                    ),
-                  )
-                : Container(
-                    width: 60,
-                    height: 60,
-                    color: Colors.grey.shade200,
-                    child: Icon(
-                      Icons.inventory,
-                      color: Colors.grey.shade400,
-                      size: 20,
-                    ),
-                  ),
-          ),
-          const SizedBox(width: 12),
-          // Item details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  itemName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Text(
-                      'Qty: $quantity',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      'GHS $price',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green[700],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   /// Get image URL with proper formatting
   String _getImageUrl(String? url) {
     if (url == null || url.isEmpty) return '';
@@ -1035,44 +729,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
     // Otherwise, treat as filename
     return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
-  }
-
-  void _debugStorage() async {
-    try {
-      final notifications = await OrderNotificationService.getNotifications();
-      final unreadCount = await OrderNotificationService.getUnreadCount();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Storage Debug: ${notifications.length} total, $unreadCount unread'),
-            duration: const Duration(seconds: 4),
-          ),
-        );
-
-        // Also print to console for detailed debugging
-        debugPrint(
-            '📱 Storage Debug: ${notifications.length} total notifications');
-        debugPrint('📱 Storage Debug: $unreadCount unread notifications');
-        for (int i = 0; i < notifications.length && i < 3; i++) {
-          debugPrint('📱 Notification ${i + 1}: ${notifications[i]}');
-        }
-      }
-    } catch (e) {
-      debugPrint('Error debugging storage: $e');
-    }
-  }
-
-  void _handleNotificationTap(Map<String, dynamic> notification) {
-    // Mark as read
-    final notificationId = notification['id']?.toString() ?? '';
-    if (notificationId.isNotEmpty) {
-      OrderNotificationService.markAsRead(notificationId);
-    }
-
-    // Show notification details
-    _showNotificationDetails(notification);
   }
 
   Future<void> _markNotificationAsRead(
@@ -1119,11 +775,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (context) => WillPopScope(
-        onWillPop: () async {
+      builder: (context) => PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) async {
           // Mark notification as read when dialog is dismissed
           await _markNotificationAsRead(notification);
-          return true;
+          Navigator.pop(context);
         },
         child: Dialog(
           shape:

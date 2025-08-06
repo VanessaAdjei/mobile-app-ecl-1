@@ -13,23 +13,23 @@ import 'package:eclapp/pages/homepage.dart';
 import 'cartprovider.dart';
 import 'delivery_page.dart';
 import 'dart:async';
-import 'package:cached_network_image/cached_network_image.dart';
+
 import 'app_back_button.dart';
 import 'auth_service.dart';
 import 'signinpage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/universal_page_optimization_service.dart';
-import '../widgets/optimized_product_card.dart';
+
 import 'cart_item.dart';
 
 class OptimizedCart extends StatefulWidget {
   const OptimizedCart({super.key});
 
   @override
-  _OptimizedCartState createState() => _OptimizedCartState();
+  OptimizedCartState createState() => OptimizedCartState();
 }
 
-class _OptimizedCartState extends State<OptimizedCart> {
+class OptimizedCartState extends State<OptimizedCart> {
   final UniversalPageOptimizationService _optimizationService =
       UniversalPageOptimizationService();
 
@@ -58,7 +58,7 @@ class _OptimizedCartState extends State<OptimizedCart> {
 
     try {
       // Check auth status and load cart data concurrently
-      final futures = await Future.wait([
+      await Future.wait([
         _checkAuthStatus(),
         _loadCartData(),
       ]);

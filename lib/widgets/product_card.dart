@@ -40,13 +40,12 @@ class HomeProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final defaultCardWidth =
-        cardWidth ?? screenWidth * (screenWidth < 600 ? 0.35 : 0.38);
+
     final defaultFontSize =
         fontSize ?? (screenWidth < 400 ? 11 : (screenWidth < 600 ? 13 : 15));
 
     return Container(
-      margin: EdgeInsets.zero, // No margin at all
+      margin: EdgeInsets.zero,
       child: AspectRatio(
         aspectRatio: 10.0,
         child: Column(
@@ -438,7 +437,8 @@ class ProductCard extends StatelessWidget {
 
   bool _isPrescribed() {
     if (product is Product) return product.otcpom?.toLowerCase() == 'pom';
-    if (product is Map) return (product['otcpom']?.toLowerCase() ?? '') == 'pom';
+    if (product is Map)
+      return (product['otcpom']?.toLowerCase() ?? '') == 'pom';
     return false;
   }
 
@@ -456,11 +456,6 @@ class ProductCard extends StatelessWidget {
 
     if (numericPrice == null) return '0.00';
     return numericPrice.toStringAsFixed(2);
-  }
-
-  String? _getProductBrand() {
-    // No longer needed, but keep for compatibility if referenced elsewhere
-    return null;
   }
 
   @override

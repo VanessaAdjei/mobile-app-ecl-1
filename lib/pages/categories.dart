@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:eclapp/widgets/error_display.dart';
 import 'package:eclapp/pages/itemdetail.dart';
 import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/pages/product_model.dart';
@@ -91,16 +90,15 @@ class CategoryPage extends StatefulWidget {
   const CategoryPage({super.key, this.isBulkPurchase = false});
 
   @override
-  _CategoryPageState createState() => _CategoryPageState();
+  CategoryPageState createState() => CategoryPageState();
 }
 
-class _CategoryPageState extends State<CategoryPage> {
+class CategoryPageState extends State<CategoryPage> {
   final TextEditingController _searchController = TextEditingController();
   List<dynamic> _categories = [];
   List<dynamic> _filteredCategories = [];
   bool _isLoading = true;
   String _errorMessage = '';
-  final Map<int, List<dynamic>> _subcategoriesMap = {};
   final Map<int, bool> _categoryHasSubcategories = {};
   Timer? _highlightTimer;
   List<dynamic> _allProducts = [];
@@ -284,34 +282,6 @@ class _CategoryPageState extends State<CategoryPage> {
     CategoryImagePreloader.preloadImages(imageUrls, context);
   }
 
-  void _highlightCategory(int categoryId, int? subcategoryId) {
-    setState(() {
-      // _highlightedCategoryId = categoryId;
-      // _highlightedSubcategoryId = subcategoryId;
-    });
-
-    // Automatically remove highlight after 5 seconds
-    _highlightTimer?.cancel();
-    _highlightTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted) {
-        setState(() {
-          // _highlightedCategoryId = null;
-          // _highlightedSubcategoryId = null;
-        });
-      }
-    });
-
-    // If this is a subcategory, find and select its parent category first
-    if (subcategoryId != null) {
-      final subcategory = _subcategoriesMap[categoryId]?.firstWhere(
-        (sub) => sub['id'] == subcategoryId,
-        orElse: () => null,
-      );
-
-      if (subcategory != null) {}
-    }
-  }
-
   Future<List<dynamic>> _getAllProductsFromCategories({
     bool forceRefresh = false,
   }) async {
@@ -328,84 +298,6 @@ class _CategoryPageState extends State<CategoryPage> {
       debugPrint('🔍 Error in _getAllProductsFromCategories: $e');
       return [];
     }
-  }
-
-  void _showSearch(BuildContext context) async {
-    // Check if we already have products cached
-    if (_categoryService.hasCachedProducts) {
-      final products = await _categoryService.getProducts();
-      _showSearchWithProducts(context, products);
-      return;
-    }
-
-    // Show loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(Colors.green.shade700),
-              ),
-              SizedBox(height: 16),
-              Text(
-                'Loading products...',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    // Fetch all products with timeout
-    try {
-      final products = await _getAllProductsFromCategories().timeout(
-        Duration(seconds: 15),
-        onTimeout: () {
-          throw Exception('Loading timeout. Please try again.');
-        },
-      );
-
-      // Hide loading indicator
-      Navigator.of(context).pop();
-
-      if (products.isEmpty) {
-        SnackBarUtils.showInfo(
-          context,
-          'There is no product available currently',
-        );
-        return;
-      }
-
-      _showSearchWithProducts(context, products);
-    } catch (e) {
-      // Hide loading indicator
-      Navigator.of(context).pop();
-
-      SnackBarUtils.showError(
-        context,
-        'Failed to load products. Please try again.',
-      );
-    }
-  }
-
-  void _showSearchWithProducts(BuildContext context, List<dynamic> products) {
-    showSearch(
-      context: context,
-      delegate: ProductSearchDelegate(
-        products: products,
-        onCategorySelected: _highlightCategory,
-        currentCategoryName: null,
-      ),
-    );
   }
 
   void _searchProduct(String query) async {
@@ -464,60 +356,6 @@ class _CategoryPageState extends State<CategoryPage> {
       final productName = (product['name'] ?? '').toString().toLowerCase();
       return productName.contains(searchQuery);
     }).toList();
-  }
-
-  void _onSearchItemTap(dynamic item) {
-    setState(() {
-      _showSearchDropdown = false;
-      _searchController.clear();
-    });
-
-    // Navigate to the category page where this product belongs
-    final categoryId = item['category_id'] ?? item['data']?['category_id'];
-    final categoryName =
-        item['category_name'] ?? item['data']?['category_name'];
-    final subcategoryId =
-        item['subcategory_id'] ?? item['data']?['subcategory_id'];
-    final searchedProductName = item['name'];
-    final searchedProductId = item['id'];
-
-    if (categoryId != null && categoryName != null) {
-      // Check if the category has subcategories by looking at the original categories data
-      final category = _categories.firstWhere(
-        (cat) => cat['id'] == categoryId,
-        orElse: () => {'has_subcategories': false},
-      );
-
-      if (category['has_subcategories'] == true) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SubcategoryPage(
-              categoryName: categoryName,
-              categoryId: categoryId,
-              searchedProductName: searchedProductName,
-              searchedProductId: searchedProductId,
-              targetSubcategoryId:
-                  subcategoryId, // Pass the specific subcategory ID
-            ),
-          ),
-        );
-      } else {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ProductListPage(
-              categoryName: categoryName,
-              categoryId: categoryId,
-              searchedProductName: searchedProductName,
-              searchedProductId: searchedProductId,
-            ),
-          ),
-        );
-      }
-    } else {
-      SnackBarUtils.showError(context, 'Could not navigate to category');
-    }
   }
 
   String _getCategoryImageUrl(String imagePath) {
@@ -687,7 +525,7 @@ class _CategoryPageState extends State<CategoryPage> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, result) {
         if (widget.isBulkPurchase) {
           Navigator.pushReplacement(
             context,
@@ -1333,66 +1171,6 @@ class _CategoryPageState extends State<CategoryPage> {
     debugPrint('🔍 ==========================================');
     debugPrint('🔍 _prefetchAllProducts() method completed');
     debugPrint('🔍 ==========================================');
-  }
-
-  Future<void> _enhanceCachedProductsWithOtcpom() async {
-    debugPrint('🔍 _enhanceCachedProductsWithOtcpom() method started');
-    debugPrint('🔍 About to access CategoryCache.cachedAllProducts...');
-
-    final cachedProducts = CategoryCache.cachedAllProducts;
-    debugPrint(
-        '🔍 Enhancing ${cachedProducts.length} cached products with otcpom data');
-
-    for (int i = 0; i < cachedProducts.length; i++) {
-      final product = cachedProducts[i];
-      final productId = product['id'];
-
-      try {
-        debugPrint(
-            '🔍 Fetching otcpom for product ${i + 1}/${cachedProducts.length}: ${product['name']}');
-        final response = await http.get(
-          Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/products/$productId'),
-        );
-
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          if (data['success'] == true) {
-            final productData = data['data'];
-            final otcpom = productData['otcpom'];
-
-            if (otcpom != null) {
-              cachedProducts[i]['otcpom'] = otcpom;
-              debugPrint('🔍 Enhanced ${product['name']} with otcpom: $otcpom');
-            } else {
-              debugPrint('🔍 No otcpom data for ${product['name']}');
-            }
-          } else {
-            debugPrint('🔍 API returned success=false for ${product['name']}');
-          }
-        } else {
-          debugPrint(
-              '🔍 API returned status ${response.statusCode} for ${product['name']}');
-        }
-      } catch (e) {
-        debugPrint('🔍 Error enhancing ${product['name']}: $e');
-      }
-    }
-
-    // Update the cache with enhanced products
-    CategoryCache.cacheAllProducts(cachedProducts);
-    debugPrint('🔍 _enhanceCachedProductsWithOtcpom() method completed');
-
-    // Trigger UI rebuild to show enhanced products
-    if (mounted) {
-      setState(() {});
-      debugPrint('🔍 UI rebuild triggered after product enhancement');
-    }
-
-    // Force rebuild of all ProductCards by triggering a global rebuild
-    // This will cause all ProductCards to re-convert with enhanced data
-    debugPrint(
-        '🔍 Product enhancement completed - all ProductCards should now show otcpom data');
   }
 }
 
@@ -2073,9 +1851,9 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       // Create a map of product names to otcpom data for quick lookup
       final Map<String, String?> otcpomMap = {};
       for (final product in cachedProducts) {
-        final productName = product.name?.toString().toLowerCase();
+        final productName = product.name.toString().toLowerCase();
         final otcpom = product.otcpom;
-        if (productName != null) {
+        if (productName.isNotEmpty) {
           otcpomMap[productName] = otcpom;
         }
       }
@@ -2130,7 +1908,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           final productData = item['product'] as Map<String, dynamic>;
           final productName = productData['name']?.toString().toLowerCase();
           final otcpom = productData['otcpom'];
-          if (productName != null) {
+          if (productName != null && productName.isNotEmpty) {
             otcpomMap[productName] = otcpom;
           }
         }
@@ -2886,7 +2664,6 @@ class ProductCard extends StatefulWidget {
 
 class _ProductCardState extends State<ProductCard> {
   Product? _product;
-  Timer? _cacheCheckTimer;
 
   @override
   void initState() {
@@ -3014,7 +2791,7 @@ class _ProductCardState extends State<ProductCard> {
                           borderRadius: BorderRadius.circular(6),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
+                              color: Colors.black.withValues(alpha: 0.3),
                               blurRadius: 2,
                               offset: Offset(0, 1),
                             ),
@@ -3078,10 +2855,10 @@ class ProductListPage extends StatefulWidget {
   }
 
   @override
-  _ProductListPageState createState() => _ProductListPageState();
+  ProductListPageState createState() => ProductListPageState();
 }
 
-class _ProductListPageState extends State<ProductListPage> {
+class ProductListPageState extends State<ProductListPage> {
   List<dynamic> products = [];
   bool isLoading = true;
   String errorMessage = '';
@@ -3487,31 +3264,6 @@ class _ProductListPageState extends State<ProductListPage> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildLoadingState() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
-      child: GridView.builder(
-        padding: const EdgeInsets.all(16),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 0.65,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-        ),
-        itemCount: 6,
-        itemBuilder: (context, index) {
-          return Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-          );
-        },
-      ),
     );
   }
 

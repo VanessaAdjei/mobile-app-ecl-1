@@ -23,7 +23,6 @@ class HomepageOptimizationService {
   // Core services
   final AppOptimizationService _optimizationService = AppOptimizationService();
   final BannerCacheService _bannerService = BannerCacheService();
-  final HealthTipsService _healthTipsService = HealthTipsService();
 
   // Cache storage keys
   static const String _productsCacheKey = 'homepage_products_cache';
@@ -450,15 +449,21 @@ class HomepageOptimizationService {
     final stats = getCacheStats();
     debugPrint('=== Product Cache Performance Summary ===');
     debugPrint('Products Cache Valid: ${stats['products_cache_valid']}');
-    debugPrint('Popular Products Cache Valid: ${stats['popular_products_cache_valid']}');
-    debugPrint('Categorized Products Cache Valid: ${stats['categorized_products_cache_valid']}');
+    debugPrint(
+        'Popular Products Cache Valid: ${stats['popular_products_cache_valid']}');
+    debugPrint(
+        'Categorized Products Cache Valid: ${stats['categorized_products_cache_valid']}');
     debugPrint('Products Count: ${stats['products_count']}');
     debugPrint('Popular Products Count: ${stats['popular_products_count']}');
-    debugPrint('Categorized Products Count: ${stats['categorized_products_count']}');
+    debugPrint(
+        'Categorized Products Count: ${stats['categorized_products_count']}');
     debugPrint('Preloaded Images Count: ${stats['preloaded_images_count']}');
-    debugPrint('Products Cache Duration: ${stats['products_cache_duration_minutes']} min');
-    debugPrint('Popular Products Cache Duration: ${stats['popular_products_cache_duration_minutes']} min');
-    debugPrint('Categorized Products Cache Duration: ${stats['categorized_products_cache_duration_minutes']} min');
+    debugPrint(
+        'Products Cache Duration: ${stats['products_cache_duration_minutes']} min');
+    debugPrint(
+        'Popular Products Cache Duration: ${stats['popular_products_cache_duration_minutes']} min');
+    debugPrint(
+        'Categorized Products Cache Duration: ${stats['categorized_products_cache_duration_minutes']} min');
     debugPrint('========================================');
   }
 

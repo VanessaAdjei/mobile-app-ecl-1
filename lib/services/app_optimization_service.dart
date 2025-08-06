@@ -3,7 +3,6 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class AppOptimizationService {
   static final AppOptimizationService _instance =
@@ -80,7 +79,6 @@ class AppOptimizationService {
   // Load optimization settings
   Future<void> _loadOptimizationSettings() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
       // Load any saved optimization settings here
     } catch (e) {
       developer.log('Failed to load optimization settings: $e',

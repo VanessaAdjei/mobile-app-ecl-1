@@ -552,7 +552,7 @@ class DeliveryService {
       final storeResults = await Future.wait(storeFutures);
 
       List<dynamic> allStores = [];
-      int storeIndex = 0;
+      // int storeIndex = 0;
 
       // Process store results and add region/city info
       for (var storeResult in storeResults) {
@@ -568,7 +568,7 @@ class DeliveryService {
             allStores.add(store);
           }
         }
-        storeIndex++;
+        // storeIndex++;
       }
 
       debugPrint('All stores loaded successfully: ${allStores.length} stores');
