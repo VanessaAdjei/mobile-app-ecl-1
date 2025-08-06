@@ -713,59 +713,59 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
         }
       },
       child: Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-        elevation: Theme.of(context).appBarTheme.elevation,
-        centerTitle: Theme.of(context).appBarTheme.centerTitle,
-        leading: BackButtonUtils.simple(
-          backgroundColor: Colors.white.withValues(alpha: 0.2),
-        ),
-        title: Text(
-          'Store Locations',
-          style: Theme.of(context).appBarTheme.titleTextStyle,
-        ),
-        actions: [
-          Container(
-            margin: EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: CartIconButton(
-              iconColor: Colors.white,
-              iconSize: 24,
-              backgroundColor: Colors.transparent,
-            ),
+        appBar: AppBar(
+          backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+          elevation: Theme.of(context).appBarTheme.elevation,
+          centerTitle: Theme.of(context).appBarTheme.centerTitle,
+          leading: BackButtonUtils.simple(
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.green.shade50,
-                Colors.white,
+          title: Text(
+            'Store Locations',
+            style: Theme.of(context).appBarTheme.titleTextStyle,
+          ),
+          actions: [
+            Container(
+              margin: EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: CartIconButton(
+                iconColor: Colors.white,
+                iconSize: 24,
+                backgroundColor: Colors.transparent,
+              ),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.green.shade50,
+                  Colors.white,
+                ],
+              ),
+            ),
+            child: Column(
+              children: [
+                _buildHeaderSection(),
+                Expanded(
+                  child: _buildStoreList(),
+                ),
               ],
             ),
           ),
-          child: Column(
-            children: [
-              _buildHeaderSection(),
-              Expanded(
-                child: _buildStoreList(),
-              ),
-            ],
-          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildHeaderSection() {
     return Container(
@@ -1837,73 +1837,28 @@ class _StoreSelectionPageState extends State<StoreSelectionPage>
                             ),
                             SizedBox(width: 6),
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    storeAddress,
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 13,
-                                      color: Colors.grey.shade600,
-                                    ),
-                                  ),
-                                  if (store['region_name'] != null &&
-                                      store['city_name'] != null)
-                                    Text(
-                                      '${store['city_name']}, ${store['region_name']}',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 11,
-                                        color: Colors.grey.shade500,
-                                      ),
-                                    ),
-                                  if (distance != null)
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.location_on,
-                                          size: 10,
-                                          color: Colors.green.shade500,
-                                        ),
-                                        SizedBox(width: 2),
-                                        Text(
-                                          locationService
-                                              .formatDistance(distance),
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w500,
-                                            color: Colors.green.shade600,
-                                          ),
-                                        ),
-                                        if (store['latitude'] == null ||
-                                            double.tryParse(store['latitude']
-                                                        ?.toString() ??
-                                                    '0') ==
-                                                0.0)
-                                          Container(
-                                            margin: EdgeInsets.only(left: 4),
-                                            padding: EdgeInsets.symmetric(
-                                                horizontal: 4, vertical: 1),
-                                            decoration: BoxDecoration(
-                                              color: Colors.orange.shade100,
-                                              borderRadius:
-                                                  BorderRadius.circular(2),
-                                            ),
-                                            child: Text(
-                                              'est.',
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 8,
-                                                fontWeight: FontWeight.w500,
-                                                color: Colors.orange.shade700,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                ],
+                              child: Text(
+                                storeAddress,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: Colors.grey.shade600,
+                                ),
                               ),
                             ),
                           ],
                         ),
+                        if (store['region_name'] != null &&
+                            store['city_name'] != null)
+                          Padding(
+                            padding: EdgeInsets.only(left: 28),
+                            child: Text(
+                              '${store['city_name']}, ${store['region_name']}',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),

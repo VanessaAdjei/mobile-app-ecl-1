@@ -1532,6 +1532,45 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 ),
                 child: Consumer<CartProvider>(
                   builder: (context, cartProvider, child) {
+                    // Check if product is already in cart
+                    final cartItems = cartProvider.cartItems;
+
+                    debugPrint('🔍 CHECKING CART STATUS ===');
+                    debugPrint('Product Name: ${product.name}');
+                    debugPrint('Product ID: ${product.id}');
+                    debugPrint('Product Batch: ${product.batch_no}');
+                    debugPrint('Cart Items Count: ${cartItems.length}');
+
+                    for (int i = 0; i < cartItems.length; i++) {
+                      debugPrint(
+                          'Cart Item $i: Name=${cartItems[i].name}, ID=${cartItems[i].productId}, Batch=${cartItems[i].batchNo}, Qty=${cartItems[i].quantity}');
+                    }
+
+                    final existingItem = cartItems.firstWhere(
+                      (item) =>
+                          item.name.toLowerCase() ==
+                              product.name.toLowerCase() &&
+                          item.batchNo == product.batch_no,
+                      orElse: () => CartItem(
+                        id: '',
+                        productId: '',
+                        name: '',
+                        price: 0.0,
+                        quantity: 0,
+                        image: '',
+                        batchNo: '',
+                        urlName: '',
+                        totalPrice: 0.0,
+                      ),
+                    );
+
+                    final isInCart = existingItem.id.isNotEmpty;
+                    final cartQuantity = isInCart ? existingItem.quantity : 0;
+
+                    debugPrint('Is In Cart: $isInCart');
+                    debugPrint('Cart Quantity: $cartQuantity');
+                    debugPrint('========================');
+
                     return ElevatedButton(
                       onPressed: () async {
                         // Add haptic feedback
@@ -1619,7 +1658,9 @@ class _ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                           Text(
                             widget.isPrescribed
                                 ? 'Upload Prescription'
-                                : 'Add to Cart',
+                                : isInCart
+                                    ? 'In Cart (${cartQuantity})'
+                                    : 'Add to Cart',
                             style: GoogleFonts.poppins(
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
