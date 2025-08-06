@@ -24,6 +24,7 @@ import '../widgets/cart_icon_button.dart';
 import '../widgets/optimized_quantity_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/universal_page_optimization_service.dart';
+
 import 'homepage.dart';
 
 class ItemPage extends StatefulWidget {
@@ -60,6 +61,13 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   Timer? _skeletonTimer;
   final UniversalPageOptimizationService _optimizationService =
       UniversalPageOptimizationService();
+
+  // Stock validation variables (only for item page)
+  bool _isCheckingStock = false;
+  Map<String, dynamic>? _stockInfo;
+  String? _stockErrorMessage;
+  bool _enableStockValidation =
+      true; // Enable stock validation to test with actual stock data
 
   @override
   void initState() {
@@ -165,6 +173,181 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     return result ?? [];
   }
 
+  // Simple stock validation for item page only
+  Future<void> _checkStockAvailability(
+      Product product, int requestedQuantity) async {
+    if (_isCheckingStock) return;
+
+    // Skip stock validation if disabled
+    if (!_enableStockValidation) return;
+
+    debugPrint('🔍 STOCK VALIDATION TRIGGERED ===');
+    debugPrint('Product: ${product.name}');
+    debugPrint('Requested Quantity: $requestedQuantity');
+    debugPrint('========================');
+
+    setState(() {
+      _isCheckingStock = true;
+      _stockErrorMessage = null;
+    });
+
+    try {
+      // Debug: Print product data to see what's available
+      debugPrint('🔍 STOCK VALIDATION DEBUG ===');
+      debugPrint('Product Name: ${product.name}');
+      debugPrint('Product Quantity Field: "${product.quantity}"');
+      debugPrint('Product ID: ${product.id}');
+      debugPrint('Product URL Name: ${product.urlName}');
+      debugPrint('Requested Quantity: $requestedQuantity');
+      debugPrint('========================');
+
+      // Get actual stock from product data
+      int availableStock = 0;
+
+      // First try to get stock from the product's quantity field (which comes from inventory data)
+      if (product.quantity.isNotEmpty) {
+        availableStock = int.tryParse(product.quantity) ?? 0;
+        debugPrint('Parsed stock from product.quantity: $availableStock');
+      }
+
+      // If no stock data in product.quantity, try to get it from the inventory API
+      if (availableStock == 0) {
+        debugPrint(
+            'No stock data in product.quantity field, trying inventory API');
+        try {
+          final stockResponse = await http
+              .get(
+                Uri.parse(
+                    'https://eclcommerce.ernestchemists.com.gh/api/product-details/${product.urlName}'),
+              )
+              .timeout(const Duration(seconds: 5));
+
+          if (stockResponse.statusCode == 200) {
+            final stockData = json.decode(stockResponse.body);
+            debugPrint('Product Details API Response: $stockData');
+
+            if (stockData.containsKey('data') && stockData['data'] != null) {
+              final inventoryData = stockData['data']['inventory'] ?? {};
+              debugPrint('Inventory Data: $inventoryData');
+
+              // Try different possible stock fields
+              availableStock =
+                  int.tryParse(inventoryData['stock']?.toString() ?? '0') ?? 0;
+              if (availableStock == 0) {
+                availableStock = int.tryParse(
+                        inventoryData['qty_in_stock']?.toString() ?? '0') ??
+                    0;
+              }
+              if (availableStock == 0) {
+                availableStock = int.tryParse(
+                        inventoryData['quantity']?.toString() ?? '0') ??
+                    0;
+              }
+              if (availableStock == 0) {
+                availableStock = int.tryParse(
+                        inventoryData['qty_stocked']?.toString() ?? '0') ??
+                    0;
+              }
+
+              debugPrint('Got stock from product details API: $availableStock');
+            }
+          }
+        } catch (e) {
+          debugPrint('Failed to get stock from product details API: $e');
+        }
+      }
+
+      if (availableStock == 0) {
+        // If still no stock data, we can't validate - skip stock validation
+        debugPrint('No stock data available, skipping stock validation');
+        if (mounted) {
+          setState(() {
+            _isCheckingStock = false;
+          });
+        }
+        return;
+      }
+
+      debugPrint('Final Available Stock: $availableStock');
+      debugPrint(
+          'Stock validation result: ${availableStock >= requestedQuantity ? 'PASS' : 'FAIL'}');
+
+      final stockValidation = {
+        'isValid': availableStock >= requestedQuantity,
+        'availableStock': availableStock,
+        'requestedQuantity': requestedQuantity,
+        'productName': product.name,
+        'message': availableStock >= requestedQuantity
+            ? 'Stock validation passed'
+            : availableStock == 0
+                ? '${product.name} is currently unavailable.'
+                : '${product.name} only has $availableStock units available. You requested $requestedQuantity.',
+      };
+
+      debugPrint('Stock validation object: $stockValidation');
+
+      if (mounted) {
+        setState(() {
+          _stockInfo = stockValidation;
+          _isCheckingStock = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _stockErrorMessage = e.toString();
+          _isCheckingStock = false;
+        });
+      }
+    }
+  }
+
+  // Get the maximum available quantity for this product
+  int _getMaxAvailableQuantity(Product product) {
+    if (_stockInfo == null) return maxQuantity;
+
+    final availableStock = _stockInfo!['availableStock'] ?? 0;
+    return availableStock > 0 ? availableStock : 0;
+  }
+
+  // Get stock status text
+  String _getStockStatusText() {
+    if (_stockErrorMessage != null) {
+      return _stockErrorMessage!;
+    }
+
+    if (_stockInfo != null) {
+      if (_stockInfo!['isValid'] == false) {
+        return _stockInfo!['message'] ?? 'Stock validation failed';
+      }
+
+      if (_stockInfo!['availableStock'] != null) {
+        final availableStock = _stockInfo!['availableStock'];
+        if (availableStock == 0) {
+          return 'Currently unavailable';
+        } else if (availableStock <= 5) {
+          return 'Limited stock: $availableStock units left';
+        } else {
+          return 'In stock'; // Removed stock number for items with plenty of stock
+        }
+      }
+    }
+
+    return 'Checking availability...';
+  }
+
+  Color _getStockStatusColor() {
+    if (_stockErrorMessage != null) {
+      return Colors.red.shade700;
+    }
+
+    if (_stockInfo != null && _stockInfo!['isValid'] == false) {
+      return Colors.red.shade700;
+    }
+
+    return Colors.green.shade700;
+  }
+
   void _addToCartWithQuantity(BuildContext context, Product product) async {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
@@ -176,6 +359,19 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     debugPrint('URL Name: ${product.urlName}');
     debugPrint('Quantity: ${this.quantity}');
     debugPrint('========================');
+
+    // Check stock before adding to cart if validation is enabled
+    if (_enableStockValidation) {
+      await _checkStockAvailability(product, this.quantity);
+
+      if (_stockInfo != null && _stockInfo!['isValid'] == false) {
+        _showErrorSnackBar(
+            context,
+            _stockInfo!['message'] ??
+                'Cannot add to cart - insufficient stock');
+        return;
+      }
+    }
 
     try {
       final cartItem = CartItem(
@@ -218,7 +414,16 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       }
     } catch (e) {
       if (mounted) {
-        _showErrorSnackBar(context, 'Error adding item to cart: $e');
+        // Check if it's a stock validation error
+        final errorMessage = e.toString();
+        if (errorMessage.contains('out of stock') ||
+            errorMessage.contains('only has') ||
+            errorMessage.contains('units available')) {
+          _showErrorSnackBar(
+              context, errorMessage.replaceAll('Exception: ', ''));
+        } else {
+          _showErrorSnackBar(context, 'Error adding item to cart: $e');
+        }
       }
     }
   }
@@ -472,6 +677,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             debugPrint(
                 'Price: ${inventoryData['price']?.toString() ?? '0.00'}');
             debugPrint('Batch No: ${inventoryData['batch_no'] ?? ''}');
+            debugPrint('Stock: ${inventoryData['stock']?.toString() ?? '0'}');
             debugPrint(
                 'Category: ${(productData['categories'] != null && productData['categories'].isNotEmpty) ? productData['categories'][0]['description'] ?? '' : ''}');
             debugPrint('UOM: $uom');
@@ -488,7 +694,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   ? productData['images'][0]['url'] ?? ''
                   : '',
               'tags': tags,
-              'quantity': inventoryData['quantity']?.toString() ?? '',
+              'quantity': inventoryData['stock']?.toString() ?? '',
               'category': (productData['categories'] != null &&
                       productData['categories'].isNotEmpty)
                   ? productData['categories'][0]['description'] ?? ''
@@ -779,7 +985,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             : FutureBuilder<Product>(
                 future: _productFuture,
                 builder: (context, snapshot) {
-                  debugPrint('🔍 FUTUREBUILDER STATE ===');
                   debugPrint('Connection State: ${snapshot.connectionState}');
                   debugPrint('Has Data: ${snapshot.hasData}');
                   debugPrint('Has Error: ${snapshot.hasError}');
@@ -804,6 +1009,24 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   }
 
                   final product = snapshot.data!;
+
+                  // Check stock availability when product loads
+                  WidgetsBinding.instance.addPostFrameCallback((_) async {
+                    await _checkStockAvailability(product, quantity);
+
+                    // If stock validation is enabled and we have stock info, adjust quantity if needed
+                    if (_enableStockValidation && _stockInfo != null) {
+                      final availableStock = _stockInfo!['availableStock'] ?? 0;
+                      if (availableStock > 0 && quantity > availableStock) {
+                        setState(() {
+                          quantity = availableStock;
+                        });
+                        // Re-check stock with adjusted quantity
+                        await _checkStockAvailability(product, quantity);
+                      }
+                    }
+                  });
+
                   return InteractiveViewer(
                     minScale: 0.5,
                     maxScale: 3.0,
@@ -1263,20 +1486,72 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               children: [
                 // Simple Quantity controls
                 Container(
+                  padding: EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
+                    color: _enableStockValidation &&
+                            _stockInfo != null &&
+                            _stockInfo!['availableStock'] != null &&
+                            _stockInfo!['availableStock'] <= 5 &&
+                            _stockInfo!['availableStock'] > 0
+                        ? Colors.orange.shade50
+                        : Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _enableStockValidation &&
+                              _stockInfo != null &&
+                              _stockInfo!['availableStock'] != null &&
+                              _stockInfo!['availableStock'] <= 5 &&
+                              _stockInfo!['availableStock'] > 0
+                          ? Colors.orange.shade300
+                          : Colors.grey.shade300,
+                      width: _enableStockValidation &&
+                              _stockInfo != null &&
+                              _stockInfo!['availableStock'] != null &&
+                              _stockInfo!['availableStock'] <= 5 &&
+                              _stockInfo!['availableStock'] > 0
+                          ? 2.0
+                          : 1.0,
+                    ),
+                    boxShadow: _enableStockValidation &&
+                            _stockInfo != null &&
+                            _stockInfo!['availableStock'] != null &&
+                            _stockInfo!['availableStock'] <= 5 &&
+                            _stockInfo!['availableStock'] > 0
+                        ? [
+                            BoxShadow(
+                              color:
+                                  Colors.orange.shade200.withValues(alpha: 0.3),
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            ),
+                          ]
+                        : null,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Warning icon for low stock
+                      if (_enableStockValidation &&
+                          _stockInfo != null &&
+                          _stockInfo!['availableStock'] != null &&
+                          _stockInfo!['availableStock'] <= 5 &&
+                          _stockInfo!['availableStock'] > 0)
+                        Container(
+                          margin: EdgeInsets.only(right: 8),
+                          child: Icon(
+                            Icons.warning_amber_rounded,
+                            size: 20,
+                            color: Colors.orange.shade600,
+                          ),
+                        ),
                       OptimizedRemoveButton(
                         onPressed: quantity > 1
-                            ? () {
+                            ? () async {
                                 setState(() {
                                   quantity--;
                                 });
+                                await _checkStockAvailability(
+                                    product, quantity);
                               }
                             : null,
                         isEnabled: quantity > 1,
@@ -1285,25 +1560,68 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                       Container(
                         padding:
                             EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        child: Text(
-                          quantity.toString(),
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              quantity.toString(),
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: _enableStockValidation &&
+                                        _stockInfo != null &&
+                                        _stockInfo!['availableStock'] != null &&
+                                        quantity >=
+                                            _stockInfo!['availableStock']
+                                    ? Colors.red.shade600
+                                    : (_enableStockValidation &&
+                                            _stockInfo != null &&
+                                            _stockInfo!['availableStock'] !=
+                                                null &&
+                                            _stockInfo!['availableStock'] <=
+                                                5 &&
+                                            _stockInfo!['availableStock'] > 0)
+                                        ? Colors.orange.shade700
+                                        : Colors.black87,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       OptimizedAddButton(
-                        onPressed: quantity < maxQuantity
-                            ? () {
-                                // Only update local quantity state
-                                setState(() {
-                                  quantity++;
-                                });
+                        onPressed: quantity <
+                                (_enableStockValidation
+                                    ? _getMaxAvailableQuantity(product)
+                                    : maxQuantity)
+                            ? () async {
+                                // Check stock BEFORE increasing quantity
+                                final newQuantity = quantity + 1;
+                                await _checkStockAvailability(
+                                    product, newQuantity);
+
+                                // Only increase quantity if stock validation passes
+                                if (_stockInfo != null &&
+                                    _stockInfo!['isValid'] == true) {
+                                  setState(() {
+                                    quantity = newQuantity;
+                                  });
+                                } else {
+                                  // Show error message if stock validation fails
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(_stockInfo?['message'] ??
+                                          'Cannot add more items - insufficient stock'),
+                                      backgroundColor: Colors.red,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
                               }
                             : null,
-                        isEnabled: quantity < maxQuantity,
+                        isEnabled: quantity <
+                            (_enableStockValidation
+                                ? _getMaxAvailableQuantity(product)
+                                : maxQuantity),
                         size: 36.0,
                       ),
                     ],
@@ -1336,7 +1654,62 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 ),
               ],
             ),
-            // Maximum quantity indicator removed for cleaner design
+            // Stock status indicator - only show for low stock or out of stock
+            if (_enableStockValidation &&
+                (_stockErrorMessage != null ||
+                    (_stockInfo != null &&
+                        (_stockInfo!['availableStock'] == 0 ||
+                            _stockInfo!['availableStock'] <= 5))))
+              Container(
+                margin: EdgeInsets.only(top: 8),
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _stockErrorMessage != null
+                      ? Colors.red.shade50
+                      : (_stockInfo != null && _stockInfo!['isValid'] == false)
+                          ? Colors.red.shade50
+                          : Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _stockErrorMessage != null
+                        ? Colors.red.shade200
+                        : (_stockInfo != null &&
+                                _stockInfo!['isValid'] == false)
+                            ? Colors.red.shade200
+                            : Colors.green.shade200,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _stockErrorMessage != null
+                          ? Icons.error_outline
+                          : (_stockInfo != null &&
+                                  _stockInfo!['isValid'] == false)
+                              ? Icons.error_outline
+                              : Icons.check_circle_outline,
+                      color: _stockErrorMessage != null
+                          ? Colors.red.shade600
+                          : (_stockInfo != null &&
+                                  _stockInfo!['isValid'] == false)
+                              ? Colors.red.shade600
+                              : Colors.green.shade600,
+                      size: 16,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _getStockStatusText(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: _getStockStatusColor(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),

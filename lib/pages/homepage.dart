@@ -474,7 +474,7 @@ class HomePageState extends State<HomePage>
         final Map<String, dynamic> responseData = json.decode(response.body);
         final List<dynamic> dataList = responseData['data'];
 
-        // Debug print to see the first product structure
+       
         if (dataList.isNotEmpty) {
           final firstItem = dataList[0];
           final productData = firstItem['product'] ?? {};
@@ -486,6 +486,19 @@ class HomePageState extends State<HomePage>
 
         final allProducts = dataList.map<Product>((item) {
           final productData = item['product'] as Map<String, dynamic>;
+
+      
+          if (dataList.indexOf(item) < 3) {
+            debugPrint('🔍 HOMEPAGE PRODUCT DATA ===');
+            debugPrint('Product: ${productData['name']}');
+            debugPrint('Qty in stock (root): ${item['qty_in_stock']}');
+            debugPrint(
+                'Qty in stock (product): ${productData['qty_in_stock']}');
+            debugPrint(
+                'Quantity field: ${item['qty_in_stock']?.toString() ?? ''}');
+            debugPrint('========================');
+          }
+
           return Product(
             id: productData['id'] ?? 0,
             name: productData['name'] ?? 'No name',
@@ -495,7 +508,8 @@ class HomePageState extends State<HomePage>
             batch_no: item['batch_no'] ?? '',
             price: (item['price'] ?? 0).toString(),
             thumbnail: productData['thumbnail'] ?? productData['image'] ?? '',
-            quantity: productData['qty_in_stock']?.toString() ?? '',
+            quantity: item['qty_in_stock']?.toString() ??
+                '', // Fixed: Get from root item, not product
             category: productData['category'] ?? '',
             route: productData['route'] ?? '',
             otcpom: productData['otcpom'],

@@ -1,6 +1,5 @@
 // widgets/optimized_product_card.dart
 import 'package:flutter/material.dart';
-
 import '../pages/product_model.dart';
 import '../pages/itemdetail.dart';
 import '../services/advanced_performance_service.dart';
@@ -107,6 +106,13 @@ class _OptimizedProductCardState extends State<OptimizedProductCard>
 
   @override
   Widget build(BuildContext context) {
+    // Debug: Print product info
+    debugPrint('🔍 PRODUCT CARD DEBUG ===');
+    debugPrint('Product: ${widget.product.name}');
+    debugPrint('Quantity field: "${widget.product.quantity}"');
+
+    debugPrint('========================');
+
     final fontSize = widget.fontSize ?? 14.0;
     final padding = widget.padding ?? 8.0;
     final imageHeight = widget.imageHeight ?? 120.0;
@@ -168,7 +174,7 @@ class _OptimizedProductCardState extends State<OptimizedProductCard>
                               ),
                             ),
 
-                            // Prescription badge
+                            // Prescription badge on card
                             if (widget.product.otcpom?.toLowerCase() == 'pom')
                               Positioned(
                                 top: 8,

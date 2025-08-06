@@ -12,16 +12,13 @@ class BackgroundInventoryMonitorService {
   static const Duration _monitorInterval = Duration(minutes: 15);
   static const Duration _initialDelay = Duration(seconds: 45);
 
-  // Cache for inventory data
-  static Map<String, dynamic> _inventoryCache = {};
+  static final Map<String, dynamic> _inventoryCache = {};
   static DateTime? _lastMonitorTime;
   static const Duration _cacheExpiration = Duration(minutes: 30);
 
-  // Track items that were previously in stock but are now out of stock
-  static Map<String, bool> _previousStockStatus = {};
-  static Map<String, int> _previousStockLevels = {};
+  static final Map<String, bool> _previousStockStatus = {};
+  static final Map<String, int> _previousStockLevels = {};
 
-  // Start background inventory monitoring
   static void startBackgroundMonitoring() {
     if (_isRunning) return;
 
@@ -49,13 +46,11 @@ class BackgroundInventoryMonitorService {
     _monitorTimer = null;
   }
 
-  // Monitor inventory in background
   static Future<void> _monitorInventoryInBackground() async {
     try {
       debugPrint(
           '📦 BackgroundInventoryMonitorService: Starting background inventory monitoring');
 
-      // Get cart items to monitor
       final cartItems = await _getCartItems();
       if (cartItems.isEmpty) {
         debugPrint(
@@ -63,7 +58,6 @@ class BackgroundInventoryMonitorService {
         return;
       }
 
-      // Monitor each cart item
       final outOfStockItems = <String>[];
       final lowStockItems = <String>[];
 
@@ -93,9 +87,9 @@ class BackgroundInventoryMonitorService {
             } else if (currentStock > 0 &&
                 currentStock <= 5 &&
                 previousStock > 5) {
-              lowStockItems.add('$productName (${currentStock} left)');
+              lowStockItems.add('$productName ($currentStock left)');
               debugPrint(
-                  '📦 BackgroundInventoryMonitorService: $productName is LOW STOCK (${currentStock} left)');
+                  '📦 BackgroundInventoryMonitorService: $productName is LOW STOCK ($currentStock left)');
             }
           }
         }

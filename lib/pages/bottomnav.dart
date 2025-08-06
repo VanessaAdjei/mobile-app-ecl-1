@@ -320,8 +320,6 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
             BottomNavigationBarItem(
               icon: Consumer<NotificationProvider>(
                 builder: (context, notificationProvider, child) {
-                  debugPrint(
-                      '📱 BottomNav: Unread count: ${notificationProvider.unreadCount}');
                   return Stack(
                     clipBehavior: Clip.none,
                     children: [

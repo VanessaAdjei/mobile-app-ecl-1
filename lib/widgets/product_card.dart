@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../pages/product_model.dart';
 import '../pages/itemdetail.dart';
 import '../services/homepage_optimization_service.dart';
+import '../services/stock_utility_service.dart';
 
 class HomeProductCard extends StatelessWidget {
   final Product product;
@@ -39,6 +40,11 @@ class HomeProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isInStock = StockUtilityService.isProductInStock(product.quantity);
+
+    if (isInStock) {
+    } else {}
+
     final screenWidth = MediaQuery.of(context).size.width;
 
     final defaultFontSize =
@@ -155,6 +161,45 @@ class HomeProductCard extends StatelessWidget {
                           ),
                         ),
                       ),
+                    // Stock indicator - Only show for out of stock or low stock items
+                    if (!StockUtilityService.isProductInStock(
+                            product.quantity) ||
+                        StockUtilityService.isLowStock(product.quantity))
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: !StockUtilityService.isProductInStock(
+                                    product.quantity)
+                                ? Colors.red[600]
+                                : Colors.orange[600],
+                            borderRadius: BorderRadius.circular(4),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.2),
+                                blurRadius: 2,
+                                offset: Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            !StockUtilityService.isProductInStock(
+                                    product.quantity)
+                                ? 'OUT OF STOCK'
+                                : 'LIMITED STOCK',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -186,6 +231,7 @@ class HomeProductCard extends StatelessWidget {
                         color: Colors.green[700],
                       ),
                     ),
+                    // Removed the old "In Stock" badge from bottom to avoid conflicts
                     SizedBox(height: 15), // Small margin after price
                   ],
                 ],

@@ -1,23 +1,23 @@
 // services/stock_utility_service.dart
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 
 class StockUtilityService {
-  // Check if a product is in stock based on qty_in_stock
   static bool isProductInStock(String? quantity) {
-    if (quantity == null || quantity.isEmpty) return false;
+    if (quantity == null || quantity.isEmpty) {
+      return false;
+    }
 
     try {
       final qty = int.tryParse(quantity);
-      return qty != null && qty > 0;
+      final isInStock = qty != null && qty > 0;
+
+      return isInStock;
     } catch (e) {
       debugPrint('StockUtilityService: Error parsing quantity: $e');
       return false;
     }
   }
 
-  // Get stock level from quantity string
   static int getStockLevel(String? quantity) {
     if (quantity == null || quantity.isEmpty) return 0;
 
@@ -29,13 +29,11 @@ class StockUtilityService {
     }
   }
 
-  // Check if stock is low (5 or fewer items)
   static bool isLowStock(String? quantity) {
     final stockLevel = getStockLevel(quantity);
     return stockLevel > 0 && stockLevel <= 5;
   }
 
-  // Get stock status description
   static String getStockStatus(String? quantity) {
     if (!isProductInStock(quantity)) {
       return 'Out of Stock';
@@ -46,18 +44,16 @@ class StockUtilityService {
     }
   }
 
-  // Get stock status color
   static int getStockStatusColor(String? quantity) {
     if (!isProductInStock(quantity)) {
-      return 0xFFFF6B35; // Orange for out of stock
+      return 0xFFFF6B35;
     } else if (isLowStock(quantity)) {
-      return 0xFFFFA726; // Light orange for low stock
+      return 0xFFFFA726;
     } else {
-      return 0xFF4CAF50; // Green for in stock
+      return 0xFF4CAF50;
     }
   }
 
-  // Check stock from API response
   static bool isProductInStockFromApi(Map<String, dynamic> productData) {
     try {
       final qtyInStock = productData['qty_in_stock'] ?? 0;
@@ -68,7 +64,6 @@ class StockUtilityService {
     }
   }
 
-  // Get stock level from API response
   static int getStockLevelFromApi(Map<String, dynamic> productData) {
     try {
       return productData['qty_in_stock'] ?? 0;
@@ -78,13 +73,11 @@ class StockUtilityService {
     }
   }
 
-  // Check if stock is low from API response
   static bool isLowStockFromApi(Map<String, dynamic> productData) {
     final stockLevel = getStockLevelFromApi(productData);
     return stockLevel > 0 && stockLevel <= 5;
   }
 
-  // Get stock status from API response
   static String getStockStatusFromApi(Map<String, dynamic> productData) {
     if (!isProductInStockFromApi(productData)) {
       return 'Out of Stock';
@@ -95,14 +88,13 @@ class StockUtilityService {
     }
   }
 
-  // Get stock status color from API response
   static int getStockStatusColorFromApi(Map<String, dynamic> productData) {
     if (!isProductInStockFromApi(productData)) {
-      return 0xFFFF6B35; // Orange for out of stock
+      return 0xFFFF6B35;
     } else if (isLowStockFromApi(productData)) {
-      return 0xFFFFA726; // Light orange for low stock
+      return 0xFFFFA726;
     } else {
-      return 0xFF4CAF50; // Green for in stock
+      return 0xFF4CAF50;
     }
   }
 
@@ -118,7 +110,6 @@ class StockUtilityService {
     }
   }
 
-  // Format stock level from API response
   static String formatStockLevelFromApi(Map<String, dynamic> productData) {
     final stockLevel = getStockLevelFromApi(productData);
     if (stockLevel == 0) {

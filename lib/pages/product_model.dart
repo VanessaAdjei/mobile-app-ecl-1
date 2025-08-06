@@ -61,7 +61,10 @@ class Product {
       status: json['status'] ?? '',
       price: json['price']?.toString() ?? '0.00',
       thumbnail: json['thumbnail'] ?? '',
-      quantity: json['quantity'] ?? '',
+      quantity: json['stock']?.toString() ??
+          json['qty_in_stock']?.toString() ??
+          json['quantity']?.toString() ??
+          '',
       batch_no: json['batch_no'] ?? '',
       category: json['category'] ?? '',
       route: json['route'] ?? '',
