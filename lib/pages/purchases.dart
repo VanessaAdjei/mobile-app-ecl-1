@@ -548,17 +548,19 @@ class PurchaseScreenState extends State<PurchaseScreen> {
       children: [
         Icon(Icons.calendar_today, size: 16, color: Colors.grey[500]),
         const SizedBox(width: 4),
-        Text(
-          orderDate != null
-              ? DateFormat('MMM dd, yyyy').format(orderDate)
-              : 'Date unavailable',
-          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+        Expanded(
+          child: Text(
+            orderDate != null
+                ? DateFormat('MMM dd, yyyy').format(orderDate)
+                : 'Date unavailable',
+            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
-        const Spacer(),
         if (isMultiItem) ...[
           Container(
-            margin: const EdgeInsets.only(right: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            margin: const EdgeInsets.only(right: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: Colors.blue[100],
               borderRadius: BorderRadius.circular(10),
@@ -567,15 +569,15 @@ class PurchaseScreenState extends State<PurchaseScreen> {
               '$itemCount items',
               style: TextStyle(
                   color: Colors.blue[700],
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: FontWeight.w500),
             ),
           ),
         ],
         if (isCashOnDelivery) ...[
           Container(
-            margin: const EdgeInsets.only(right: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            margin: const EdgeInsets.only(right: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: Colors.orange[100],
               borderRadius: BorderRadius.circular(10),
@@ -584,20 +586,21 @@ class PurchaseScreenState extends State<PurchaseScreen> {
               'COD',
               style: TextStyle(
                   color: Colors.orange[700],
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: FontWeight.w500),
             ),
           ),
         ],
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
             color: _getStatusColor(status),
             borderRadius: BorderRadius.circular(14),
           ),
           child: Text(
             status,
-            style: const TextStyle(color: Colors.white, fontSize: 13),
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],

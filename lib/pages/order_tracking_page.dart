@@ -29,72 +29,40 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   @override
   void initState() {
     super.initState();
+    debugPrint('🔍 OrderTrackingPage initState called');
+    debugPrint('🔍 Order details in initState: ${widget.orderDetails}');
     _loadDeliveryInfo();
   }
 
   Future<void> _loadDeliveryInfo() async {
     try {
       debugPrint('🔍 Loading delivery info for order tracking...');
-      // Try to get delivery info from API first
-      final deliveryResult = await DeliveryService.getLastDeliveryInfo();
 
-      debugPrint('🔍 Delivery API result: ${deliveryResult['success']}');
+      // Skip API call to avoid authentication issues
+      // Just use SharedPreferences fallback
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _deliveryAddress =
+            prefs.getString('delivery_address') ?? 'Address not available';
+        _contactNumber =
+            prefs.getString('userPhoneNumber') ?? 'Contact not available';
+        _deliveryOption =
+            prefs.getString('delivery_option') ?? 'Standard Delivery';
+        _isLoading = false;
+      });
 
-      if (deliveryResult['success'] == true && deliveryResult['data'] != null) {
-        final deliveryData = deliveryResult['data'];
-        setState(() {
-          // Build delivery address from components
-          final region = deliveryData['region'] ?? '';
-          final city = deliveryData['city'] ?? '';
-          final address = deliveryData['address'] ?? '';
-
-          if (deliveryData['delivery_option'] == 'delivery') {
-            _deliveryAddress = '$address, $city, $region';
-          } else {
-            // For pickup, use pickup location
-            final pickupRegion = deliveryData['pickup_region'] ?? '';
-            final pickupCity = deliveryData['pickup_city'] ?? '';
-            final pickupSite = deliveryData['pickup_site'] ??
-                deliveryData['pickup_location'] ??
-                '';
-            _deliveryAddress = '$pickupSite, $pickupCity, $pickupRegion';
-          }
-
-          _contactNumber = deliveryData['phone'];
-          _deliveryOption = deliveryData['delivery_option'];
-          _isLoading = false;
-
-          debugPrint('🔍 Loaded delivery info:');
-          debugPrint('🔍 Address: $_deliveryAddress');
-          debugPrint('🔍 Contact: $_contactNumber');
-          debugPrint('🔍 Option: $_deliveryOption');
-        });
-      } else {
-        // Fallback to SharedPreferences if API fails
-        final prefs = await SharedPreferences.getInstance();
-        setState(() {
-          _deliveryAddress = prefs.getString('delivery_address');
-          _contactNumber = prefs.getString('userPhoneNumber');
-          _deliveryOption = prefs.getString('delivery_option');
-          _isLoading = false;
-        });
-      }
+      debugPrint('🔍 Loaded delivery info from SharedPreferences:');
+      debugPrint('🔍 Address: $_deliveryAddress');
+      debugPrint('🔍 Contact: $_contactNumber');
+      debugPrint('🔍 Option: $_deliveryOption');
     } catch (e) {
       debugPrint('Error loading delivery info: $e');
-      // Fallback to SharedPreferences
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        setState(() {
-          _deliveryAddress = prefs.getString('delivery_address');
-          _contactNumber = prefs.getString('userPhoneNumber');
-          _deliveryOption = prefs.getString('delivery_option');
-          _isLoading = false;
-        });
-      } catch (e) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _deliveryAddress = 'Address not available';
+        _contactNumber = 'Contact not available';
+        _deliveryOption = 'Standard Delivery';
+        _isLoading = false;
+      });
     }
   }
 
@@ -160,85 +128,121 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
 
   @override
   Widget build(BuildContext context) {
-    final orderDate =
-        DateTime.tryParse(widget.orderDetails['created_at'] ?? '');
-    final status = widget.orderDetails['status'] ?? 'Processing';
-    final orderItems = getOrderItems();
-    final totalQuantity = getTotalQuantity();
-    final totalAmount = getTotalAmount();
+    try {
+      debugPrint('🔍 OrderTrackingPage build method called');
+      debugPrint('🔍 Order details: ${widget.orderDetails}');
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.green.shade700,
-                Colors.green.shade800,
+      final orderDate =
+          DateTime.tryParse(widget.orderDetails['created_at'] ?? '');
+      final status = widget.orderDetails['status'] ?? 'Processing';
+      final orderItems = getOrderItems();
+      final totalQuantity = getTotalQuantity();
+      final totalAmount = getTotalAmount();
+
+      debugPrint('🔍 Order date: $orderDate');
+      debugPrint('🔍 Status: $status');
+      debugPrint('🔍 Total quantity: $totalQuantity');
+      debugPrint('🔍 Total amount: $totalAmount');
+
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          centerTitle: true,
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.green.shade700,
+                  Colors.green.shade800,
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
               ],
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 8,
-                offset: Offset(0, 2),
+          ),
+          leading: BackButtonUtils.simple(
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
+          ),
+          title: Text(
+            'Track Order',
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+              letterSpacing: 0.5,
+            ),
+          ),
+          actions: [
+            Container(
+              margin: EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: CartIconButton(
+                iconColor: Colors.white,
+                iconSize: 24,
+                backgroundColor: Colors.transparent,
+              ),
+            ),
+          ],
+        ),
+        body: _isLoading
+            ? Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: _loadDeliveryInfo,
+                child: SingleChildScrollView(
+                  physics: AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildOrderSummaryCard(
+                          orderDate, orderItems, totalQuantity, totalAmount),
+                      SizedBox(height: 16),
+                      _buildStatusCard(status),
+                      SizedBox(height: 16),
+                      _buildDeliveryDetailsCard(),
+                    ],
+                  ),
+                ),
+              ),
+      );
+    } catch (e) {
+      debugPrint('🔍 Error in OrderTrackingPage build: $e');
+      return Scaffold(
+        appBar: AppBar(
+          title: Text('Track Order'),
+          backgroundColor: Colors.green.shade700,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 64, color: Colors.red),
+              SizedBox(height: 16),
+              Text(
+                'Error loading order tracking',
+                style: GoogleFonts.poppins(fontSize: 18),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Error: $e',
+                style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey),
               ),
             ],
           ),
         ),
-        leading: BackButtonUtils.simple(
-          backgroundColor: Colors.white.withValues(alpha: 0.2),
-        ),
-        title: Text(
-          'Track Order',
-          style: GoogleFonts.poppins(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-            letterSpacing: 0.5,
-          ),
-        ),
-        actions: [
-          Container(
-            margin: EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: CartIconButton(
-              iconColor: Colors.white,
-              iconSize: 24,
-              backgroundColor: Colors.transparent,
-            ),
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadDeliveryInfo,
-              child: SingleChildScrollView(
-                physics: AlwaysScrollableScrollPhysics(),
-                padding: EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildOrderSummaryCard(
-                        orderDate, orderItems, totalQuantity, totalAmount),
-                    SizedBox(height: 16),
-                    _buildStatusCard(status),
-                    SizedBox(height: 16),
-                    _buildDeliveryDetailsCard(),
-                  ],
-                ),
-              ),
-            ),
-    );
+      );
+    }
   }
 
   Widget _buildOrderSummaryCard(

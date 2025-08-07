@@ -587,20 +587,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                _getActionText(notification['icon']),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.green[600],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                        Row(),
                       ],
                     ),
                   ),
@@ -643,17 +630,28 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  String _getActionText(String? iconType) {
-    return 'Track Order';
-  }
-
   void _handleNotificationAction(Map<String, dynamic> notification) {
+    debugPrint('🔍 _handleNotificationAction called');
+    debugPrint('🔍 Full notification: $notification');
+
     final orderId = notification['order_id']?.toString() ?? '';
     final orderNumber = notification['order_number']?.toString() ?? '';
 
     debugPrint('📱 Action button tapped - navigating to tracking');
     debugPrint('📱 Order ID: $orderId');
     debugPrint('📱 Order Number: $orderNumber');
+
+    // Check if we have the required data
+    if (orderId.isEmpty && orderNumber.isEmpty) {
+      debugPrint('📱 No order ID or order number found in notification');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No order information found in this notification'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
     Navigator.pop(context);
 
@@ -687,15 +685,61 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     // Navigate to order tracking page
     try {
       debugPrint('📱 About to navigate to OrderTrackingPage');
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => OrderTrackingPage(
-            orderDetails: orderDetails,
+      debugPrint('📱 Context mounted: ${mounted}');
+      debugPrint('📱 Order details: $orderDetails');
+
+      if (!mounted) {
+        debugPrint('📱 Context not mounted, cannot navigate');
+        return;
+      }
+
+      // Navigate to OrderTrackingPage
+      debugPrint('📱 Attempting to navigate to OrderTrackingPage...');
+
+      // Test if we can create the widget
+      try {
+        final testWidget = OrderTrackingPage(orderDetails: orderDetails);
+        debugPrint('📱 OrderTrackingPage widget created successfully');
+
+        // Test if we can access the orderDetails
+        debugPrint('📱 Test widget orderDetails: ${testWidget.orderDetails}');
+      } catch (e) {
+        debugPrint('📱 Error creating OrderTrackingPage widget: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error creating tracking page: $e'),
+            backgroundColor: Colors.red,
           ),
-        ),
-      );
-      debugPrint('📱 Navigation successful!');
+        );
+        return;
+      }
+
+      // Navigate to the actual OrderTrackingPage
+      debugPrint('📱 Navigating to OrderTrackingPage...');
+      debugPrint('📱 Order details being passed: $orderDetails');
+
+      try {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) {
+              debugPrint('📱 Building OrderTrackingPage widget...');
+              return OrderTrackingPage(
+                orderDetails: orderDetails,
+              );
+            },
+          ),
+        );
+        debugPrint('📱 OrderTrackingPage navigation successful!');
+      } catch (navigationError) {
+        debugPrint('📱 Navigation error: $navigationError');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Navigation failed: $navigationError'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (e) {
       debugPrint('📱 Navigation error: $e');
 
@@ -775,12 +819,12 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (context) => PopScope(
-        canPop: false,
+      builder: (context) => PopScope( 
         onPopInvokedWithResult: (didPop, result) async {
-          // Mark notification as read when dialog is dismissed
-          await _markNotificationAsRead(notification);
-          Navigator.pop(context);
+          if (didPop) {
+            // Mark notification as read when dialog is dismissed
+            await _markNotificationAsRead(notification);
+          }
         },
         child: Dialog(
           shape:
@@ -977,12 +1021,12 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                        ],
 
-                        // Action buttons
-                        Row(
-                          children: [
-                            Expanded(
+                          // Track Order Button
+                          if (notification['order_id'] != null ||
+                              notification['order_number'] != null) ...[
+                            Container(
+                              width: double.infinity,
                               child: ElevatedButton.icon(
                                 onPressed: () {
                                   Navigator.pop(context);
@@ -1001,8 +1045,9 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                 ),
                               ),
                             ),
+                            const SizedBox(height: 16),
                           ],
-                        ),
+                        ],
                       ],
                     ),
                   ),

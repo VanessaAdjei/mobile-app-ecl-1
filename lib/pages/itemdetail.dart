@@ -181,26 +181,12 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     // Skip stock validation if disabled
     if (!_enableStockValidation) return;
 
-    debugPrint('🔍 STOCK VALIDATION TRIGGERED ===');
-    debugPrint('Product: ${product.name}');
-    debugPrint('Requested Quantity: $requestedQuantity');
-    debugPrint('========================');
-
     setState(() {
       _isCheckingStock = true;
       _stockErrorMessage = null;
     });
 
     try {
-      // Debug: Print product data to see what's available
-      debugPrint('🔍 STOCK VALIDATION DEBUG ===');
-      debugPrint('Product Name: ${product.name}');
-      debugPrint('Product Quantity Field: "${product.quantity}"');
-      debugPrint('Product ID: ${product.id}');
-      debugPrint('Product URL Name: ${product.urlName}');
-      debugPrint('Requested Quantity: $requestedQuantity');
-      debugPrint('========================');
-
       // Get actual stock from product data
       int availableStock = 0;
 
@@ -1312,13 +1298,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildProductInfoCard(Product product, ThemeData theme) {
-    debugPrint('🔍 BUILDING PRODUCT INFO CARD ===');
-    debugPrint('Product Name: ${product.name}');
-    debugPrint('Product URL Name: ${product.urlName}');
-    debugPrint('Product Price: ${product.price}');
-    debugPrint('Product Category: ${product.category}');
-    debugPrint('Product UOM: ${product.uom}');
-    debugPrint('==================================');
+  
 
     return Animate(
       effects: [
@@ -1484,7 +1464,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             SizedBox(height: 6),
             Row(
               children: [
-                // Simple Quantity controls
                 Container(
                   padding: EdgeInsets.all(4),
                   decoration: BoxDecoration(
@@ -1530,7 +1509,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Warning icon for low stock
                       if (_enableStockValidation &&
                           _stockInfo != null &&
                           _stockInfo!['availableStock'] != null &&
@@ -1594,19 +1572,16 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                     ? _getMaxAvailableQuantity(product)
                                     : maxQuantity)
                             ? () async {
-                                // Check stock BEFORE increasing quantity
                                 final newQuantity = quantity + 1;
                                 await _checkStockAvailability(
                                     product, newQuantity);
 
-                                // Only increase quantity if stock validation passes
                                 if (_stockInfo != null &&
                                     _stockInfo!['isValid'] == true) {
                                   setState(() {
                                     quantity = newQuantity;
                                   });
                                 } else {
-                                  // Show error message if stock validation fails
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(_stockInfo?['message'] ??
@@ -1630,15 +1605,11 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 SizedBox(width: 16), // Increased spacing from 8 to 16
                 // Simple Total price display
                 Expanded(
-                  // Added Expanded to make it take remaining space
                   child: Container(
-                    padding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8), // Increased vertical padding
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       color: Colors.green.shade50,
-                      borderRadius: BorderRadius.circular(
-                          8), // Changed from 6 to 8 for consistency
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: Colors.green.shade200),
                     ),
                     child: Text(
@@ -1654,7 +1625,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 ),
               ],
             ),
-            // Stock status indicator - only show for low stock or out of stock
             if (_enableStockValidation &&
                 (_stockErrorMessage != null ||
                     (_stockInfo != null &&
@@ -1800,7 +1770,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         if (widget.isPrescribed) {
                           final token = await AuthService.getToken();
                           if (token == null || token == "guest-temp-token") {
-                            // Store product data in SharedPreferences for navigation after sign-in
                             final prefs = await SharedPreferences.getInstance();
                             await prefs.setString(
                                 'pending_prescription_product', product.name);
@@ -1916,7 +1885,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Enhanced header with background
             Container(
               width: double.infinity,
               padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
