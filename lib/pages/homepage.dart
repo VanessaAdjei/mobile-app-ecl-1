@@ -21,6 +21,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/product_card.dart';
+import '../widgets/smart_tips.dart';
 import '../services/banner_cache_service.dart';
 import '../services/homepage_optimization_service.dart';
 import '../widgets/empty_state.dart';
@@ -474,7 +475,6 @@ class HomePageState extends State<HomePage>
         final Map<String, dynamic> responseData = json.decode(response.body);
         final List<dynamic> dataList = responseData['data'];
 
-       
         if (dataList.isNotEmpty) {
           final firstItem = dataList[0];
           final productData = firstItem['product'] ?? {};
@@ -487,7 +487,6 @@ class HomePageState extends State<HomePage>
         final allProducts = dataList.map<Product>((item) {
           final productData = item['product'] as Map<String, dynamic>;
 
-      
           if (dataList.indexOf(item) < 3) {
             debugPrint('🔍 HOMEPAGE PRODUCT DATA ===');
             debugPrint('Product: ${productData['name']}');
@@ -1612,7 +1611,12 @@ class HomePageState extends State<HomePage>
   Widget build(BuildContext context) {
     super.build(context);
     return Scaffold(
-      body: _isLoading ? _buildSkeletonWithLoading() : _buildMainContent(),
+      body: Stack(
+        children: [
+          _isLoading ? _buildSkeletonWithLoading() : _buildMainContent(),
+          const SmartTips(),
+        ],
+      ),
       bottomNavigationBar: CustomBottomNav(initialIndex: 0),
     );
   }

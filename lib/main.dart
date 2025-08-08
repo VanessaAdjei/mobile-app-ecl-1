@@ -38,7 +38,7 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   debugPrint('guest_id after clear: \'${prefs.getString('guest_id')}\'');
 
-  // If not previously running, clear guest_id
+
   final wasRunning = prefs.getBool('was_running') ?? false;
   if (!wasRunning) {
     await prefs.remove('guest_id');

@@ -1298,8 +1298,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildProductInfoCard(Product product, ThemeData theme) {
-  
-
     return Animate(
       effects: [
         FadeEffect(duration: 400.ms, delay: 100.ms),
