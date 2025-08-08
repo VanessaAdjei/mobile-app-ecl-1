@@ -24,7 +24,7 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
     TipData(
       id: 'search_tip',
       message:
-          '🔍 Try searching for "paracetamol" or "vitamins" to find products quickly!',
+          '🔍 Try searching for "paracetamol" or "e-panol" to find products quickly!',
       icon: Icons.search,
       color: Colors.blue,
       condition: TipCondition.always,
