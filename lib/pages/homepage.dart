@@ -28,6 +28,8 @@ import '../widgets/empty_state.dart';
 import 'section_products_page.dart';
 import 'package:animations/animations.dart';
 import 'package:visibility_detector/visibility_detector.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/cupertino.dart';
 
 class ImagePreloader {
   static final Map<String, bool> _preloadedImages = {};
@@ -58,11 +60,41 @@ class ProductCache {
   static List<Product> _cachedProducts = [];
   static List<Product> _cachedPopularProducts = [];
   static DateTime? _lastCacheTime;
-  static const Duration _cacheValidDuration = Duration(minutes: 30);
+  static DateTime? _lastShuffleTime;
+
+  static const Duration _cacheValidDuration = Duration(hours: 24);
+  static const Duration _shuffleInterval = Duration(hours: 24);
+  static const String _popularProductsKey = 'cached_popular_products';
+  static const String _lastCacheTimeKey = 'last_cache_time';
+  static const String _lastShuffleTimeKey = 'last_shuffle_time';
+  static const String _shuffledPopularProductsKey = 'shuffled_popular_products';
 
   static bool get isCacheValid {
     if (_lastCacheTime == null) return false;
-    return DateTime.now().difference(_lastCacheTime!) < _cacheValidDuration;
+    final timeSinceCache = DateTime.now().difference(_lastCacheTime!);
+    final isValid = timeSinceCache < _cacheValidDuration;
+    debugPrint(
+        '🔄 ProductCache: Cache valid: $isValid, Time since cache: ${timeSinceCache.inMinutes} minutes');
+    return isValid;
+  }
+
+  // Check if products need to be shuffled (every 24 hours)
+  static bool get shouldShuffle {
+    if (_lastShuffleTime == null) return true;
+    final timeSinceShuffle = DateTime.now().difference(_lastShuffleTime!);
+    final shouldShuffle = timeSinceShuffle >= _shuffleInterval;
+    debugPrint(
+        '🎲 ProductCache: Should shuffle: $shouldShuffle, Time since shuffle: ${timeSinceShuffle.inHours} hours');
+    return shouldShuffle;
+  }
+
+  // Get popular products with automatic shuffling every 24 hours
+  static List<Product> get popularProductsWithShuffle {
+    if (shouldShuffle) {
+      debugPrint('🎲 ProductCache: Shuffling popular products after 24 hours');
+      _shufflePopularProducts();
+    }
+    return _cachedPopularProducts;
   }
 
   static void cacheProducts(List<Product> products) {
@@ -72,6 +104,12 @@ class ProductCache {
 
   static void cachePopularProducts(List<Product> products) {
     _cachedPopularProducts = products;
+    _lastCacheTime = DateTime.now();
+    _lastShuffleTime = DateTime.now(); // Set shuffle time when caching
+    debugPrint(
+        '💾 ProductCache: Cached ${products.length} popular products at $_lastCacheTime');
+    debugPrint('🎲 ProductCache: Set shuffle time to $_lastShuffleTime');
+    _saveToStorage();
   }
 
   static List<Product> get cachedProducts => _cachedProducts;
@@ -81,6 +119,102 @@ class ProductCache {
     _cachedProducts.clear();
     _cachedPopularProducts.clear();
     _lastCacheTime = null;
+    _lastShuffleTime = null; // Clear shuffle timestamp
+    _clearFromStorage();
+  }
+
+  // Load cache from persistent storage
+  static Future<void> loadFromStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastCacheTimeString = prefs.getString(_lastCacheTimeKey);
+      final lastShuffleTimeString = prefs.getString(_lastShuffleTimeKey);
+
+      if (lastCacheTimeString != null) {
+        _lastCacheTime = DateTime.parse(lastCacheTimeString);
+        debugPrint('📱 ProductCache: Loaded cache timestamp: $_lastCacheTime');
+
+        // Check if cache is still valid
+        if (isCacheValid) {
+          final productsJson = prefs.getString(_popularProductsKey);
+          if (productsJson != null) {
+            final List<dynamic> productsList = json.decode(productsJson);
+            _cachedPopularProducts =
+                productsList.map((json) => Product.fromJson(json)).toList();
+            debugPrint(
+                '📱 ProductCache: Loaded ${_cachedPopularProducts.length} popular products from storage');
+
+            // Load shuffle timestamp
+            if (lastShuffleTimeString != null) {
+              _lastShuffleTime = DateTime.parse(lastShuffleTimeString);
+              debugPrint(
+                  '🎲 ProductCache: Loaded shuffle timestamp: $_lastShuffleTime');
+            }
+
+            debugPrint('🔍 STORAGE PRODUCTS:');
+            for (int i = 0; i < _cachedPopularProducts.length; i++) {
+              final product = _cachedPopularProducts[i];
+              debugPrint('  ${i + 1}. ${product.name} (ID: ${product.id})');
+            }
+            debugPrint('🔍 END STORAGE PRODUCTS');
+          }
+        } else {
+          debugPrint('📱 ProductCache: Cache expired, clearing storage');
+          _clearFromStorage();
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ ProductCache: Error loading from storage: $e');
+      _clearFromStorage();
+    }
+  }
+
+  // Save cache to persistent storage
+  static Future<void> _saveToStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final productsJson =
+          json.encode(_cachedPopularProducts.map((p) => p.toJson()).toList());
+      await prefs.setString(_popularProductsKey, productsJson);
+      await prefs.setString(
+          _lastCacheTimeKey, _lastCacheTime!.toIso8601String());
+
+      // Save shuffle timestamp
+      if (_lastShuffleTime != null) {
+        await prefs.setString(
+            _lastShuffleTimeKey, _lastShuffleTime!.toIso8601String());
+      }
+
+      debugPrint('💾 ProductCache: Saved to persistent storage');
+    } catch (e) {
+      debugPrint('❌ ProductCache: Error saving to storage: $e');
+    }
+  }
+
+  // Clear cache from persistent storage
+  static Future<void> _clearFromStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_popularProductsKey);
+      await prefs.remove(_lastCacheTimeKey);
+      await prefs.remove(_lastShuffleTimeKey); // Clear shuffle timestamp
+      debugPrint('🗑️ ProductCache: Cleared from persistent storage');
+    } catch (e) {
+      debugPrint('❌ ProductCache: Error clearing from storage: $e');
+    }
+  }
+
+  // Shuffle popular products and update shuffle timestamp
+  static void _shufflePopularProducts() {
+    if (_cachedPopularProducts.isNotEmpty) {
+      final shuffled = List<Product>.from(_cachedPopularProducts);
+      shuffled.shuffle();
+      _cachedPopularProducts = shuffled;
+      _lastShuffleTime = DateTime.now();
+      debugPrint(
+          '🎲 ProductCache: Shuffled ${_cachedPopularProducts.length} popular products');
+      _saveToStorage();
+    }
   }
 }
 
@@ -334,6 +468,10 @@ class HomePageState extends State<HomePage>
   int _popularCurrentIndex = 0;
   final int _popularRepeatCount = 1000;
 
+  // Track when product sections were last shuffled
+  DateTime? _lastSectionShuffleTime;
+  static const Duration _sectionShuffleInterval = Duration(hours: 24);
+
   @override
   bool get wantKeepAlive => true;
 
@@ -391,13 +529,30 @@ class HomePageState extends State<HomePage>
     _isLoadingContent = true;
 
     try {
+      // Check if we already have cached popular products
+      if (ProductCache.isCacheValid &&
+          ProductCache.cachedPopularProducts.isNotEmpty) {
+        debugPrint(
+            'HomePage: Using cached popular products, skipping API call');
+        debugPrint('🔍 USING CACHED PRODUCTS:');
+        for (int i = 0; i < ProductCache.cachedPopularProducts.length; i++) {
+          final product = ProductCache.cachedPopularProducts[i];
+          debugPrint('  ${i + 1}. ${product.name} (ID: ${product.id})');
+        }
+        debugPrint('🔍 END CACHED PRODUCTS');
+        setState(() {
+          popularProducts = ProductCache.cachedPopularProducts;
+        });
+      } else {
+        // Load popular products only if cache is expired
+        debugPrint(
+            'HomePage: Loading popular products (cache expired or empty)');
+        await _fetchPopularProducts();
+      }
+
       // Load products first
       debugPrint('HomePage: Loading products');
       await loadProducts();
-
-      // Load popular products using the old method
-      debugPrint('HomePage: Loading popular products');
-      await _fetchPopularProducts();
 
       // Load health tips
       debugPrint('HomePage: Loading health tips');
@@ -557,7 +712,46 @@ class HomePageState extends State<HomePage>
           _isLoading = false;
         });
       }
-      // _refreshController.refreshCompleted(); // Remove this line
+    }
+  }
+
+  bool _shouldShuffleSections() {
+    if (_lastSectionShuffleTime == null) return true;
+    final timeSinceShuffle =
+        DateTime.now().difference(_lastSectionShuffleTime!);
+    final shouldShuffle = timeSinceShuffle >= _sectionShuffleInterval;
+    debugPrint(
+        '🎲 HomePage: Section shuffle check - Time since shuffle: ${timeSinceShuffle.inHours} hours, Should shuffle: $shouldShuffle');
+    return shouldShuffle;
+  }
+
+  // Save section shuffle timestamp to persistent storage
+  Future<void> _saveSectionShuffleTime() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_lastSectionShuffleTime != null) {
+        await prefs.setString(
+            'section_shuffle_time', _lastSectionShuffleTime!.toIso8601String());
+        debugPrint(
+            '💾 HomePage: Saved section shuffle timestamp: $_lastSectionShuffleTime');
+      }
+    } catch (e) {
+      debugPrint('❌ HomePage: Error saving section shuffle timestamp: $e');
+    }
+  }
+
+  // Load section shuffle timestamp from persistent storage
+  Future<void> _loadSectionShuffleTime() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final shuffleTimeString = prefs.getString('section_shuffle_time');
+      if (shuffleTimeString != null) {
+        _lastSectionShuffleTime = DateTime.parse(shuffleTimeString);
+        debugPrint(
+            '📱 HomePage: Loaded section shuffle timestamp: $_lastSectionShuffleTime');
+      }
+    } catch (e) {
+      debugPrint('❌ HomePage: Error loading section shuffle timestamp: $e');
     }
   }
 
@@ -595,11 +789,29 @@ class HomePageState extends State<HomePage>
       }
     }
 
-    // Shuffle lists efficiently
-    otcDrugProducts.shuffle();
-    wellnessList.shuffle();
-    selfcareList.shuffle();
-    accessoriesList.shuffle();
+    final shouldShuffleSections = _shouldShuffleSections();
+
+    if (shouldShuffleSections) {
+      debugPrint('🎲 HomePage: Shuffling product sections after 24 hours');
+      // Shuffle section products
+      otcDrugProducts.shuffle();
+      wellnessList.shuffle();
+      selfcareList.shuffle();
+      accessoriesList.shuffle();
+      // Update shuffle timestamp and save to storage
+      _lastSectionShuffleTime = DateTime.now();
+      _saveSectionShuffleTime();
+    } else {
+      debugPrint(
+          '🎲 HomePage: Using existing section product order (within 24 hours)');
+    }
+
+    // Debug: Log product counts to confirm consistency
+    debugPrint('🔍 PRODUCT SECTIONS - Consistent Order:');
+    debugPrint('  Drugs: ${otcDrugProducts.length} products');
+    debugPrint('  Wellness: ${wellnessList.length} products');
+    debugPrint('  Selfcare: ${selfcareList.length} products');
+    debugPrint('  Accessories: ${accessoriesList.length} products');
 
     if (mounted) {
       setState(() {
@@ -962,11 +1174,11 @@ class HomePageState extends State<HomePage>
   @override
   void initState() {
     super.initState();
-    // Register for app lifecycle changes
-    WidgetsBinding.instance.addObserver(this);
-    // Clear any old cached data to prevent type mismatches
 
-    // Add a small delay to ensure proper initialization
+    WidgetsBinding.instance.addObserver(this);
+
+    ProductCache.loadFromStorage();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _initializeOptimizationService();
@@ -987,62 +1199,27 @@ class HomePageState extends State<HomePage>
       }
     });
 
-    // Infinite carousel for popular products row
+    // Initialize carousel position for consistency (no more auto-movement)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted &&
-          popularProducts.isNotEmpty &&
-          _popularScrollController.hasClients) {
-        final limitedPopularProducts =
-            _getLimitedProducts(popularProducts, limit: 8);
-        if (limitedPopularProducts.isNotEmpty) {
-          _popularBaseIndex = limitedPopularProducts.length * 10;
-          _popularCurrentIndex = _popularBaseIndex;
-          _highlightedPopularIndex =
-              _popularCurrentIndex % limitedPopularProducts.length;
-          if (_popularScrollController.hasClients) {
-            _popularScrollController.jumpTo(_popularCurrentIndex * 96.0);
-          }
-        }
-      }
-    });
-    _popularScrollTimer = Timer.periodic(Duration(seconds: 3), (timer) {
-      if (mounted &&
-          _popularScrollController.hasClients &&
-          popularProducts.isNotEmpty &&
-          !_isLoadingContent) {
-        final limitedPopularProducts =
-            _getLimitedProducts(popularProducts, limit: 8);
-        if (limitedPopularProducts.isNotEmpty) {
-          final totalItems =
-              limitedPopularProducts.length * _popularRepeatCount;
-          _popularCurrentIndex++;
-          if (mounted) {
-            setState(() {
-              _highlightedPopularIndex =
-                  _popularCurrentIndex % limitedPopularProducts.length;
-            });
-          }
-          if (_popularScrollController.hasClients) {
-            _popularScrollController.animateTo(
-              _popularCurrentIndex * 96.0,
-              duration: Duration(milliseconds: 1200),
-              curve: Curves.easeInOutCubic,
-            );
-            // If near the end, reset to the same item in the middle
-            if (_popularCurrentIndex >
-                totalItems - limitedPopularProducts.length * 5) {
-              _popularCurrentIndex = _popularBaseIndex;
-              if (_popularScrollController.hasClients) {
-                _popularScrollController.jumpTo(_popularCurrentIndex * 96.0);
-              }
-            }
-          }
-        }
+      if (mounted && popularProducts.isNotEmpty) {
+        // Set consistent highlight for first product
+        _highlightedPopularIndex = 0;
       }
     });
 
-    // Only trigger the tutorial in the build method's Builder
-    // ... existing code ...
+    // Load cached data immediately if available
+    if (_optimizationService.hasCachedProducts) {
+      setState(() {
+        _products = _optimizationService.cachedProducts;
+        filteredProducts = _optimizationService.cachedProducts;
+        // Keep loading state true for skeleton to show
+        _isLoading = true;
+        _error = null;
+      });
+    }
+
+    // Load section shuffle timestamp from storage
+    _loadSectionShuffleTime();
   }
 
   Future<void> _initializeOptimizationService() async {
@@ -1065,8 +1242,8 @@ class HomePageState extends State<HomePage>
     WidgetsBinding.instance.removeObserver(this);
     searchController.dispose();
 
-    _popularScrollTimer?.cancel();
-    _popularScrollController.dispose();
+    // _popularScrollTimer?.cancel(); // No longer needed
+    // _popularScrollController.dispose(); // No longer needed
     super.dispose();
   }
 
@@ -1877,23 +2054,19 @@ class HomePageState extends State<HomePage>
       );
     }
 
-    final limitedPopularProducts =
-        _getLimitedProducts(popularProducts, limit: 8);
-    final int repeatCount = _popularRepeatCount;
-    final int totalItems = limitedPopularProducts.length * repeatCount;
+    // Show only the first 6 products in a simple horizontal list
+    final limitedPopularProducts = popularProducts.take(6).toList();
 
     return SizedBox(
       height: 120,
       child: ListView.builder(
-        controller: _popularScrollController,
         scrollDirection: Axis.horizontal,
-        itemCount: totalItems,
+        itemCount: limitedPopularProducts.length,
         padding: const EdgeInsets.only(right: 16),
         itemBuilder: (context, index) {
-          final product =
-              limitedPopularProducts[index % limitedPopularProducts.length];
-          final isHighlighted = (index % limitedPopularProducts.length) ==
-              _highlightedPopularIndex;
+          final product = limitedPopularProducts[index];
+          // Always highlight the first product for consistency
+          final isHighlighted = index == 0;
           return AnimatedScale(
             scale: isHighlighted ? 1.45 : 1.0,
             duration: Duration(milliseconds: isHighlighted ? 220 : 350),
@@ -2018,17 +2191,23 @@ class HomePageState extends State<HomePage>
   }
 
   Future<void> _fetchPopularProducts() async {
+    debugPrint('🔄 HomePage: _fetchPopularProducts called');
     if (!mounted) return;
 
-    // Check if we have cached popular products
-    if (ProductCache.cachedPopularProducts.isNotEmpty) {
+    // Check if we have valid cached popular products
+    if (ProductCache.isCacheValid &&
+        ProductCache.cachedPopularProducts.isNotEmpty) {
+      debugPrint(
+          '✅ HomePage: Using cached popular products (${ProductCache.cachedPopularProducts.length} products)');
       setState(() {
-        popularProducts = ProductCache.cachedPopularProducts;
+        // Use the shuffle system - products will be shuffled every 24 hours
+        popularProducts = ProductCache.popularProductsWithShuffle;
         _isLoadingPopular = false;
       });
       return;
     }
 
+    debugPrint('🔄 HomePage: Cache invalid or empty, fetching from API...');
     setState(() {
       _isLoadingPopular = true;
       _popularError = null;
@@ -2045,6 +2224,16 @@ class HomePageState extends State<HomePage>
         final Map<String, dynamic> data = json.decode(response.body);
         final List<dynamic> productsData = data['data'] ?? [];
         if (!mounted) return;
+
+        debugPrint('🔍 RAW API RESPONSE - Popular Products:');
+        debugPrint('  Total products returned: ${productsData.length}');
+        for (int i = 0; i < productsData.length; i++) {
+          final item = productsData[i];
+          final productData = item['product'] as Map<String, dynamic>;
+          debugPrint(
+              '  ${i + 1}. ${productData['name']} (ID: ${productData['id']})');
+        }
+        debugPrint('🔍 END RAW API RESPONSE');
 
         final popularProductsList = productsData.map<Product>((item) {
           final productData = item['product'] as Map<String, dynamic>;
@@ -2070,6 +2259,13 @@ class HomePageState extends State<HomePage>
 
         // Cache popular products
         ProductCache.cachePopularProducts(popularProductsList);
+
+        debugPrint('🔍 CACHED PRODUCTS DETAILS:');
+        for (int i = 0; i < popularProductsList.length; i++) {
+          final product = popularProductsList[i];
+          debugPrint('  ${i + 1}. ${product.name} (ID: ${product.id})');
+        }
+        debugPrint('🔍 END CACHED PRODUCTS DETAILS');
 
         if (!mounted) return;
         setState(() {

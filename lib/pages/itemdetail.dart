@@ -971,9 +971,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             : FutureBuilder<Product>(
                 future: _productFuture,
                 builder: (context, snapshot) {
-                  debugPrint('Connection State: ${snapshot.connectionState}');
-                  debugPrint('Has Data: ${snapshot.hasData}');
-                  debugPrint('Has Error: ${snapshot.hasError}');
                   if (snapshot.hasError) {
                     debugPrint('Error: ${snapshot.error}');
                   }
@@ -1409,7 +1406,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildQuantitySelector(Product product) {
-    debugPrint('🔍 Building quantity selector with quantity: $quantity');
     return Animate(
       effects: [
         FadeEffect(duration: 400.ms, delay: 300.ms),
@@ -1719,12 +1715,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   builder: (context, cartProvider, child) {
                     // Check if product is already in cart
                     final cartItems = cartProvider.cartItems;
-
-                    debugPrint('🔍 CHECKING CART STATUS ===');
-                    debugPrint('Product Name: ${product.name}');
-                    debugPrint('Product ID: ${product.id}');
-                    debugPrint('Product Batch: ${product.batch_no}');
-                    debugPrint('Cart Items Count: ${cartItems.length}');
 
                     for (int i = 0; i < cartItems.length; i++) {
                       debugPrint(

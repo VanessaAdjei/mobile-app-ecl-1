@@ -653,8 +653,6 @@ class NotificationsScreenState extends State<NotificationsScreen> {
       return;
     }
 
-    Navigator.pop(context);
-
     // Create order details map for tracking page
     final items = notification['items'] ?? [];
     final mappedItems = items
@@ -677,72 +675,62 @@ class NotificationsScreenState extends State<NotificationsScreen> {
       'order_items': mappedItems,
       'status': notification['status'] ?? 'pending',
       'created_at': notification['timestamp'],
+      'delivery_address': notification['delivery_address'] ??
+          notification['shipping_address'] ??
+          notification['address'],
+      'contact_number': notification['contact_number'] ??
+          notification['phone'] ??
+          notification['user_phone'],
+      'delivery_option': notification['delivery_option'] ??
+          notification['shipping_method'] ??
+          notification['delivery_method'],
     };
 
     debugPrint('📱 Navigating to OrderTrackingPage...');
     debugPrint('📱 Order details: $orderDetails');
 
-    // Navigate to order tracking page
+    // Debug: Log available delivery fields in notification
+    debugPrint('🔍 Available delivery fields in notification:');
+    debugPrint('🔍 delivery_address: ${notification['delivery_address']}');
+    debugPrint('🔍 shipping_address: ${notification['shipping_address']}');
+    debugPrint('🔍 address: ${notification['address']}');
+    debugPrint('🔍 contact_number: ${notification['contact_number']}');
+    debugPrint('🔍 phone: ${notification['phone']}');
+    debugPrint('🔍 user_phone: ${notification['user_phone']}');
+    debugPrint('🔍 delivery_option: ${notification['delivery_option']}');
+    debugPrint('🔍 shipping_method: ${notification['shipping_method']}');
+    debugPrint('🔍 delivery_method: ${notification['delivery_method']}');
+
+    // Navigate to order tracking page with proper navigation stack
     try {
-      debugPrint('📱 About to navigate to OrderTrackingPage');
-      debugPrint('📱 Context mounted: ${mounted}');
-      debugPrint('📱 Order details: $orderDetails');
+      debugPrint('About to navigate to OrderTrackingPage');
+      debugPrint('Context mounted: ${mounted}');
+      debugPrint(
+          '📱 Current navigation stack depth: ${Navigator.of(context).widget.observers.length}');
+      debugPrint('📱 Can pop current context: ${Navigator.canPop(context)}');
 
       if (!mounted) {
         debugPrint('📱 Context not mounted, cannot navigate');
         return;
       }
 
-      // Navigate to OrderTrackingPage
-      debugPrint('📱 Attempting to navigate to OrderTrackingPage...');
+      debugPrint(
+          'Navigating to OrderTrackingPage with proper navigation stack...');
 
-      // Test if we can create the widget
-      try {
-        final testWidget = OrderTrackingPage(orderDetails: orderDetails);
-        debugPrint('📱 OrderTrackingPage widget created successfully');
-
-        // Test if we can access the orderDetails
-        debugPrint('📱 Test widget orderDetails: ${testWidget.orderDetails}');
-      } catch (e) {
-        debugPrint('📱 Error creating OrderTrackingPage widget: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error creating tracking page: $e'),
-            backgroundColor: Colors.red,
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OrderTrackingPage(
+            orderDetails: orderDetails,
           ),
-        );
-        return;
-      }
+          // Ensure proper back button behavior
+          fullscreenDialog: false,
+        ),
+      );
 
-      // Navigate to the actual OrderTrackingPage
-      debugPrint('📱 Navigating to OrderTrackingPage...');
-      debugPrint('📱 Order details being passed: $orderDetails');
-
-      try {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) {
-              debugPrint('📱 Building OrderTrackingPage widget...');
-              return OrderTrackingPage(
-                orderDetails: orderDetails,
-              );
-            },
-          ),
-        );
-        debugPrint('📱 OrderTrackingPage navigation successful!');
-      } catch (navigationError) {
-        debugPrint('📱 Navigation error: $navigationError');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Navigation failed: $navigationError'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      debugPrint('📱 OrderTrackingPage navigation successful!');
     } catch (e) {
       debugPrint('📱 Navigation error: $e');
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error navigating to tracking page: $e'),
@@ -752,16 +740,9 @@ class NotificationsScreenState extends State<NotificationsScreen> {
               EdgeInsets.only(bottom: MediaQuery.of(context).size.height - 100),
         ),
       );
-
-      try {
-        Navigator.pushNamed(context, '/purchases');
-      } catch (fallbackError) {
-        debugPrint('📱 Fallback navigation also failed: $fallbackError');
-      }
     }
   }
 
-  /// Get image URL with proper formatting
   String _getImageUrl(String? url) {
     if (url == null || url.isEmpty) return '';
     if (url.startsWith('http')) return url;
@@ -771,7 +752,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     if (url.startsWith('/storage/')) {
       return 'https://eclcommerce.ernestchemists.com.gh$url';
     }
-    // Otherwise, treat as filename
+
     return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
   }
 
@@ -819,7 +800,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (context) => PopScope( 
+      builder: (context) => PopScope(
         onPopInvokedWithResult: (didPop, result) async {
           if (didPop) {
             // Mark notification as read when dialog is dismissed
@@ -1029,7 +1010,10 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                               width: double.infinity,
                               child: ElevatedButton.icon(
                                 onPressed: () {
+                                  // Close the dialog first
                                   Navigator.pop(context);
+
+                                  // Then navigate to tracking page with proper navigation stack
                                   _handleNotificationAction(notification);
                                 },
                                 icon: const Icon(Icons.track_changes, size: 18),

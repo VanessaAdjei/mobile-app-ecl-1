@@ -11,10 +11,10 @@ class SmartTips extends StatefulWidget {
 }
 
 class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
-  late AnimationController _slideController;
-  late AnimationController _fadeController;
-  late Animation<Offset> _slideAnimation;
-  late Animation<double> _fadeAnimation;
+  AnimationController? _slideController;
+  AnimationController? _fadeController;
+  Animation<Offset>? _slideAnimation;
+  Animation<double>? _fadeAnimation;
 
   bool _isVisible = false;
   String _currentTip = '';
@@ -68,12 +68,27 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _slideController.dispose();
-    _fadeController.dispose();
+    _slideController?.dispose();
+    _fadeController?.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Ensure animations are properly initialized
+    if ((_slideController?.isAnimating ?? false) ||
+        (_fadeController?.isAnimating ?? false)) {
+      return;
+    }
+    _initializeAnimations();
+  }
+
   void _initializeAnimations() {
+    // Dispose existing controllers if they exist
+    _slideController?.dispose();
+    _fadeController?.dispose();
+
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
@@ -88,7 +103,7 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
       begin: const Offset(0, -1),
       end: Offset.zero,
     ).animate(CurvedAnimation(
-      parent: _slideController,
+      parent: _slideController!,
       curve: Curves.easeOutBack,
     ));
 
@@ -96,7 +111,7 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
       begin: 0.0,
       end: 1.0,
     ).animate(CurvedAnimation(
-      parent: _fadeController,
+      parent: _fadeController!,
       curve: Curves.easeInOut,
     ));
   }
@@ -111,7 +126,7 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
   }
 
   void _showNextTip() {
-    if (_tipIndex < _tips.length) {
+    if (_tipIndex < _tips.length && mounted) {
       final tip = _tips[_tipIndex];
 
       setState(() {
@@ -119,14 +134,20 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
         _isVisible = true;
       });
 
-      _fadeController.forward();
-      _slideController.forward();
+      // Reset animations before starting new ones
+      _fadeController?.reset();
+      _slideController?.reset();
+
+      _fadeController?.forward();
+      _slideController?.forward();
     }
   }
 
   void _hideTip() {
-    _fadeController.reverse();
-    _slideController.reverse().then((_) {
+    if (!mounted) return;
+
+    _fadeController?.reverse();
+    _slideController?.reverse()?.then((_) {
       if (mounted) {
         setState(() {
           _isVisible = false;
@@ -169,9 +190,9 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
       left: 20,
       right: 20,
       child: SlideTransition(
-        position: _slideAnimation,
+        position: _slideAnimation ?? const AlwaysStoppedAnimation(Offset.zero),
         child: FadeTransition(
-          opacity: _fadeAnimation,
+          opacity: _fadeAnimation ?? const AlwaysStoppedAnimation(1.0),
           child: Container(
             height: 200, // Reduced from 220 to 200
             padding: const EdgeInsets.all(12), // Reduced from 14 to 12
@@ -334,27 +355,37 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
                                 const SizedBox(width: 4), // Reduced from 6
                                 Expanded(
                                   child: GestureDetector(
-                                    onTap: _skipAllTips,
+                                    onTap: index == _tips.length - 1
+                                        ? _markTipsAsSeen
+                                        : _skipAllTips,
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
                                         vertical: 4, // Reduced from 6
                                       ),
                                       decoration: BoxDecoration(
-                                        color: Colors.grey.withOpacity(0.1),
+                                        color: index == _tips.length - 1
+                                            ? tip.color.withOpacity(0.1)
+                                            : Colors.grey.withOpacity(0.1),
                                         borderRadius: BorderRadius.circular(
                                             4), // Reduced from 6
                                         border: Border.all(
-                                          color: Colors.grey.withOpacity(0.3),
+                                          color: index == _tips.length - 1
+                                              ? tip.color.withOpacity(0.3)
+                                              : Colors.grey.withOpacity(0.3),
                                           width: 1,
                                         ),
                                       ),
                                       child: Center(
                                         child: Text(
-                                          'Skip All',
+                                          index == _tips.length - 1
+                                              ? 'Complete'
+                                              : 'Skip All',
                                           style: GoogleFonts.poppins(
                                             fontSize: 10, // Reduced from 11
                                             fontWeight: FontWeight.w500,
-                                            color: Colors.grey[600],
+                                            color: index == _tips.length - 1
+                                                ? tip.color
+                                                : Colors.grey[600],
                                           ),
                                         ),
                                       ),

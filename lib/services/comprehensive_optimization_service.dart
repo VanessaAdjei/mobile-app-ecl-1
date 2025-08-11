@@ -28,14 +28,12 @@ class ComprehensiveOptimizationService {
   static const String _cartCacheKey = 'cart_cache';
   static const String _cartCacheTimeKey = 'cart_cache_time';
 
-  // Cache configuration
-  static const Duration _homepageCacheDuration = Duration(minutes: 30);
+  static const Duration _homepageCacheDuration = Duration(hours: 24);
   static const Duration _productsCacheDuration = Duration(minutes: 15);
   static const Duration _userDataCacheDuration = Duration(minutes: 60);
   static const Duration _notificationsCacheDuration = Duration(minutes: 5);
   static const Duration _cartCacheDuration = Duration(minutes: 10);
 
-  // In-memory cache
   Map<String, dynamic> _homepageCache = {};
   List<dynamic> _productsCache = [];
   Map<String, dynamic> _userDataCache = {};

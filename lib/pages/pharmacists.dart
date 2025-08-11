@@ -90,7 +90,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       _isLoadingHealthTips = true;
     });
 
-
     final backgroundTips = HealthTipsService.getCurrentTips(limit: 4);
     if (backgroundTips.isNotEmpty) {
       setState(() {
@@ -101,7 +100,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       return;
     }
 
-    
     if (_isLocalCacheValid()) {
       setState(() {
         _healthTips = _cachedHealthTips;
@@ -111,13 +109,10 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       return;
     }
 
-  
     _showInstantFallbackTips();
 
-  
     _loadFreshHealthTipsInBackground();
   }
-
 
   Future<void> _refreshHealthTips() async {
     // Show instant feedback
@@ -144,10 +139,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       ),
     );
 
-
     _cachedHealthTips.clear();
     _lastHealthTipsCacheTime = null;
-
 
     await _loadFreshHealthTipsInBackground();
   }
@@ -162,7 +155,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   }
 
   void _showInstantFallbackTips() {
-    
     final instantTips = [
       HealthTip(
         title: 'Stay Hydrated',
@@ -616,29 +608,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
             _emailController.text = userData['email'].toString();
           }
         });
-
-        // Show a subtle notification that fields were prefilled
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white, size: 16),
-                  SizedBox(width: 8),
-                  Text('Form prefilled with your profile data'),
-                ],
-              ),
-              backgroundColor: Colors.green[600],
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
       }
     } catch (e) {
-      // Silently handle errors - form will remain empty if user data can't be loaded
       debugPrint('Error prefilling user data: $e');
     }
   }

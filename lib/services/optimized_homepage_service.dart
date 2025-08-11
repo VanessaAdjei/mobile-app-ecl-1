@@ -26,7 +26,9 @@ class OptimizedHomepageService {
 
   // Cache durations
   static const Duration _productsCacheDuration = Duration(minutes: 30);
-  static const Duration _popularProductsCacheDuration = Duration(minutes: 15);
+  // Popular products cache for 24 hours to ensure consistent user experience
+  // and prevent product cards from changing on every app reload
+  static const Duration _popularProductsCacheDuration = Duration(hours: 24);
   static const Duration _categorizedProductsCacheDuration =
       Duration(minutes: 20);
   static const Duration _bannersCacheDuration = Duration(minutes: 30);

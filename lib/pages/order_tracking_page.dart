@@ -4,9 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:intl/intl.dart';
-
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/delivery_service.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'auth_service.dart';
 
 class OrderTrackingPage extends StatefulWidget {
   final Map<String, dynamic> orderDetails;
@@ -31,27 +33,165 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     super.initState();
     debugPrint('🔍 OrderTrackingPage initState called');
     debugPrint('🔍 Order details in initState: ${widget.orderDetails}');
+    debugPrint(
+        'Current navigation stack depth: ${Navigator.of(context).widget.observers.length}');
+    debugPrint('Can pop current context: ${Navigator.canPop(context)}');
     _loadDeliveryInfo();
   }
 
   Future<void> _loadDeliveryInfo() async {
     try {
       debugPrint('🔍 Loading delivery info for order tracking...');
+      debugPrint('🔍 Order details available: ${widget.orderDetails}');
+      final isLoggedIn = await AuthService.isLoggedIn();
+      debugPrint('🔍 User logged in: $isLoggedIn');
 
-      // Skip API call to avoid authentication issues
-      // Just use SharedPreferences fallback
+      final orderDetails = widget.orderDetails;
+
+      String? notificationAddress =
+          orderDetails['delivery_address']?.toString() ??
+              orderDetails['shipping_address']?.toString() ??
+              orderDetails['address']?.toString() ??
+              orderDetails['addr_1']?.toString() ??
+              orderDetails['region']?.toString() ??
+              orderDetails['city']?.toString();
+
+      String? notificationContact =
+          orderDetails['contact_number']?.toString() ??
+              orderDetails['phone']?.toString() ??
+              orderDetails['user_phone']?.toString() ??
+              orderDetails['user_phone_number']?.toString();
+
+      String? notificationDeliveryOption =
+          orderDetails['delivery_option']?.toString() ??
+              orderDetails['shipping_method']?.toString() ??
+              orderDetails['delivery_method']?.toString() ??
+              orderDetails['shipping_type']?.toString();
+
+      debugPrint('🔍 Delivery info from notification:');
+      debugPrint('🔍 Address: $notificationAddress');
+      debugPrint('🔍 Contact: $notificationContact');
+      debugPrint('🔍 Option: $notificationDeliveryOption');
+
+      debugPrint('🔍 All available fields in order details:');
+      orderDetails.forEach((key, value) {
+        if (key.toString().toLowerCase().contains('address') ||
+            key.toString().toLowerCase().contains('phone') ||
+            key.toString().toLowerCase().contains('delivery') ||
+            key.toString().toLowerCase().contains('shipping')) {
+          debugPrint('🔍 $key: $value');
+        }
+      });
+
+      if (notificationAddress == null || notificationAddress.isEmpty) {
+        final region = orderDetails['region']?.toString();
+        final city = orderDetails['city']?.toString();
+        final addr1 = orderDetails['addr_1']?.toString();
+
+        if (region != null || city != null || addr1 != null) {
+          final addressParts = <String>[];
+          if (addr1 != null && addr1.isNotEmpty) addressParts.add(addr1);
+          if (city != null && city.isNotEmpty) addressParts.add(city);
+          if (region != null && region.isNotEmpty) addressParts.add(region);
+
+          if (addressParts.isNotEmpty) {
+            notificationAddress = addressParts.join(', ');
+            debugPrint('🔍 Constructed delivery address: $notificationAddress');
+          }
+        }
+      }
+
+      // If we don't have delivery info from notification, try to fetch from API
+      if (notificationAddress == null || notificationAddress.isEmpty) {
+        if (isLoggedIn) {
+          debugPrint(
+              '🔍 No delivery address in notification, trying to fetch from API...');
+
+          // Check if we have a delivery_id that might be useful
+          final deliveryId = orderDetails['delivery_id']?.toString();
+          if (deliveryId != null && deliveryId.isNotEmpty) {
+            debugPrint(
+                '🔍 Found delivery_id: $deliveryId - this might contain delivery info');
+          }
+
+          // First try to get delivery info from the user's saved delivery data
+          debugPrint('🔍 Trying to fetch user\'s saved delivery info...');
+          final deliveryResult = await DeliveryService.getLastDeliveryInfo();
+
+          if (deliveryResult['success'] && deliveryResult['data'] != null) {
+            final deliveryData = deliveryResult['data'];
+            debugPrint('🔍 Successfully fetched delivery info: $deliveryData');
+
+            // Extract delivery information from the saved delivery data
+            final savedAddress = deliveryData['address']?.toString() ??
+                deliveryData['addr_1']?.toString();
+            final savedRegion = deliveryData['region']?.toString();
+            final savedCity = deliveryData['city']?.toString();
+
+            if (savedAddress != null && savedAddress.isNotEmpty) {
+              notificationAddress = savedAddress;
+              debugPrint(
+                  '🔍 Found saved delivery address: $notificationAddress');
+            } else if (savedRegion != null || savedCity != null) {
+              final addressParts = <String>[];
+              if (savedAddress != null && savedAddress.isNotEmpty)
+                addressParts.add(savedAddress);
+              if (savedCity != null && savedCity.isNotEmpty)
+                addressParts.add(savedCity);
+              if (savedRegion != null && savedRegion.isNotEmpty)
+                addressParts.add(savedRegion);
+
+              if (addressParts.isNotEmpty) {
+                notificationAddress = addressParts.join(', ');
+                debugPrint(
+                    '🔍 Constructed address from saved delivery info: $notificationAddress');
+              }
+            }
+
+            // Extract contact information
+            final savedContact = deliveryData['phone']?.toString();
+            if (savedContact != null && savedContact.isNotEmpty) {
+              notificationContact = savedContact;
+              debugPrint('🔍 Found saved contact number: $notificationContact');
+            }
+
+            // Extract delivery option
+            final savedDeliveryOption =
+                deliveryData['delivery_option']?.toString() ??
+                    deliveryData['shipping_type']?.toString();
+            if (savedDeliveryOption != null && savedDeliveryOption.isNotEmpty) {
+              notificationDeliveryOption = savedDeliveryOption;
+              debugPrint(
+                  '🔍 Found saved delivery option: $notificationDeliveryOption');
+            }
+          } else {
+            debugPrint('🔍 No saved delivery info found, trying orders API...');
+            await _fetchOrderDetailsFromAPI();
+          }
+        } else {
+          debugPrint(
+              '🔍 User not logged in, cannot fetch delivery details from API');
+          debugPrint('🔍 Delivery details will show default values');
+        }
+      }
+
+      // Fall back to SharedPreferences if still no delivery info
       final prefs = await SharedPreferences.getInstance();
+
       setState(() {
-        _deliveryAddress =
-            prefs.getString('delivery_address') ?? 'Address not available';
-        _contactNumber =
-            prefs.getString('userPhoneNumber') ?? 'Contact not available';
-        _deliveryOption =
-            prefs.getString('delivery_option') ?? 'Standard Delivery';
+        _deliveryAddress = notificationAddress ??
+            prefs.getString('delivery_address') ??
+            'Address not available';
+        _contactNumber = notificationContact ??
+            prefs.getString('userPhoneNumber') ??
+            'Contact not available';
+        _deliveryOption = notificationDeliveryOption ??
+            prefs.getString('delivery_option') ??
+            'Standard Delivery';
         _isLoading = false;
       });
 
-      debugPrint('🔍 Loaded delivery info from SharedPreferences:');
+      debugPrint('🔍 Final delivery info loaded:');
       debugPrint('🔍 Address: $_deliveryAddress');
       debugPrint('🔍 Contact: $_contactNumber');
       debugPrint('🔍 Option: $_deliveryOption');
@@ -63,6 +203,241 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         _deliveryOption = 'Standard Delivery';
         _isLoading = false;
       });
+    }
+  }
+
+  // Try to fetch order details from API to get delivery information
+  Future<void> _fetchOrderDetailsFromAPI() async {
+    try {
+      final orderId = widget.orderDetails['id']?.toString();
+      final orderNumber = widget.orderDetails['order_number']?.toString();
+
+      if (orderId == null && orderNumber == null) {
+        debugPrint('🔍 No order ID or number available for API call');
+        return;
+      }
+
+      debugPrint(
+          '🔍 Fetching order details from API for order: $orderId / $orderNumber');
+
+      // Get auth token using the proper AuthService
+      final token = await AuthService.getToken();
+
+      if (token == null) {
+        debugPrint('🔍 No auth token available for API call');
+        debugPrint('🔍 User might not be logged in or token expired');
+        return;
+      }
+
+      debugPrint(
+          '🔍 Auth token retrieved successfully: ${token.substring(0, 20)}...');
+
+      // Try to get all orders and find the specific one we need
+      try {
+        debugPrint('🔍 Trying to get all orders to find delivery info...');
+        final ordersResponse = await http.get(
+          Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/orders'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ).timeout(const Duration(seconds: 10));
+
+        if (ordersResponse.statusCode == 200) {
+          final ordersData = json.decode(ordersResponse.body);
+          debugPrint(
+              '🔍 Orders API response received, looking for order $orderId');
+          debugPrint('🔍 Complete API response: $ordersData');
+
+          // Check if API response indicates success
+          final apiStatus = ordersData['status']?.toString();
+          if (apiStatus != 'success') {
+            debugPrint('🔍 API response status is not success: $apiStatus');
+            return;
+          }
+
+          // Use 'data' field instead of 'orders' based on actual API response structure
+          final orders = ordersData['data'] ?? [];
+          debugPrint('🔍 Total orders received: ${orders.length}');
+
+          // Check if orders are in a different field (fallback)
+          if (orders.isEmpty) {
+            debugPrint(
+                '🔍 No orders in "data" field, checking other possible fields...');
+            final possibleFields = ['orders', 'items', 'results', 'list'];
+            for (final field in possibleFields) {
+              final fieldData = ordersData[field];
+              if (fieldData != null) {
+                debugPrint('🔍 Found data in "$field" field: $fieldData');
+                if (fieldData is List) {
+                  debugPrint('🔍 "$field" contains ${fieldData.length} items');
+                }
+              }
+            }
+          }
+
+          // Debug: Show what we're looking for
+          debugPrint('🔍 Looking for order with:');
+          debugPrint('🔍   - orderId: $orderId');
+          debugPrint('🔍   - orderNumber: $orderNumber');
+          debugPrint(
+              '🔍   - notification delivery_id: ${widget.orderDetails['delivery_id']}');
+
+          // Debug: Show first few orders to understand structure
+          if (orders.isNotEmpty) {
+            debugPrint('🔍 Sample orders from API:');
+            for (int i = 0; i < orders.length && i < 5; i++) {
+              final order = orders[i];
+              debugPrint(
+                  '🔍 Order ${i + 1}: ID=${order['id']}, Delivery ID=${order['delivery_id']}, User ID=${order['user_id']}');
+            }
+          }
+
+          // Try multiple matching strategies
+          Map<String, dynamic>? targetOrder;
+
+          // Strategy 1: Try to match by delivery_id (most reliable for notifications)
+          final notificationDeliveryId =
+              widget.orderDetails['delivery_id']?.toString();
+          if (notificationDeliveryId != null &&
+              notificationDeliveryId.isNotEmpty) {
+            debugPrint(
+                '🔍 Trying to match by delivery_id from notification: $notificationDeliveryId');
+            targetOrder = orders.firstWhere(
+              (order) => order['delivery_id'] == notificationDeliveryId,
+              orElse: () => null,
+            );
+            if (targetOrder != null) {
+              debugPrint(
+                  '🔍 Found order by delivery_id: ${targetOrder['delivery_id']}');
+            }
+          }
+
+          // Strategy 2: Try to match by order number (if different from delivery_id)
+          if (targetOrder == null &&
+              orderNumber != null &&
+              orderNumber != notificationDeliveryId) {
+            debugPrint('🔍 Trying to match by order number: $orderNumber');
+            targetOrder = orders.firstWhere(
+              (order) => order['delivery_id'] == orderNumber,
+              orElse: () => null,
+            );
+            if (targetOrder != null) {
+              debugPrint(
+                  '🔍 Found order by order number: ${targetOrder['delivery_id']}');
+            }
+          }
+
+          // Strategy 3: Try to match by numeric ID (extract from ORDER_ prefix) - less reliable
+          if (targetOrder == null &&
+              orderId != null &&
+              orderId.startsWith('ORDER_')) {
+            final numericId = orderId.replaceFirst('ORDER_', '');
+            debugPrint('🔍 Trying to match by numeric ID: $numericId');
+            try {
+              final numericIdInt = int.tryParse(numericId);
+              if (numericIdInt != null) {
+                targetOrder = orders.firstWhere(
+                  (order) => order['id'] == numericIdInt,
+                  orElse: () => null,
+                );
+                if (targetOrder != null) {
+                  debugPrint(
+                      '🔍 Found order by numeric ID: ${targetOrder['id']}');
+                }
+              }
+            } catch (e) {
+              debugPrint('🔍 Error parsing numeric ID: $e');
+            }
+          }
+
+          // Strategy 4: Try to match by order ID as string (fallback)
+          if (targetOrder == null && orderId != null) {
+            debugPrint('🔍 Trying to match by order ID string: $orderId');
+            targetOrder = orders.firstWhere(
+              (order) =>
+                  order['id'].toString() == orderId ||
+                  order['delivery_id'] == orderId,
+              orElse: () => null,
+            );
+            if (targetOrder != null) {
+              debugPrint('🔍 Found order by ID string: ${targetOrder['id']}');
+            }
+          }
+
+          if (targetOrder != null) {
+            debugPrint('🔍 Found target order in orders list: $targetOrder');
+            debugPrint('🔍 Available fields in target order:');
+            targetOrder.forEach((key, value) {
+              debugPrint('🔍   $key: $value');
+            });
+
+            // Extract delivery information from the found order
+            // Note: The API response doesn't seem to have delivery address fields
+            // We'll use what's available and show a message about missing delivery info
+            final address = targetOrder['delivery_address']?.toString() ??
+                targetOrder['shipping_address']?.toString() ??
+                targetOrder['address']?.toString() ??
+                targetOrder['addr_1']?.toString();
+            final contact = targetOrder['contact_number']?.toString() ??
+                targetOrder['phone']?.toString() ??
+                targetOrder['user_phone']?.toString();
+            final method = targetOrder['delivery_option']?.toString() ??
+                targetOrder['shipping_method']?.toString() ??
+                targetOrder['delivery_method']?.toString() ??
+                targetOrder['shipping_type']?.toString();
+
+            if (address != null &&
+                address.isNotEmpty &&
+                _deliveryAddress == 'Address not available') {
+              debugPrint('🔍 Found delivery address from orders API: $address');
+              setState(() {
+                _deliveryAddress = address;
+              });
+            }
+
+            if (contact != null &&
+                contact.isNotEmpty &&
+                _contactNumber == 'Contact not available') {
+              debugPrint('🔍 Found contact number from orders API: $contact');
+              setState(() {
+                _contactNumber = contact;
+              });
+            }
+
+            if (method != null &&
+                method.isNotEmpty &&
+                _deliveryOption == 'Standard Delivery') {
+              debugPrint('🔍 Found delivery method from orders API: $method');
+              setState(() {
+                _deliveryOption = method;
+              });
+            }
+
+            // If we still don't have delivery info, show a message
+            if (_deliveryAddress == 'Address not available' &&
+                _contactNumber == 'Contact not available') {
+              debugPrint(
+                  '🔍 No delivery info found in orders API - this appears to be a limitation of the current API');
+            }
+          } else {
+            debugPrint('🔍 Target order not found using any matching strategy');
+            debugPrint('🔍 Available order IDs in response:');
+            for (int i = 0; i < orders.length && i < 5; i++) {
+              final order = orders[i];
+              debugPrint(
+                  '🔍 Order ${i + 1}: ID=${order['id']}, Number=${order['order_number']}');
+            }
+          }
+        } else {
+          debugPrint(
+              '🔍 Orders API returned status: ${ordersResponse.statusCode}');
+        }
+      } catch (e) {
+        debugPrint('🔍 Error calling orders API: $e');
+      }
+    } catch (e) {
+      debugPrint('🔍 Error fetching order details from API: $e');
     }
   }
 
@@ -168,8 +543,31 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
               ],
             ),
           ),
-          leading: BackButtonUtils.simple(
-            backgroundColor: Colors.white.withValues(alpha: 0.2),
+          leading: IconButton(
+            onPressed: () {
+              debugPrint('🔍 Back button pressed in OrderTrackingPage');
+              debugPrint('🔍 Can pop: ${Navigator.canPop(context)}');
+              if (Navigator.canPop(context)) {
+                debugPrint('🔍 Popping back to previous page (notifications)');
+                Navigator.pop(context);
+              } else {
+                debugPrint('🔍 Cannot pop, navigating to home');
+                Navigator.of(context)
+                    .pushNamedAndRemoveUntil('/', (route) => false);
+              }
+            },
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.arrow_back_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
           ),
           title: Text(
             'Track Order',
@@ -222,6 +620,19 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         appBar: AppBar(
           title: Text('Track Order'),
           backgroundColor: Colors.green.shade700,
+          leading: IconButton(
+            onPressed: () {
+              debugPrint(
+                  '🔍 Back button pressed in OrderTrackingPage (error case)');
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.of(context)
+                    .pushNamedAndRemoveUntil('/', (route) => false);
+              }
+            },
+            icon: Icon(Icons.arrow_back, color: Colors.white),
+          ),
         ),
         body: Center(
           child: Column(
@@ -532,6 +943,39 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
               ),
             ),
             SizedBox(height: 16),
+
+            // Show message if delivery details are not available
+            if (_deliveryAddress == 'Address not available' ||
+                _contactNumber == 'Contact not available') ...[
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline,
+                        color: Colors.orange[700], size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Delivery details are being loaded from your saved delivery information. '
+                        'If you haven\'t set up delivery details yet, please visit the delivery page to add them.',
+                        style: TextStyle(
+                          color: Colors.orange[700],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 16),
+            ],
+
             _buildInfoRow(
               Icons.location_on,
               'Delivery Address',
