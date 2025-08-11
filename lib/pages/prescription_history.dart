@@ -27,11 +27,15 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   // Cache for prescription data
   static List<Map<String, dynamic>>? _cachedPrescriptions;
   static DateTime? _lastFetchTime;
-  static const Duration _cacheValidDuration = Duration(minutes: 5);
+  static const Duration _cacheValidDuration = Duration(minutes: 30);
 
   @override
   void initState() {
     super.initState();
+
+    setState(() {
+      _isLoading = true;
+    });
     _loadPrescriptions();
   }
 
@@ -67,6 +71,8 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   Future<void> _fetchPrescriptions() async {
     try {
       debugPrint('🔍 Fetching prescriptions from API...');
+
+      // Set loading state immediately for better perceived performance
       if (mounted) {
         setState(() {
           _isLoading = true;
@@ -79,7 +85,15 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
         throw Exception('Please sign in to view your prescriptions');
       }
 
-      final response = await http.post(
+      // Show loading skeleton immediately
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+        });
+      }
+
+      // Start API call
+      final responseFuture = http.post(
         Uri.parse(
             'https://eclcommerce.ernestchemists.com.gh/api/view-prescription'),
         headers: {
@@ -87,7 +101,13 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 8));
+
+      // Ensure minimum loading time for better UX (prevents flickering)
+      final response = await Future.wait([
+        responseFuture,
+        Future.delayed(const Duration(milliseconds: 500)),
+      ]).then((results) => results[0] as http.Response);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -105,7 +125,6 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
             setState(() {
               _prescriptions = prescriptions;
               _isLoading = false;
-              // Refresh completed
             });
           }
         } else {
@@ -118,24 +137,30 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
             'Unable to connect to the server (${response.statusCode})');
       }
     } catch (e) {
+      debugPrint('🔍 Error fetching prescriptions: $e');
       if (mounted) {
         setState(() {
           _error = e.toString().replaceAll('Exception: ', '');
           _isLoading = false;
-          // Refresh completed
         });
       }
     }
   }
 
   Future<void> _refreshPrescriptions() async {
-    setState(() {
-      // Refresh started
-    });
+    debugPrint('🔍 Refreshing prescriptions...');
 
     // Clear cache to force fresh data
     _cachedPrescriptions = null;
     _lastFetchTime = null;
+
+    // Show loading state immediately
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     await _fetchPrescriptions();
   }
@@ -360,6 +385,9 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
         controller: _scrollController,
         padding: const EdgeInsets.all(16),
         itemCount: _prescriptions.length,
+        // Performance optimizations
+        addAutomaticKeepAlives: false,
+        addRepaintBoundaries: false,
         itemBuilder: (context, index) {
           final prescription = _prescriptions[index];
 
@@ -392,11 +420,17 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                             width: 60,
                             height: 60,
                             fit: BoxFit.cover,
+                            memCacheWidth: 120, // Optimize memory usage
+                            memCacheHeight: 120,
                             placeholder: (context, url) => Container(
                               color: Colors.grey[200],
                               child: const Center(
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 ),
                               ),
                             ),

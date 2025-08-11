@@ -472,6 +472,9 @@ class HomePageState extends State<HomePage>
   DateTime? _lastSectionShuffleTime;
   static const Duration _sectionShuffleInterval = Duration(hours: 24);
 
+  // Track if the page has already been loaded to prevent unnecessary reloads
+  bool _hasBeenLoaded = false;
+
   @override
   bool get wantKeepAlive => true;
 
@@ -526,6 +529,12 @@ class HomePageState extends State<HomePage>
     debugPrint('HomePage: _loadAllContent called');
     if (!mounted || _isLoadingContent) return;
 
+    // Check if content has already been loaded to prevent unnecessary reloads
+    if (_hasBeenLoaded) {
+      debugPrint('HomePage: Content already loaded, skipping reload');
+      return;
+    }
+
     _isLoadingContent = true;
 
     try {
@@ -557,6 +566,10 @@ class HomePageState extends State<HomePage>
       // Load health tips
       debugPrint('HomePage: Loading health tips');
       await _fetchHealthTips();
+
+      // Mark as loaded to prevent future reloads
+      _hasBeenLoaded = true;
+      debugPrint('HomePage: Content loaded successfully, marked as loaded');
     } catch (e) {
       debugPrint('HomePage: Exception in _loadAllContent: $e');
       if (mounted) {
@@ -716,16 +729,28 @@ class HomePageState extends State<HomePage>
   }
 
   bool _shouldShuffleSections() {
-    if (_lastSectionShuffleTime == null) return true;
+    if (_lastSectionShuffleTime == null) {
+      debugPrint(
+          '🎲 HomePage: No section shuffle timestamp found, should shuffle: true');
+      return true;
+    }
+
     final timeSinceShuffle =
         DateTime.now().difference(_lastSectionShuffleTime!);
     final shouldShuffle = timeSinceShuffle >= _sectionShuffleInterval;
+
+    debugPrint('🎲 HomePage: Section shuffle check:');
+    debugPrint('  - Last shuffle time: $_lastSectionShuffleTime');
+    debugPrint('  - Current time: ${DateTime.now()}');
     debugPrint(
-        '🎲 HomePage: Section shuffle check - Time since shuffle: ${timeSinceShuffle.inHours} hours, Should shuffle: $shouldShuffle');
+        '  - Time since shuffle: ${timeSinceShuffle.inHours} hours ${timeSinceShuffle.inMinutes % 60} minutes');
+    debugPrint(
+        '  - Shuffle interval: ${_sectionShuffleInterval.inHours} hours');
+    debugPrint('  - Should shuffle: $shouldShuffle');
+
     return shouldShuffle;
   }
 
-  // Save section shuffle timestamp to persistent storage
   Future<void> _saveSectionShuffleTime() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -733,14 +758,13 @@ class HomePageState extends State<HomePage>
         await prefs.setString(
             'section_shuffle_time', _lastSectionShuffleTime!.toIso8601String());
         debugPrint(
-            '💾 HomePage: Saved section shuffle timestamp: $_lastSectionShuffleTime');
+            'HomePage: Saved section shuffle timestamp: $_lastSectionShuffleTime');
       }
     } catch (e) {
-      debugPrint('❌ HomePage: Error saving section shuffle timestamp: $e');
+      debugPrint('HomePage: Error saving section shuffle timestamp: $e');
     }
   }
 
-  // Load section shuffle timestamp from persistent storage
   Future<void> _loadSectionShuffleTime() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -748,11 +772,63 @@ class HomePageState extends State<HomePage>
       if (shuffleTimeString != null) {
         _lastSectionShuffleTime = DateTime.parse(shuffleTimeString);
         debugPrint(
-            '📱 HomePage: Loaded section shuffle timestamp: $_lastSectionShuffleTime');
+            'HomePage: Loaded section shuffle timestamp: $_lastSectionShuffleTime');
+      } else {
+        debugPrint(
+            'HomePage: No section shuffle timestamp found, will shuffle on first load');
       }
     } catch (e) {
-      debugPrint('❌ HomePage: Error loading section shuffle timestamp: $e');
+      debugPrint('    HomePage: Error loading section shuffle timestamp: $e');
     }
+  }
+
+  // Synchronous version for initState
+  void _loadSectionShuffleTimeSync() {
+    SharedPreferences.getInstance().then((prefs) {
+      final shuffleTimeString = prefs.getString('section_shuffle_time');
+      if (shuffleTimeString != null) {
+        _lastSectionShuffleTime = DateTime.parse(shuffleTimeString);
+        debugPrint(
+            '📱 HomePage: Loaded section shuffle timestamp: $_lastSectionShuffleTime');
+      } else {
+        debugPrint(
+            '📱 HomePage: No section shuffle timestamp found, will shuffle on first load');
+      }
+    }).catchError((e) {
+      debugPrint('❌ HomePage: Error loading section shuffle timestamp: $e');
+    });
+  }
+
+  // Method to manually reset shuffle timestamp (for testing)
+  Future<void> _resetSectionShuffleTimestamp() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('section_shuffle_time');
+      _lastSectionShuffleTime = null;
+      debugPrint('🔄 HomePage: Section shuffle timestamp reset manually');
+    } catch (e) {
+      debugPrint('❌ HomePage: Error resetting section shuffle timestamp: $e');
+    }
+  }
+
+  // Method to reset loaded flag for refresh functionality
+  void _resetLoadedFlag() {
+    _hasBeenLoaded = false;
+    debugPrint('🔄 HomePage: Loaded flag reset for refresh');
+  }
+
+  // Wrapper method for refresh that resets the loaded flag
+  Future<void> _handleRefresh() async {
+    debugPrint('🔄 HomePage: Refresh requested, resetting loaded flag');
+    _resetLoadedFlag();
+    await _loadAllContent();
+  }
+
+  // Public method to manually reload home page content
+  Future<void> reloadHomePage() async {
+    debugPrint('🔄 HomePage: Manual reload requested');
+    _resetLoadedFlag();
+    await _loadAllContent();
   }
 
   // Helper method to process products and categorize them
@@ -787,6 +863,22 @@ class HomePageState extends State<HomePage>
           product.accessories!.trim().isNotEmpty) {
         accessoriesList.add(product);
       }
+    }
+
+    // Ensure we have the shuffle timestamp before deciding whether to shuffle
+    if (_lastSectionShuffleTime == null) {
+      debugPrint(
+          '🎲 HomePage: Section shuffle timestamp not loaded yet, skipping shuffle check');
+      // Set default order without shuffling
+      if (mounted) {
+        setState(() {
+          drugsSectionProducts = otcDrugProducts;
+          wellnessProducts = wellnessList;
+          selfcareProducts = selfcareList;
+          accessoriesProducts = accessoriesList;
+        });
+      }
+      return;
     }
 
     final shouldShuffleSections = _shouldShuffleSections();
@@ -1174,17 +1266,35 @@ class HomePageState extends State<HomePage>
   @override
   void initState() {
     super.initState();
+    debugPrint('🔍 HomePage: initState called');
 
     WidgetsBinding.instance.addObserver(this);
 
     ProductCache.loadFromStorage();
 
+    // Initialize optimization service
+    _initializeOptimizationService();
+
+    // Load cached data immediately if available
+    if (_optimizationService.hasCachedProducts) {
+      setState(() {
+        _products = _optimizationService.cachedProducts;
+        filteredProducts = _optimizationService.cachedProducts;
+        // Keep loading state true for skeleton to show
+        _isLoading = true;
+        _error = null;
+      });
+    }
+
+    // Load section shuffle timestamp from storage synchronously
+    _loadSectionShuffleTimeSync();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _initializeOptimizationService();
         _loadAllContent();
       }
     });
+
     _scrollController.addListener(() {
       if (mounted) {
         if (_scrollController.offset > 100 && !_isScrolled) {
@@ -1206,20 +1316,6 @@ class HomePageState extends State<HomePage>
         _highlightedPopularIndex = 0;
       }
     });
-
-    // Load cached data immediately if available
-    if (_optimizationService.hasCachedProducts) {
-      setState(() {
-        _products = _optimizationService.cachedProducts;
-        filteredProducts = _optimizationService.cachedProducts;
-        // Keep loading state true for skeleton to show
-        _isLoading = true;
-        _error = null;
-      });
-    }
-
-    // Load section shuffle timestamp from storage
-    _loadSectionShuffleTime();
   }
 
   Future<void> _initializeOptimizationService() async {
@@ -1876,7 +1972,7 @@ class HomePageState extends State<HomePage>
             children: [
               SmartRefresher(
                 controller: _refreshController,
-                onRefresh: _loadAllContent,
+                onRefresh: _handleRefresh,
                 child: CustomScrollView(
                   controller: _scrollController,
                   slivers: [

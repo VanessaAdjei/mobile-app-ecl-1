@@ -183,12 +183,18 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
         switch (index) {
           case 0:
             debugPrint('🔍 HOME BUTTON PRESSED ===');
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const home.HomePage(),
-              ),
-            );
+
+            if (ModalRoute.of(context)?.settings.name != '/home') {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const home.HomePage(),
+                  settings: const RouteSettings(name: '/home'),
+                ),
+              );
+            } else {
+              debugPrint('Already on home page, staying put');
+            }
             break;
           case 1:
             Navigator.pushReplacement(
