@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'Cart.dart';
 import 'app_back_button.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AboutUsScreen extends StatelessWidget {
@@ -10,7 +9,6 @@ class AboutUsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -68,66 +66,261 @@ class AboutUsScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Center(
-        child: Animate(
-          effects: [
-            FadeEffect(duration: 400.ms),
-            SlideEffect(
-                duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0)),
-          ],
-          child: Card(
-            elevation: 6,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+      body: Container(
+        color: Colors.grey.shade50,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Simple Header
+                Center(
+                  child: Column(
                     children: [
-                      Icon(Icons.info_outline,
-                          color: theme.primaryColor, size: 28),
-                      SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.green.shade300,
+                            width: 1,
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.medical_services,
+                          color: Colors.green.shade700,
+                          size: 32,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       Text(
-                        'Who We Are',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          color: theme.primaryColor,
-                          fontWeight: FontWeight.bold,
+                        'Ernest Chemists Limited',
+                        style: GoogleFonts.poppins(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green.shade800,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.blue.shade200,
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          'Ghana\'s Leading Pharmaceutical Company',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.blue.shade700,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                       ),
                     ],
                   ),
-                  SizedBox(height: 18),
-                  Text(
-                    'Ernest Chemists Limited is a leading pharmaceutical company in Ghana, dedicated to providing quality healthcare products and services. With decades of experience, we are committed to improving lives through innovation, integrity, and excellence. Our mission is to make healthcare accessible and affordable for all.',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: Colors.grey[800],
-                      height: 1.5,
-                    ),
-                  ),
-                  SizedBox(height: 24),
-                  Text(
-                    'Our Values',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.primaryColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    '• Customer Focus\n• Quality Assurance\n• Innovation\n• Integrity\n• Teamwork',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[700],
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 32),
+
+                
+                _buildSimpleCard(
+                  title: 'Company Overview',
+                  content:
+                      'Ernest Chemists Limited (ECL) is the **biggest pharmaceutical company** in Ghana, driven by our mission to provide a full range of quality pharmaceutical products at affordable prices. With over **30 years of experience** in the Pharmaceutical Industry, Ernest Chemists Limited remains a true symbol of **stability and diversity**.',
+                ),
+
+         
+                _buildSimpleCard(
+                  title: 'Our History',
+                  content:
+                      'ECL is a wholly owned **Ghanaian company**, founded by Mr. **Ernest Bediako Sampong**, a pharmacist by profession, in the year **1986**. ECL has made giant strides since its commencement and has grown from a single retail outlet into a thriving business entity with our own **office complex**, **retail & wholesale shops**, **warehouse facilities** and **manufacturing plants**.',
+                ),
+
+                
+                _buildSimpleCard(
+                  title: 'Our Expertise',
+                  content:
+                      'We have deep insight, knowledge and experience in the pharmaceutical industry and this enables us to continue to provide **quality and affordable pharmaceutical products** to meet the health needs for everyone in the society. We have been able to consolidate our position as the **biggest distributor** of pharmaceutical products with a **wide distribution network** across Ghana and beyond.',
+                ),
+
+                // Services
+                _buildSimpleCard(
+                  title: 'Our Services',
+                  content:
+                      'Aside the manufacturing of **quality and affordable medicine**, we also have the **biggest Agency representation** for **Multinational Pharmaceutical** and consumer brands which enables us to offer the **widest range** of pharmaceutical and consumer products in Ghana.',
+                ),
+
+                // Vision & Mission
+                _buildSimpleCard(
+                  title: 'Vision & Mission',
+                  content:
+                      '**Our Vision:** To be a **leader** in the offering of **top quality pharmaceutical and healthcare products** in Africa.\n\n**Our Mission:** To provide a full range of **quality pharmaceutical products** at **affordable prices** with the view of **exceeding the expectations** of our valued customers and shareholders through a **highly motivated and efficient workforce** driven by **cutting edge technology**.',
+                ),
+
+                // Values
+                _buildValuesCard(
+                  title: 'Our Values',
+                  values: [
+                    {'icon': Icons.verified, 'text': 'Quality & Affordability'},
+                    {'icon': Icons.star, 'text': 'Customer Excellence'},
+                    {
+                      'icon': Icons.lightbulb,
+                      'text': 'Innovation & Technology'
+                    },
+                    {'icon': Icons.shield, 'text': 'Integrity & Trust'},
+                    {'icon': Icons.flag, 'text': 'Ghanaian Heritage'},
+                    {'icon': Icons.work, 'text': 'Professional Excellence'},
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+              ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSimpleCard({
+    required String title,
+    required String content,
+  }) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.only(bottom: 20),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade800,
+              ),
+            ),
+            SizedBox(height: 12),
+            _buildFormattedText(content),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormattedText(String text) {
+    // Split text by ** markers for bold formatting
+    final parts = text.split('**');
+    final widgets = <Widget>[];
+
+    for (int i = 0; i < parts.length; i++) {
+      if (i % 2 == 0) {
+        // Regular text
+        if (parts[i].isNotEmpty) {
+          widgets.add(
+            Text(
+              parts[i],
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey.shade700,
+                height: 1.6,
+              ),
+            ),
+          );
+        }
+      } else {
+        // Bold text with color
+        if (parts[i].isNotEmpty) {
+          widgets.add(
+            Text(
+              parts[i],
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.green.shade700,
+                height: 1.6,
+              ),
+            ),
+          );
+        }
+      }
+    }
+
+    return RichText(
+      text: TextSpan(
+        children: widgets.map((widget) {
+          if (widget is Text) {
+            return TextSpan(
+              text: widget.data,
+              style: widget.style,
+            );
+          }
+          return const TextSpan();
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildValuesCard({
+    required String title,
+    required List<Map<String, dynamic>> values,
+  }) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.only(bottom: 20),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade800,
+              ),
+            ),
+            SizedBox(height: 12),
+            ...values.map((value) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      value['icon'] as IconData,
+                      color: Colors.green.shade700,
+                      size: 24,
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        value['text'] as String,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
         ),
       ),
     );

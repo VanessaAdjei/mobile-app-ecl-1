@@ -31,66 +31,157 @@ import 'services/background_cart_sync_service.dart';
 import 'services/background_order_tracking_service.dart';
 import 'services/background_store_data_service.dart';
 import 'services/background_inventory_monitor_service.dart';
+import 'dart:async';
 
 void main() async {
+  final appStartTime = DateTime.now();
+  debugPrint('🚀 Main: App starting at ${appStartTime.toIso8601String()}');
+
   WidgetsFlutterBinding.ensureInitialized();
-  await AuthService.clearAllGuestIds();
-  final prefs = await SharedPreferences.getInstance();
-  debugPrint('guest_id after clear: \'${prefs.getString('guest_id')}\'');
-
-
-  final wasRunning = prefs.getBool('was_running') ?? false;
-  if (!wasRunning) {
-    await prefs.remove('guest_id');
-    await prefs.setBool('was_running', true);
-  }
 
   // Configure image cache for better performance
   PaintingBinding.instance.imageCache.maximumSize = 1000;
   PaintingBinding.instance.imageCache.maximumSizeBytes = 100 << 20; // 100 MB
 
-  // Initialize optimization services
-  await AppOptimizationService().initialize();
-  await OptimizedApiService().initialize();
-  await BannerCacheService().initialize();
-  await AdvancedPerformanceService().initialize();
-  await OptimizedHomepageService().initialize();
-  await UniversalPageOptimizationService().initialize();
-  await BackgroundPrefetchService().initialize();
+  // Check if this is a restart (faster path)
+  final prefs = await SharedPreferences.getInstance();
+  final isRestart = prefs.getBool('app_was_running') ?? false;
 
-  // Prefetch data on app start for better performance
-  unawaited(BannerCacheService().getBanners());
-  unawaited(HomepageOptimizationService().getProducts());
-  unawaited(HomepageOptimizationService().getCategorizedProducts());
-  unawaited(HomepageOptimizationService().getPopularProducts());
-  unawaited(OptimizedHomepageService().getProducts());
-  unawaited(OptimizedHomepageService().getBanners());
+  if (isRestart) {
+    debugPrint('🚀 Main: App restart detected, using optimized path');
+    // For restarts, skip some initialization
+    await _fastRestart();
+  } else {
+    debugPrint('🚀 Main: Cold start detected, full initialization');
+    await _coldStart();
+  }
 
-  unawaited(BackgroundPrefetchService().smartPrefetch());
+  // Mark app as running
+  await prefs.setBool('app_was_running', true);
 
-  AuthService.init().catchError((e) {
-    debugPrint('Background auth initialization error: $e');
-  });
-
-  await AuthService.getToken();
-
-  BackgroundOrderChecker.startPeriodicChecking();
-
-  HealthTipsService.startBackgroundService();
-
-  BackgroundCartSyncService.startBackgroundSync();
-
-  BackgroundOrderTrackingService.startBackgroundTracking();
-
-  BackgroundStoreDataService.startBackgroundPreloading();
-  BackgroundInventoryMonitorService.startBackgroundMonitoring();
-
-  await OrderNotificationService.initializeNotifications();
-  await NativeNotificationService.initialize();
-
-  debugPrint('🛒 Main: Background cart checker ready for initialization');
+  final totalStartupTime = DateTime.now().difference(appStartTime);
+  debugPrint(
+      '🚀 Main: Total startup time: ${totalStartupTime.inMilliseconds}ms');
 
   runApp(const MyApp());
+}
+
+// Fast restart path for when app was recently running
+Future<void> _fastRestart() async {
+  debugPrint('🚀 Main: Fast restart - minimal initialization');
+
+  // Only initialize essential services
+  await BannerCacheService().initialize();
+
+  // Start everything else in background
+  unawaited(_initializeNonCriticalServices());
+  unawaited(_startBackgroundServices());
+
+  debugPrint('🚀 Main: Fast restart completed');
+}
+
+// Full cold start path for first launch
+Future<void> _coldStart() async {
+  debugPrint('🚀 Main: Cold start - full initialization');
+
+  await AuthService.clearAllGuestIds();
+
+  // Initialize critical services first (blocking)
+  debugPrint('🚀 Main: Starting critical service initialization...');
+  final criticalStartTime = DateTime.now();
+
+  await Future.wait([
+    AppOptimizationService().initialize(),
+    BannerCacheService().initialize(),
+  ]);
+
+  final criticalInitTime = DateTime.now().difference(criticalStartTime);
+  debugPrint(
+      '🚀 Main: Critical services initialized in ${criticalInitTime.inMilliseconds}ms');
+
+  // Start non-critical services in background (non-blocking)
+  unawaited(_initializeNonCriticalServices());
+
+  // Prefetch only essential data (blocking with aggressive timeout)
+  debugPrint('🚀 Main: Starting essential data prefetching...');
+  final prefetchStartTime = DateTime.now();
+
+  try {
+    await Future.wait([
+      BannerCacheService().getBanners(),
+      HomepageOptimizationService().getPopularProducts(),
+    ]).timeout(const Duration(
+        milliseconds: 1000)); // Reduced to 1 second for faster startup
+  } catch (e) {
+    if (e is TimeoutException) {
+      debugPrint(
+          '⚠️ Main: Essential data prefetching timed out, continuing with app startup');
+    } else {
+      debugPrint('❌ Main: Error in essential data prefetching: $e');
+    }
+  }
+
+  final prefetchTime = DateTime.now().difference(prefetchStartTime);
+  debugPrint(
+      '🚀 Main: Essential data prefetched in ${prefetchTime.inMilliseconds}ms');
+
+  // Start background services immediately (non-blocking)
+  unawaited(_startBackgroundServices());
+
+  debugPrint('🚀 Main: Cold start completed');
+}
+
+// Initialize non-critical services in background
+Future<void> _initializeNonCriticalServices() async {
+  debugPrint('🚀 Main: Starting non-critical service initialization...');
+  final startTime = DateTime.now();
+
+  await Future.wait([
+    OptimizedApiService().initialize(),
+    AdvancedPerformanceService().initialize(),
+    OptimizedHomepageService().initialize(),
+    UniversalPageOptimizationService().initialize(),
+    BackgroundPrefetchService().initialize(),
+  ]);
+
+  final initTime = DateTime.now().difference(startTime);
+  debugPrint(
+      '🚀 Main: Non-critical services initialized in ${initTime.inMilliseconds}ms');
+
+  // Start non-critical data prefetching
+  unawaited(HomepageOptimizationService().getCategorizedProducts());
+  unawaited(OptimizedHomepageService().getProducts());
+  unawaited(BackgroundPrefetchService().smartPrefetch());
+
+  // Initialize auth service
+  unawaited(AuthService.init().catchError((e) {
+    debugPrint('Background auth initialization error: $e');
+  }));
+}
+
+// Start background services
+Future<void> _startBackgroundServices() async {
+  try {
+    debugPrint('🚀 Main: Starting background services...');
+
+    // Start void-returning services first
+    BackgroundOrderChecker.startPeriodicChecking();
+    HealthTipsService.startBackgroundService();
+    BackgroundCartSyncService.startBackgroundSync();
+    BackgroundOrderTrackingService.startBackgroundTracking();
+    BackgroundStoreDataService.startBackgroundPreloading();
+    BackgroundInventoryMonitorService.startBackgroundMonitoring();
+
+    // Start async services in parallel
+    await Future.wait([
+      OrderNotificationService.initializeNotifications(),
+      NativeNotificationService.initialize(),
+    ]);
+
+    debugPrint('🚀 Main: All background services started successfully');
+  } catch (e) {
+    debugPrint('❌ Main: Error starting background services: $e');
+  }
 }
 
 class MyApp extends StatefulWidget {
@@ -104,14 +195,32 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool? _isFirstLaunch;
   bool _isLoggedIn = false;
   String? _pendingNotificationPayload;
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _checkFirstLaunch();
-    _checkAuthStatus();
-    _handleNotificationPayload();
+
+    // Run initialization checks in parallel for faster startup
+    _initializeAppState();
+  }
+
+  // Initialize app state in parallel
+  Future<void> _initializeAppState() async {
+    debugPrint('🚀 Main: Starting app state initialization...');
+    final startTime = DateTime.now();
+
+    // Run critical checks first (blocking)
+    await _checkFirstLaunch();
+
+    // Run non-critical checks in parallel (non-blocking)
+    unawaited(_checkAuthStatus());
+    unawaited(_handleNotificationPayload());
+
+    final initTime = DateTime.now().difference(startTime);
+    debugPrint(
+        '🚀 Main: App state initialized in ${initTime.inMilliseconds}ms');
   }
 
   Future<void> _checkFirstLaunch() async {
@@ -136,8 +245,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
       if (payload != null && payload.isNotEmpty) {
         debugPrint('📱 Main: Found notification payload: $payload');
-        // Store the payload to handle it when the app is fully loaded
-        // We'll handle it in the build method when we have access to context
+
         _pendingNotificationPayload = payload;
       } else {
         debugPrint('📱 Main: No notification payload found');
@@ -216,13 +324,61 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  Future<void> _clearRestartFlag() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('app_was_running', false);
+    debugPrint('🚀 Main: App lifecycle: App killed, restart flag cleared');
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isFirstLaunch == null) {
-      // Still loading
-      return const MaterialApp(
+      // Still loading - show branded loading screen
+      return MaterialApp(
         home: Scaffold(
-          body: Center(child: CircularProgressIndicator()),
+          backgroundColor: Colors.white,
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // ECL Logo
+                Image(
+                  image: AssetImage('assets/images/png.png'),
+                  width: 150,
+                  height: 150,
+                ),
+                SizedBox(height: 30),
+                // Loading indicator with progress
+                SizedBox(
+                  width: 200,
+                  child: LinearProgressIndicator(
+                    backgroundColor: Colors.grey[300],
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+                    minHeight: 4,
+                  ),
+                ),
+                SizedBox(height: 20),
+                // Loading text
+                Text(
+                  'Loading ECL App...',
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  'Please wait while we prepare your experience',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }
@@ -236,7 +392,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             final notificationProvider = NotificationProvider();
             notificationProvider.initialize();
 
-            // Connect notification service with provider for immediate badge updates
             OrderNotificationService.setBadgeUpdateCallback((count) {
               notificationProvider.updateBadgeCount(count);
             });
@@ -458,6 +613,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // Check for notifications when app is resumed
       _handlePendingNotification();
       _checkForNotificationPayload();
+    } else if (state == AppLifecycleState.detached) {
+      // App is being killed, clear the restart flag
+      _clearRestartFlag();
     }
   }
 

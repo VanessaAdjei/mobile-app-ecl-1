@@ -15,6 +15,7 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
   AnimationController? _fadeController;
   Animation<Offset>? _slideAnimation;
   Animation<double>? _fadeAnimation;
+  PageController? _pageController;
 
   bool _isVisible = false;
   String _currentTip = '';
@@ -70,6 +71,7 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
   void dispose() {
     _slideController?.dispose();
     _fadeController?.dispose();
+    _pageController?.dispose();
     super.dispose();
   }
 
@@ -88,6 +90,7 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
     // Dispose existing controllers if they exist
     _slideController?.dispose();
     _fadeController?.dispose();
+    _pageController?.dispose();
 
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 500),
@@ -98,6 +101,8 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
+
+    _pageController = PageController(initialPage: 0);
 
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, -1),
@@ -120,8 +125,17 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
     final prefs = await SharedPreferences.getInstance();
     final hasSeenTips = prefs.getBool('has_seen_smart_tips') ?? false;
 
+    debugPrint(
+        '🔍 SmartTips: Checking if tips should be shown. Has seen tips: $hasSeenTips');
+
     if (!hasSeenTips && mounted) {
+      debugPrint('🔍 SmartTips: Tips not seen before, showing first tip');
       _showNextTip();
+    } else if (hasSeenTips) {
+      debugPrint('🔍 SmartTips: Tips already seen, not showing');
+      setState(() {
+        _isVisible = false;
+      });
     }
   }
 
@@ -147,40 +161,60 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
     if (!mounted) return;
 
     _fadeController?.reverse();
-    _slideController?.reverse()?.then((_) {
-      if (mounted) {
-        setState(() {
-          _isVisible = false;
-        });
-
-        // Show next tip after a delay
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) {
-            _tipIndex++;
-            if (_tipIndex < _tips.length) {
-              _showNextTip();
-            } else {
-              _markTipsAsSeen();
-            }
-          }
-        });
-      }
-    });
+    if (_slideController != null) {
+      _slideController!.reverse().then((_) {
+        if (mounted) {
+          setState(() {
+            _isVisible = false;
+          });
+        }
+      });
+    } else {
+      // If controller is null, just hide immediately
+      setState(() {
+        _isVisible = false;
+      });
+    }
   }
 
   Future<void> _markTipsAsSeen() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('has_seen_smart_tips', true);
+    debugPrint('🔍 SmartTips: Tips marked as seen, will not show again');
   }
 
   void _skipAllTips() {
+    debugPrint('🔍 SmartTips: Skip all tips pressed');
     _hideTip();
     _tipIndex = _tips.length; // Skip to end
+    _pageController?.jumpToPage(0); // Reset to first page
     _markTipsAsSeen();
+  }
+
+  void _completeAllTips() {
+    debugPrint('🔍 SmartTips: Complete all tips pressed');
+    _hideTip();
+    _tipIndex = _tips.length; // Mark as complete
+    _pageController?.jumpToPage(0); // Reset to first page
+    _markTipsAsSeen();
+  }
+
+  void _closeTips() {
+    debugPrint('🔍 SmartTips: Close button pressed');
+    _hideTip();
+    _markTipsAsSeen();
+  }
+
+  // Method to reset tips for testing (can be removed in production)
+  static Future<void> resetTips() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('has_seen_smart_tips', false);
+    debugPrint('🔍 SmartTips: Tips reset for testing');
   }
 
   @override
   Widget build(BuildContext context) {
+    // Don't show tips if they've already been seen
     if (!_isVisible) {
       return const SizedBox.shrink();
     }
@@ -227,11 +261,11 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
                       ),
                     ),
                     IconButton(
-                      onPressed: _skipAllTips,
-                      icon: const Icon(Icons.close,
-                          size: 18), // Increased from 16
+                      onPressed: _closeTips,
+                      icon: const Icon(Icons.close, size: 18),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
+                      tooltip: 'Close tips',
                     ),
                   ],
                 ),
@@ -239,11 +273,15 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
                 // PageView for tips
                 Expanded(
                   child: PageView.builder(
+                    controller: _pageController,
                     itemCount: _tips.length,
                     onPageChanged: (index) {
+                      debugPrint('🔍 SmartTips: Page changed to index $index');
                       setState(() {
                         _tipIndex = index;
                       });
+                      debugPrint(
+                          '🔍 SmartTips: Updated _tipIndex to $_tipIndex');
                     },
                     itemBuilder: (context, index) {
                       final tip = _tips[index];
@@ -316,12 +354,28 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
                                 Expanded(
                                   child: GestureDetector(
                                     onTap: () {
+                                      debugPrint(
+                                          '🔍 SmartTips: Next button tapped at index $index');
                                       if (index < _tips.length - 1) {
+                                        // Navigate to next page
+                                        debugPrint(
+                                            '🔍 SmartTips: Navigating to next page');
+                                        _pageController?.nextPage(
+                                          duration:
+                                              const Duration(milliseconds: 300),
+                                          curve: Curves.easeInOut,
+                                        );
+                                        // Update tip index to match the new page
                                         setState(() {
                                           _tipIndex = index + 1;
                                         });
+                                        debugPrint(
+                                            '🔍 SmartTips: Updated tip index to $_tipIndex');
                                       } else {
-                                        _skipAllTips();
+                                        // Last tip - complete all tips
+                                        debugPrint(
+                                            '🔍 SmartTips: Last tip reached, completing all tips');
+                                        _completeAllTips();
                                       }
                                     },
                                     child: Container(
@@ -356,8 +410,16 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
                                 Expanded(
                                   child: GestureDetector(
                                     onTap: index == _tips.length - 1
-                                        ? _markTipsAsSeen
-                                        : _skipAllTips,
+                                        ? () {
+                                            debugPrint(
+                                                '🔍 SmartTips: Complete button tapped');
+                                            _completeAllTips();
+                                          }
+                                        : () {
+                                            debugPrint(
+                                                '🔍 SmartTips: Skip All button tapped');
+                                            _skipAllTips();
+                                          },
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
                                         vertical: 4, // Reduced from 6
