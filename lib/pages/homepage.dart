@@ -30,6 +30,11 @@ import 'package:animations/animations.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:provider/provider.dart';
+import '../providers/promotional_event_provider.dart';
+import '../widgets/ernest_friday_banner.dart';
+import '../widgets/ernest_friday_notification.dart';
+import 'ernest_friday_page.dart';
 
 class ImagePreloader {
   static final Map<String, bool> _preloadedImages = {};
@@ -1707,48 +1712,55 @@ class HomePageState extends State<HomePage>
   }
 
   Widget _buildActionCards() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildActionCard(
-              icon: Icons.people,
-              title: "Meet Our Pharmacists",
-              color: Colors.blue[600]!,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => PharmacistsPage()),
-                );
-              },
-            ),
+    return Column(
+      children: [
+        // Action Cards Row
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildActionCard(
+                  icon: Icons.people,
+                  title: "Meet Our Pharmacists",
+                  color: Colors.blue[600]!,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => PharmacistsPage()),
+                    );
+                  },
+                ),
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: _buildActionCard(
+                  icon: Icons.location_on,
+                  title: "Locate A Store Near You",
+                  color: Colors.green[600]!,
+                  onTap: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => StoreSelectionPage()),
+                    );
+                  },
+                ),
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: _buildActionCard(
+                  icon: Icons.contact_support_rounded,
+                  title: "Contact Us",
+                  color: Colors.orange[600]!,
+                  onTap: () => _showContactOptions("+2330000000000"),
+                ),
+              ),
+            ],
           ),
-          SizedBox(width: 8),
-          Expanded(
-            child: _buildActionCard(
-              icon: Icons.location_on,
-              title: "Locate A Store Near You",
-              color: Colors.green[600]!,
-              onTap: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => StoreSelectionPage()),
-                );
-              },
-            ),
-          ),
-          SizedBox(width: 8),
-          Expanded(
-            child: _buildActionCard(
-              icon: Icons.contact_support_rounded,
-              title: "Contact Us",
-              color: Colors.orange[600]!,
-              onTap: () => _showContactOptions("+2330000000000"),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -2010,6 +2022,32 @@ class HomePageState extends State<HomePage>
                         },
                       ),
                     ),
+                    // Ernest Friday Top Notification - COMMENTED OUT
+                    // SliverToBoxAdapter(
+                    //   child: ErnestFridayTopNotification(),
+                    // ),
+                    // Ernest Friday Banner - COMMENTED OUT
+                    // SliverToBoxAdapter(
+                    //   child: Consumer<PromotionalEventProvider>(
+                    //     builder: (context, promotionalProvider, child) {
+                    //       if (promotionalProvider.isErnestFridayActive) {
+                    //             return ErnestFridayBanner(
+                    //               event: promotionalProvider.activeEvent!,
+                    //               onTap: () {
+                    //                 Navigator.push(
+                    //                   context,
+                    //                   MaterialPageRoute(
+                    //                     builder: (context) =>
+                    //                         const ErnestFridayPage(),
+                    //                   ),
+                    //                 );
+                    //               },
+                    //             );
+                    //           }
+                    //           return const SizedBox.shrink();
+                    //         },
+                    //       ),
+                    //     ),
                     SliverToBoxAdapter(
                       child: buildOrderMedicineCard(),
                     ),

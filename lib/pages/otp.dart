@@ -184,7 +184,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen> {
               }
             }
           } catch (e) {
-            // Auto-login failed, redirect to sign in page
+         
             if (mounted) {
               Navigator.pushReplacement(
                 context,
@@ -193,7 +193,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen> {
             }
           }
         } else {
-          // No credentials provided, navigate to Sign In page
+
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const SignInScreen()),

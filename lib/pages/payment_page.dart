@@ -17,6 +17,7 @@ import 'order_tracking_page.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'cart.dart';
 import '../services/order_notification_service.dart';
+import '../providers/wallet_provider.dart';
 
 class ExpressPayChannel {
   static const MethodChannel _channel =
@@ -403,6 +404,70 @@ class PaymentPageState extends State<PaymentPage> {
             paymentMethod: selectedPaymentMethod,
             promoCode: _appliedPromoCode,
           );
+
+          // 🎁 AUTOMATIC CASHBACK FOR COD ORDERS OVER ₵500
+          if (total >= 500.0) {
+            try {
+              final walletProvider =
+                  Provider.of<WalletProvider>(context, listen: false);
+              final cashbackResult = await walletProvider.processOrderCashback(
+                orderAmount: total,
+                orderId: transactionId.toString(),
+              );
+
+              if (cashbackResult['success']) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(Icons.card_giftcard, color: Colors.white),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '🎉 You earned ₵${cashbackResult['cashback_amount'].toStringAsFixed(2)} cashback!',
+                          ),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: Colors.green.shade600,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    margin: EdgeInsets.all(16),
+                    duration: Duration(seconds: 4),
+                  ),
+                );
+              } else if (cashbackResult['auth_required'] == true) {
+                // 🔒 EXTRA PRECAUTION: Handle authentication errors from cashback
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.white),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '💡 Create an account to earn cashback on orders over ₵500!',
+                          ),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: Colors.blue.shade600,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    margin: EdgeInsets.all(16),
+                    duration: Duration(seconds: 4),
+                  ),
+                );
+              }
+            } catch (e) {
+              debugPrint('Cashback processing failed: $e');
+              // Don't block the order if cashback fails
+            }
+          }
 
           if (orderResult['status'] != 'success') {
             // Show warning but still proceed with the order

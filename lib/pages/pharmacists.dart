@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../services/health_tips_service.dart';
 import '../models/health_tip.dart';
+import '../services/ernest_ai_service.dart';
 import 'auth_service.dart';
 import 'signinpage.dart';
 
@@ -1892,6 +1893,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   SizedBox(height: 12),
                   _buildModernVirtualConsultationCard(),
                   SizedBox(height: 20),
+
                   // Health Blogs Section
                   _buildModernSectionHeaderWithRefresh(
                       'Health Insights',
@@ -1900,11 +1902,46 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       _refreshHealthTips),
                   SizedBox(height: 12),
                   _buildModernHealthBlogsSection(),
-                  SizedBox(height: 100), // Space for chat button
+                  SizedBox(height: 100), // Space for floating bot
                 ],
               ),
             ),
           ],
+        ),
+      ),
+      // Floating Bot Button
+      floatingActionButton: _buildFloatingErnestBot(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  // Floating Ernest Bot Button
+  Widget _buildFloatingErnestBot() {
+    return Container(
+      margin: EdgeInsets.only(bottom: 20),
+      child: FloatingActionButton.extended(
+        onPressed: _openVirtualAssistant,
+        backgroundColor: Colors.purple[600],
+        foregroundColor: Colors.white,
+        elevation: 8,
+        icon: Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            Icons.smart_toy,
+            size: 24,
+          ),
+        ),
+        label: Text(
+          'Ask Ernest',
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.3,
+          ),
         ),
       ),
     );
@@ -2276,6 +2313,296 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     );
   }
 
+  Widget _buildModernVirtualAssistantCard() {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.purple[50]!, Colors.purple[100]!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.purple[200]!, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.purple.withValues(alpha: 0.15),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with AI icon
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.purple[500]!, Colors.purple[600]!],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.purple.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.smart_toy,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ask Ernest',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.purple[800],
+                      ),
+                    ),
+                    Text(
+                      'Your AI Health Companion',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.purple[700],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+
+          // Features list
+          Column(
+            children: [
+              _buildFeatureRow(
+                Icons.lightbulb_outline,
+                'Instant Health Tips',
+                'Get personalized recommendations',
+                Colors.amber[600]!,
+              ),
+              SizedBox(height: 12),
+              _buildFeatureRow(
+                Icons.medical_services,
+                'Symptom Analysis',
+                'Understand your health concerns',
+                Colors.blue[600]!,
+              ),
+              SizedBox(height: 12),
+              _buildFeatureRow(
+                Icons.medication,
+                'Medication Guidance',
+                'Learn about your prescriptions',
+                Colors.green[600]!,
+              ),
+              SizedBox(height: 12),
+              _buildFeatureRow(
+                Icons.psychology,
+                'Wellness Advice',
+                'Mental health & lifestyle tips',
+                Colors.teal[600]!,
+              ),
+            ],
+          ),
+          SizedBox(height: 20),
+
+          // Action button
+          Container(
+            width: double.infinity,
+            height: 48,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.purple[500]!,
+                  Colors.purple[600]!,
+                  Colors.purple[700]!
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                stops: [0.0, 0.5, 1.0],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.purple.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _openVirtualAssistant,
+                child: Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.chat_bubble_outline,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Ask Ernest AI',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureRow(
+      IconData icon, String title, String description, Color color) {
+    return Row(
+      children: [
+        Container(
+          padding: EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Icon(
+            icon,
+            color: color,
+            size: 16,
+          ),
+        ),
+        SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[800],
+                ),
+              ),
+              Text(
+                description,
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _openVirtualAssistant() {
+    // Simple chat page without AI integration
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SimpleErnestChatPage(),
+      ),
+    );
+  }
+
+  void _testErnestConnection() async {
+    try {
+      final result = await ErnestAIService.testConnection();
+
+      if (result['success']) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Ernest AI connection successful!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Connection failed: ${result['message']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Test failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _testAlternativeModels() async {
+    try {
+      final result = await ErnestAIService.testAlternativeModels();
+
+      if (result['success']) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Found working model: ${result['working_model']}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ All models failed'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Test failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _showErnestChat() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ErnestChatPage(),
+      ),
+    );
+  }
+
   Widget _buildModernPlatformSelection() {
     return Column(
       children: [
@@ -2413,6 +2740,753 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Consolidated Services Card - Combines Virtual Consultation and Ernest AI
+  Widget _buildConsolidatedServicesCard() {
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.white, Colors.blue[50]!, Colors.green[50]!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          stops: [0.0, 0.5, 1.0],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.blue[200]!, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withValues(alpha: 0.1),
+            blurRadius: 15,
+            offset: Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.green.withValues(alpha: 0.1),
+            blurRadius: 15,
+            offset: Offset(6, 0),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Enhanced Header with animations
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.green[500]!,
+                  Colors.green[600]!,
+                  Colors.green[700]!
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                stops: [0.0, 0.5, 1.0],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.green.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(12),
+                    border:
+                        Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                  ),
+                  child: Icon(
+                    Icons.medical_services,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Professional Healthcare Services',
+                        style: GoogleFonts.poppins(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Expert consultation and AI assistance available 24/7',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: Colors.white.withValues(alpha: 0.95),
+                          height: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 24),
+
+          // Enhanced Service Options with better visual appeal
+          Row(
+            children: [
+              // Virtual Consultation with enhanced design
+              Expanded(
+                child: InkWell(
+                  onTap: _isUserLoggedIn
+                      ? _showBookingForm
+                      : _showLoginRequiredDialog,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.blue[400]!,
+                          Colors.blue[500]!,
+                          Colors.blue[600]!
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        stops: [0.0, 0.5, 1.0],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.blue.withValues(alpha: 0.3),
+                          blurRadius: 10,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.3)),
+                          ),
+                          child: Icon(
+                            Icons.video_call,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                        SizedBox(height: 12),
+                        Text(
+                          'Book Consultation',
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Expert advice',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.9),
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Container(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '24/7 Available',
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: 16),
+              // Ernest AI with enhanced design
+              Expanded(
+                child: InkWell(
+                  onTap: _openVirtualAssistant,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.purple[400]!,
+                          Colors.purple[500]!,
+                          Colors.purple[600]!
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        stops: [0.0, 0.5, 1.0],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.purple.withValues(alpha: 0.3),
+                          blurRadius: 10,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.3)),
+                          ),
+                          child: Icon(
+                            Icons.smart_toy,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                        SizedBox(height: 12),
+                        Text(
+                          'Ask Ernest',
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'AI health tips',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.9),
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Container(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Instant Help',
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSimplifiedHealthInsightsCard() {
+    if (_isLoadingHealthTips) {
+      return Container(
+        height: 140,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.green[50]!, Colors.white],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.green[200]!),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green[100],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(Colors.green[600]!),
+                    strokeWidth: 2,
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Loading health insights...',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: Colors.green[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_healthTips.isEmpty) {
+      return Container(
+        height: 140,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.grey[50]!, Colors.white],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.health_and_safety,
+                  size: 28,
+                  color: Colors.grey[600],
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'No health insights available',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.white, Colors.green[50]!, Colors.blue[50]!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          stops: [0.0, 0.5, 1.0],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.green[200]!, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withValues(alpha: 0.1),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Enhanced Header
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.green[500]!, Colors.green[600]!],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(8),
+                    border:
+                        Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                  ),
+                  child: Icon(
+                    Icons.article,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Health Insights',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: IconButton(
+                    onPressed: _refreshHealthTips,
+                    icon: Icon(Icons.refresh, size: 18, color: Colors.white),
+                    padding: EdgeInsets.all(8),
+                    constraints: BoxConstraints(minWidth: 36, minHeight: 36),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 16),
+          // Enhanced Health Tips
+          ...(_healthTips
+              .take(2)
+              .map((tip) => _buildEnhancedHealthTipItem(tip))),
+          if (_healthTips.length > 2)
+            Container(
+              margin: EdgeInsets.only(top: 12),
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.green[600], size: 16),
+                  SizedBox(width: 8),
+                  Text(
+                    '${_healthTips.length - 2} more insights available',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.green[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEnhancedHealthTipItem(HealthTip tip) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withValues(alpha: 0.1),
+            blurRadius: 6,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image Section
+          if (tip.imageUrl != null && tip.imageUrl!.isNotEmpty)
+            Container(
+              width: double.infinity,
+              height: 120,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                child: Image.network(
+                  tip.imageUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return _buildFallbackImage(tip.category);
+                  },
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      color: Colors.grey[100],
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                              : null,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.green[600]!),
+                          strokeWidth: 2,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            )
+          else
+            _buildFallbackImage(tip.category),
+
+          // Content Section
+          Padding(
+            padding: EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color:
+                        _getCategoryColor(tip.category).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _getCategoryColor(tip.category)
+                          .withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Icon(
+                    _getCategoryIcon(tip.category),
+                    color: _getCategoryColor(tip.category),
+                    size: 18,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tip.title,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[800],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      SizedBox(height: 4),
+                      Container(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _getCategoryColor(tip.category)
+                              .withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _getCategoryColor(tip.category)
+                                .withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Text(
+                          tip.category,
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: _getCategoryColor(tip.category),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (tip.summary != null && tip.summary!.isNotEmpty) ...[
+                        SizedBox(height: 6),
+                        Text(
+                          tip.summary!,
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: Colors.grey[600],
+                            height: 1.3,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method to get category-specific colors
+  Color _getCategoryColor(String category) {
+    switch (category.toLowerCase()) {
+      case 'nutrition':
+      case 'diet':
+        return Colors.orange;
+      case 'exercise':
+      case 'physical activity':
+        return Colors.blue;
+      case 'mental health':
+        return Colors.purple;
+      case 'prevention':
+        return Colors.green;
+      case 'wellness':
+        return Colors.teal;
+      case 'heart health':
+      case 'cardiovascular':
+        return Colors.red;
+      case 'diabetes':
+        return Colors.orange;
+      case 'pregnancy':
+      case 'women\'s health':
+        return Colors.pink;
+      default:
+        return Colors.green;
+    }
+  }
+
+  // Helper method to get category-specific icons
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'nutrition':
+      case 'diet':
+        return Icons.restaurant;
+      case 'exercise':
+      case 'physical activity':
+        return Icons.fitness_center;
+      case 'mental health':
+        return Icons.psychology;
+      case 'prevention':
+        return Icons.shield;
+      case 'wellness':
+        return Icons.health_and_safety;
+      case 'heart health':
+      case 'cardiovascular':
+        return Icons.favorite;
+      case 'diabetes':
+        return Icons.monitor_heart;
+      case 'pregnancy':
+      case 'women\'s health':
+        return Icons.pregnant_woman;
+      default:
+        return Icons.health_and_safety;
+    }
+  }
+
+  // Fallback image when no image URL is available
+  Widget _buildFallbackImage(String category) {
+    return Container(
+      width: double.infinity,
+      height: 120,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            _getCategoryColor(category).withValues(alpha: 0.1),
+            _getCategoryColor(category).withValues(alpha: 0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _getCategoryIcon(category),
+              color: _getCategoryColor(category),
+              size: 32,
+            ),
+            SizedBox(height: 8),
+            Text(
+              category,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: _getCategoryColor(category),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSimpleHealthTipItem(HealthTip tip) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.health_and_safety,
+            color: Colors.green[600],
+            size: 16,
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              tip.title,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -3050,4 +4124,977 @@ String getBookingStatus(Map<String, dynamic> b) {
     // ignore errors and fall through to default
   }
   return 'Upcoming';
+}
+
+// Ernest AI Configuration Dialog
+class ErnestConfigurationDialog extends StatefulWidget {
+  @override
+  _ErnestConfigurationDialogState createState() =>
+      _ErnestConfigurationDialogState();
+}
+
+class _ErnestConfigurationDialogState extends State<ErnestConfigurationDialog> {
+  final TextEditingController _apiKeyController = TextEditingController();
+  bool _isConfiguring = false;
+  String? _errorMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 25,
+              offset: Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // AI Icon
+            Container(
+              padding: EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.purple[400]!, Colors.purple[600]!],
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                Icons.smart_toy,
+                color: Colors.white,
+                size: 48,
+              ),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Configure Ask Ernest',
+              style: GoogleFonts.poppins(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[800],
+              ),
+            ),
+            SizedBox(height: 12),
+            Text(
+              'To use Ernest, you need a Google Gemini API key. Get one for free at:\nhttps://makersuite.google.com/app/apikey',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 20),
+
+            // API Key Input
+            TextField(
+              controller: _apiKeyController,
+              decoration: InputDecoration(
+                labelText: 'Google Gemini API Key',
+                hintText: 'Enter your API key here',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                prefixIcon: Icon(Icons.key, color: Colors.purple[600]),
+              ),
+              obscureText: true,
+            ),
+
+            if (_errorMessage != null) ...[
+              SizedBox(height: 12),
+              Text(
+                _errorMessage!,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.red[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+
+            SizedBox(height: 24),
+
+            // Action Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => Navigator.pop(context),
+                        child: Center(
+                          child: Text(
+                            'Cancel',
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Container(
+                    height: 48,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.purple[500]!, Colors.purple[600]!],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: _isConfiguring ? null : _configureService,
+                        child: Center(
+                          child: _isConfiguring
+                              ? SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
+                                  ),
+                                )
+                              : Text(
+                                  'Configure',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _configureService() async {
+    if (_apiKeyController.text.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please enter your API key';
+      });
+      return;
+    }
+
+    setState(() {
+      _isConfiguring = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final success = await ErnestAIService.configure(_apiKeyController.text);
+      if (success) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ernest AI configured successfully! 🎉'),
+            backgroundColor: Colors.green[600],
+          ),
+        );
+      } else {
+        setState(() {
+          _errorMessage = 'Invalid API key. Please check and try again.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Configuration failed: ${e.toString()}';
+      });
+    } finally {
+      setState(() {
+        _isConfiguring = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _apiKeyController.dispose();
+    super.dispose();
+  }
+}
+
+// Ernest AI Chat Page
+class ErnestChatPage extends StatefulWidget {
+  @override
+  _ErnestChatPageState createState() => _ErnestChatPageState();
+}
+
+class _ErnestChatPageState extends State<ErnestChatPage> {
+  final TextEditingController _questionController = TextEditingController();
+  final List<ChatMessage> _messages = [];
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _addWelcomeMessage();
+  }
+
+  void _addWelcomeMessage() {
+    _messages.add(ChatMessage(
+      text:
+          'Hello! I\'m Ernest, your AI health assistant. How can I help you today? Remember, I provide general wellness advice only. For medical concerns, please consult a healthcare professional.',
+      isUser: false,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          children: [
+            Icon(Icons.smart_toy, color: Colors.white),
+            SizedBox(width: 8),
+            Text('Ask Ernest', style: GoogleFonts.poppins()),
+          ],
+        ),
+        backgroundColor: Colors.purple[600],
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.settings),
+            onPressed: _showSettings,
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Chat messages
+          Expanded(
+            child: ListView.builder(
+              padding: EdgeInsets.all(16),
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                final message = _messages[index];
+                return _buildMessageBubble(message);
+              },
+            ),
+          ),
+
+          // Quick questions
+          if (_messages.length == 1) _buildQuickQuestions(),
+
+          // Input area
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: Colors.grey[300]!)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _questionController,
+                    decoration: InputDecoration(
+                      hintText: 'Ask Ernest about health...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                    maxLines: 1,
+                    onSubmitted: (_) => _askQuestion(),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.purple[500]!, Colors.purple[600]!],
+                    ),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  child: IconButton(
+                    onPressed: _isLoading ? null : _askQuestion,
+                    icon: _isLoading
+                        ? SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : Icon(Icons.send, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(ChatMessage message) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      child: Row(
+        mainAxisAlignment:
+            message.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: [
+          if (!message.isUser) ...[
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.purple[100],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(Icons.smart_toy, color: Colors.purple[600], size: 20),
+            ),
+            SizedBox(width: 8),
+          ],
+          Flexible(
+            child: Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: message.isUser ? Colors.purple[600] : Colors.grey[100],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                message.text,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: message.isUser ? Colors.white : Colors.grey[800],
+                ),
+              ),
+            ),
+          ),
+          if (message.isUser) ...[
+            SizedBox(width: 8),
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.purple[100],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(Icons.person, color: Colors.purple[600], size: 20),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickQuestions() {
+    return Container(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Quick Questions:',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: HealthCategories.categories.map((category) {
+              return InkWell(
+                onTap: () => _askQuickQuestion(category),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.purple[50],
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.purple[200]!),
+                  ),
+                  child: Text(
+                    category,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.purple[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _askQuickQuestion(String category) {
+    final question = HealthCategories.categoryQuestions[category];
+    if (question != null) {
+      _questionController.text = question;
+      _askQuestion();
+    }
+  }
+
+  Future<void> _askQuestion() async {
+    final question = _questionController.text.trim();
+    if (question.isEmpty || _isLoading) return;
+
+    setState(() {
+      _messages.add(ChatMessage(text: question, isUser: true));
+      _isLoading = true;
+    });
+    _questionController.clear();
+
+    try {
+      final response = await ErnestAIService.askQuestion(question);
+      setState(() {
+        _messages.add(ChatMessage(text: response.message, isUser: false));
+      });
+    } catch (e) {
+      setState(() {
+        _messages.add(ChatMessage(
+          text: 'Sorry, I encountered an error. Please try again.',
+          isUser: false,
+        ));
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _showSettings() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Ernest Settings'),
+        content: Text('Manage your Ernest AI configuration'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _clearConfiguration();
+            },
+            child: Text('Clear Configuration'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _clearConfiguration() async {
+    final success = await ErnestAIService.clearConfiguration();
+    if (success) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Configuration cleared'),
+          backgroundColor: Colors.orange[600],
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _questionController.dispose();
+    super.dispose();
+  }
+}
+
+// Simple Ernest Chat Page (No AI Integration)
+class SimpleErnestChatPage extends StatefulWidget {
+  @override
+  _SimpleErnestChatPageState createState() => _SimpleErnestChatPageState();
+}
+
+class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
+  final TextEditingController _messageController = TextEditingController();
+  final List<SimpleChatMessage> _messages = [];
+  bool _isTyping = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Add comprehensive welcome message for first-time users
+    _messages.add(SimpleChatMessage(
+      text:
+          "Hi! I'm Ernest, your virtual health assistant. 👋\n\nI'm here to provide general health information and guidance. I can help with:\n• Common health questions\n• Wellness tips\n• General medical advice\n• Health education\n\n⚠️ Important: I'm not a replacement for professional medical care. For specific medical issues, always consult a healthcare provider.\n\nHow can I help you today?",
+      isUser: false,
+      timestamp: DateTime.now(),
+    ));
+
+    // Add follow-up message explaining what Ernest can't do
+    Future.delayed(Duration(seconds: 1), () {
+      if (mounted) {
+        setState(() {
+          _messages.add(SimpleChatMessage(
+            text:
+                "💡 Tip: If I can't help with your specific concern, I'll guide you to book an appointment with our qualified pharmacists for personalized care.",
+            isUser: false,
+            timestamp: DateTime.now(),
+          ));
+        });
+      }
+    });
+  }
+
+  void _sendMessage() {
+    final message = _messageController.text.trim();
+    if (message.isEmpty) return;
+
+    setState(() {
+      _messages.add(SimpleChatMessage(
+        text: message,
+        isUser: true,
+        timestamp: DateTime.now(),
+      ));
+      _isTyping = true;
+    });
+    _messageController.clear();
+
+    // Simulate Ernest typing and responding
+    Future.delayed(Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _isTyping = false;
+          String response = _getErnestResponse(message);
+          _messages.add(SimpleChatMessage(
+            text: response,
+            isUser: false,
+            timestamp: DateTime.now(),
+          ));
+
+          // Add appointment booking suggestion for certain responses
+          if (_shouldSuggestAppointment(response)) {
+            Future.delayed(Duration(seconds: 1), () {
+              if (mounted) {
+                setState(() {
+                  _messages.add(SimpleChatMessage(
+                    text:
+                        "Would you like me to help you book an appointment with our pharmacists? I can guide you through the process.",
+                    isUser: false,
+                    timestamp: DateTime.now(),
+                  ));
+                });
+              }
+            });
+          }
+        });
+      }
+    });
+  }
+
+  bool _shouldSuggestAppointment(String response) {
+    return response.contains('appointment') ||
+        response.contains('pharmacists') ||
+        response.contains('personalized') ||
+        response.contains('consult') ||
+        response.contains('specific');
+  }
+
+  void _navigateToAppointment() {
+    Navigator.pop(context); // Close chat
+    // Navigate to appointment booking section
+    // This will take user back to the main pharmacists page where they can book
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Navigating to appointment booking...'),
+        backgroundColor: Colors.purple[600],
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  String _getErnestResponse(String userMessage) {
+    final message = userMessage.toLowerCase();
+
+    if (message.contains('hello') || message.contains('hi')) {
+      return "Hello! How are you feeling today?";
+    } else if (message.contains('headache') || message.contains('head pain')) {
+      return "I'm sorry to hear about your headache. Common causes include stress, dehydration, or eye strain. Try resting in a quiet, dark room and staying hydrated. If it persists, consider consulting a healthcare provider.";
+    } else if (message.contains('fever') || message.contains('temperature')) {
+      return "Fever can be a sign of infection. Monitor your temperature and stay hydrated. If it's above 103°F (39.4°C) or persists for more than 3 days, seek medical attention.";
+    } else if (message.contains('cough') || message.contains('cold')) {
+      return "For coughs and colds, rest, stay hydrated, and consider over-the-counter remedies. If symptoms are severe or persist, consult a healthcare provider.";
+    } else if (message.contains('sleep') || message.contains('insomnia')) {
+      return "Good sleep is crucial for health. Try maintaining a regular sleep schedule, avoiding screens before bed, and creating a relaxing bedtime routine.";
+    } else if (message.contains('diet') || message.contains('nutrition')) {
+      return "A balanced diet with fruits, vegetables, lean proteins, and whole grains supports overall health. Consider consulting a nutritionist for personalized advice.";
+    } else if (message.contains('exercise') || message.contains('workout')) {
+      return "Regular exercise is great for health! Aim for at least 150 minutes of moderate activity weekly. Start slowly and gradually increase intensity.";
+    } else if (message.contains('stress') || message.contains('anxiety')) {
+      return "Stress and anxiety are common. Try deep breathing, meditation, or talking to someone you trust. If it's overwhelming, consider professional help.";
+    } else if (message.contains('thank')) {
+      return "You're welcome! I'm here to help. Is there anything else you'd like to know?";
+    } else if (message.contains('appointment') ||
+        message.contains('book') ||
+        message.contains('consult')) {
+      return "Great idea! For personalized medical advice and consultations, I recommend booking an appointment with our qualified pharmacists. They can provide expert guidance tailored to your specific needs. Would you like me to help you navigate to the appointment booking section?";
+    } else if (message.contains('pain') ||
+        message.contains('severe') ||
+        message.contains('emergency')) {
+      return "I'm concerned about your symptoms. For pain, severe symptoms, or emergency situations, please:\n\n🚨 Seek immediate medical attention if symptoms are severe\n🏥 Contact emergency services if needed\n💊 Book an appointment with our pharmacists for non-emergency concerns\n\nYour health and safety come first!";
+    } else if (message.contains('medication') ||
+        message.contains('prescription') ||
+        message.contains('drug')) {
+      return "I can provide general information about medications, but for specific prescription advice, drug interactions, or dosage questions, please consult with our pharmacists. They have the expertise to give you personalized medication guidance.";
+    } else if (message.contains('diagnosis') ||
+        message.contains('condition') ||
+        message.contains('disease')) {
+      return "I cannot diagnose medical conditions or diseases. For proper diagnosis and treatment, please book an appointment with our pharmacists or consult a healthcare provider. They can perform proper assessments and provide accurate medical guidance.";
+    } else {
+      // Redirect to appointment booking for complex or unclear questions
+      return "That's an interesting question! While I can provide general health information, your specific concern might require personalized medical advice.\n\n💡 I recommend booking an appointment with our qualified pharmacists who can:\n• Assess your individual situation\n• Provide personalized guidance\n• Answer specific medical questions\n• Recommend appropriate treatments\n\nWould you like me to help you navigate to the appointment booking section?";
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.purple[100],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.smart_toy, color: Colors.purple[700]),
+            ),
+            SizedBox(width: 12),
+            Text(
+              'Ask Ernest',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                color: Colors.purple[700],
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: Colors.purple[700]),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      backgroundColor: Colors.grey[50],
+      body: Column(
+        children: [
+          // Chat messages
+          Expanded(
+            child: ListView.builder(
+              padding: EdgeInsets.all(16),
+              itemCount: _messages.length + (_isTyping ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == _messages.length && _isTyping) {
+                  return _buildTypingIndicator();
+                }
+                return _buildMessage(_messages[index]);
+              },
+            ),
+          ),
+          // Quick action buttons
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(
+                top: BorderSide(color: Colors.grey[200]!, width: 1),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _navigateToAppointment,
+                    icon: Icon(Icons.calendar_today,
+                        size: 18, color: Colors.purple[600]),
+                    label: Text(
+                      'Book Appointment',
+                      style: TextStyle(
+                        color: Colors.purple[600],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.purple[300]!),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      // Add a helpful tip
+                      setState(() {
+                        _messages.add(SimpleChatMessage(
+                          text:
+                              "💡 Quick Health Tips:\n\n• Stay hydrated (8 glasses of water daily)\n• Get 7-9 hours of sleep\n• Exercise for 30 minutes daily\n• Eat a balanced diet\n• Practice stress management\n\nNeed specific advice? Book an appointment with our pharmacists!",
+                          isUser: false,
+                          timestamp: DateTime.now(),
+                        ));
+                      });
+                    },
+                    icon: Icon(Icons.lightbulb_outline,
+                        size: 18, color: Colors.orange[600]),
+                    label: Text(
+                      'Health Tips',
+                      style: TextStyle(
+                        color: Colors.orange[600],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.orange[300]!),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Message input
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 4,
+                  offset: Offset(0, -2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    decoration: InputDecoration(
+                      hintText: 'Ask Ernest anything...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(25),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                    ),
+                    onSubmitted: (_) => _sendMessage(),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.purple[600],
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  child: IconButton(
+                    icon: Icon(Icons.send, color: Colors.white),
+                    onPressed: _sendMessage,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessage(SimpleChatMessage message) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      child: Row(
+        mainAxisAlignment:
+            message.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: [
+          if (!message.isUser) ...[
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.purple[100],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(Icons.smart_toy, size: 20, color: Colors.purple[700]),
+            ),
+            SizedBox(width: 8),
+          ],
+          Flexible(
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: message.isUser ? Colors.purple[600] : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 2,
+                    offset: Offset(0, 1),
+                  ),
+                ],
+              ),
+              child: Text(
+                message.text,
+                style: TextStyle(
+                  color: message.isUser ? Colors.white : Colors.black87,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+          if (message.isUser) ...[
+            SizedBox(width: 8),
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(Icons.person, size: 20, color: Colors.grey[600]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTypingIndicator() {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.purple[100],
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(Icons.smart_toy, size: 20, color: Colors.purple[700]),
+          ),
+          SizedBox(width: 8),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 2,
+                  offset: Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildTypingDot(0),
+                SizedBox(width: 4),
+                _buildTypingDot(1),
+                SizedBox(width: 4),
+                _buildTypingDot(2),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTypingDot(int index) {
+    return AnimatedContainer(
+      duration: Duration(milliseconds: 600),
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: Colors.purple[400],
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: Duration(milliseconds: 600),
+        builder: (context, value, child) {
+          return Transform.scale(
+            scale: 0.5 + (0.5 * value),
+            child: Opacity(
+              opacity: value,
+              child: child,
+            ),
+          );
+        },
+        child: Container(),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+}
+
+// Simple chat message model
+class SimpleChatMessage {
+  final String text;
+  final bool isUser;
+  final DateTime timestamp;
+
+  SimpleChatMessage({
+    required this.text,
+    required this.isUser,
+    required this.timestamp,
+  });
 }

@@ -131,21 +131,18 @@ class AboutUsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 32),
 
-                
                 _buildSimpleCard(
                   title: 'Company Overview',
                   content:
                       'Ernest Chemists Limited (ECL) is the **biggest pharmaceutical company** in Ghana, driven by our mission to provide a full range of quality pharmaceutical products at affordable prices. With over **30 years of experience** in the Pharmaceutical Industry, Ernest Chemists Limited remains a true symbol of **stability and diversity**.',
                 ),
 
-         
                 _buildSimpleCard(
                   title: 'Our History',
                   content:
                       'ECL is a wholly owned **Ghanaian company**, founded by Mr. **Ernest Bediako Sampong**, a pharmacist by profession, in the year **1986**. ECL has made giant strides since its commencement and has grown from a single retail outlet into a thriving business entity with our own **office complex**, **retail & wholesale shops**, **warehouse facilities** and **manufacturing plants**.',
                 ),
 
-                
                 _buildSimpleCard(
                   title: 'Our Expertise',
                   content:

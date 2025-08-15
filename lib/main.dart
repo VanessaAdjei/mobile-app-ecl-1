@@ -31,6 +31,8 @@ import 'services/background_cart_sync_service.dart';
 import 'services/background_order_tracking_service.dart';
 import 'services/background_store_data_service.dart';
 import 'services/background_inventory_monitor_service.dart';
+import 'providers/wallet_provider.dart';
+import 'providers/promotional_event_provider.dart';
 import 'dart:async';
 
 void main() async {
@@ -404,6 +406,20 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             final authProvider = AuthProvider();
             authProvider.initialize();
             return authProvider;
+          },
+        ),
+        ChangeNotifierProvider(
+          create: (context) {
+            final walletProvider = WalletProvider();
+            walletProvider.initialize();
+            return walletProvider;
+          },
+        ),
+        ChangeNotifierProvider(
+          create: (context) {
+            final promotionalProvider = PromotionalEventProvider();
+            promotionalProvider.initialize();
+            return promotionalProvider;
           },
         ),
       ],

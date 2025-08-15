@@ -1398,21 +1398,28 @@ class _ModernCategoryCard extends StatelessWidget {
   });
 
   static String _getBackgroundImage(String name) {
-    final lower = name.toLowerCase();
-    if (lower.contains('medicine') ||
-        lower.contains('drug') ||
-        lower.contains('medication')) {
+    // Assign each category its own specific image based on exact names from API
+    if (name == 'MEDICINES') {
       return 'assets/images/Medicines ECL.jpg';
-    } else if (lower.contains('sport') ||
-        lower.contains('fitness') ||
-        lower.contains('nutrition')) {
-      return 'assets/images/Sports Nutrition ECL.jpg';
-    } else if (lower.contains('sexual') ||
-        lower.contains('intimate') ||
-        lower.contains('condom')) {
-      return 'assets/images/Sexual Health ECL.jpg';
+    } else if (name == 'PERSONAL CARE') {
+      return 'assets/images/Personal Care ECL.jpg';
+    } else if (name == 'SPORTS NUTRITION') {
+      return 'assets/images/Sports Nutrition ECL (1).jpg';
+    } else if (name == 'FOOD AND DRINKS') {
+      return 'assets/images/Food-Drinks ECL.jpg';
+    } else if (name == 'SEXUAL HEALTH') {
+      return 'assets/images/Sexual Health ECL (1).jpg';
+    } else if (name == 'HOME CARE') {
+      return 'assets/images/Home Care ECL.jpg';
+    } else if (name == 'SANITARY CARE') {
+      return 'assets/images/Sanitary Care ECL.jpg';
+    } else if (name == 'MOTHER & BABY') {
+      return 'assets/images/Mother-Baby ECL.jpg';
+    } else if (name == 'HEALTH CARE DEVICES') {
+      return 'assets/images/Healthcare Devices ECL.jpg';
     } else {
-      return 'assets/images/Medicines ECL.jpg'; // fallback for now
+      // Default fallback
+      return 'assets/images/Medicines ECL.jpg';
     }
   }
 

@@ -193,7 +193,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       // First try to get stock from the product's quantity field (which comes from inventory data)
       if (product.quantity.isNotEmpty) {
         availableStock = int.tryParse(product.quantity) ?? 0;
-        debugPrint('Parsed stock from product.quantity: $availableStock');
+ 
       }
 
       // If no stock data in product.quantity, try to get it from the inventory API

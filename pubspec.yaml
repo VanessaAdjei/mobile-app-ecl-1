@@ -71,6 +71,9 @@ dependencies:
   video_player: ^2.10.0
   visibility_detector: ^0.4.0+2
 
+  # AI Integration
+  google_generative_ai: ^0.2.0
+
   # Animations (used in multiple files)
   animations: ^2.0.11
 

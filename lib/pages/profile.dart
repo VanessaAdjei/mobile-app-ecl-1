@@ -7,6 +7,9 @@ import 'package:eclapp/pages/profilescreen.dart';
 import 'package:eclapp/pages/purchases.dart';
 import 'package:eclapp/pages/tandc.dart';
 import 'package:eclapp/pages/theme_provider.dart';
+import 'package:eclapp/pages/wallet_page.dart';
+import 'package:eclapp/pages/ernest_friday_page.dart';
+import 'package:eclapp/providers/promotional_event_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -670,6 +673,43 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     subtextColor,
                     3,
                   ),
+                  _buildEnhancedProfileOption(
+                    context,
+                    Icons.account_balance_wallet,
+                    "My Wallet",
+                    "Manage your wallet and transactions",
+                    _userLoggedIn
+                        ? () => _navigateTo(const WalletPage())
+                        : () => _showSignInRequiredDialog(context,
+                            feature: 'wallet'),
+                    primaryColor,
+                    cardColor,
+                    textColor,
+                    subtextColor,
+                    4,
+                  ),
+                  const SizedBox(height: 12),
+                  // Ernest Friday Option - COMMENTED OUT
+                  // Consumer<PromotionalEventProvider>(
+                  //   builder: (context, promotionalProvider, child) {
+                  //     // Only show Ernest Friday on Fridays
+                  //     if (promotionalProvider.isErnestFridayActive) {
+                  //       return _buildEnhancedProfileOption(
+                  //         context,
+                  //         Icons.local_fire_department,
+                  //         "Ernest Friday",
+                  //         "Slashed prices every Friday",
+                  //         () => _navigateTo(const ErnestFridayPage()),
+                  //         Colors.orange.shade600,
+                  //         cardColor,
+                  //         textColor,
+                  //         subtextColor,
+                  //         5,
+                  //       );
+                  //     }
+                  //     return const SizedBox.shrink();
+                  //   },
+                  // ),
                   if (!_userLoggedIn)
                     _buildEnhancedProfileOption(
                       context,
@@ -681,7 +721,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                       cardColor,
                       textColor,
                       subtextColor,
-                      4,
+                      6,
                     ),
 
                   const SizedBox(height: 30),
@@ -729,7 +769,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     cardColor,
                     textColor,
                     subtextColor,
-                    5,
+                    6,
                   ),
                   _buildEnhancedProfileOption(
                     context,
@@ -741,7 +781,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     cardColor,
                     textColor,
                     subtextColor,
-                    6,
+                    7,
                   ),
                   _buildEnhancedProfileOption(
                     context,
@@ -753,7 +793,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     cardColor,
                     textColor,
                     subtextColor,
-                    7,
+                    8,
                   ),
 
                   if (_userLoggedIn) ...[
@@ -768,7 +808,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                       cardColor,
                       textColor,
                       subtextColor,
-                      8,
+                      9,
                     ),
                   ],
 
