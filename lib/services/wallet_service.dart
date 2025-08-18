@@ -23,13 +23,12 @@ class WalletService {
   static const String _transactionsCacheKey = 'transactions_cache';
   static const Duration _cacheDuration = Duration(minutes: 15);
 
-  // Get wallet information for the current user
+  // Get wallet information for the current user (MOCK ONLY - no API)
   static Future<Wallet?> getWallet() async {
     try {
-      final token = await AuthService.getToken();
       final userId = await AuthService.getCurrentUserID();
 
-      if (token == null || userId == null) {
+      if (userId == null) {
         throw Exception('User not authenticated');
       }
 
@@ -39,88 +38,94 @@ class WalletService {
         return cachedWallet;
       }
 
-      final response = await http.get(
-        Uri.parse('$_baseUrl$_walletEndpoint'),
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true && data['data'] != null) {
-          final wallet = Wallet.fromJson(data['data']);
-          await _cacheWallet(wallet);
-          return wallet;
-        } else {
-          throw Exception(data['message'] ?? 'Failed to fetch wallet');
-        }
-      } else if (response.statusCode == 404) {
-        // Wallet doesn't exist, create one
-        return await createWallet();
-      } else {
-        throw Exception('Failed to fetch wallet: ${response.statusCode}');
-      }
+      // Create mock wallet since there's no API
+      developer.log('Creating mock wallet for user: $userId',
+          name: 'WalletService');
+      final mockWallet = _createMockWallet(userId);
+      await _cacheWallet(mockWallet);
+      return mockWallet;
     } catch (e) {
-      developer.log('Error fetching wallet: $e', name: 'WalletService');
+      developer.log('Error creating mock wallet: $e', name: 'WalletService');
       rethrow;
     }
   }
 
-  // Create a new wallet for the current user
+  // Create mock wallet (no API needed)
+  static Wallet _createMockWallet(String userId) {
+    return Wallet(
+      id: 'mock_wallet_$userId',
+      userId: userId,
+      balance: 0.0,
+      currency: 'GHS',
+      status: 'active',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  // Create mock transactions (no API needed)
+  static List<WalletTransaction> _createMockTransactions(String userId) {
+    return [
+      WalletTransaction(
+        id: 'mock_transaction_1_$userId',
+        walletId: 'mock_wallet_$userId',
+        type: 'cashback',
+        amount: 25.0,
+        description: 'Cashback from order #12345',
+        reference: 'CASHBACK_12345',
+        status: 'completed',
+        createdAt: DateTime.now().subtract(Duration(days: 1)),
+        metadata: {
+          'order_id': '12345',
+          'order_amount': '500.0',
+        },
+      ),
+      WalletTransaction(
+        id: 'mock_transaction_2_$userId',
+        walletId: 'mock_wallet_$userId',
+        type: 'refund',
+        amount: 15.0,
+        description: 'Refund for cancelled order #12340',
+        reference: 'REFUND_12340',
+        status: 'completed',
+        createdAt: DateTime.now().subtract(Duration(days: 3)),
+        metadata: {
+          'order_id': '12340',
+          'reason': 'Order cancelled by customer',
+        },
+      ),
+    ];
+  }
+
+  // Create a new wallet for the current user (MOCK ONLY - no API)
   static Future<Wallet> createWallet() async {
     try {
-      final token = await AuthService.getToken();
       final userId = await AuthService.getCurrentUserID();
 
-      if (token == null || userId == null) {
+      if (userId == null) {
         throw Exception('User not authenticated');
       }
 
-      final response = await http
-          .post(
-            Uri.parse('$_baseUrl$_walletEndpoint'),
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
-            body: json.encode({
-              'user_id': userId,
-              'currency': 'GHS',
-              'initial_balance': 0.0,
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true && data['data'] != null) {
-          final wallet = Wallet.fromJson(data['data']);
-          await _cacheWallet(wallet);
-          return wallet;
-        } else {
-          throw Exception(data['message'] ?? 'Failed to create wallet');
-        }
-      } else {
-        throw Exception('Failed to create wallet: ${response.statusCode}');
-      }
+      // Create mock wallet since there's no API
+      developer.log('Creating mock wallet for user: $userId',
+          name: 'WalletService');
+      final mockWallet = _createMockWallet(userId);
+      await _cacheWallet(mockWallet);
+      return mockWallet;
     } catch (e) {
-      developer.log('Error creating wallet: $e', name: 'WalletService');
+      developer.log('Error creating mock wallet: $e', name: 'WalletService');
       rethrow;
     }
   }
 
-  // Get wallet transactions
+  // Get wallet transactions (MOCK ONLY - no API)
   static Future<List<WalletTransaction>> getTransactions({
     int page = 1,
     int limit = 20,
   }) async {
     try {
-      final token = await AuthService.getToken();
-      if (token == null) {
+      final userId = await AuthService.getCurrentUserID();
+      if (userId == null) {
         throw Exception('User not authenticated');
       }
 
@@ -130,35 +135,19 @@ class WalletService {
         return cachedTransactions;
       }
 
-      final response = await http.get(
-        Uri.parse('$_baseUrl$_transactionsEndpoint?page=$page&limit=$limit'),
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(const Duration(seconds: 30));
+      // Return mock transactions since there's no API
+      developer.log('Returning mock transactions for user: $userId',
+          name: 'WalletService');
+      final mockTransactions = _createMockTransactions(userId);
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true && data['data'] != null) {
-          final transactions = (data['data'] as List)
-              .map((t) => WalletTransaction.fromJson(t))
-              .toList();
-
-          if (page == 1) {
-            await _cacheTransactions(transactions);
-          }
-
-          return transactions;
-        } else {
-          throw Exception(data['message'] ?? 'Failed to fetch transactions');
-        }
-      } else {
-        throw Exception('Failed to fetch transactions: ${response.statusCode}');
+      if (page == 1) {
+        await _cacheTransactions(mockTransactions);
       }
+
+      return mockTransactions;
     } catch (e) {
-      developer.log('Error fetching transactions: $e', name: 'WalletService');
+      developer.log('Error getting mock transactions: $e',
+          name: 'WalletService');
       rethrow;
     }
   }

@@ -5,6 +5,7 @@ import 'package:eclapp/pages/profile.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
 import 'package:eclapp/pages/homepage.dart';
+import 'package:eclapp/pages/wallet_page.dart';
 import 'package:provider/provider.dart';
 import 'pages/cartprovider.dart';
 import 'pages/theme_provider.dart';
@@ -33,6 +34,7 @@ import 'services/background_store_data_service.dart';
 import 'services/background_inventory_monitor_service.dart';
 import 'providers/wallet_provider.dart';
 import 'providers/promotional_event_provider.dart';
+import 'services/notification_service.dart';
 import 'dart:async';
 
 void main() async {
@@ -566,6 +568,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 ).copyWith(surface: Colors.grey.shade900),
               ),
               navigatorKey: NativeNotificationService.globalNavigatorKey,
+              scaffoldMessengerKey: NotificationService.messengerKey,
               home: _isFirstLaunch == true
                   ? OnboardingSplashPage(
                       onFinish: () async {
@@ -579,6 +582,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   : const HomePage(),
               routes: {
                 '/profile': (context) => Profile(),
+                '/wallet': (context) => WalletPage(),
                 '/prescription-upload': (context) =>
                     FutureBuilder<Map<String, dynamic>>(
                       future: _getPrescriptionData(),

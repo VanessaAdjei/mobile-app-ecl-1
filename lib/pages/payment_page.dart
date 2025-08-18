@@ -18,6 +18,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'cart.dart';
 import '../services/order_notification_service.dart';
 import '../providers/wallet_provider.dart';
+import '../services/notification_service.dart';
 
 class ExpressPayChannel {
   static const MethodChannel _channel =
@@ -375,7 +376,6 @@ class PaymentPageState extends State<PaymentPage> {
           (route) => false,
         );
 
-        // Remove each item from the backend cart after successful COD payment
         Future.microtask(() async {
           for (final item in List<CartItem>.from(cart.cartItems)) {
             await cart.removeFromCart(item.id);
@@ -383,7 +383,6 @@ class PaymentPageState extends State<PaymentPage> {
           cart.clearCart();
         });
 
-        // Create the order in the backend for cash on delivery
         try {
           // Convert cart items to the format expected by the API
           final orderItems = purchasedItems
@@ -405,7 +404,6 @@ class PaymentPageState extends State<PaymentPage> {
             promoCode: _appliedPromoCode,
           );
 
-          // 🎁 AUTOMATIC CASHBACK FOR COD ORDERS OVER ₵500
           if (total >= 500.0) {
             try {
               final walletProvider =
@@ -413,55 +411,21 @@ class PaymentPageState extends State<PaymentPage> {
               final cashbackResult = await walletProvider.processOrderCashback(
                 orderAmount: total,
                 orderId: transactionId.toString(),
+                onCashbackSuccess: () {
+                  // Navigate to wallet page immediately
+                  if (mounted) {
+                    Navigator.of(context).pushNamed('/wallet');
+                  }
+                },
               );
 
               if (cashbackResult['success']) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        Icon(Icons.card_giftcard, color: Colors.white),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '🎉 You earned ₵${cashbackResult['cashback_amount'].toStringAsFixed(2)} cashback!',
-                          ),
-                        ),
-                      ],
-                    ),
-                    backgroundColor: Colors.green.shade600,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    margin: EdgeInsets.all(16),
-                    duration: Duration(seconds: 4),
-                  ),
-                );
+                // Simple notification that cashback was received
+                final cashbackAmount =
+                    cashbackResult['cashback_amount'] as double;
+                NotificationService.showCashbackNotification(cashbackAmount);
               } else if (cashbackResult['auth_required'] == true) {
-                // 🔒 EXTRA PRECAUTION: Handle authentication errors from cashback
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.white),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '💡 Create an account to earn cashback on orders over ₵500!',
-                          ),
-                        ),
-                      ],
-                    ),
-                    backgroundColor: Colors.blue.shade600,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    margin: EdgeInsets.all(16),
-                    duration: Duration(seconds: 4),
-                  ),
-                );
+                // No snackbar for now per request
               }
             } catch (e) {
               debugPrint('Cashback processing failed: $e');

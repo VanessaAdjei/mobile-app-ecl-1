@@ -87,6 +87,7 @@ class WalletProvider extends ChangeNotifier {
   Future<Map<String, dynamic>> processOrderCashback({
     required double orderAmount,
     required String orderId,
+    VoidCallback? onCashbackSuccess,
   }) async {
     try {
       debugPrint(
@@ -185,6 +186,11 @@ class WalletProvider extends ChangeNotifier {
 
         // Notify listeners to update UI
         notifyListeners();
+
+        // Invoke callback if provided (e.g., navigate to wallet)
+        if (onCashbackSuccess != null) {
+          onCashbackSuccess();
+        }
       }
 
       return result;

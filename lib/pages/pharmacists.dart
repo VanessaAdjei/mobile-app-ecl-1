@@ -213,23 +213,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           _healthTips = backgroundTips;
           _isLoadingHealthTips = false;
         });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.refresh, color: Colors.white, size: 16),
-                SizedBox(width: 8),
-                Text('Health insights updated'),
-              ],
-            ),
-            backgroundColor: Colors.green[600],
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            duration: Duration(seconds: 2),
-          ),
-        );
         return;
       }
 
@@ -245,23 +228,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           _healthTips = tips;
           _isLoadingHealthTips = false;
         });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.refresh, color: Colors.white, size: 16),
-                SizedBox(width: 8),
-                Text('Health insights updated'),
-              ],
-            ),
-            backgroundColor: Colors.green[600],
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            duration: Duration(seconds: 2),
-          ),
-        );
       }
     } catch (e) {
       debugPrint('Error loading fresh health tips: $e');
@@ -1837,46 +1803,92 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
             // My Booked Appointments Section
             if (_bookings.isNotEmpty) ...[
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                padding: EdgeInsets.fromLTRB(20, 6, 20, 0),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'My Booked Appointments',
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green[800],
-                      ),
-                    ),
                     if (_bookings.length > 1)
-                      TextButton(
-                        onPressed: () {
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.vertical(
-                                  top: Radius.circular(24)),
+                      Expanded(
+                        child: Container(
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: Colors.green[100],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(4),
+                              onTap: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.vertical(
+                                        top: Radius.circular(24)),
+                                  ),
+                                  builder: (_) => BookingsListSheet(
+                                    bookings: _bookings,
+                                    onClear: _clearBookings,
+                                  ),
+                                );
+                              },
+                              child: Center(
+                                child: Text(
+                                  'See All (${_bookings.length})',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.green[700],
+                                  ),
+                                ),
+                              ),
                             ),
-                            builder: (_) => BookingsListSheet(
-                              bookings: _bookings,
-                              onClear: _clearBookings,
-                            ),
-                          );
-                        },
-                        child: Text('See All'),
+                          ),
+                        ),
                       ),
-                    TextButton(
-                      onPressed: _clearBookings,
-                      child: Text('Clear', style: TextStyle(color: Colors.red)),
+                    if (_bookings.length > 1) SizedBox(width: 6),
+                    Container(
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: Colors.red[100],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(4),
+                          onTap: _clearBookings,
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 10),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.clear_all,
+                                  color: Colors.red[600],
+                                  size: 14,
+                                ),
+                                SizedBox(width: 3),
+                                Text(
+                                  'Clear',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.red[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-              SizedBox(height: 8),
+              SizedBox(height: 4),
               _isUserLoggedIn
-                  ? _buildBookingCard(_bookings.first)
+                  ? _buildSlimBookingCard(_bookings.first)
                   : _buildLoginPromptCard(),
             ],
             // Main Content
@@ -1921,7 +1933,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       margin: EdgeInsets.only(bottom: 20),
       child: FloatingActionButton.extended(
         onPressed: _openVirtualAssistant,
-        backgroundColor: Colors.purple[600],
+        backgroundColor: Colors.green[600],
         foregroundColor: Colors.white,
         elevation: 8,
         icon: Container(
@@ -3765,6 +3777,376 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     );
   }
 
+  Widget _buildSlimBookingCard(Map<String, dynamic> b) {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!, width: 0.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 4,
+            offset: Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Compact header
+            Row(
+              children: [
+                Icon(Icons.calendar_today, color: Colors.green[600], size: 14),
+                SizedBox(width: 6),
+                Text(
+                  '${b['date']} at ${b['time']}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.green[700],
+                  ),
+                ),
+                Spacer(),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: getBookingStatus(b) == 'Upcoming'
+                        ? Colors.green[100]
+                        : Colors.grey[200],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    getBookingStatus(b),
+                    style: GoogleFonts.poppins(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w600,
+                      color: getBookingStatus(b) == 'Upcoming'
+                          ? Colors.green[700]
+                          : Colors.grey[600],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 8),
+
+            // Compact details
+            Row(
+              children: [
+                Icon(Icons.person, color: Colors.blue[600], size: 12),
+                SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    b['name'] ?? '',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                SizedBox(width: 16),
+                Icon(Icons.phone, color: Colors.green[600], size: 12),
+                SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    b['phone'] ?? '',
+                    style: GoogleFonts.poppins(fontSize: 11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(Icons.email, color: Colors.orange[600], size: 12),
+                SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    b['email'] ?? '',
+                    style: GoogleFonts.poppins(fontSize: 11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                SizedBox(width: 16),
+                Icon(Icons.video_call, color: Colors.purple[600], size: 12),
+                SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    b['consultationType'] ?? '',
+                    style: GoogleFonts.poppins(fontSize: 11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 6),
+
+            // Compact symptoms
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.medical_services, color: Colors.red[600], size: 12),
+                SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    b['symptoms'] ?? '',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      color: Colors.grey[600],
+                      height: 1.2,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEnhancedBookingCard(Map<String, dynamic> b) {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.white, Colors.green[50]!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green[200]!, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withValues(alpha: 0.08),
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with date/time and status
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.green[500]!, Colors.green[600]!],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.calendar_today,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      '${b['date']} at ${b['time']}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green[800],
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    gradient: getBookingStatus(b) == 'Upcoming'
+                        ? LinearGradient(
+                            colors: [Colors.green[400]!, Colors.green[500]!],
+                          )
+                        : null,
+                    color: getBookingStatus(b) == 'Upcoming'
+                        ? null
+                        : Colors.grey[300],
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: getBookingStatus(b) == 'Upcoming'
+                        ? [
+                            BoxShadow(
+                              color: Colors.green.withValues(alpha: 0.3),
+                              blurRadius: 4,
+                              offset: Offset(0, 1),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Text(
+                    getBookingStatus(b),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: getBookingStatus(b) == 'Upcoming'
+                          ? Colors.white
+                          : Colors.grey[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 12),
+
+            // Details grid
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDetailItem(
+                    Icons.person,
+                    'Name',
+                    b['name'] ?? '',
+                    Colors.blue[600]!,
+                  ),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: _buildDetailItem(
+                    Icons.phone,
+                    'Phone',
+                    b['phone'] ?? '',
+                    Colors.green[600]!,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDetailItem(
+                    Icons.email,
+                    'Email',
+                    b['email'] ?? '',
+                    Colors.orange[600]!,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: _buildDetailItem(
+                    Icons.video_call,
+                    'Type',
+                    b['consultationType'] ?? '',
+                    Colors.purple[600]!,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 12),
+
+            // Symptoms section
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.medical_services,
+                        color: Colors.red[600],
+                        size: 14,
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        'Symptoms/Concerns',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    b['symptoms'] ?? '',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                      height: 1.3,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailItem(
+      IconData icon, String label, String value, Color color) {
+    return Container(
+      padding: EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 12),
+              SizedBox(width: 4),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 3),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[800],
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBookingCard(Map<String, dynamic> b) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -4652,9 +5034,10 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
     // Add comprehensive welcome message for first-time users
     _messages.add(SimpleChatMessage(
       text:
-          "Hi! I'm Ernest, your virtual health assistant. 👋\n\nI'm here to provide general health information and guidance. I can help with:\n• Common health questions\n• Wellness tips\n• General medical advice\n• Health education\n\n⚠️ Important: I'm not a replacement for professional medical care. For specific medical issues, always consult a healthcare provider.\n\nHow can I help you today?",
+          "Hi! I'm Ernest, your virtual health assistant. 👋\n\nI'm here to provide general health information and guidance. I can help with:\n• Common health questions\n• Wellness tips\n• General medical advice\n• Health education ",
       isUser: false,
       timestamp: DateTime.now(),
+      showYesNoButtons: false,
     ));
 
     // Add follow-up message explaining what Ernest can't do
@@ -4666,6 +5049,7 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
                 "💡 Tip: If I can't help with your specific concern, I'll guide you to book an appointment with our qualified pharmacists for personalized care.",
             isUser: false,
             timestamp: DateTime.now(),
+            showYesNoButtons: false,
           ));
         });
       }
@@ -4681,6 +5065,7 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
         text: message,
         isUser: true,
         timestamp: DateTime.now(),
+        showYesNoButtons: false,
       ));
       _isTyping = true;
     });
@@ -4696,35 +5081,29 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
             text: response,
             isUser: false,
             timestamp: DateTime.now(),
+            showYesNoButtons: false,
           ));
 
-          // Add appointment booking suggestion for certain responses
-          if (_shouldSuggestAppointment(response)) {
-            Future.delayed(Duration(seconds: 1), () {
-              if (mounted) {
-                setState(() {
-                  _messages.add(SimpleChatMessage(
-                    text:
-                        "Would you like me to help you book an appointment with our pharmacists? I can guide you through the process.",
-                    isUser: false,
-                    timestamp: DateTime.now(),
-                  ));
-                });
-              }
-            });
-          }
+          // Add follow-up question asking if problem is solved
+          Future.delayed(Duration(seconds: 1), () {
+            if (mounted) {
+              setState(() {
+                _messages.add(SimpleChatMessage(
+                  text:
+                      "💊 How are you feeling now? Did that help with your concern?",
+                  isUser: false,
+                  timestamp: DateTime.now(),
+                  showYesNoButtons: true,
+                ));
+              });
+            }
+          });
         });
       }
     });
   }
 
-  bool _shouldSuggestAppointment(String response) {
-    return response.contains('appointment') ||
-        response.contains('pharmacists') ||
-        response.contains('personalized') ||
-        response.contains('consult') ||
-        response.contains('specific');
-  }
+  // Removed _shouldSuggestAppointment method
 
   void _navigateToAppointment() {
     Navigator.pop(context); // Close chat
@@ -4735,6 +5114,103 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
         content: Text('Navigating to appointment booking...'),
         backgroundColor: Colors.purple[600],
         duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _handleYesResponse() {
+    setState(() {
+      _messages.add(SimpleChatMessage(
+        text:
+            "Great! I'm glad I could help! 😊\n\nIf you need anything else in the future, feel free to chat with me again or book an appointment with our pharmacists.",
+        isUser: false,
+        timestamp: DateTime.now(),
+        showYesNoButtons: false,
+      ));
+    });
+
+    // Close chat after 3 seconds
+    Future.delayed(Duration(seconds: 3), () {
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    });
+  }
+
+  void _handleNoResponse() {
+    setState(() {
+      _messages.add(SimpleChatMessage(
+        text:
+            "I understand your problem hasn't been solved yet. 😔\n\nLet me help you further. What else would you like to know, or would you prefer to book an appointment with our pharmacists for personalized care?",
+        isUser: false,
+        timestamp: DateTime.now(),
+        showYesNoButtons: false,
+      ));
+    });
+  }
+
+  // Show cashback notification
+  void _showCashbackNotification(double amount) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Container(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.monetization_on,
+                  color: Colors.green[700],
+                  size: 20,
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '🎉 Cashback Received!',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'You\'ve earned ₵${amount.toStringAsFixed(2)} cashback!',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                },
+                icon: Icon(Icons.close, color: Colors.white, size: 18),
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+            ],
+          ),
+        ),
+        backgroundColor: Colors.green[600],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: Duration(seconds: 5),
+        margin: EdgeInsets.all(16),
+        elevation: 8,
       ),
     );
   }
@@ -4762,8 +5238,13 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
       return "You're welcome! I'm here to help. Is there anything else you'd like to know?";
     } else if (message.contains('appointment') ||
         message.contains('book') ||
-        message.contains('consult')) {
-      return "Great idea! For personalized medical advice and consultations, I recommend booking an appointment with our qualified pharmacists. They can provide expert guidance tailored to your specific needs. Would you like me to help you navigate to the appointment booking section?";
+        message.contains('consult') ||
+        message.contains('help') ||
+        message.contains('need help') ||
+        message.contains('how to book') ||
+        message.contains('booking') ||
+        message.contains('schedule')) {
+      return "I'd be happy to help you book an appointment! 📅\n\n**Quick Steps:**\n1️⃣ Tap 'Book Appointment' below\n2️⃣ Choose type (WhatsApp/Zoom/Phone)\n3️⃣ Pick date & time\n4️⃣ Fill details & submit\n\nOur pharmacists are available 24/7!";
     } else if (message.contains('pain') ||
         message.contains('severe') ||
         message.contains('emergency')) {
@@ -4776,9 +5257,10 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
         message.contains('condition') ||
         message.contains('disease')) {
       return "I cannot diagnose medical conditions or diseases. For proper diagnosis and treatment, please book an appointment with our pharmacists or consult a healthcare provider. They can perform proper assessments and provide accurate medical guidance.";
+    } else if (message.contains('help') || message.contains('support')) {
+      return "I'm here to help! 🤝\n\n**I can assist with:**\n• Health information & tips\n• Symptom understanding\n• **Booking appointments**\n• Health education\n\n💡 For personalized advice, book with our pharmacists for:\n• Individual assessment\n• Tailored guidance\n• Specific medical questions\n\nNeed help with any of these?";
     } else {
-      // Redirect to appointment booking for complex or unclear questions
-      return "That's an interesting question! While I can provide general health information, your specific concern might require personalized medical advice.\n\n💡 I recommend booking an appointment with our qualified pharmacists who can:\n• Assess your individual situation\n• Provide personalized guidance\n• Answer specific medical questions\n• Recommend appropriate treatments\n\nWould you like me to help you navigate to the appointment booking section?";
+      return "That's an interesting question! While I can provide general health information, your specific concern might require personalized medical advice.\n\n💡 Book with our pharmacists for:\n• Individual assessment\n• Personalized guidance\n• Specific medical questions\n• Treatment recommendations\n\n📅 Ready to book? Tap 'Book Appointment' below!\n\nNeed help with anything else?";
     }
   }
 
@@ -4791,17 +5273,17 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
             Container(
               padding: EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.purple[100],
+                color: Colors.green[100],
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(Icons.smart_toy, color: Colors.purple[700]),
+              child: Icon(Icons.smart_toy, color: Colors.green[700]),
             ),
             SizedBox(width: 12),
             Text(
               'Ask Ernest',
               style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w600,
-                color: Colors.purple[700],
+                color: Colors.green[700],
               ),
             ),
           ],
@@ -4809,7 +5291,7 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.purple[700]),
+          icon: Icon(Icons.arrow_back, color: Colors.green[700]),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -4844,17 +5326,17 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
                   child: OutlinedButton.icon(
                     onPressed: _navigateToAppointment,
                     icon: Icon(Icons.calendar_today,
-                        size: 18, color: Colors.purple[600]),
+                        size: 18, color: Colors.green[600]),
                     label: Text(
                       'Book Appointment',
                       style: TextStyle(
-                        color: Colors.purple[600],
+                        color: Colors.green[600],
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.purple[300]!),
+                      side: BorderSide(color: Colors.green[300]!),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
                       ),
@@ -4937,7 +5419,7 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
                 SizedBox(width: 12),
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.purple[600],
+                    color: Colors.green[600],
                     borderRadius: BorderRadius.circular(25),
                   ),
                   child: IconButton(
@@ -4956,53 +5438,111 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
   Widget _buildMessage(SimpleChatMessage message) {
     return Container(
       margin: EdgeInsets.only(bottom: 16),
-      child: Row(
-        mainAxisAlignment:
-            message.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!message.isUser) ...[
-            Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.purple[100],
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(Icons.smart_toy, size: 20, color: Colors.purple[700]),
-            ),
-            SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: message.isUser ? Colors.purple[600] : Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 2,
-                    offset: Offset(0, 1),
+          Row(
+            mainAxisAlignment: message.isUser
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.start,
+            children: [
+              if (!message.isUser) ...[
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                ],
-              ),
-              child: Text(
-                message.text,
-                style: TextStyle(
-                  color: message.isUser ? Colors.white : Colors.black87,
-                  fontSize: 14,
+                  child:
+                      Icon(Icons.smart_toy, size: 20, color: Colors.green[700]),
+                ),
+                SizedBox(width: 8),
+              ],
+              Flexible(
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: message.isUser ? Colors.green[600] : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 2,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    message.text,
+                    style: TextStyle(
+                      color: message.isUser ? Colors.white : Colors.black87,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
               ),
-            ),
+              if (message.isUser) ...[
+                SizedBox(width: 8),
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(Icons.person, size: 20, color: Colors.grey[600]),
+                ),
+              ],
+            ],
           ),
-          if (message.isUser) ...[
-            SizedBox(width: 8),
-            Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(Icons.person, size: 20, color: Colors.grey[600]),
+          // Show Yes/No buttons if needed
+          if (message.showYesNoButtons && !message.isUser) ...[
+            SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                Container(
+                  margin: EdgeInsets.only(left: 40),
+                  child: Row(
+                    children: [
+                      ElevatedButton(
+                        onPressed: _handleYesResponse,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green[600],
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        ),
+                        child: Text(
+                          'Much Better! 😊',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: _handleNoResponse,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange[500],
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        ),
+                        child: Text(
+                          'Still Need Help',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ],
@@ -5018,10 +5558,10 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
           Container(
             padding: EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.purple[100],
+              color: Colors.green[100],
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Icon(Icons.smart_toy, size: 20, color: Colors.purple[700]),
+            child: Icon(Icons.smart_toy, size: 20, color: Colors.green[700]),
           ),
           SizedBox(width: 8),
           Container(
@@ -5059,7 +5599,7 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
       width: 8,
       height: 8,
       decoration: BoxDecoration(
-        color: Colors.purple[400],
+        color: Colors.green[400],
         borderRadius: BorderRadius.circular(4),
       ),
       child: TweenAnimationBuilder<double>(
@@ -5091,10 +5631,12 @@ class SimpleChatMessage {
   final String text;
   final bool isUser;
   final DateTime timestamp;
+  final bool showYesNoButtons;
 
   SimpleChatMessage({
     required this.text,
     required this.isUser,
     required this.timestamp,
+    this.showYesNoButtons = false,
   });
 }
