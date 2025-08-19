@@ -113,9 +113,9 @@ Future<void> _coldStart() async {
   try {
     await Future.wait([
       BannerCacheService().getBanners(),
-      HomepageOptimizationService().getPopularProducts(),
+      // Removed blocking popular products fetch - moved to background
     ]).timeout(const Duration(
-        milliseconds: 1000)); // Reduced to 1 second for faster startup
+        milliseconds: 800)); // Reduced to 800ms for faster startup
   } catch (e) {
     if (e is TimeoutException) {
       debugPrint(
@@ -153,6 +153,8 @@ Future<void> _initializeNonCriticalServices() async {
       '🚀 Main: Non-critical services initialized in ${initTime.inMilliseconds}ms');
 
   // Start non-critical data prefetching
+  unawaited(HomepageOptimizationService()
+      .getPopularProductsUltraFast()); // Using ultra-fast method for maximum performance
   unawaited(HomepageOptimizationService().getCategorizedProducts());
   unawaited(OptimizedHomepageService().getProducts());
   unawaited(BackgroundPrefetchService().smartPrefetch());

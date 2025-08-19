@@ -13,6 +13,7 @@ import '../pages/product_model.dart';
 import '../models/health_tip.dart';
 import 'health_tips_service.dart';
 import 'banner_cache_service.dart';
+import 'package:flutter/foundation.dart';
 
 class HomepageOptimizationService {
   static final HomepageOptimizationService _instance =
@@ -38,9 +39,9 @@ class HomepageOptimizationService {
 
   // Cache configuration
   static const Duration _productsCacheDuration = Duration(minutes: 15);
-  // Popular products cache for 24 hours to ensure consistent user experience
-  // and prevent product cards from changing on every app reload
-  static const Duration _popularProductsCacheDuration = Duration(hours: 24);
+  // Popular products cache reduced to 15 minutes for maximum performance
+  // and very frequent updates while maintaining good user experience
+  static const Duration _popularProductsCacheDuration = Duration(minutes: 15);
   static const Duration _categorizedProductsCacheDuration =
       Duration(minutes: 20);
 
@@ -145,6 +146,59 @@ class HomepageOptimizationService {
 
   // ==================== POPULAR PRODUCTS OPTIMIZATION ====================
 
+  /// Ultra-fast popular products loading (no animations, maximum performance)
+  Future<List<Product>> getPopularProductsUltraFast(
+      {bool forceRefresh = false}) async {
+    if (_isPopularProductsCacheValid &&
+        _cachedPopularProducts.isNotEmpty &&
+        !forceRefresh) {
+      return _cachedPopularProducts;
+    }
+
+    if (_isLoadingPopularProducts) {
+      // Wait for current loading to complete
+      while (_isLoadingPopularProducts) {
+        await Future.delayed(
+            const Duration(milliseconds: 10)); // Reduced from 50ms to 10ms
+      }
+      return _cachedPopularProducts;
+    }
+
+    return await _fetchPopularProducts();
+  }
+
+  /// Get popular products with loading state for better UX
+  Future<List<Product>> getPopularProductsWithLoading({
+    bool forceRefresh = false,
+    Function(bool)? onLoadingChanged,
+  }) async {
+    if (_isPopularProductsCacheValid &&
+        _cachedPopularProducts.isNotEmpty &&
+        !forceRefresh) {
+      return _cachedPopularProducts;
+    }
+
+    if (_isLoadingPopularProducts) {
+      while (_isLoadingPopularProducts) {
+        await Future.delayed(
+            const Duration(milliseconds: 10)); // Reduced from 50ms to 10ms
+      }
+      return _cachedPopularProducts;
+    }
+
+    // Notify loading state
+    onLoadingChanged?.call(true);
+
+    try {
+      final products = await _fetchPopularProducts();
+      onLoadingChanged?.call(false);
+      return products;
+    } catch (e) {
+      onLoadingChanged?.call(false);
+      rethrow;
+    }
+  }
+
   Future<List<Product>> getPopularProducts({bool forceRefresh = false}) async {
     _optimizationService.startTimer('HomepageService_GetPopularProducts');
 
@@ -168,19 +222,39 @@ class HomepageOptimizationService {
 
   Future<List<Product>> _fetchPopularProducts() async {
     _isLoadingPopularProducts = true;
+    final startTime = DateTime.now();
 
     try {
+      debugPrint('🔄 [HomepageService] Fetching popular products...');
+
       final response = await http
           .get(Uri.parse(
               'https://eclcommerce.ernestchemists.com.gh/api/popular-products'))
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 8)); // Reduced from 10 to 8 seconds
+
+      final responseTime = DateTime.now().difference(startTime);
+      debugPrint(
+          '📡 [HomepageService] API response received in ${responseTime.inMilliseconds}ms');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
         final List<dynamic> dataList = responseData['data'];
 
+        debugPrint(
+            '📦 [HomepageService] Processing ${dataList.length} popular products...');
+
+        // Process all products at once for maximum performance
         final products = dataList.map<Product>((item) {
           final productData = item['product'] as Map<String, dynamic>;
+
+          // Debug logging for stock data
+          if (kDebugMode) {
+            print(
+                '🔍 HomepageService - Processing product: ${productData['name']}');
+            print('   Raw qty_in_stock: ${productData['qty_in_stock']}');
+            print('   Type: ${productData['qty_in_stock'].runtimeType}');
+          }
+
           return Product(
             id: productData['id'] ?? 0,
             name: productData['name'] ?? 'No name',
@@ -201,13 +275,24 @@ class HomepageOptimizationService {
           );
         }).toList();
 
+        final processingTime = DateTime.now().difference(startTime);
+        debugPrint(
+            '✅ [HomepageService] Popular products processed in ${processingTime.inMilliseconds}ms');
+        debugPrint('📊 [HomepageService] Total products: ${products.length}');
+
         _cachePopularProducts(products);
         _optimizationService.endTimer('HomepageService_GetPopularProducts');
         return products;
       } else {
-        throw Exception('Failed to load popular products');
+        debugPrint(
+            '❌ [HomepageService] API error: ${response.statusCode} - ${response.body}');
+        throw Exception(
+            'Failed to load popular products: HTTP ${response.statusCode}');
       }
     } catch (e) {
+      final errorTime = DateTime.now().difference(startTime);
+      debugPrint(
+          '💥 [HomepageService] Error fetching popular products after ${errorTime.inMilliseconds}ms: $e');
       _optimizationService.endTimer('HomepageService_GetPopularProducts');
       rethrow;
     } finally {
@@ -254,15 +339,19 @@ class HomepageOptimizationService {
       };
 
       for (final product in products) {
-        if (product.otcpom == true) categorizedProducts['otcpom']!.add(product);
-        if (product.drug == true) categorizedProducts['drug']!.add(product);
-        if (product.wellness == true) {
+        if (product.otcpom != null && product.otcpom!.isNotEmpty) {
+          categorizedProducts['otcpom']!.add(product);
+        }
+        if (product.drug != null && product.drug!.isNotEmpty) {
+          categorizedProducts['drug']!.add(product);
+        }
+        if (product.wellness != null && product.wellness!.isNotEmpty) {
           categorizedProducts['wellness']!.add(product);
         }
-        if (product.selfcare == true) {
+        if (product.selfcare != null && product.selfcare!.isNotEmpty) {
           categorizedProducts['selfcare']!.add(product);
         }
-        if (product.accessories == true) {
+        if (product.accessories != null && product.accessories!.isNotEmpty) {
           categorizedProducts['accessories']!.add(product);
         }
       }
@@ -568,10 +657,81 @@ class HomepageOptimizationService {
   bool get hasCachedCategorizedProducts =>
       _cachedCategorizedProducts.isNotEmpty;
 
+  /// Get cached popular products immediately (for instant display)
+  List<Product> getCachedPopularProducts() {
+    return _cachedPopularProducts;
+  }
+
+  /// Check if popular products are currently loading
+  bool get isPopularProductsLoading => _isLoadingPopularProducts;
+
+  /// Check if popular products cache is valid
+  bool get isPopularProductsCacheValid => _isPopularProductsCacheValid;
+
   // Cache getters
   List<Product> get cachedProducts => List.unmodifiable(_cachedProducts);
   List<Product> get cachedPopularProducts =>
       List.unmodifiable(_cachedPopularProducts);
   Map<String, List<Product>> get cachedCategorizedProducts =>
       Map.unmodifiable(_cachedCategorizedProducts);
+
+  /// Create skeleton widgets for popular products loading (optimized for speed)
+  List<Widget> createPopularProductsSkeleton({int count = 6}) {
+    return List.generate(count, (index) => _createOptimizedProductSkeleton());
+  }
+
+  /// Create an optimized product skeleton widget (faster rendering)
+  Widget _createOptimizedProductSkeleton() {
+    return Container(
+      margin: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(8), // Reduced from 12 to 8
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image skeleton (simplified)
+          Container(
+            height: 120,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(8)), // Reduced from 12 to 8
+            ),
+          ),
+          // Content skeleton (minimal padding)
+          Padding(
+            padding: const EdgeInsets.all(8), // Reduced from 12 to 8
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title skeleton
+                Container(
+                  height: 16,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius:
+                        BorderRadius.circular(2), // Reduced from 4 to 2
+                  ),
+                ),
+                const SizedBox(height: 6), // Reduced from 8 to 6
+                // Price skeleton
+                Container(
+                  height: 14,
+                  width: 60, // Reduced from 80 to 60
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius:
+                        BorderRadius.circular(2), // Reduced from 4 to 2
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -1,21 +1,16 @@
 // services/stock_utility_service.dart
+import 'dart:developer';
 import 'package:flutter/foundation.dart';
 
 class StockUtilityService {
   static bool isProductInStock(String? quantity) {
-    if (quantity == null || quantity.isEmpty) {
-      return false;
-    }
+    final stockLevel = getStockLevel(quantity);
+    final result = stockLevel > 0;
 
-    try {
-      final qty = int.tryParse(quantity);
-      final isInStock = qty != null && qty > 0;
+    // Debug logging
+    if (kDebugMode) {}
 
-      return isInStock;
-    } catch (e) {
-      debugPrint('StockUtilityService: Error parsing quantity: $e');
-      return false;
-    }
+    return result;
   }
 
   static int getStockLevel(String? quantity) {
@@ -31,7 +26,9 @@ class StockUtilityService {
 
   static bool isLowStock(String? quantity) {
     final stockLevel = getStockLevel(quantity);
-    return stockLevel > 0 && stockLevel <= 5;
+    final result = stockLevel > 0 && stockLevel <= 5;
+
+    return result;
   }
 
   static String getStockStatus(String? quantity) {

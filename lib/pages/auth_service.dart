@@ -220,7 +220,7 @@ class AuthService {
                 'This phone number is already registered. Please use a different number.');
           }
 
-          // If no specific errors, check if there's a success field
+         
           if (data['success'] == false) {
             throw Exception(data['message'] ??
                 'Please check your information and try again.');

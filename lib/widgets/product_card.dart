@@ -5,6 +5,7 @@ import '../pages/product_model.dart';
 import '../pages/itemdetail.dart';
 import '../services/homepage_optimization_service.dart';
 import '../services/stock_utility_service.dart';
+import 'package:flutter/foundation.dart'; // Added for kDebugMode
 
 class HomeProductCard extends StatelessWidget {
   final Product product;
@@ -162,44 +163,52 @@ class HomeProductCard extends StatelessWidget {
                         ),
                       ),
                     // Stock indicator - Only show for out of stock or low stock items
-                    if (!StockUtilityService.isProductInStock(
-                            product.quantity) ||
-                        StockUtilityService.isLowStock(product.quantity))
-                      Positioned(
-                        top: 4,
-                        right: 4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: !StockUtilityService.isProductInStock(
-                                    product.quantity)
-                                ? Colors.red[600]
-                                : Colors.orange[600],
-                            borderRadius: BorderRadius.circular(4),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.2),
-                                blurRadius: 2,
-                                offset: Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                          child: Text(
+                    // Debug logging to diagnose stock tag issues
+                    Builder(
+                      builder: (context) {
+                        final isOutOfStock =
                             !StockUtilityService.isProductInStock(
-                                    product.quantity)
-                                ? 'OUT OF STOCK'
-                                : 'LIMITED STOCK',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 8,
-                              fontWeight: FontWeight.w600,
+                                product.quantity);
+                        final isLowStock =
+                            StockUtilityService.isLowStock(product.quantity);
+                        final shouldShowStockTag = isOutOfStock || isLowStock;
+
+                        if (shouldShowStockTag) {
+                          return Positioned(
+                            top: 4,
+                            right: 4,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isOutOfStock
+                                    ? Colors.red[600]
+                                    : Colors.orange[600],
+                                borderRadius: BorderRadius.circular(4),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.2),
+                                    blurRadius: 2,
+                                    offset: Offset(0, 1),
+                                  ),
+                                ],
+                              ),
+                              child: Text(
+                                isOutOfStock ? 'OUT OF STOCK' : 'LIMITED STOCK',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
                   ],
                 ),
               ),

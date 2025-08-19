@@ -66,8 +66,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   bool _isCheckingStock = false;
   Map<String, dynamic>? _stockInfo;
   String? _stockErrorMessage;
-  bool _enableStockValidation =
-      true; // Enable stock validation to test with actual stock data
+  bool _enableStockValidation = false; // Disable stock validation for now
 
   @override
   void initState() {
@@ -190,13 +189,11 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       // Get actual stock from product data
       int availableStock = 0;
 
-      // First try to get stock from the product's quantity field (which comes from inventory data)
       if (product.quantity.isNotEmpty) {
         availableStock = int.tryParse(product.quantity) ?? 0;
- 
       }
 
-      // If no stock data in product.quantity, try to get it from the inventory API
+
       if (availableStock == 0) {
         debugPrint(
             'No stock data in product.quantity field, trying inventory API');
@@ -279,9 +276,13 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         });
       }
     } catch (e) {
+      debugPrint('Error checking stock availability: $e');
       if (mounted) {
         setState(() {
-          _stockErrorMessage = e.toString();
+          _stockInfo = {
+            'isValid': false,
+            'message': 'Error checking stock availability: $e',
+          };
           _isCheckingStock = false;
         });
       }

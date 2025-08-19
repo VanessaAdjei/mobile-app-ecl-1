@@ -557,6 +557,13 @@ class HomePageState extends State<HomePage>
         setState(() {
           popularProducts = ProductCache.cachedPopularProducts;
         });
+
+        // Start auto-scroll for cached popular products
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && popularProducts.isNotEmpty) {
+            _startPopularProductsAutoScroll();
+          }
+        });
       } else {
         // Load popular products only if cache is expired
         debugPrint(
@@ -1314,19 +1321,25 @@ class HomePageState extends State<HomePage>
       }
     });
 
-    // Initialize carousel position for consistency (no more auto-movement)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && popularProducts.isNotEmpty) {
-        // Set consistent highlight for first product
-        _highlightedPopularIndex = 0;
+    // Add scroll listener for popular products
+    _popularScrollController.addListener(() {
+      if (mounted) {
+        final scrollPosition = _popularScrollController.offset;
+        final maxScrollExtent =
+            _popularScrollController.position.maxScrollExtent;
+        if (maxScrollExtent > 0) {
+          final scrollPercentage = scrollPosition / maxScrollExtent;
+          setState(() {});
+        }
       }
     });
+
+    // Auto-scroll will be initialized when popular products are loaded
   }
 
   Future<void> _initializeOptimizationService() async {
     await _optimizationService.initialize();
 
-    // Load cached data immediately if available
     if (_optimizationService.hasCachedProducts) {
       setState(() {
         _products = _optimizationService.cachedProducts;
@@ -1338,13 +1351,71 @@ class HomePageState extends State<HomePage>
     }
   }
 
+  void _startPopularProductsAutoScroll() {
+    if (popularProducts.isEmpty || !mounted) return;
+
+    // Cancel any existing timer
+    _popularScrollTimer?.cancel();
+
+    debugPrint(
+        '🎡 Starting automatic scroll for ${popularProducts.length} popular products');
+
+    _popularScrollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (!mounted || popularProducts.isEmpty) {
+        timer.cancel();
+        return;
+      }
+
+      try {
+        if (_popularScrollController.hasClients) {
+          final currentOffset = _popularScrollController.offset;
+          final maxScrollExtent =
+              _popularScrollController.position.maxScrollExtent;
+
+          // Calculate next scroll position (scroll by 1 item)
+          const scrollDistance = 96.0; // Width of 1 product (80 + 16 padding)
+          double nextOffset = currentOffset + scrollDistance;
+
+          // For true infinite scroll, when we reach 75% of the way, jump to beginning
+          // This creates seamless infinite scrolling effect
+          if (nextOffset >= maxScrollExtent * 0.75) {
+            // Jump to equivalent position at the beginning (same product pattern)
+            final baseProducts = popularProducts.take(6).length;
+            final jumpToOffset = (currentOffset % (baseProducts * 96.0));
+
+            _popularScrollController.jumpTo(jumpToOffset);
+
+            // Then continue scrolling from new position
+            Future.delayed(const Duration(milliseconds: 100), () {
+              if (mounted && _popularScrollController.hasClients) {
+                _popularScrollController.animateTo(
+                  jumpToOffset + scrollDistance,
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeInOut,
+                );
+              }
+            });
+          } else {
+            _popularScrollController.animateTo(
+              nextOffset,
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeInOut,
+            );
+          }
+        }
+      } catch (e) {
+        timer.cancel();
+      }
+    });
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     searchController.dispose();
 
-    // _popularScrollTimer?.cancel(); // No longer needed
-    // _popularScrollController.dispose(); // No longer needed
+    _popularScrollTimer?.cancel();
+    _popularScrollController.dispose();
     super.dispose();
   }
 
@@ -1413,13 +1484,11 @@ class HomePageState extends State<HomePage>
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-          16.0, 40.0, 16.0, 8.0), // Further increased top padding
+      padding: const EdgeInsets.fromLTRB(16.0, 40.0, 16.0, 8.0),
       child: SizedBox(
         height: 48,
         child: Builder(
           builder: (context) {
-            // Check if widget is still mounted and context is valid
             if (!mounted) {
               return const SizedBox.shrink();
             }
@@ -2048,6 +2117,7 @@ class HomePageState extends State<HomePage>
                     //         },
                     //       ),
                     //     ),
+                    //   ),
                     SliverToBoxAdapter(
                       child: buildOrderMedicineCard(),
                     ),
@@ -2188,40 +2258,76 @@ class HomePageState extends State<HomePage>
       );
     }
 
-    // Show only the first 6 products in a simple horizontal list
-    final limitedPopularProducts = popularProducts.take(6).toList();
+    // Create infinite scroll by duplicating products multiple times for seamless loop
+    final baseProducts = popularProducts.take(6).toList();
+    final infiniteProducts = <Product>[];
 
-    return SizedBox(
+    // Duplicate products multiple times for smooth infinite scroll
+    for (int i = 0; i < 10; i++) {
+      infiniteProducts.addAll(baseProducts);
+    }
+
+    return Container(
       height: 120,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: limitedPopularProducts.length,
-        padding: const EdgeInsets.only(right: 16),
-        itemBuilder: (context, index) {
-          final product = limitedPopularProducts[index];
-          // Always highlight the first product for consistency
-          final isHighlighted = index == 0;
-          return AnimatedScale(
-            scale: isHighlighted ? 1.45 : 1.0,
-            duration: Duration(milliseconds: isHighlighted ? 220 : 350),
-            curve: isHighlighted ? Curves.elasticOut : Curves.easeOutBack,
-            child: Padding(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        children: [
+          // Popular Products Row - Infinite Scroll
+          Expanded(
+            child: ListView.builder(
+              controller: _popularScrollController,
+              scrollDirection: Axis.horizontal,
+              itemCount: infiniteProducts.length,
               padding: const EdgeInsets.only(right: 16),
-              child: SizedBox(
-                width: 80,
-                child: HomeProductCard(
-                  product: product,
-                  fontSize: 15,
-                  padding: 0,
-                  imageHeight: 100,
-                  showPrice: false,
-                  showName: false,
-                  showHero: false, // Disable Hero in the grid
-                ),
-              ),
+              physics: const BouncingScrollPhysics(),
+              itemBuilder: (context, index) {
+                final product = infiniteProducts[index];
+                final baseIndex = index % baseProducts.length;
+
+                // Calculate which product is currently in the center viewport
+                final currentScrollOffset = _popularScrollController.hasClients
+                    ? _popularScrollController.offset
+                    : 0.0;
+                final itemPosition = index * 96.0; // 80 width + 16 padding
+                final isInCenter = (itemPosition - currentScrollOffset).abs() <
+                    48.0; // Center 96px area
+
+                return AnimatedScale(
+                  scale: isInCenter ? 1.15 : 1.0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    margin: EdgeInsets.only(top: isInCenter ? 8.0 : 0.0),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 16),
+                      child: SizedBox(
+                        width: 80,
+                        child: HomeProductCard(
+                          product: product,
+                          fontSize: 15,
+                          padding: 0,
+                          imageHeight: 100,
+                          showPrice: false,
+                          showName: false,
+                          showHero: false, // Disable Hero in the grid
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
@@ -2405,6 +2511,13 @@ class HomePageState extends State<HomePage>
         setState(() {
           popularProducts = popularProductsList;
           _isLoadingPopular = false;
+        });
+
+        // Start auto-scroll after popular products are loaded
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && popularProducts.isNotEmpty) {
+            _startPopularProductsAutoScroll();
+          }
         });
       } else {
         if (!mounted) return;
