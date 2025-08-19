@@ -19,6 +19,7 @@ import 'cart.dart';
 import '../services/order_notification_service.dart';
 import '../providers/wallet_provider.dart';
 import '../services/notification_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ExpressPayChannel {
   static const MethodChannel _channel =
@@ -28,7 +29,6 @@ class ExpressPayChannel {
     try {
       final result = await _channel.invokeMethod('startExpressPay', params);
       if (result is String) {
-        // If the native side returns a JSON string, decode it
         return Map<String, dynamic>.from(jsonDecode(result));
       } else if (result is Map) {
         return Map<String, dynamic>.from(result);
@@ -1284,11 +1284,26 @@ class PaymentPageState extends State<PaymentPage> {
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(4),
-                                child: Image.network(
-                                  getImageUrl(item.image),
+                                child: CachedNetworkImage(
+                                  imageUrl: getImageUrl(item.image),
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      Icon(
+                                  placeholder: (context, url) => Container(
+                                    color: Colors.grey[200],
+                                    child: Center(
+                                      child: SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                            Colors.grey[400]!,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  errorWidget: (context, url, error) => Icon(
                                     Icons.image_not_supported,
                                     color: Colors.grey[400],
                                     size: 16,

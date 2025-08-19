@@ -12,12 +12,14 @@ import 'authprovider.dart';
 import 'cartprovider.dart';
 import '../main.dart' as main_app;
 import 'package:eclapp/widgets/error_display.dart';
+import 'package:sms_autofill/sms_autofill.dart';
+import 'package:eclapp/pages/homepage.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final String email;
   final String phoneNumber;
-  final String? password; // Optional for auto-login
-  final String? name; // Optional for auto-login
+  final String? password;
+  final String? name;
 
   const OtpVerificationScreen({
     super.key,
@@ -31,7 +33,8 @@ class OtpVerificationScreen extends StatefulWidget {
   OtpVerificationScreenState createState() => OtpVerificationScreenState();
 }
 
-class OtpVerificationScreenState extends State<OtpVerificationScreen> {
+class OtpVerificationScreenState extends State<OtpVerificationScreen>
+    with CodeAutoFill {
   final List<TextEditingController> otpControllers = List.generate(
     5,
     (index) => TextEditingController(),
@@ -43,14 +46,61 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   bool isLoading = false;
   String otp = '';
-  bool canResend = false;
-  int resendCountdown = 60;
-  Timer? resendTimer;
+  // Resend OTP functionality commented out
+  // bool canResend = false;
+  // int resendCountdown = 60;
+  // Timer? resendTimer;
+  String? _appSignature;
 
   @override
   void initState() {
     super.initState();
     _startResendTimer();
+    _initSmsListener();
+  }
+
+  @override
+  void codeUpdated() {
+    setState(() {
+      // This method is called when SMS is received and code is detected
+      // The code will be automatically filled in the fields
+    });
+  }
+
+  // Initialize SMS listener for auto-fill
+  Future<void> _initSmsListener() async {
+    try {
+      // Get app signature for SMS detection
+      _appSignature = await SmsAutoFill().getAppSignature;
+      debugPrint('App signature: $_appSignature');
+
+      // Listen for SMS with OTP
+      await SmsAutoFill().listenForCode();
+
+      // Set up listener for when code is received
+      SmsAutoFill().code.listen((code) {
+        if (code.length == 5) {
+          _autoFillOtp(code);
+        }
+      });
+    } catch (e) {
+      debugPrint('Error initializing SMS listener: $e');
+    }
+  }
+
+  // Auto-fill OTP when SMS is received
+  void _autoFillOtp(String code) {
+    if (code.length == 5) {
+      for (int i = 0; i < 5; i++) {
+        otpControllers[i].text = code[i];
+      }
+      setState(() {
+        otp = code;
+      });
+
+      // Auto-verify after filling
+      _verifyOtp();
+    }
   }
 
   @override
@@ -61,25 +111,29 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen> {
     for (var node in focusNodes) {
       node.dispose();
     }
-    resendTimer?.cancel();
+    // resendTimer?.cancel(); // Resend functionality commented out
+
+    // Clean up SMS listener
+    SmsAutoFill().unregisterListener();
+
     super.dispose();
   }
 
   void _startResendTimer() {
     setState(() {
-      canResend = false;
-      resendCountdown = 60;
+      // canResend = false;
+      // resendCountdown = 60;
     });
 
-    resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        resendCountdown--;
-        if (resendCountdown <= 0) {
-          canResend = true;
-          timer.cancel();
-        }
-      });
-    });
+    // resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    //   setState(() {
+    //     // resendCountdown--;
+    //     // if (resendCountdown <= 0) {
+    //     //   canResend = true;
+    //     //   timer.cancel();
+    //     // }
+    //   });
+    // });
   }
 
   void _onOtpChanged(String value, int index) {
@@ -113,69 +167,96 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen> {
       if (isVerified) {
         _showSuccess("OTP verified successfully!");
 
-        // Auto-login if credentials are provided
-        if (widget.password != null) {
+        // Auto-login if credentials are provided (for signup flow)
+        if (widget.password != null && widget.name != null) {
           try {
+            debugPrint('🔄 Starting auto-login process for: ${widget.email}');
+
             final result =
                 await AuthService.signIn(widget.email, widget.password!);
 
             if (result['success'] == true && result['token'] != null) {
-              // Add a longer delay to ensure token is properly saved and all states are updated
-              await Future.delayed(const Duration(milliseconds: 50));
+              debugPrint('✅ Auto-login successful, token received');
 
-              // Force update AuthService state multiple times to ensure consistency
-              await AuthService.forceUpdateAuthState();
-              await Future.delayed(const Duration(milliseconds: 100));
+              // Add a delay to ensure token is properly saved
+              await Future.delayed(const Duration(milliseconds: 200));
+
+              // Force update AuthService state
               await AuthService.forceUpdateAuthState();
 
               // Update AuthProvider state
               try {
                 final authProvider =
                     Provider.of<AuthProvider>(context, listen: false);
-                await authProvider
-                    .login(); // This will check the current login state
+                await authProvider.login();
+                debugPrint('✅ AuthProvider updated successfully');
               } catch (e) {
-                // AuthProvider not available, continue
+                debugPrint('⚠️ AuthProvider update failed: $e');
+                // Continue anyway, don't redirect to sign in
               }
 
               // Get the current AuthState using the of() pattern
-              final authState = main_app.AuthState.of(context);
-              if (authState != null) {
-                authState.refreshAuthState();
+              try {
+                final authState = main_app.AuthState.of(context);
+                if (authState != null) {
+                  authState.refreshAuthState();
+                  debugPrint('✅ AuthState refreshed successfully');
+                }
+              } catch (e) {
+                debugPrint('⚠️ AuthState refresh failed: $e');
+                // Continue anyway, don't redirect to sign in
               }
 
               // Sync cart for logged-in user
-              final userId = await AuthService.getCurrentUserID();
-              if (userId != null) {
-                await Provider.of<CartProvider>(context, listen: false)
-                    .handleUserLogin(userId);
+              try {
+                final userId = await AuthService.getCurrentUserID();
+                if (userId != null) {
+                  await Provider.of<CartProvider>(context, listen: false)
+                      .handleUserLogin(userId);
+                  debugPrint('✅ Cart synced successfully for user: $userId');
+                }
+              } catch (e) {
+                debugPrint('⚠️ Cart sync failed: $e');
+                // Continue anyway, don't redirect to sign in
               }
 
               // Final verification - check if user is actually logged in
+              await Future.delayed(const Duration(milliseconds: 100));
               final isActuallyLoggedIn = await AuthService.isLoggedIn();
-              if (!isActuallyLoggedIn) {
-                // If still not logged in, redirect to sign in page
+
+              if (isActuallyLoggedIn) {
+                debugPrint('✅ User confirmed logged in, navigating to home');
+                // Successfully logged in, navigate to home
                 if (mounted) {
-                  Navigator.pushReplacement(
+                  // Navigate to home and clear all previous routes
+                  Navigator.pushAndRemoveUntil(
                     context,
-                    MaterialPageRoute(
-                        builder: (context) => const SignInScreen()),
+                    MaterialPageRoute(builder: (context) => const HomePage()),
+                    (route) => false,
                   );
                 }
-                return;
-              }
-
-              // Successfully logged in, navigate to home
-              if (mounted) {
-                // Navigate to home and clear all previous routes
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/home',
-                  (route) => false,
-                );
+              } else {
+                debugPrint(
+                    '⚠️ User not logged in after auto-login, but continuing to home');
+                // Even if login check fails, try to navigate to home
+                // The user might still be logged in but the check is failing
+                if (mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const HomePage()),
+                    (route) => false,
+                  );
+                }
               }
             } else {
-              // Auto-login failed, redirect to sign in page
+              debugPrint('❌ Auto-login failed: ${result['message']}');
+              // Auto-login failed, but don't redirect to sign in immediately
+              // Show error and let user try again or manually sign in
+              _showError(
+                  "Auto-login failed: ${result['message'] ?? 'Unknown error'}. Please try signing in manually.");
+
+              // Wait a bit then redirect to sign in
+              await Future.delayed(const Duration(seconds: 2));
               if (mounted) {
                 Navigator.pushReplacement(
                   context,
@@ -184,7 +265,11 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen> {
               }
             }
           } catch (e) {
-         
+            debugPrint('❌ Exception during auto-login: $e');
+            // Show error and redirect to sign in after delay
+            _showError("Auto-login failed. Please try signing in manually.");
+
+            await Future.delayed(const Duration(seconds: 2));
             if (mounted) {
               Navigator.pushReplacement(
                 context,
@@ -193,7 +278,8 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen> {
             }
           }
         } else {
-
+          // No credentials provided (probably just OTP verification, not signup)
+          debugPrint('ℹ️ No credentials provided, redirecting to sign in');
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const SignInScreen()),
@@ -211,6 +297,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen> {
         focusNodes[0].requestFocus();
       }
     } catch (e) {
+      debugPrint('❌ Error during OTP verification: $e');
       _showError("An error occurred. Please try again.");
     } finally {
       if (mounted) {
@@ -219,22 +306,50 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen> {
     }
   }
 
+  // Resend OTP method commented out
+  /*
   Future<void> _resendOtp() async {
-    if (!canResend || isLoading) return;
+    // if (!canResend || isLoading) return;
 
     setState(() => isLoading = true);
 
     try {
+      debugPrint('🔄 Resending OTP for email: ${widget.email}');
+
       // Call the resend OTP API
       final result = await AuthService.resendOTP(widget.email);
 
+      // Print the complete API response
+      debugPrint('📡 Resend OTP API Response:');
+      debugPrint('   Full result: $result');
+      debugPrint('   Result type: ${result.runtimeType}');
+      debugPrint('   Success: ${result['success']}');
+      debugPrint('   Message: ${result['message']}');
+      debugPrint('   Status: ${result['status']}');
+      debugPrint('   Error: ${result['error']}');
+      debugPrint('   Code: ${result['code']}');
+
+      // Print all keys in the result
+      debugPrint('   All keys: ${result.keys.toList()}');
+      result.forEach((key, value) {
+        debugPrint('   $key: $value (${value.runtimeType})');
+      });
+
       if (result['success'] == true) {
+        debugPrint('✅ OTP resent successfully!');
         _showSuccess("OTP resent successfully!");
-        _startResendTimer(); // Restart the countdown
+        // _startResendTimer(); // Restart the countdown
       } else {
+        debugPrint('❌ OTP resend failed: ${result['message']}');
         _showError(result['message'] ?? "Failed to resend OTP");
       }
     } catch (e) {
+      debugPrint('💥 Exception during OTP resend: $e');
+      debugPrint('   Exception type: ${e.runtimeType}');
+      if (e.toString().contains('Exception:')) {
+        debugPrint(
+            '   Exception details: ${e.toString().split('Exception:').last.trim()}');
+      }
       _showError("An error occurred while resending OTP");
     } finally {
       if (mounted) {
@@ -242,6 +357,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen> {
       }
     }
   }
+  */
 
   @override
   Widget build(BuildContext context) {
@@ -411,6 +527,18 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen> {
                             color: Colors.grey.shade700,
                           ),
                         ),
+                        const SizedBox(height: 8),
+                        // Auto-fill indicator
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.sms,
+                              size: 16,
+                              color: Colors.green.shade600,
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 20),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -506,7 +634,8 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
                 const SizedBox(height: 24),
 
-                // Resend OTP Button
+                // Resend OTP Button - COMMENTED OUT
+                /*
                 Animate(
                   effects: [
                     FadeEffect(duration: 900.ms, delay: 500.ms),
@@ -532,14 +661,15 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           height: 40,
                           child: TextButton(
                             onPressed:
-                                canResend && !isLoading ? _resendOtp : null,
+                                // canResend && !isLoading ? _resendOtp : null,
+                                null, // Resend functionality is commented out
                             style: TextButton.styleFrom(
-                              foregroundColor: canResend
-                                  ? Colors.green.shade700
-                                  : Colors.grey,
-                              backgroundColor: canResend
-                                  ? Colors.green.shade50
-                                  : Colors.grey.shade200,
+                              foregroundColor: // canResend
+                                  // ? Colors.green.shade700
+                                  Colors.grey,
+                              backgroundColor: // canResend
+                                  // ? Colors.green.shade50
+                                  Colors.grey.shade200,
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 8),
                               shape: RoundedRectangleBorder(
@@ -552,21 +682,21 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen> {
                                 Icon(
                                   Icons.refresh_rounded,
                                   size: 16,
-                                  color: canResend
-                                      ? Colors.green.shade700
-                                      : Colors.grey,
+                                  color: // canResend
+                                      // ? Colors.green.shade700
+                                      Colors.grey,
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  canResend
-                                      ? 'Resend OTP'
-                                      : 'Resend in ${resendCountdown}s',
+                                  // canResend
+                                      // ? 'Resend OTP'
+                                      'Resend in 60s', // Placeholder for countdown
                                   style: GoogleFonts.poppins(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
-                                    color: canResend
-                                        ? Colors.green.shade700
-                                        : Colors.grey,
+                                    color: // canResend
+                                        // ? Colors.green.shade700
+                                        Colors.grey,
                                   ),
                                 ),
                               ],
@@ -577,6 +707,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen> {
                     ),
                   ),
                 ),
+                */
 
                 const SizedBox(height: 20),
               ],

@@ -203,7 +203,7 @@ class AuthService {
           final data = json.decode(response.body);
           final errors = data['errors'] ?? {};
           debugPrint('🔍 AUTH SERVICE: 200 errors: $errors');
-          
+
           if (errors['email'] != null) {
             final emailError = errors['email'];
             if (emailError is List && emailError.isNotEmpty) {
@@ -219,12 +219,13 @@ class AuthService {
             throw Exception(
                 'This phone number is already registered. Please use a different number.');
           }
-          
+
           // If no specific errors, check if there's a success field
           if (data['success'] == false) {
-            throw Exception(data['message'] ?? 'Please check your information and try again.');
+            throw Exception(data['message'] ??
+                'Please check your information and try again.');
           }
-          
+
           // If we reach here, it might be a successful response with errors
           return true;
         } catch (e) {
@@ -333,6 +334,9 @@ class AuthService {
     final url =
         Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/resend-otp');
 
+    debugPrint('🔄 [AuthService] Resending OTP to: $url');
+    debugPrint('📧 [AuthService] Email: $email');
+
     try {
       final response = await http
           .post(
@@ -342,47 +346,68 @@ class AuthService {
           )
           .timeout(const Duration(seconds: 30));
 
+      debugPrint('📡 [AuthService] Resend OTP API Response:');
+      debugPrint('   Status Code: ${response.statusCode}');
+      debugPrint('   Response Headers: ${response.headers}');
+      debugPrint('   Raw Response Body: ${response.body}');
+      debugPrint('   Response Body Length: ${response.body.length}');
+
       final responseData = json.decode(response.body);
+      debugPrint('   Parsed Response Data: $responseData');
+      debugPrint('   Response Data Type: ${responseData.runtimeType}');
 
       if (response.statusCode == 200) {
+        debugPrint('✅ [AuthService] OTP resent successfully (200)');
         return {
           'success': true,
           'message': responseData['message'] ?? 'OTP resent successfully',
         };
       } else if (response.statusCode == 400) {
+        debugPrint(
+            '❌ [AuthService] Bad request (400): ${responseData['message']}');
         return {
           'success': false,
           'message': responseData['message'] ?? 'Invalid email address',
         };
       } else if (response.statusCode == 404) {
+        debugPrint(
+            '❌ [AuthService] Email not found (404): ${responseData['message']}');
         return {
           'success': false,
           'message': responseData['message'] ?? 'Email not found',
         };
       } else if (response.statusCode >= 500) {
+        debugPrint(
+            '❌ [AuthService] Server error (${response.statusCode}): ${responseData['message']}');
         return {
           'success': false,
           'message': 'Server is currently unavailable. Please try again later.',
         };
       }
 
+      debugPrint(
+          '❌ [AuthService] Unexpected status code (${response.statusCode}): ${responseData['message']}');
       return {
         'success': false,
         'message': responseData['message'] ??
             'Unable to resend OTP. Please try again.',
       };
     } on TimeoutException {
+      debugPrint('⏰ [AuthService] Request timeout');
       return {
         'success': false,
         'message': 'The request took too long to complete. Please try again.',
       };
     } on SocketException {
+      debugPrint('🌐 [AuthService] Socket exception - connection failed');
       return {
         'success': false,
         'message':
             'Unable to connect to the server. Please check your internet connection.',
       };
     } catch (e) {
+      debugPrint('💥 [AuthService] Unexpected error: $e');
+      debugPrint('   Error type: ${e.runtimeType}');
       return {
         'success': false,
         'message': 'An unexpected error occurred. Please try again.',

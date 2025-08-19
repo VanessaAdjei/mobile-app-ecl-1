@@ -74,6 +74,9 @@ dependencies:
   # AI Integration
   google_generative_ai: ^0.2.0
 
+  # OTP Auto-fill
+  sms_autofill: ^2.3.0
+
   # Animations (used in multiple files)
   animations: ^2.0.11
 
