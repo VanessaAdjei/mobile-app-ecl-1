@@ -280,6 +280,15 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
           selectedFontSize: finalFontSize,
           unselectedFontSize: finalFontSize,
           iconSize: finalIconSize,
+          // Fix overflow by reducing text height
+          selectedLabelStyle: TextStyle(
+            fontSize: finalFontSize,
+            height: 1.0, // Reduce line height to prevent overflow
+          ),
+          unselectedLabelStyle: TextStyle(
+            fontSize: finalFontSize,
+            height: 1.0, // Reduce line height to prevent overflow
+          ),
           items: [
             BottomNavigationBarItem(
               icon: Icon(Icons.home),

@@ -2457,10 +2457,14 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   Widget buildProductsGrid() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Keep 2 columns but adjust aspect ratio based on sidebar visibility
+        // Keep 2 columns but adjust aspect ratio based on sidebar visibility and screen size
         double childAspectRatio = 0.55;
+        bool isTablet = MediaQuery.of(context).size.width > 600;
 
-        if (!isSidebarVisible) {
+        if (isTablet) {
+          // Much smaller cards for tablets
+          childAspectRatio = 1.0;
+        } else if (!isSidebarVisible) {
           // When sidebar is hidden, make images smaller (larger aspect ratio = shorter/wider images)
           childAspectRatio = 0.85;
         } else {
@@ -2472,7 +2476,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           controller: scrollController,
           padding: EdgeInsets.all(16),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
+            crossAxisCount: isTablet ? 3 : 2,
             childAspectRatio: childAspectRatio,
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
@@ -3162,8 +3166,8 @@ class ProductListPageState extends State<ProductListPage> {
         physics: AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 0.55,
+          crossAxisCount: MediaQuery.of(context).size.width > 600 ? 3 : 2,
+          childAspectRatio: MediaQuery.of(context).size.width > 600 ? 1.0 : 0.6,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
         ),

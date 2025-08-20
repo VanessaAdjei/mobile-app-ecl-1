@@ -28,6 +28,101 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
   bool _isUploading = false;
   bool _isSubmitting = false;
 
+  // Helper method to validate file type
+  bool _isValidImageFile(String filePath) {
+    final extension = filePath.split('.').last.toLowerCase();
+    return ['jpg', 'jpeg', 'png'].contains(extension);
+  }
+
+  void _showFileTypeError() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Icon(
+                Icons.error_outline,
+                color: Colors.red[600],
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Invalid File Type',
+                style: TextStyle(
+                  color: Colors.red[700],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'The file you selected is not supported.',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[800],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '📱 Supported Formats:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.blue[700],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('• JPG (JPEG)',
+                        style: TextStyle(color: Colors.blue[600])),
+                    Text('• PNG', style: TextStyle(color: Colors.blue[600])),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Please select a valid image file and try again.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'Got it!',
+                style: TextStyle(
+                  color: Colors.blue[600],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<bool> _checkLoginStatus() async {
     try {
       // Use a simpler check that doesn't require network verification
@@ -102,6 +197,14 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
       );
 
       if (pickedFile != null && mounted) {
+        // Validate file type
+        if (!_isValidImageFile(pickedFile.path)) {
+          if (mounted) {
+            _showFileTypeError();
+          }
+          return;
+        }
+
         setState(() {
           _image = File(pickedFile.path);
         });
@@ -393,6 +496,14 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                                     style: GoogleFonts.poppins(
                                       fontSize: 14,
                                       color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Supported: JPG, JPEG, PNG',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade500,
                                     ),
                                   ),
                                 ],

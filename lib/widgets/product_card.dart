@@ -54,11 +54,11 @@ class HomeProductCard extends StatelessWidget {
     return Container(
       margin: EdgeInsets.zero,
       child: AspectRatio(
-        aspectRatio: 10.0,
+        aspectRatio: 0.8,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Expanded(
+            Flexible(
               child: Container(
                 margin: EdgeInsets.zero,
                 decoration: BoxDecoration(
@@ -214,7 +214,7 @@ class HomeProductCard extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.only(top: 2.0),
+              padding: const EdgeInsets.only(top: 0.0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -241,7 +241,7 @@ class HomeProductCard extends StatelessWidget {
                       ),
                     ),
                     // Removed the old "In Stock" badge from bottom to avoid conflicts
-                    SizedBox(height: 15), // Small margin after price
+                    SizedBox(height: 15), // Minimal margin after price
                   ],
                 ],
               ),

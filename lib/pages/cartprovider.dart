@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_service.dart';
 import 'package:http/http.dart' as http;
 import '../services/background_cart_checker.dart';
+import '../services/realtime_cart_sync_service.dart';
 
 class CartProvider with ChangeNotifier {
   // Map to store carts for different users
@@ -45,6 +46,7 @@ class CartProvider with ChangeNotifier {
   CartProvider() {
     _initializeCart();
     _initializeBackgroundChecker();
+    _initializeRealtimeSync();
   }
 
   Future<void> _initializeCart() async {
@@ -60,6 +62,17 @@ class CartProvider with ChangeNotifier {
     } catch (e) {
       debugPrint(
           '🛒 CartProvider: Error initializing background cart checker: $e');
+    }
+  }
+
+  Future<void> _initializeRealtimeSync() async {
+    try {
+      // Initialize real-time cart sync service with this CartProvider instance
+      await RealtimeCartSyncService().initialize(this);
+      debugPrint('🔄 CartProvider: Real-time cart sync service initialized');
+    } catch (e) {
+      debugPrint(
+          '🔄 CartProvider: Error initializing real-time cart sync service: $e');
     }
   }
 
@@ -451,6 +464,9 @@ class CartProvider with ChangeNotifier {
 
         // Try to sync with server in background
         _syncAddToServer(item);
+
+        // Trigger immediate real-time sync
+        RealtimeCartSyncService().triggerImmediateSync();
       } else {
         _cartItems.add(item);
 
@@ -467,6 +483,9 @@ class CartProvider with ChangeNotifier {
 
         // Try to sync with server in background
         _syncAddToServer(item);
+
+        // Trigger immediate real-time sync
+        RealtimeCartSyncService().triggerImmediateSync();
       }
     } catch (e) {
       // Any exception, fallback to local cart
@@ -746,6 +765,9 @@ class CartProvider with ChangeNotifier {
     await _saveUserCarts();
     notifyListeners();
 
+    // Trigger immediate real-time sync
+    RealtimeCartSyncService().triggerImmediateSync();
+
     final isLoggedIn = await AuthService.isLoggedIn();
     if (isLoggedIn) {
       try {
@@ -971,6 +993,9 @@ class CartProvider with ChangeNotifier {
     _cartItems[index].updateQuantity(newQuantity);
     await _saveUserCarts();
     notifyListeners();
+
+    // Trigger immediate real-time sync
+    RealtimeCartSyncService().triggerImmediateSync();
 
     // Add fallback timer to clear update flag after maximum time
     Timer(const Duration(seconds: 10), () {

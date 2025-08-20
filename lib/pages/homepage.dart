@@ -1357,9 +1357,6 @@ class HomePageState extends State<HomePage>
     // Cancel any existing timer
     _popularScrollTimer?.cancel();
 
-    debugPrint(
-        '🎡 Starting automatic scroll for ${popularProducts.length} popular products');
-
     _popularScrollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       if (!mounted || popularProducts.isEmpty) {
         timer.cancel();
@@ -1372,12 +1369,9 @@ class HomePageState extends State<HomePage>
           final maxScrollExtent =
               _popularScrollController.position.maxScrollExtent;
 
-          // Calculate next scroll position (scroll by 1 item)
           const scrollDistance = 96.0; // Width of 1 product (80 + 16 padding)
           double nextOffset = currentOffset + scrollDistance;
 
-          // For true infinite scroll, when we reach 75% of the way, jump to beginning
-          // This creates seamless infinite scrolling effect
           if (nextOffset >= maxScrollExtent * 0.75) {
             // Jump to equivalent position at the beginning (same product pattern)
             final baseProducts = popularProducts.take(6).length;
@@ -1482,11 +1476,15 @@ class HomePageState extends State<HomePage>
     });
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar({bool isTablet = false}) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16.0, 40.0, 16.0, 8.0),
+      padding: EdgeInsets.fromLTRB(
+          isTablet ? 24.0 : 16.0,
+          isTablet ? 50.0 : 40.0,
+          isTablet ? 24.0 : 16.0,
+          isTablet ? 12.0 : 8.0),
       child: SizedBox(
-        height: 48,
+        height: isTablet ? 56 : 48,
         child: Builder(
           builder: (context) {
             if (!mounted) {
@@ -1764,8 +1762,8 @@ class HomePageState extends State<HomePage>
                 debounceDuration: Duration(milliseconds: 10),
                 suggestionsBoxDecoration: SuggestionsBoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  elevation: 10,
+                  borderRadius: BorderRadius.circular(isTablet ? 24 : 18),
+                  elevation: isTablet ? 15 : 10,
                 ),
                 suggestionsBoxVerticalOffset: 0,
                 suggestionsBoxController: null,
@@ -1780,12 +1778,14 @@ class HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildActionCards() {
+  Widget _buildActionCards({bool isTablet = false}) {
     return Column(
       children: [
         // Action Cards Row
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+          padding: EdgeInsets.symmetric(
+              horizontal: isTablet ? 24.0 : 16.0,
+              vertical: isTablet ? 8.0 : 4.0),
           child: Row(
             children: [
               Expanded(
@@ -2042,12 +2042,16 @@ class HomePageState extends State<HomePage>
       child: LayoutBuilder(
         builder: (context, constraints) {
           double screenWidth = constraints.maxWidth;
-          double cardFontSize =
-              screenWidth < 400 ? 11 : (screenWidth < 600 ? 13 : 15);
-          double cardPadding =
-              screenWidth < 400 ? 6 : (screenWidth < 600 ? 8 : 12);
+          bool isTablet = screenWidth >= 600;
+
+          // Enhanced responsive dimensions for tablet
+          double cardFontSize = isTablet ? 16 : (screenWidth < 400 ? 11 : 13);
+          double cardPadding = isTablet ? 16 : (screenWidth < 400 ? 6 : 8);
           double cardImageHeight =
-              screenWidth < 400 ? 55 : (screenWidth < 600 ? 75 : 95);
+              isTablet ? 70 : (screenWidth < 400 ? 55 : 75);
+
+          // Tablet-specific grid columns
+          int gridColumns = isTablet ? 3 : 2;
 
           return Stack(
             children: [
@@ -2061,7 +2065,7 @@ class HomePageState extends State<HomePage>
                       automaticallyImplyLeading: false,
                       backgroundColor:
                           Theme.of(context).appBarTheme.backgroundColor,
-                      toolbarHeight: 60,
+                      toolbarHeight: isTablet ? 80 : 60,
                       floating: false,
                       pinned: false,
                       title: Row(
@@ -2069,15 +2073,15 @@ class HomePageState extends State<HomePage>
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Padding(
-                            padding: const EdgeInsets.only(left: 1),
+                            padding: EdgeInsets.only(left: isTablet ? 16 : 1),
                             child: Image.asset(
                               'assets/images/png.png',
-                              height: 85,
+                              height: isTablet ? 100 : 85,
                             ),
                           ),
                           CartIconButton(
                             iconColor: Colors.white,
-                            iconSize: 24,
+                            iconSize: isTablet ? 28 : 24,
                             backgroundColor: Colors.transparent,
                           ),
                         ],
@@ -2087,7 +2091,7 @@ class HomePageState extends State<HomePage>
                       pinned: true,
                       delegate: SliverSearchBarDelegate(
                         builder: (shrinkOffset) {
-                          return _buildSearchBar();
+                          return _buildSearchBar(isTablet: isTablet);
                         },
                       ),
                     ),
@@ -2122,7 +2126,7 @@ class HomePageState extends State<HomePage>
                       child: buildOrderMedicineCard(),
                     ),
                     SliverToBoxAdapter(
-                      child: _buildActionCards(),
+                      child: _buildActionCards(isTablet: isTablet),
                     ),
 
                     SliverToBoxAdapter(
@@ -2136,6 +2140,7 @@ class HomePageState extends State<HomePage>
                           fontSize: cardFontSize,
                           padding: cardPadding,
                           imageHeight: cardImageHeight,
+                          isTablet: isTablet,
                         ),
                       ),
                     ),
@@ -2153,40 +2158,66 @@ class HomePageState extends State<HomePage>
                         fontSize: cardFontSize,
                         padding: cardPadding,
                         imageHeight: cardImageHeight,
+                        isTablet: isTablet,
                       ),
                     ),
                     // Popular Products Section Header
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 16.0, horizontal: 16.0),
+                        child: Column(
                           children: [
+                            // Main heading with gradient
                             Container(
-                              decoration: BoxDecoration(
-                                color:
-                                    Colors.blueAccent.withValues(alpha: 0.10),
-                                borderRadius: BorderRadius.circular(30),
-                                border: Border.all(
-                                    color: Colors.blueAccent
-                                        .withValues(alpha: 0.18),
-                                    width: 1),
-                              ),
+                              width: double.infinity,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 6),
+                                  vertical: 4, horizontal: 10),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.green[600]!,
+                                    Colors.green[700]!,
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(6),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.green.withValues(alpha: 0.3),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
+                              ),
                               child: Row(
-                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.trending_up,
-                                      color: Colors.blueAccent, size: 16),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Popular Products',
-                                    style: TextStyle(
-                                      color: Colors.blueAccent,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
-                                      letterSpacing: 0.2,
+                                  // Icon with background
+                                  Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Icon(
+                                      Icons.local_fire_department,
+                                      color: Colors.orange,
+                                      size: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // Text content
+                                  Expanded(
+                                    child: Text(
+                                      'Popular Products',
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 0.1,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -2198,7 +2229,7 @@ class HomePageState extends State<HomePage>
                     ),
                     // Popular Products Section
                     SliverToBoxAdapter(
-                      child: _buildPopularProducts(),
+                      child: _buildPopularProducts(isTablet: isTablet),
                     ),
                     // Selfcare Section
                     SliverToBoxAdapter(
@@ -2210,6 +2241,7 @@ class HomePageState extends State<HomePage>
                         fontSize: cardFontSize,
                         padding: cardPadding,
                         imageHeight: cardImageHeight,
+                        isTablet: isTablet,
                       ),
                     ),
                     // Accessories Section
@@ -2234,7 +2266,7 @@ class HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildPopularProducts() {
+  Widget _buildPopularProducts({bool isTablet = false}) {
     if (_isLoadingPopular) {
       return Padding(
         padding: const EdgeInsets.all(8.0),
@@ -2268,12 +2300,12 @@ class HomePageState extends State<HomePage>
     }
 
     return Container(
-      height: 120,
+      height: isTablet ? 120 : 160,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
       ),
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.symmetric(horizontal: isTablet ? 24 : 16),
       child: Column(
         children: [
           // Popular Products Row - Infinite Scroll
@@ -2282,7 +2314,7 @@ class HomePageState extends State<HomePage>
               controller: _popularScrollController,
               scrollDirection: Axis.horizontal,
               itemCount: infiniteProducts.length,
-              padding: const EdgeInsets.only(right: 16),
+              padding: const EdgeInsets.only(right: 2),
               physics: const BouncingScrollPhysics(),
               itemBuilder: (context, index) {
                 final product = infiniteProducts[index];
@@ -2292,7 +2324,7 @@ class HomePageState extends State<HomePage>
                 final currentScrollOffset = _popularScrollController.hasClients
                     ? _popularScrollController.offset
                     : 0.0;
-                final itemPosition = index * 96.0; // 80 width + 16 padding
+                final itemPosition = index * 82.0; // 80 width + 2 padding
                 final isInCenter = (itemPosition - currentScrollOffset).abs() <
                     48.0; // Center 96px area
 
@@ -2308,14 +2340,14 @@ class HomePageState extends State<HomePage>
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.only(right: 16),
+                      padding: const EdgeInsets.only(right: 2),
                       child: SizedBox(
-                        width: 80,
+                        width: isTablet ? 100 : 80,
                         child: HomeProductCard(
                           product: product,
-                          fontSize: 15,
+                          fontSize: isTablet ? 16 : 15,
                           padding: 0,
-                          imageHeight: 100,
+                          imageHeight: isTablet ? 80 : 100,
                           showPrice: false,
                           showName: false,
                           showHero: false, // Disable Hero in the grid
@@ -2341,14 +2373,16 @@ class HomePageState extends State<HomePage>
       String title, Color color, List<Product> products, String category,
       {required double fontSize,
       required double padding,
-      required double imageHeight}) {
+      required double imageHeight,
+      bool isTablet = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Section header with See More button on same row
         Padding(
-          padding: const EdgeInsets.symmetric(
-              horizontal: 16.0, vertical: 0.0), // No vertical padding
+          padding: EdgeInsets.symmetric(
+              horizontal: isTablet ? 24.0 : 16.0,
+              vertical: 0.0), // No vertical padding
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -2404,11 +2438,11 @@ class HomePageState extends State<HomePage>
           padding: EdgeInsets.zero, // No padding at all
           itemCount: products.length > 6 ? 6 : products.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
+            crossAxisCount: isTablet ? 3 : 2,
             childAspectRatio:
-                1.0, // Square aspect ratio for maximum compactness
-            mainAxisSpacing: 0.0, // No spacing between rows
-            crossAxisSpacing: 0.0, // Small spacing between columns
+                isTablet ? 1.2 : 1.0, // Much more compact on tablets
+            mainAxisSpacing: isTablet ? 8.0 : 0.0, // Add spacing on tablets
+            crossAxisSpacing: isTablet ? 8.0 : 0.0, // Add spacing on tablets
           ),
           itemBuilder: (context, index) {
             return AnimatedVisibilityProductCard(
@@ -2753,7 +2787,7 @@ class HomePageSkeletonBody extends StatelessWidget {
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
-                SizedBox(height: 15),
+                SizedBox(height: 2),
               ],
             ),
           ),

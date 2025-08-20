@@ -31,6 +31,12 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
   bool _isSubmitting = false;
   final ImagePicker _picker = ImagePicker();
 
+  // Helper method to validate file type
+  bool _isValidImageFile(String filePath) {
+    final extension = filePath.split('.').last.toLowerCase();
+    return ['jpg', 'jpeg', 'png'].contains(extension);
+  }
+
   void _chooseFromGallery() async {
     setState(() => _isLoading = true);
     try {
@@ -43,6 +49,13 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
       );
       if (pickedFile != null) {
         final File imageFile = File(pickedFile.path);
+
+        // Validate file type
+        if (!_isValidImageFile(pickedFile.path)) {
+          _showFileTypeError();
+          return;
+        }
+
         final int fileSize = imageFile.lengthSync();
         debugPrint(
             '🔍 Selected image size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB');
@@ -78,6 +91,13 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
       );
       if (pickedFile != null) {
         final File imageFile = File(pickedFile.path);
+
+        // Validate file type
+        if (!_isValidImageFile(pickedFile.path)) {
+          _showFileTypeError();
+          return;
+        }
+
         final int fileSize = imageFile.lengthSync();
         debugPrint(
             '🔍 Captured image size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB');
@@ -104,6 +124,97 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
   void _showConfirmationSnackbar(String message) {
     if (mounted) {
       SnackBarUtils.showSuccess(context, message);
+    }
+  }
+
+  void _showFileTypeError() {
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  color: Colors.red[600],
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Invalid File Type',
+                  style: TextStyle(
+                    color: Colors.red[700],
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'The file you selected is not supported.',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[800],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '📱 Supported Formats:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blue[700],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('• JPG (JPEG)',
+                          style: TextStyle(color: Colors.blue[600])),
+                      Text('• PNG', style: TextStyle(color: Colors.blue[600])),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Please select a valid image file and try again.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  'Got it!',
+                  style: TextStyle(
+                    color: Colors.blue[600],
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
     }
   }
 
@@ -522,25 +633,6 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                           color: Colors.green.shade100,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.check_circle_outline,
-                              color: Colors.green.shade700,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Optimizing for upload',
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                color: Colors.green.shade700,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
                     ],
                   ),
@@ -592,7 +684,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  "Supported: JPG, PNG, Max 10MB",
+                  "Supported: JPG, JPEG, PNG, Max 10MB",
                   style: TextStyle(
                     fontSize: 13,
                     color: Colors.grey.shade600,
