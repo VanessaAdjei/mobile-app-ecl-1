@@ -687,7 +687,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
         allStores = allStoresList;
         isLoadingAllStores = false;
       });
-      debugPrint('ALL stores loaded successfully: ${allStores.length} stores');
+     
     } catch (e) {
       debugPrint('Error loading all stores: $e');
       setState(() {

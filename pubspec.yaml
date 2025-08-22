@@ -84,6 +84,7 @@ dependencies:
   audioplayers: ^5.2.1
   photo_view: ^0.14.0
   timezone: ^0.9.0
+  google_maps_flutter: ^2.12.3
   # flutter_local_notifications: ^16.3.2  # Removed due to compilation issues
 
 dev_dependencies:

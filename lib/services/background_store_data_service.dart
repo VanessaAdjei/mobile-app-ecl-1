@@ -21,8 +21,7 @@ class BackgroundStoreDataService {
   static void startBackgroundPreloading() {
     if (_isRunning) return;
 
-    debugPrint(
-        '🏪 BackgroundStoreDataService: Starting background store data preloading');
+   
     _isRunning = true;
 
     // Initial preload after delay
@@ -38,8 +37,7 @@ class BackgroundStoreDataService {
 
   // Stop background preloading
   static void stopBackgroundPreloading() {
-    debugPrint(
-        '🏪 BackgroundStoreDataService: Stopping background store data preloading');
+  
     _isRunning = false;
     _preloadTimer?.cancel();
     _preloadTimer = null;
@@ -48,8 +46,7 @@ class BackgroundStoreDataService {
   // Preload store data in background
   static Future<void> _preloadStoreDataInBackground() async {
     try {
-      debugPrint(
-          '🏪 BackgroundStoreDataService: Starting background store data preload');
+      
 
       // Preload all store data
       final storeData = await DeliveryService.getAllStores();
@@ -61,14 +58,11 @@ class BackgroundStoreDataService {
         // Save to local storage for offline access
         await _saveStoreDataToLocal(storeData);
 
-        debugPrint(
-            '🏪 BackgroundStoreDataService: Store data preloaded successfully - ${storeData['data']?.length ?? 0} stores');
       } else {
-        debugPrint(
-            '🏪 BackgroundStoreDataService: Failed to preload store data');
+
       }
     } catch (e) {
-      debugPrint('🏪 BackgroundStoreDataService: Background preload error: $e');
+     
     }
   }
 
@@ -81,8 +75,7 @@ class BackgroundStoreDataService {
       await prefs.setString(
           'store_data_timestamp', DateTime.now().toIso8601String());
     } catch (e) {
-      debugPrint(
-          '🏪 BackgroundStoreDataService: Error saving store data to local: $e');
+    
     }
   }
 
@@ -116,8 +109,7 @@ class BackgroundStoreDataService {
         }
       }
     } catch (e) {
-      debugPrint(
-          '🏪 BackgroundStoreDataService: Error getting cached store data: $e');
+      
     }
     return null;
   }
@@ -146,11 +138,9 @@ class BackgroundStoreDataService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('popular_stores', json.encode(popularStores));
 
-      debugPrint(
-          '🏪 BackgroundStoreDataService: Preloaded ${popularStores.length} popular stores');
+   
     } catch (e) {
-      debugPrint(
-          '🏪 BackgroundStoreDataService: Error preloading popular stores: $e');
+
     }
   }
 
@@ -195,8 +185,7 @@ class BackgroundStoreDataService {
         return stores.cast<Map<String, dynamic>>();
       }
     } catch (e) {
-      debugPrint(
-          '🏪 BackgroundStoreDataService: Error getting popular stores: $e');
+
     }
     return [];
   }
@@ -217,11 +206,9 @@ class BackgroundStoreDataService {
       await prefs.setString(
           'region_stores_$regionName', json.encode(regionStores));
 
-      debugPrint(
-          '🏪 BackgroundStoreDataService: Preloaded ${regionStores.length} stores for $regionName');
+
     } catch (e) {
-      debugPrint(
-          '🏪 BackgroundStoreDataService: Error preloading region stores: $e');
+    
     }
   }
 
@@ -237,8 +224,7 @@ class BackgroundStoreDataService {
         return stores.cast<Map<String, dynamic>>();
       }
     } catch (e) {
-      debugPrint(
-          '🏪 BackgroundStoreDataService: Error getting region stores: $e');
+  
     }
     return [];
   }

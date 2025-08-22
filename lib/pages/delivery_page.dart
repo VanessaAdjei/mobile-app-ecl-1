@@ -9,6 +9,10 @@ import 'cartprovider.dart';
 import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter/services.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:eclapp/pages/map_picker_page.dart';
 
 class DeliveryPage extends StatefulWidget {
   const DeliveryPage({super.key});
@@ -27,6 +31,12 @@ class DeliveryPageState extends State<DeliveryPage> {
   final TextEditingController _cityController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
+
+  // Location coordinates
+  double? _latitude;
+  double? _longitude;
+  bool _isGeocoding = false;
+
   bool _highlightPhoneField = false;
   bool _highlightPickupField = false;
   bool _highlightNameField = false;
@@ -78,6 +88,126 @@ class DeliveryPageState extends State<DeliveryPage> {
     _loadRegions(); // Load regions when page initializes
   }
 
+  /// Get coordinates from address using geocoding
+  Future<void> _getCoordinatesFromAddress(String address) async {
+    if (address.trim().isEmpty) return;
+
+    setState(() {
+      _isGeocoding = true;
+    });
+
+    try {
+      // Clean the address - remove Google Plus Codes and other problematic characters
+      String cleanAddress = address.trim();
+
+      // Remove Google Plus Codes (like HRXF+F4X)
+      cleanAddress =
+          cleanAddress.replaceAll(RegExp(r'[A-Z0-9]{4}\+[A-Z0-9]{3}'), '');
+
+      // Remove extra commas and clean up
+      cleanAddress = cleanAddress.replaceAll(RegExp(r',+'), ',');
+      cleanAddress = cleanAddress.replaceAll(RegExp(r'^\s*,\s*|\s*,\s*$'), '');
+
+      // Combine address with city and region for better accuracy
+      final fullAddress =
+          '${cleanAddress}, ${_cityController.text.trim()}, ${_regionController.text.trim()}, Ghana';
+
+      print('🌍 [GEOCODING] Starting geocoding process...');
+      print('📍 [GEOCODING] Original address: "$address"');
+      print('📍 [GEOCODING] Cleaned address: "$cleanAddress"');
+      print('📍 [GEOCODING] Full address to geocode: "$fullAddress"');
+      print('🏙️ [GEOCODING] City: ${_cityController.text.trim()}');
+      print('🏛️ [GEOCODING] Region: ${_regionController.text.trim()}');
+      print(
+          '🔄 [GEOCODING] Previous coordinates: Lat: ${_latitude ?? "None"}, Lng: ${_longitude ?? "None"}');
+
+      final locations = await locationFromAddress(fullAddress);
+
+      if (locations.isNotEmpty) {
+        final location = locations.first;
+        final oldLat = _latitude;
+        final oldLng = _longitude;
+
+        setState(() {
+          _latitude = location.latitude;
+          _longitude = location.longitude;
+        });
+
+        print('✅ [GEOCODING] SUCCESS! New coordinates obtained:');
+        print('   📍 New Latitude: ${_latitude}');
+        print('   📍 New Longitude: ${_longitude}');
+        print('   📍 New coordinates: (${_latitude}, ${_longitude})');
+
+        if (oldLat != null && oldLng != null) {
+          print('   📍 Previous coordinates: ($oldLat, $oldLng)');
+          print(
+              '   📍 Coordinates changed: ${oldLat != _latitude || oldLng != _longitude ? "YES" : "NO"}');
+        }
+
+        // Also log to debug for Flutter inspector
+        debugPrint(
+            '✅ Coordinates obtained: Lat: ${_latitude}, Lng: ${_longitude}');
+      } else {
+        print(
+            '⚠️ [GEOCODING] No coordinates found for address: "$fullAddress"');
+
+        // Try with just the city and region if the specific address fails
+        print('🔄 [GEOCODING] Trying fallback with just city and region...');
+        try {
+          final fallbackAddress =
+              '${_cityController.text.trim()}, ${_regionController.text.trim()}, Ghana';
+          final fallbackLocations = await locationFromAddress(fallbackAddress);
+
+          if (fallbackLocations.isNotEmpty) {
+            final location = fallbackLocations.first;
+            setState(() {
+              _latitude = location.latitude;
+              _longitude = location.longitude;
+            });
+            print(
+                '✅ [GEOCODING] Fallback SUCCESS! Using city center coordinates: (${_latitude}, ${_longitude})');
+          } else {
+            print('❌ [GEOCODING] Fallback also failed for: "$fallbackAddress"');
+          }
+        } catch (fallbackError) {
+          print('❌ [GEOCODING] Fallback error: $fallbackError');
+        }
+
+        debugPrint('⚠️ No coordinates found for address: $fullAddress');
+      }
+    } catch (e) {
+      print('❌ [GEOCODING] ERROR occurred: $e');
+      print('❌ [GEOCODING] Error type: ${e.runtimeType}');
+
+      // Try fallback with just city and region
+      print('🔄 [GEOCODING] Trying fallback after error...');
+      try {
+        final fallbackAddress =
+            '${_cityController.text.trim()}, ${_regionController.text.trim()}, Ghana';
+        final fallbackLocations = await locationFromAddress(fallbackAddress);
+
+        if (fallbackLocations.isNotEmpty) {
+          final location = fallbackLocations.first;
+          setState(() {
+            _latitude = location.latitude;
+            _longitude = location.longitude;
+          });
+          print(
+              '✅ [GEOCODING] Fallback SUCCESS after error! Using city center: (${_latitude}, ${_longitude})');
+        }
+      } catch (fallbackError) {
+        print('❌ [GEOCODING] Fallback also failed: $fallbackError');
+      }
+
+      debugPrint('❌ Geocoding error: $e');
+    } finally {
+      setState(() {
+        _isGeocoding = false;
+      });
+      print('🔄 [GEOCODING] Geocoding process completed');
+    }
+  }
+
   Future<void> _loadUserData() async {
     try {
       // First, immediately load basic user data for fast UI response
@@ -117,6 +247,19 @@ class DeliveryPageState extends State<DeliveryPage> {
               _cityController.text = deliveryData['city'] ?? '';
               _addressController.text = deliveryData['address'] ?? '';
               _updateDeliveryFee();
+
+              // Get coordinates for pre-filled address
+              if (deliveryData['address'] != null &&
+                  deliveryData['address'].toString().isNotEmpty) {
+                print(
+                    '🔄 [PRE-FILL] Address pre-filled, getting coordinates...');
+                // Use a small delay to ensure all fields are set
+                Future.delayed(const Duration(milliseconds: 500), () {
+                  if (mounted) {
+                    _getCoordinatesFromAddress(deliveryData['address']);
+                  }
+                });
+              }
             } else if (deliveryOption == 'pickup') {
               selectedRegion = deliveryData['pickup_region'];
               selectedCity = deliveryData['pickup_city'];
@@ -196,6 +339,49 @@ class DeliveryPageState extends State<DeliveryPage> {
             _calculateDeliveryFee(_regionController.text, _cityController.text);
       });
     }
+  }
+
+  String _getEstimatedDeliveryTime() {
+    if (_regionController.text.isEmpty || _cityController.text.isEmpty) {
+      return 'Select location';
+    }
+
+    String region = _regionController.text.toLowerCase();
+    String city = _cityController.text.toLowerCase();
+
+    if (region.contains('greater accra') ||
+        city.contains('accra') ||
+        city.contains('tema') ||
+        city.contains('ashaiman') ||
+        city.contains('madina') ||
+        city.contains('teshie')) {
+      return '1-2 hours';
+    }
+
+    // Major cities (medium delivery)
+    if (region.contains('ashanti') ||
+        region.contains('western') ||
+        region.contains('central') ||
+        city.contains('kumasi') ||
+        city.contains('sekondi') ||
+        city.contains('takoradi') ||
+        city.contains('cape coast')) {
+      return '2-4 hours';
+    }
+
+    // Other regions (standard delivery)
+    if (region.contains('eastern') ||
+        region.contains('volta') ||
+        region.contains('northern') ||
+        region.contains('upper east') ||
+        region.contains('upper west') ||
+        region.contains('savannah') ||
+        region.contains('north east')) {
+      return '4-6 hours';
+    }
+
+    // Default fallback
+    return '3-5 hours';
   }
 
   @override
@@ -320,17 +506,6 @@ class DeliveryPageState extends State<DeliveryPage> {
                                 child: _buildDeliveryOptions(),
                               ),
                               const SizedBox(height: 20),
-                              if (deliveryOption == 'delivery')
-                                Animate(
-                                  effects: [
-                                    FadeEffect(duration: 400.ms),
-                                    SlideEffect(
-                                        duration: 400.ms,
-                                        begin: Offset(0, 0.1),
-                                        end: Offset(0, 0))
-                                  ],
-                                  child: _buildDeliveryInfo(),
-                                ),
                               if (deliveryOption == 'pickup')
                                 Animate(
                                   key: pickupSectionKey,
@@ -354,6 +529,18 @@ class DeliveryPageState extends State<DeliveryPage> {
                                 ],
                                 child: _buildContactInfo(),
                               ),
+                              const SizedBox(height: 20),
+                              if (deliveryOption == 'delivery')
+                                Animate(
+                                  effects: [
+                                    FadeEffect(duration: 400.ms),
+                                    SlideEffect(
+                                        duration: 400.ms,
+                                        begin: Offset(0, 0.1),
+                                        end: Offset(0, 0))
+                                  ],
+                                  child: _buildDeliveryInfo(),
+                                ),
                               const SizedBox(height: 20),
                               // Only show delivery notes for delivery option
                               if (deliveryOption == 'delivery') ...[
@@ -631,6 +818,7 @@ class DeliveryPageState extends State<DeliveryPage> {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               children: [
@@ -655,84 +843,158 @@ class DeliveryPageState extends State<DeliveryPage> {
             if (_regionController.text.isNotEmpty &&
                 _cityController.text.isNotEmpty)
               Container(
-                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(8),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.green.shade50,
+                      Colors.white,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: Colors.green.shade200,
-                    width: 1,
+                    width: 1.5,
                   ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.check_circle,
-                          color: Colors.green.shade600,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'DELIVERY LOCATION',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.green.shade700,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    if (_addressController.text.isNotEmpty) ...[
-                      Text(
-                        _addressController.text,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                          color: Colors.grey[800],
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                    ],
-                    Text(
-                      '${_cityController.text}, ${_regionController.text}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.local_shipping,
-                          color: Colors.green.shade600,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Delivery Fee: ',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        Text(
-                          'GHS ${deliveryFee.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green[700],
-                          ),
-                        ),
-                      ],
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green.shade100.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                      spreadRadius: 2,
                     ),
                   ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Compact header
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            color: Colors.green.shade600,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'DELIVERY LOCATION',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green.shade700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Compact address display
+                      if (_addressController.text.isNotEmpty) ...[
+                        Text(
+                          _addressController.text,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                      ],
+
+                      Text(
+                        '${_cityController.text}, ${_regionController.text}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Compact delivery details
+                      Row(
+                        children: [
+                          // Delivery Fee
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.local_shipping,
+                                  color: Colors.green.shade600,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 6),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Fee',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    Text(
+                                      'GHS ${deliveryFee.toStringAsFixed(2)}',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.green[700],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Estimated Delivery Time
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.access_time,
+                                  color: Colors.orange.shade600,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 6),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Delivery',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    Text(
+                                      _getEstimatedDeliveryTime(),
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.orange[700],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               )
             else
@@ -1065,6 +1327,7 @@ class DeliveryPageState extends State<DeliveryPage> {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               children: [
@@ -1086,74 +1349,261 @@ class DeliveryPageState extends State<DeliveryPage> {
               ],
             ),
             const SizedBox(height: 16),
-            // Name Field
-            _buildFormField(
-              key: nameSectionKey,
-              controller: _nameController,
-              label: 'Full Name',
-              icon: Icons.person_outline,
-              isRequired: true,
-              isHighlighted: _highlightNameField,
-              onChanged: (value) {
-                setState(() {
-                  _highlightNameField = false;
-                });
-              },
+            // Contact Fields Section
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.grey[200]!,
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Personal Details',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Name Field
+                  _buildFormField(
+                    key: nameSectionKey,
+                    controller: _nameController,
+                    label: 'Full Name',
+                    icon: Icons.person_outline,
+                    isRequired: true,
+                    isHighlighted: _highlightNameField,
+                    onChanged: (value) {
+                      setState(() {
+                        _highlightNameField = false;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Email Field
+                  _buildFormField(
+                    key: emailSectionKey,
+                    controller: _emailController,
+                    label: 'Email Address',
+                    icon: Icons.email_outlined,
+                    isRequired: true,
+                    isHighlighted: _highlightEmailField,
+                    keyboardType: TextInputType.emailAddress,
+                    onChanged: (value) {
+                      setState(() {
+                        _highlightEmailField = false;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Phone Field
+                  _buildPhoneField(isPhoneValid),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
-            // Email Field
-            _buildFormField(
-              key: emailSectionKey,
-              controller: _emailController,
-              label: 'Email Address',
-              icon: Icons.email_outlined,
-              isRequired: true,
-              isHighlighted: _highlightEmailField,
-              keyboardType: TextInputType.emailAddress,
-              onChanged: (value) {
-                setState(() {
-                  _highlightEmailField = false;
-                });
-              },
-            ),
-            const SizedBox(height: 16),
-            // Phone Field
-            _buildPhoneField(isPhoneValid),
-            // Only show location fields for delivery option
+
+            // Only show location section for delivery option
             if (deliveryOption == 'delivery') ...[
-              const SizedBox(height: 16),
-              // Region Field
-              _buildRegionDropdown(),
-              const SizedBox(height: 16),
-              // City Field
-              _buildFormField(
-                key: citySectionKey,
-                controller: _cityController,
-                label: 'City',
-                icon: Icons.location_on_outlined,
-                isRequired: true,
-                isHighlighted: _highlightCityField,
-                onChanged: (value) {
-                  setState(() {
-                    _highlightCityField = false;
-                    _updateDeliveryFee();
-                  });
-                },
+              const SizedBox(height: 20),
+
+              // Location Information Header
+              Row(
+                children: [
+                  Icon(
+                    Icons.location_on,
+                    color: Colors.green[700],
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'DELIVERY LOCATION',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                      color: Colors.grey[800],
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
-              // Address Field
-              _buildFormField(
-                key: addressSectionKey,
-                controller: _addressController,
-                label: 'Address',
-                icon: Icons.location_on_outlined,
-                isRequired: true,
-                isHighlighted: _highlightAddressField,
-                onChanged: (value) {
-                  setState(() {
-                    _highlightAddressField = false;
-                  });
-                },
+
+              // Location Fields Section
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Column(
+                  children: [
+                    // Region Field
+                    _buildRegionDropdown(),
+                    const SizedBox(height: 16),
+
+                    // City Field
+                    _buildFormField(
+                      key: citySectionKey,
+                      controller: _cityController,
+                      label: 'City',
+                      icon: Icons.location_city_outlined,
+                      isRequired: true,
+                      isHighlighted: _highlightCityField,
+                      onChanged: (value) {
+                        setState(() {
+                          _highlightCityField = false;
+                          _updateDeliveryFee();
+                        });
+
+                        // Re-geocode address if it exists when city changes
+                        if (_addressController.text.isNotEmpty) {
+                          print(
+                              '🔄 [CITY] City changed, re-geocoding address...');
+                          Future.delayed(const Duration(milliseconds: 800), () {
+                            if (mounted) {
+                              _getCoordinatesFromAddress(
+                                  _addressController.text);
+                            }
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Simple instruction text
+                    Text(
+                      'Please pick your address from the map below:',
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Map Picker Button - More prominent and clear
+                    Container(
+                      width: double.infinity,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.green.shade500,
+                            Colors.green.shade600
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.green.shade300.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => _showMapPicker(),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 12),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.map_outlined,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'Pick Location on Map',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  color: Colors.white.withOpacity(0.8),
+                                  size: 16,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Previous Location Display
+                    if (_addressController.text.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.green.shade200,
+                            width: 1,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.location_on_outlined,
+                                  color: Colors.green[600],
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Location Selected',
+                                  style: TextStyle(
+                                    color: Colors.green[700],
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _addressController.text,
+                              style: TextStyle(
+                                color: Colors.green[800],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ],
           ],
@@ -1174,6 +1624,7 @@ class DeliveryPageState extends State<DeliveryPage> {
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Row(
           children: [
@@ -1240,6 +1691,7 @@ class DeliveryPageState extends State<DeliveryPage> {
   Widget _buildRegionDropdown() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Row(
           children: [
@@ -1309,6 +1761,15 @@ class DeliveryPageState extends State<DeliveryPage> {
                   _highlightRegionField = false;
                   _updateDeliveryFee();
                 });
+
+                if (_addressController.text.isNotEmpty) {
+                  print('🔄 [REGION] Region changed, re-geocoding address...');
+                  Future.delayed(const Duration(milliseconds: 800), () {
+                    if (mounted) {
+                      _getCoordinatesFromAddress(_addressController.text);
+                    }
+                  });
+                }
               }
             },
             dropdownColor: Colors.white,
@@ -1901,6 +2362,17 @@ class DeliveryPageState extends State<DeliveryPage> {
     // Navigate to payment page with delivery details
     debugPrint(
         '[DEBUG] Passing guestEmail to PaymentPage: "${_emailController.text.trim()}"');
+
+    // Log coordinates being passed to payment page
+    if (_latitude != null && _longitude != null) {
+      print('🚀 [DELIVERY] Passing coordinates to PaymentPage:');
+      print('   📍 Latitude: $_latitude');
+      print('   📍 Longitude: $_longitude');
+      print('   📍 Full coordinates: ($_latitude, $_longitude)');
+    } else {
+      print('⚠️ [DELIVERY] No coordinates available to pass to PaymentPage');
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1909,9 +2381,181 @@ class DeliveryPageState extends State<DeliveryPage> {
           contactNumber: _phoneController.text,
           deliveryOption: deliveryOption,
           guestEmail: _emailController.text.trim(),
+          latitude: _latitude,
+          longitude: _longitude,
+          estimatedDeliveryTime: _getEstimatedDeliveryTime(),
         ),
       ),
     );
+  }
+
+  /// Show map picker to select exact location
+  void _showMapPicker() async {
+    double initialLat = 5.5600; // Default to Accra
+    double initialLng = -0.2057;
+
+    // First, try to get fresh coordinates from the current address if available
+    if (_addressController.text.trim().isNotEmpty) {
+      print('🗺️ [MAP PICKER] ===== STARTING FRESH GEOCODING =====');
+      print(
+          '🗺️ [MAP PICKER] Current address field text: "${_addressController.text}"');
+      print('🗺️ [MAP PICKER] Current city: "${_cityController.text}"');
+      print('🗺️ [MAP PICKER] Current region: "${_regionController.text}"');
+      print(
+          '🗺️ [MAP PICKER] Previous stored coordinates: ($_latitude, $_longitude)');
+
+      try {
+        // Clear any old coordinates first
+        setState(() {
+          _latitude = null;
+          _longitude = null;
+        });
+
+        // Clean the address - remove Google Plus Codes and other problematic characters
+        String cleanAddress = _addressController.text.trim();
+
+        // Remove Google Plus Codes (like HRXF+F4X)
+        cleanAddress =
+            cleanAddress.replaceAll(RegExp(r'[A-Z0-9]{4}\+[A-Z0-9]{3}'), '');
+
+        // Remove extra commas and clean up
+        cleanAddress = cleanAddress.replaceAll(RegExp(r',+'), ',');
+        cleanAddress =
+            cleanAddress.replaceAll(RegExp(r'^\s*,\s*|\s*,\s*$'), '');
+
+        // Get coordinates directly without updating the state first
+        final fullAddress =
+            '${cleanAddress}, ${_cityController.text.trim()}, ${_regionController.text.trim()}, Ghana';
+        print(
+            '🗺️ [MAP PICKER] Original address: "${_addressController.text}"');
+        print('🗺️ [MAP PICKER] Cleaned address: "$cleanAddress"');
+        print('🗺️ [MAP PICKER] Full address for geocoding: "$fullAddress"');
+
+        final locations = await locationFromAddress(fullAddress);
+
+        if (locations.isNotEmpty) {
+          final location = locations.first;
+          initialLat = location.latitude;
+          initialLng = location.longitude;
+
+          print(
+              '🗺️ [MAP PICKER] ✅ SUCCESS! Fresh coordinates obtained: ($initialLat, $initialLng)');
+
+          // Update the state for future use
+          setState(() {
+            _latitude = initialLat;
+            _longitude = initialLng;
+          });
+
+          print(
+              '🗺️ [MAP PICKER] State updated with new coordinates: ($_latitude, $_longitude)');
+
+          // Force a small delay to ensure iOS processes the coordinate update
+          await Future.delayed(const Duration(milliseconds: 200));
+
+          print(
+              '🗺️ [MAP PICKER] After delay - coordinates: ($initialLat, $initialLng)');
+        } else {
+          print(
+              '🗺️ [MAP PICKER] ⚠️ No coordinates found for address: "$fullAddress"');
+          print('🗺️ [MAP PICKER] Falling back to stored coordinates...');
+          // Use stored coordinates if available
+          if (_latitude != null && _longitude != null) {
+            initialLat = _latitude!;
+            initialLng = _longitude!;
+            print(
+                '🗺️ [MAP PICKER] Using stored coordinates: ($initialLat, $initialLng)');
+          }
+        }
+      } catch (e) {
+        print('🗺️ [MAP PICKER] ❌ Error getting coordinates from address: $e');
+        print('🗺️ [MAP PICKER] Falling back to stored coordinates...');
+        // Use stored coordinates if available
+        if (_latitude != null && _longitude != null) {
+          initialLat = _latitude!;
+          initialLng = _longitude!;
+          print(
+              '🗺️ [MAP PICKER] Using stored coordinates: ($initialLat, $initialLng)');
+        }
+      }
+    } else {
+      // No address entered, use stored coordinates if available
+      if (_latitude != null && _longitude != null) {
+        initialLat = _latitude!;
+        initialLng = _longitude!;
+        print(
+            '🗺️ [MAP PICKER] No address entered, using stored coordinates: ($initialLat, $initialLng)');
+      } else {
+        print(
+            '🗺️ [MAP PICKER] No address entered, using default coordinates: ($initialLat, $initialLng)');
+      }
+    }
+
+    print('🗺️ [MAP PICKER] ===== FINAL RESULT =====');
+    print(
+        '🗺️ [MAP PICKER] Map will open at coordinates: ($initialLat, $initialLng)');
+    print('🗺️ [MAP PICKER] ========================');
+
+    // iOS-specific debugging
+    print('🗺️ [MAP PICKER] [iOS DEBUG] About to open MapPickerPage with:');
+    print('🗺️ [MAP PICKER] [iOS DEBUG] - initialLatitude: $initialLat');
+    print('🗺️ [MAP PICKER] [iOS DEBUG] - initialLongitude: $initialLng');
+    print(
+        '🗺️ [MAP PICKER] [iOS DEBUG] - Data type check: ${initialLat.runtimeType}, ${initialLng.runtimeType}');
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MapPickerPage(
+          initialLatitude: initialLat,
+          initialLongitude: initialLng,
+          onLocationSelected: (lat, lng) {
+            setState(() {
+              _latitude = lat;
+              _longitude = lng;
+            });
+
+            print('🗺️ [MAP PICKER] Location selected from map:');
+            print('   📍 Latitude: $lat');
+            print('   📍 Longitude: $lng');
+            print('   📍 Full coordinates: ($lat, $lng)');
+
+            // Get address from coordinates (reverse geocoding)
+            _getAddressFromCoordinates(lat, lng);
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Get address from coordinates using reverse geocoding
+  Future<void> _getAddressFromCoordinates(double lat, double lng) async {
+    try {
+      print(
+          '🔄 [REVERSE GEOCODING] Getting address from coordinates: ($lat, $lng)');
+
+      final placemarks = await placemarkFromCoordinates(lat, lng);
+
+      if (placemarks.isNotEmpty) {
+        final placemark = placemarks.first;
+        final address =
+            '${placemark.street ?? ''}, ${placemark.subLocality ?? ''}, ${placemark.locality ?? ''}';
+
+        print('✅ [REVERSE GEOCODING] Address found: $address');
+
+        // Update address field with the found address
+        if (mounted) {
+          setState(() {
+            _addressController.text = address.trim();
+          });
+        }
+      } else {
+        print(
+            '⚠️ [REVERSE GEOCODING] No address found for coordinates: ($lat, $lng)');
+      }
+    } catch (e) {
+      print('❌ [REVERSE GEOCODING] Error: $e');
+    }
   }
 
   /// Load regions from API

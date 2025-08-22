@@ -943,8 +943,6 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
               ),
             ),
             SizedBox(height: 16),
-
-     
             if (_deliveryAddress == 'Address not available' ||
                 _contactNumber == 'Contact not available') ...[
               Container(
@@ -975,7 +973,6 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
               ),
               SizedBox(height: 16),
             ],
-
             _buildInfoRow(
               Icons.location_on,
               'Delivery Address',

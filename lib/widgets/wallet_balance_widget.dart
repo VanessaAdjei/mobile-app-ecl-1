@@ -212,21 +212,7 @@ class WalletBalanceWidget extends StatelessWidget {
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatItem(
-                      'Credits',
-                      walletProvider
-                          .formatCurrency(walletProvider.totalCredits),
-                      Icons.add_circle_outline,
-                      Colors.green.shade300,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
+
               Row(
                 children: [
                   Expanded(

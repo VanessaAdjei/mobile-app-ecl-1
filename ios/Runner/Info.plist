@@ -72,5 +72,20 @@
 		<string>Older iOS support</string>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<key>io.flutter.embedded_views_preview</key>
+		<true/>
+		<key>GMSApiKey</key>
+		<string>AIzaSyBovMgpzLro6Z-yabBeLRl1FLVnE52BTnc</string>
+		<key>CFBundleURLTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleURLName</key>
+				<string>googlemaps</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>com.google.maps</string>
+				</array>
+			</dict>
+		</array>
 	</dict>
 </plist>

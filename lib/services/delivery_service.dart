@@ -166,14 +166,6 @@ class DeliveryService {
         },
       ).timeout(const Duration(seconds: 10));
 
-      debugPrint('\n${'=' * 50}');
-      debugPrint('🔍 API RESPONSE DEBUG');
-      debugPrint('=' * 50);
-      debugPrint('Get delivery info response status: ${response.statusCode}');
-      debugPrint('Get delivery info response headers: ${response.headers}');
-      debugPrint('Get delivery info response body: ${response.body}');
-      debugPrint('=' * 50);
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         debugPrint('\n${'=' * 50}');
@@ -185,41 +177,12 @@ class DeliveryService {
         debugPrint('=' * 50);
 
         // Pretty print the API response
-        debugPrint('\n${'=' * 50}');
-        debugPrint('📋 COMPLETE API RESPONSE STRUCTURE');
-        debugPrint('=' * 50);
-        debugPrint('Status: ${data['status']}');
-        debugPrint('Data Structure:');
+
         if (data['data'] != null && data['data']['billingAddr'] != null) {
           final billingAddr = data['data']['billingAddr'];
-          debugPrint('  └── billingAddr:');
-          debugPrint('      ├── id: ${billingAddr['id']}');
-          debugPrint('      ├── user_id: ${billingAddr['user_id']}');
-          debugPrint('      ├── fname: "${billingAddr['fname']}"');
-          debugPrint('      ├── lname: ${billingAddr['lname']}');
-          debugPrint('      ├── email: "${billingAddr['email']}"');
-          debugPrint('      ├── phone: "${billingAddr['phone']}"');
-          debugPrint('      ├── addr_1: "${billingAddr['addr_1']}"');
-          debugPrint('      ├── addr_2: ${billingAddr['addr_2']}');
-          debugPrint('      ├── region: "${billingAddr['region']}"');
-          debugPrint('      ├── city: ${billingAddr['city']}');
-          debugPrint(
-              '      ├── shipping_type: "${billingAddr['shipping_type']}"');
-          debugPrint(
-              '      ├── pickup_location: "${billingAddr['pickup_location']}"');
-          debugPrint(
-              '      ├── delivery_option: "${billingAddr['delivery_option']}"');
-          debugPrint(
-              '      ├── pickup_region: "${billingAddr['pickup_region']}"');
-          debugPrint('      ├── pickup_city: "${billingAddr['pickup_city']}"');
-          debugPrint('      ├── pickup_site: "${billingAddr['pickup_site']}"');
-          debugPrint('      ├── notes: "${billingAddr['notes']}"');
-          debugPrint('      ├── created_at: "${billingAddr['created_at']}"');
-          debugPrint('      └── updated_at: "${billingAddr['updated_at']}"');
         } else {
           debugPrint('  └── billingAddr: null');
         }
-        debugPrint('=' * 50);
 
         // Check if data exists and has content
         if (data['data'] == null) {
@@ -242,19 +205,10 @@ class DeliveryService {
           };
         }
 
-        debugPrint('\n${'=' * 50}');
-        debugPrint('🔄 FIELD MAPPING');
-        debugPrint('=' * 50);
-        debugPrint('Billing address data: ${json.encode(billingAddr)}');
+  
 
         // Debug specific fields
-        debugPrint('\n🔍 SPECIFIC FIELD DEBUG:');
-        debugPrint('Raw billingAddr["region"]: ${billingAddr['region']}');
-        debugPrint('Raw billingAddr["city"]: ${billingAddr['city']}');
-        debugPrint('Raw billingAddr["addr_1"]: ${billingAddr['addr_1']}');
-        debugPrint('Raw billingAddr["fname"]: ${billingAddr['fname']}');
-        debugPrint('Raw billingAddr["email"]: ${billingAddr['email']}');
-        debugPrint('Raw billingAddr["phone"]: ${billingAddr['phone']}');
+     
 
         // Map the API response fields to our expected format
         final deliveryData = {
@@ -283,32 +237,7 @@ class DeliveryService {
               '',
         };
 
-        debugPrint('\n📝 MAPPED FIELD DEBUG:');
-        debugPrint('deliveryData["region"]: "${deliveryData['region']}"');
-        debugPrint('deliveryData["city"]: "${deliveryData['city']}"');
-        debugPrint('deliveryData["address"]: "${deliveryData['address']}"');
-        debugPrint('deliveryData["name"]: "${deliveryData['name']}"');
-        debugPrint('deliveryData["email"]: "${deliveryData['email']}"');
-        debugPrint('deliveryData["phone"]: "${deliveryData['phone']}"');
-        debugPrint(
-            'deliveryData["shipping_type"]: "${deliveryData['shipping_type']}"');
-        debugPrint(
-            'deliveryData["pickup_location"]: "${deliveryData['pickup_location']}"');
-        debugPrint(
-            'deliveryData["delivery_option"]: "${deliveryData['delivery_option']}"');
-
-        debugPrint('Mapped delivery data: ${json.encode(deliveryData)}');
-        debugPrint('Field values:');
-        debugPrint('- name: "${deliveryData['name']}"');
-        debugPrint('- email: "${deliveryData['email']}"');
-        debugPrint('- phone: "${deliveryData['phone']}"');
-        debugPrint('- region: "${deliveryData['region']}"');
-        debugPrint('- city: "${deliveryData['city']}"');
-        debugPrint('- address: "${deliveryData['address']}"');
-        debugPrint('- shipping_type: "${deliveryData['shipping_type']}"');
-        debugPrint('- pickup_location: "${deliveryData['pickup_location']}"');
-        debugPrint('- delivery_option: "${deliveryData['delivery_option']}"');
-        debugPrint('=' * 50);
+    
 
         return {
           'success': true,
@@ -571,7 +500,7 @@ class DeliveryService {
         // storeIndex++;
       }
 
-      debugPrint('All stores loaded successfully: ${allStores.length} stores');
+
       return {
         'success': true,
         'data': allStores,

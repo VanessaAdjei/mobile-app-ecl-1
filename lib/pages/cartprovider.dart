@@ -22,11 +22,10 @@ class CartProvider with ChangeNotifier {
   String? _pendingItemBatch;
 
   String _normalizeProductName(String name) {
-    debugPrint('🔤 NORMALIZE PRODUCT NAME ===');
-    debugPrint('Original: "$name"');
+  
 
     final normalized = name.toLowerCase().trim();
-    debugPrint('Normalized: "$normalized"');
+
 
     final words =
         normalized.split(' ').where((word) => word.isNotEmpty).toList();
@@ -243,13 +242,7 @@ class CartProvider with ChangeNotifier {
                 originalProductId: matchingLocalItem.originalProductId ??
                     matchingLocalItem.productId,
               );
-              debugPrint('🔍 PRESERVED ORIGINAL PRODUCT ID ===');
-              debugPrint('Product: ${cartItem.name}');
-              debugPrint('Original Product ID: ${cartItem.originalProductId}');
-              debugPrint('Server Product ID: ${cartItem.productId}');
-              debugPrint(
-                  'Local Item Product ID: ${matchingLocalItem.productId}');
-              debugPrint('====================================');
+           
             } else {
               // Check if this is the pending item we're trying to preserve
               bool isPendingItem = (_pendingOriginalProductId != null &&
@@ -263,16 +256,7 @@ class CartProvider with ChangeNotifier {
                 cartItem = cartItem.copyWith(
                   originalProductId: _pendingOriginalProductId,
                 );
-                debugPrint(
-                    '🔍 PRESERVED ORIGINAL PRODUCT ID (PENDING MATCH) ===');
-                debugPrint('Product: ${cartItem.name}');
-                debugPrint(
-                    'Original Product ID: ${cartItem.originalProductId}');
-                debugPrint('Server Product ID: ${cartItem.productId}');
-                debugPrint(
-                    'Pending Original Product ID: $_pendingOriginalProductId');
-                debugPrint(
-                    '==================================================');
+            
 
                 // Clear pending variables after use
                 _pendingOriginalProductId = null;
@@ -326,16 +310,7 @@ class CartProvider with ChangeNotifier {
                         flexibleMatchingLocalItem.originalProductId ??
                             flexibleMatchingLocalItem.productId,
                   );
-                  debugPrint(
-                      '🔍 PRESERVED ORIGINAL PRODUCT ID (FLEXIBLE MATCH) ===');
-                  debugPrint('Product: ${cartItem.name}');
-                  debugPrint(
-                      'Original Product ID: ${cartItem.originalProductId}');
-                  debugPrint('Server Product ID: ${cartItem.productId}');
-                  debugPrint(
-                      'Local Item Product ID: ${flexibleMatchingLocalItem.productId}');
-                  debugPrint(
-                      '==================================================');
+         
                 } else {
                   debugPrint('🔍 NO LOCAL ITEM FOUND FOR PRESERVATION ===');
                   debugPrint('Product: ${cartItem.name}');

@@ -32,7 +32,7 @@ class RealtimeCartSyncService {
     _cartProvider = cartProvider;
     _isRunning = true;
 
-    debugPrint('🔄 RealtimeCartSyncService: Initializing...');
+  
 
     // Start immediate sync mechanism
     _startImmediateSync();
@@ -40,7 +40,7 @@ class RealtimeCartSyncService {
     // Start periodic sync as backup
     _startPeriodicSync();
 
-    debugPrint('🔄 RealtimeCartSyncService: Initialized successfully');
+
   }
 
   /// Start immediate sync mechanism
@@ -66,7 +66,7 @@ class RealtimeCartSyncService {
   Future<void> triggerImmediateSync() async {
     if (!_isRunning) return;
 
-    debugPrint('🔄 RealtimeCartSyncService: Immediate sync triggered');
+
 
     // Cancel any pending immediate sync
     _immediateSyncTimer?.cancel();
@@ -85,19 +85,18 @@ class RealtimeCartSyncService {
       // Check if user is logged in
       final isLoggedIn = await AuthService.isLoggedIn();
       if (!isLoggedIn) {
-        debugPrint(
-            '🔄 RealtimeCartSyncService: User not logged in, skipping sync');
+   
         return;
       }
 
-      debugPrint('🔄 RealtimeCartSyncService: Performing immediate sync...');
+   
 
       // Sync with server immediately
       await _cartProvider!.syncWithApi();
 
-      debugPrint('🔄 RealtimeCartSyncService: Immediate sync completed');
+
     } catch (e) {
-      debugPrint('🔄 RealtimeCartSyncService: Error during immediate sync: $e');
+    
     }
   }
 
@@ -109,25 +108,24 @@ class RealtimeCartSyncService {
       // Check if user is logged in
       final isLoggedIn = await AuthService.isLoggedIn();
       if (!isLoggedIn) {
-        debugPrint(
-            '🔄 RealtimeCartSyncService: User not logged in, skipping periodic sync');
+       
         return;
       }
 
-      debugPrint('🔄 RealtimeCartSyncService: Performing periodic sync...');
+
 
       // Sync with server
       await _cartProvider!.syncWithApi();
 
-      debugPrint('🔄 RealtimeCartSyncService: Periodic sync completed');
+   
     } catch (e) {
-      debugPrint('🔄 RealtimeCartSyncService: Error during periodic sync: $e');
+  
     }
   }
 
   /// Force an immediate sync (for manual refresh)
   Future<void> forceImmediateSync() async {
-    debugPrint('🔄 RealtimeCartSyncService: Force immediate sync requested');
+  
     await _performImmediateSync();
   }
 
@@ -138,7 +136,7 @@ class RealtimeCartSyncService {
     _periodicSyncTimer?.cancel();
     _cartProvider = null;
 
-    debugPrint('🔄 RealtimeCartSyncService: Stopped');
+
   }
 
   /// Check if the service is running

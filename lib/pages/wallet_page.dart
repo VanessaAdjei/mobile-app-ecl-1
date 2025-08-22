@@ -359,18 +359,6 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
               children: [
                 Expanded(
                   child: _buildSimpleStatItem(
-                    'Credits',
-                    walletProvider.formatCurrency(walletProvider.totalCredits),
-                    Colors.green.shade600,
-                  ),
-                ),
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: Colors.grey.shade200,
-                ),
-                Expanded(
-                  child: _buildSimpleStatItem(
                     'Refunds',
                     walletProvider.formatCurrency(walletProvider.totalRefunds),
                     Colors.blue.shade600,

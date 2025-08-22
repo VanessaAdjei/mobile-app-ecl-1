@@ -27,7 +27,7 @@ class HealthTipsService {
   static void startBackgroundService() {
     if (_isBackgroundServiceRunning) return;
 
-    debugPrint('HealthTipsService: Starting background service');
+    
     _isBackgroundServiceRunning = true;
 
     // Initial load after a short delay
@@ -57,8 +57,7 @@ class HealthTipsService {
         _cachedTips = tips;
         _hasLoadedOnce = true;
         _lastFetchTime = DateTime.now();
-        debugPrint(
-            'HealthTipsService: Background refresh successful - ${tips.length} tips cached');
+
       }
     } catch (e) {
       debugPrint('HealthTipsService: Background refresh failed: $e');
@@ -150,7 +149,7 @@ class HealthTipsService {
 
     // If no cache, try to fetch immediately but with shorter timeout
     try {
-      debugPrint('HealthTipsService: Cache miss, fetching fresh data');
+
       final tips = await _fetchTipsFromAPI().timeout(Duration(seconds: 4));
 
       if (tips.isNotEmpty) {
@@ -159,7 +158,7 @@ class HealthTipsService {
         _lastFetchTime = DateTime.now();
 
         final result = _cachedTips.take(limit).toList();
-        debugPrint('HealthTipsService: Returning ${result.length} fresh tips');
+      
         return result;
       }
     } catch (e) {

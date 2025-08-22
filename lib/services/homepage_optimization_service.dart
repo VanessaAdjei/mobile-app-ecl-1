@@ -247,14 +247,6 @@ class HomepageOptimizationService {
         final products = dataList.map<Product>((item) {
           final productData = item['product'] as Map<String, dynamic>;
 
-          // Debug logging for stock data
-          if (kDebugMode) {
-            print(
-                '🔍 HomepageService - Processing product: ${productData['name']}');
-            print('   Raw qty_in_stock: ${productData['qty_in_stock']}');
-            print('   Type: ${productData['qty_in_stock'].runtimeType}');
-          }
-
           return Product(
             id: productData['id'] ?? 0,
             name: productData['name'] ?? 'No name',

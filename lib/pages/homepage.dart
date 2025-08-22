@@ -1823,7 +1823,7 @@ class HomePageState extends State<HomePage>
                   icon: Icons.contact_support_rounded,
                   title: "Contact Us",
                   color: Colors.orange[600]!,
-                  onTap: () => _showContactOptions("+2330000000000"),
+                  onTap: () => _showContactOptions("+233508411184"),
                 ),
               ),
             ],
@@ -2908,7 +2908,9 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
     }
     return SizedBox(
       width: double.infinity,
-      height: 190, // Increased height to show more of the image length
+      height: MediaQuery.of(context).size.width > 600
+          ? 300
+          : 190, // Optimized height for tablets
       child: PageView.builder(
         controller: _pageController,
         itemCount: banners.length,
@@ -2929,25 +2931,39 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
               }
             },
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: EdgeInsets.symmetric(
+                horizontal: MediaQuery.of(context).size.width > 600 ? 12 : 16,
+              ),
               child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(
+                    MediaQuery.of(context).size.width > 600 ? 16 : 12,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 6,
-                      offset: Offset(0, 3),
+                      blurRadius:
+                          MediaQuery.of(context).size.width > 600 ? 8 : 6,
+                      offset: Offset(
+                        0,
+                        MediaQuery.of(context).size.width > 600 ? 4 : 3,
+                      ),
                     ),
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(
+                    MediaQuery.of(context).size.width > 600 ? 16 : 12,
+                  ),
                   child: CachedNetworkImage(
                     imageUrl: imageUrl,
                     fit: BoxFit.cover,
                     fadeInDuration: const Duration(milliseconds: 300),
                     fadeOutDuration: const Duration(milliseconds: 200),
+                    memCacheWidth:
+                        MediaQuery.of(context).size.width > 600 ? 800 : 400,
+                    memCacheHeight:
+                        MediaQuery.of(context).size.width > 600 ? 600 : 300,
                     placeholder: (context, url) => Container(
                       color: Colors.grey[200],
                       child: Center(

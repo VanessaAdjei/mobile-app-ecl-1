@@ -45,6 +45,9 @@ class PaymentPage extends StatefulWidget {
   final String? contactNumber;
   final String deliveryOption;
   final String? guestEmail;
+  final double? latitude;
+  final double? longitude;
+  final String? estimatedDeliveryTime;
 
   const PaymentPage({
     super.key,
@@ -52,6 +55,9 @@ class PaymentPage extends StatefulWidget {
     this.contactNumber,
     this.deliveryOption = 'Delivery',
     this.guestEmail,
+    this.latitude,
+    this.longitude,
+    this.estimatedDeliveryTime,
   });
 
   @override
@@ -371,6 +377,7 @@ class PaymentPageState extends State<PaymentPage> {
               paymentVerified: true,
               paymentToken: null,
               paymentMethod: selectedPaymentMethod,
+              estimatedDeliveryTime: widget.estimatedDeliveryTime,
             ),
           ),
           (route) => false,
@@ -1960,6 +1967,7 @@ class OrderConfirmationPage extends StatefulWidget {
   final bool paymentVerified;
   final String? paymentToken;
   final String paymentMethod;
+  final String? estimatedDeliveryTime;
 
   const OrderConfirmationPage({
     super.key,
@@ -1971,6 +1979,7 @@ class OrderConfirmationPage extends StatefulWidget {
     required this.paymentVerified,
     this.paymentToken,
     required this.paymentMethod,
+    this.estimatedDeliveryTime,
   });
 
   @override
@@ -2796,6 +2805,9 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                                     'status': _status,
                                                     'created_at': DateTime.now()
                                                         .toIso8601String(),
+                                                    'estimated_delivery_time': widget
+                                                            .estimatedDeliveryTime ??
+                                                        'Location not specified',
                                                     'product_name': widget
                                                             .purchasedItems
                                                             .isNotEmpty

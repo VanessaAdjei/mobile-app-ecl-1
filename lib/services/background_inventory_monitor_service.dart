@@ -22,8 +22,6 @@ class BackgroundInventoryMonitorService {
   static void startBackgroundMonitoring() {
     if (_isRunning) return;
 
-    debugPrint(
-        '📦 BackgroundInventoryMonitorService: Starting background inventory monitoring');
     _isRunning = true;
 
     // Initial monitoring after delay
@@ -39,8 +37,7 @@ class BackgroundInventoryMonitorService {
 
   // Stop background monitoring
   static void stopBackgroundMonitoring() {
-    debugPrint(
-        '📦 BackgroundInventoryMonitorService: Stopping background inventory monitoring');
+ 
     _isRunning = false;
     _monitorTimer?.cancel();
     _monitorTimer = null;
@@ -48,13 +45,12 @@ class BackgroundInventoryMonitorService {
 
   static Future<void> _monitorInventoryInBackground() async {
     try {
-      debugPrint(
-          '📦 BackgroundInventoryMonitorService: Starting background inventory monitoring');
+ 
 
       final cartItems = await _getCartItems();
       if (cartItems.isEmpty) {
-        debugPrint(
-            '📦 BackgroundInventoryMonitorService: No cart items to monitor');
+   
+
         return;
       }
 
@@ -82,14 +78,11 @@ class BackgroundInventoryMonitorService {
             // Check for stock changes
             if (currentStock == 0 && wasInStock) {
               outOfStockItems.add(productName);
-              debugPrint(
-                  '📦 BackgroundInventoryMonitorService: $productName is now OUT OF STOCK');
             } else if (currentStock > 0 &&
                 currentStock <= 5 &&
                 previousStock > 5) {
               lowStockItems.add('$productName ($currentStock left)');
-              debugPrint(
-                  '📦 BackgroundInventoryMonitorService: $productName is LOW STOCK ($currentStock left)');
+       
             }
           }
         }
@@ -105,11 +98,9 @@ class BackgroundInventoryMonitorService {
       }
 
       _lastMonitorTime = DateTime.now();
-      debugPrint(
-          '📦 BackgroundInventoryMonitorService: Inventory monitoring completed');
+     
     } catch (e) {
-      debugPrint(
-          '📦 BackgroundInventoryMonitorService: Background monitoring error: $e');
+      debugPrint('📦 : Background monitoring error: $e');
     }
   }
 
@@ -124,8 +115,7 @@ class BackgroundInventoryMonitorService {
         return cartItems.cast<Map<String, dynamic>>();
       }
     } catch (e) {
-      debugPrint(
-          '📦 BackgroundInventoryMonitorService: Error getting cart items: $e');
+
     }
     return [];
   }
@@ -159,8 +149,7 @@ class BackgroundInventoryMonitorService {
         }
       }
     } catch (e) {
-      debugPrint(
-          '📦 BackgroundInventoryMonitorService: Error getting stock info for product $productId: $e');
+      
     }
     return null;
   }
@@ -187,11 +176,9 @@ class BackgroundInventoryMonitorService {
         payload: 'out_of_stock_alert',
       );
 
-      debugPrint(
-          '📦 BackgroundInventoryMonitorService: Out of stock notification sent for ${outOfStockItems.length} items');
+
     } catch (e) {
-      debugPrint(
-          '📦 BackgroundInventoryMonitorService: Error sending out of stock notification: $e');
+     
     }
   }
 
@@ -217,11 +204,9 @@ class BackgroundInventoryMonitorService {
         payload: 'low_stock_alert',
       );
 
-      debugPrint(
-          '📦 BackgroundInventoryMonitorService: Low stock notification sent for ${lowStockItems.length} items');
+
     } catch (e) {
-      debugPrint(
-          '📦 BackgroundInventoryMonitorService: Error sending low stock notification: $e');
+
     }
   }
 
@@ -234,8 +219,8 @@ class BackgroundInventoryMonitorService {
         return qtyInStock > 0;
       }
     } catch (e) {
-      debugPrint(
-          '📦 BackgroundInventoryMonitorService: Error checking stock for product $productId: $e');
+    
+        
     }
     return false; // Assume out of stock if check fails
   }
@@ -248,8 +233,7 @@ class BackgroundInventoryMonitorService {
         return stockInfo['qty_in_stock'] ?? 0;
       }
     } catch (e) {
-      debugPrint(
-          '📦 BackgroundInventoryMonitorService: Error getting stock level for product $productId: $e');
+   
     }
     return 0;
   }
@@ -274,8 +258,7 @@ class BackgroundInventoryMonitorService {
 
       return outOfStockItems;
     } catch (e) {
-      debugPrint(
-          '📦 BackgroundInventoryMonitorService: Error checking cart for out of stock items: $e');
+      
       return [];
     }
   }
@@ -293,11 +276,9 @@ class BackgroundInventoryMonitorService {
         }
       }
 
-      debugPrint(
-          '📦 BackgroundInventoryMonitorService: Preloaded stock info for ${popularProductIds.length} popular products');
+
     } catch (e) {
-      debugPrint(
-          '📦 BackgroundInventoryMonitorService: Error preloading popular product stock: $e');
+
     }
   }
 

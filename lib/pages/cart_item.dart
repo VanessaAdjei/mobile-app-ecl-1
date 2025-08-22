@@ -61,8 +61,7 @@ class CartItem {
   }
 
   Map<String, dynamic> toJson() {
-    debugPrint('🛒 Converting CartItem to JSON: $name');
-    debugPrint('🛒 CartItem data: {id: $id, name: $name, price: $price, quantity: $quantity}');
+  
     
     return {
       'id': id,

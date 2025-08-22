@@ -17,7 +17,7 @@ class WalletProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isInitialized => _isInitialized;
-  double get balance => _wallet?.balance ?? 0.0;
+  double get balance => totalCashback + totalRefunds;
   String get formattedBalance => WalletService.formatBalance(balance);
   bool get hasWallet => _wallet != null;
 
@@ -157,11 +157,8 @@ class WalletProvider extends ChangeNotifier {
         debugPrint(
             '🔄 WalletProvider: MOCK Cashback successful, simulating wallet update...');
 
-        // MOCK: Simulate adding cashback to wallet balance
+        // MOCK: Cashback amount is now automatically calculated from transactions
         final cashbackAmount = result['cashback_amount'] as double;
-        _wallet = _wallet!.copyWith(
-          balance: _wallet!.balance + cashbackAmount,
-        );
 
         // Add mock transaction
         final mockTransaction = WalletTransaction(
@@ -424,13 +421,6 @@ class WalletProvider extends ChangeNotifier {
   // Get transactions by type
   List<WalletTransaction> getTransactionsByType(String type) {
     return _transactions.where((t) => t.type == type).toList();
-  }
-
-  // Get total credits
-  double get totalCredits {
-    return _transactions
-        .where((t) => t.isCredit && t.isCompleted)
-        .fold(0.0, (sum, t) => sum + t.amount);
   }
 
   // Get total debits
