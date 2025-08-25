@@ -1,9 +1,8 @@
 // services/wallet_service.dart
-// services/wallet_service.dart
-// services/wallet_service.dart
-// services/wallet_service.dart
+
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/wallet.dart';
@@ -536,7 +535,12 @@ class WalletService {
 
   // Get formatted balance string
   static String formatBalance(double balance) {
-    return '₵${balance.toStringAsFixed(2)}';
+    // iOS has better Unicode support, Android often doesn't support Ghana Cedi symbol
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      return '₵${balance.toStringAsFixed(2)}'; // Use Ghana Cedi symbol on iOS
+    } else {
+      return 'GHS ${balance.toStringAsFixed(2)}'; // Use GHS text on Android and other platforms
+    }
   }
 
   // Get transaction type display text

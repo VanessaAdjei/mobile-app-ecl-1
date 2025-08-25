@@ -143,79 +143,170 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
     try {
       List<String> suggestions = [];
+      Set<String> uniqueSuggestions = {}; // Prevent duplicates
 
-      // Real-time geocoding search for actual map locations
+      // Strategy 1: Search with Ghana context (most relevant for local users)
       try {
-        // Search for the query in Ghana context
         List<Location> locations = await locationFromAddress('$query, Ghana');
-
         if (locations.isNotEmpty) {
-          // Get detailed address for each location
-          for (Location location in locations.take(5)) {
+          for (Location location in locations.take(8)) {
             try {
               List<Placemark> placemarks = await placemarkFromCoordinates(
                   location.latitude, location.longitude);
 
               if (placemarks.isNotEmpty) {
                 Placemark place = placemarks[0];
-                String address = '';
-
-                // Build a readable address
-                if (place.street != null && place.street!.isNotEmpty) {
-                  address += place.street!;
-                }
-                if (place.subLocality != null &&
-                    place.subLocality!.isNotEmpty) {
-                  address += address.isNotEmpty
-                      ? ', ${place.subLocality}'
-                      : place.subLocality!;
-                }
-                if (place.locality != null && place.locality!.isNotEmpty) {
-                  address += address.isNotEmpty
-                      ? ', ${place.locality}'
-                      : place.locality!;
-                }
-                if (place.administrativeArea != null &&
-                    place.administrativeArea!.isNotEmpty) {
-                  address += address.isNotEmpty
-                      ? ', ${place.administrativeArea}'
-                      : place.administrativeArea!;
-                }
-
-                if (address.isNotEmpty) {
+                String address = _buildReadableAddress(place);
+                if (address.isNotEmpty &&
+                    !uniqueSuggestions.contains(address)) {
                   suggestions.add(address);
+                  uniqueSuggestions.add(address);
                 }
               }
             } catch (e) {
               // If detailed address fails, use coordinates
-              suggestions.add(
-                  '${location.latitude.toStringAsFixed(4)}, ${location.longitude.toStringAsFixed(4)}');
+              String coordAddress =
+                  '${location.latitude.toStringAsFixed(4)}, ${location.longitude.toStringAsFixed(4)}';
+              if (!uniqueSuggestions.contains(coordAddress)) {
+                suggestions.add(coordAddress);
+                uniqueSuggestions.add(coordAddress);
+              }
             }
           }
         }
       } catch (e) {
-        print('🗺️ [MAP] Geocoding error: $e');
+        print('🗺️ [MAP] Ghana context search error: $e');
       }
 
-      // If no real results, add the original query as a suggestion
+      // Strategy 2: Search without context (broader search)
+      if (suggestions.length < 5) {
+        try {
+          List<Location> locations = await locationFromAddress(query);
+          if (locations.isNotEmpty) {
+            for (Location location in locations.take(5)) {
+              try {
+                List<Placemark> placemarks = await placemarkFromCoordinates(
+                    location.latitude, location.longitude);
+
+                if (placemarks.isNotEmpty) {
+                  Placemark place = placemarks[0];
+                  String address = _buildReadableAddress(place);
+                  if (address.isNotEmpty &&
+                      !uniqueSuggestions.contains(address)) {
+                    suggestions.add(address);
+                    uniqueSuggestions.add(address);
+                  }
+                }
+              } catch (e) {
+                String coordAddress =
+                    '${location.latitude.toStringAsFixed(4)}, ${location.longitude.toStringAsFixed(4)}';
+                if (!uniqueSuggestions.contains(coordAddress)) {
+                  suggestions.add(coordAddress);
+                  uniqueSuggestions.add(coordAddress);
+                }
+              }
+            }
+          }
+        } catch (e) {
+          print('🗺️ [MAP] Broader search error: $e');
+        }
+      }
+
+      // Strategy 3: Try partial matches for better coverage
+      if (suggestions.length < 3 && query.length > 3) {
+        try {
+          // Try with first few characters for partial matching
+          String partialQuery = query.substring(0, query.length - 1);
+          List<Location> locations =
+              await locationFromAddress('$partialQuery, Ghana');
+          if (locations.isNotEmpty) {
+            for (Location location in locations.take(3)) {
+              try {
+                List<Placemark> placemarks = await placemarkFromCoordinates(
+                    location.latitude, location.longitude);
+
+                if (placemarks.isNotEmpty) {
+                  Placemark place = placemarks[0];
+                  String address = _buildReadableAddress(place);
+                  if (address.isNotEmpty &&
+                      !uniqueSuggestions.contains(address)) {
+                    suggestions.add(address);
+                    uniqueSuggestions.add(address);
+                  }
+                }
+              } catch (e) {
+                // Skip coordinate fallback for partial matches
+              }
+            }
+          }
+        } catch (e) {
+          print('🗺️ [MAP] Partial match search error: $e');
+        }
+      }
+
+      // Strategy 4: Add the original query as fallback
       if (suggestions.isEmpty && query.isNotEmpty) {
         suggestions.add('$query, Ghana');
       }
 
-      return suggestions.take(8).toList();
+      return suggestions.take(10).toList(); // Increased from 8 to 10
     } catch (e) {
       print('🗺️ [MAP] Error getting suggestions: $e');
       return [];
     }
   }
 
+  /// Helper method to build readable address from placemark
+  String _buildReadableAddress(Placemark place) {
+    String address = '';
+
+    if (place.street != null && place.street!.isNotEmpty) {
+      address += place.street!;
+    }
+    if (place.subLocality != null && place.subLocality!.isNotEmpty) {
+      address +=
+          address.isNotEmpty ? ', ${place.subLocality}' : place.subLocality!;
+    }
+    if (place.locality != null && place.locality!.isNotEmpty) {
+      address += address.isNotEmpty ? ', ${place.locality}' : place.locality!;
+    }
+    if (place.administrativeArea != null &&
+        place.administrativeArea!.isNotEmpty) {
+      address += address.isNotEmpty
+          ? ', ${place.administrativeArea}'
+          : place.administrativeArea!;
+    }
+
+    return address;
+  }
+
   /// Search for a location and move map to it
   Future<void> _searchLocation(String query) async {
     try {
-      // Geocode the search query
+     
       List<Location> locations = await locationFromAddress(query);
 
+      // Strategy 2: If no results, try with Ghana context
+      if (locations.isEmpty) {
+        try {
+          locations = await locationFromAddress('$query, Ghana');
+        } catch (e) {
+          print('🗺️ [MAP] Ghana context search failed: $e');
+        }
+      }
+
+      // Strategy 3: If still no results, try partial match
+      if (locations.isEmpty && query.length > 3) {
+        try {
+          String partialQuery = query.substring(0, query.length - 1);
+          locations = await locationFromAddress(partialQuery);
+        } catch (e) {
+          print('🗺️ [MAP] Partial match search failed: $e');
+        }
+      }
+
       if (locations.isNotEmpty) {
+        // Use the first (most relevant) result
         Location location = locations[0];
         LatLng newLocation = LatLng(location.latitude, location.longitude);
 
@@ -243,8 +334,6 @@ class _MapPickerPageState extends State<MapPickerPage> {
             ),
           );
         }
-
-        // Success - no return needed for void method
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -255,7 +344,6 @@ class _MapPickerPageState extends State<MapPickerPage> {
             ),
           );
         }
-        // No return needed for void method
       }
     } catch (e) {
       print('🗺️ [MAP] Search error: $e');
@@ -268,7 +356,6 @@ class _MapPickerPageState extends State<MapPickerPage> {
           ),
         );
       }
-      // No return needed for void method
     }
   }
 

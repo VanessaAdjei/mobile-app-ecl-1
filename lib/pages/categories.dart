@@ -51,6 +51,23 @@ class CategoryCache {
   }
 }
 
+// Cache for search results to persist across navigation
+class SearchResultCache {
+  static dynamic _searchedProduct;
+
+  static void storeSearchedProduct(dynamic product) {
+    _searchedProduct = product;
+  }
+
+  static dynamic getSearchedProduct() {
+    return _searchedProduct;
+  }
+
+  static void clear() {
+    _searchedProduct = null;
+  }
+}
+
 // Image preloading service for categories
 class CategoryImagePreloader {
   static final Map<String, bool> _preloadedImages = {};
@@ -107,6 +124,7 @@ class CategoryPageState extends State<CategoryPage> {
   List<dynamic> _searchResults = [];
   final FocusNode _searchFocusNode = FocusNode();
   Timer? _searchDebounceTimer;
+  final ScrollController _searchScrollController = ScrollController();
   final CategoryOptimizationService _categoryService =
       CategoryOptimizationService();
 
@@ -160,6 +178,7 @@ class CategoryPageState extends State<CategoryPage> {
     _highlightTimer?.cancel();
     _searchDebounceTimer?.cancel();
     _searchFocusNode.dispose();
+    _searchScrollController.dispose();
     super.dispose();
   }
 
@@ -319,32 +338,442 @@ class CategoryPageState extends State<CategoryPage> {
     });
   }
 
-  // Move search to a background isolate and limit results
+  // Search through all categories to find products
   Future<void> _performSearch(String query) async {
     setState(() {
       _showSearchDropdown = true;
-      _searchResults = []; // Clear previous results while searching
+      _searchResults = [];
     });
 
-    List<dynamic> productsToSearch = [];
-    if (CategoryCache.cachedAllProducts.isNotEmpty) {
-      productsToSearch = CategoryCache.cachedAllProducts;
-    } else if (_allProducts.isNotEmpty) {
-      productsToSearch = _allProducts;
-    } else if (query.length >= 2) {
-      await _getAllProductsFromCategories(forceRefresh: true);
-      productsToSearch = _allProducts;
+    try {
+      debugPrint('🔍 Starting search for: $query');
+
+      // Show loading state
+      setState(() {
+        _searchResults = [];
+      });
+
+      // Search through each category individually
+      final results = await _searchAllCategories(query);
+
+      setState(() {
+        _searchResults = results.take(30).toList();
+      });
+
+      debugPrint('🔍 Search completed: Found ${_searchResults.length} results');
+    } catch (e) {
+      debugPrint('🔍 Search error: $e');
+      setState(() {
+        _searchResults = [];
+      });
     }
+  }
 
-    // Use compute to search in background
-    final productResults = await compute(_filterProducts, {
-      'products': productsToSearch,
-      'query': query,
+  // Fast search using get-all-products API
+  Future<List<dynamic>> _searchAllCategories(String query) async {
+    List<dynamic> allResults = [];
+    final searchQuery = query.toLowerCase();
+
+    try {
+      debugPrint('🔍 Fast search using get-all-products API for: "$query"');
+
+      // Use the get-all-products API for fast search
+      final response = await http
+          .get(Uri.parse(
+              'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'))
+          .timeout(Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> dataList = responseData['data'];
+
+        // Filter products by query
+        for (final item in dataList) {
+          final productData = item['product'] as Map<String, dynamic>;
+          final productName =
+              productData['name']?.toString().toLowerCase() ?? '';
+
+          if (productName.contains(searchQuery)) {
+            // Add basic product info for search results
+            final product = {
+              'id': productData['id'],
+              'name': productData['name'],
+              'thumbnail':
+                  productData['thumbnail'] ?? productData['image'] ?? '',
+              'price': item['price'] ?? 0,
+              'description': productData['description'] ?? '',
+              // Note: category info will be found when item is clicked
+            };
+            allResults.add(product);
+
+            if (allResults.length >= 30) break; // Limit results
+          }
+        }
+
+        debugPrint(
+            '🔍 Fast search completed: Found ${allResults.length} products');
+        return allResults;
+      } else {
+        throw Exception('Failed to load products from API');
+      }
+    } catch (e) {
+      debugPrint('🔍 Error in fast search: $e');
+      return [];
+    }
+  }
+
+  // FAST search through ALL categories using parallel processing
+  Future<Map<String, dynamic>?> _findProductInAllCategories(
+      String productName) async {
+    debugPrint('🔍🔍 FAST COMPREHENSIVE SEARCH for: $productName');
+
+    try {
+      // First, try to find in cached products (fastest)
+      if (CategoryCache.cachedAllProducts.isNotEmpty) {
+        debugPrint('🔍🔍 Checking cached products first...');
+
+        // SMART CACHING: Use parallel search through cached products for EXTREME SPEED
+        final cachedFutures =
+            CategoryCache.cachedAllProducts.map((product) async {
+          final productNameLower =
+              product['name']?.toString().toLowerCase() ?? '';
+          final searchQueryLower = productName.toLowerCase();
+
+          if (productNameLower == searchQueryLower ||
+              productNameLower.contains(searchQueryLower) ||
+              searchQueryLower.contains(productNameLower)) {
+            // Found in cache! Now just get the category info
+            final categoryId = product['category_id'];
+            final categoryName = product['category_name'];
+            final subcategoryId = product['subcategory_id'];
+            final subcategoryName = product['subcategory_name'];
+
+            if (categoryId != null && categoryName != null) {
+              debugPrint(
+                  '🔍🔍 FOUND in cache: ${product['name']} in $categoryName');
+              return {
+                'product': product,
+                'category_id': categoryId,
+                'category_name': categoryName,
+                'subcategory_id': subcategoryId,
+                'subcategory_name': subcategoryName,
+                'found_in_category': true,
+                'found_in_subcategory': subcategoryId != null,
+              };
+            }
+          }
+          return null;
+        });
+
+        // Check cached products with EXTREME SPEED timeout
+        try {
+          final cachedResult =
+              await Future.any(cachedFutures.where((f) => f != null))
+                  .timeout(Duration(milliseconds: 100)); // 100ms max for cache
+          if (cachedResult != null) {
+            debugPrint('🔍🔍 EXTREME SPEED: Cache hit in under 100ms!');
+            return cachedResult;
+          }
+        } catch (e) {
+          debugPrint('🔍🔍 Cache search timeout, continuing to API search...');
+        }
+      }
+
+      // If not in cache, do EXTREME-SPEED parallel search through ALL categories
+      debugPrint(
+          '🔍🔍 Not in cache, doing EXTREME-SPEED parallel search through ALL categories...');
+
+      // Get all categories
+      final categories = await _categoryService.getCategories();
+      debugPrint(
+          '🔍🔍 EXTREME-SPEED parallel searching through ALL ${categories.length} categories');
+
+      // EXTREME SPEED: Try batch API call first for instant results
+      try {
+        debugPrint('🔍🔍 EXTREME SPEED: Attempting batch API call...');
+        final batchResult = await _tryBatchProductSearch(productName)
+            .timeout(Duration(milliseconds: 300)); // 300ms max for batch
+
+        if (batchResult != null) {
+          debugPrint('🔍🔍 EXTREME SPEED: Batch API success in under 300ms!');
+          return batchResult;
+        }
+      } catch (e) {
+        debugPrint('🔍🔍 Batch API failed, falling back to parallel search...');
+      }
+
+      // Smart category prioritization - search most likely categories first
+      final prioritizedCategories =
+          _prioritizeCategories(categories, productName);
+      debugPrint('🔍🔍 Categories prioritized by relevance to: $productName');
+
+      // Create a list to store all futures
+      List<Future<Map<String, dynamic>?>> allFutures = [];
+
+      // Search through ALL categories in parallel for maximum speed
+      for (final category in prioritizedCategories) {
+        final categoryId = category['id'];
+        final categoryName = category['name'];
+        final hasSubcategories = _categoryHasSubcategories[categoryId] ?? false;
+
+        debugPrint(
+            '🔍🔍 Starting search in category: $categoryName (ID: $categoryId)');
+
+        if (hasSubcategories) {
+          // Search through ALL subcategories with EXTREME SPEED
+          try {
+            final subcategoriesResponse = await http
+                .get(
+                  Uri.parse(
+                      'https://eclcommerce.ernestchemists.com.gh/api/categories/$categoryId'),
+                )
+                .timeout(Duration(seconds: 1)); // EXTREME SPEED timeout
+
+            if (subcategoriesResponse.statusCode == 200) {
+              final subcategoriesData = json.decode(subcategoriesResponse.body);
+              if (subcategoriesData['success'] == true) {
+                final subcategories = subcategoriesData['data'] as List;
+
+                // Search subcategories in parallel for EXTREME SPEED
+                final subcategoryFutures =
+                    subcategories.map((subcategory) async {
+                  final subcategoryId = subcategory['id'];
+                  final subcategoryName = subcategory['name'];
+
+                  try {
+                    final productsResponse = await http
+                        .get(
+                          Uri.parse(
+                              'https://eclcommerce.ernestchemists.com.gh/api/product-categories/$subcategoryId'),
+                        )
+                        .timeout(Duration(seconds: 1)); // EXTREME SPEED timeout
+
+                    if (productsResponse.statusCode == 200) {
+                      final productsData = json.decode(productsResponse.body);
+                      if (productsData['success'] == true) {
+                        final products = productsData['data'] as List;
+
+                        // Look for EXACT product match with early exit
+                        for (final product in products) {
+                          final productNameLower =
+                              product['name']?.toString().toLowerCase() ?? '';
+                          final searchQueryLower = productName.toLowerCase();
+
+                          if (productNameLower == searchQueryLower ||
+                              productNameLower.contains(searchQueryLower) ||
+                              searchQueryLower.contains(productNameLower)) {
+                            debugPrint(
+                                '🔍🔍 FOUND: ${product['name']} in $categoryName > $subcategoryName');
+
+                            return {
+                              'product': product,
+                              'category_id': categoryId,
+                              'category_name': categoryName,
+                              'subcategory_id': subcategoryId,
+                              'subcategory_name': subcategoryName,
+                              'found_in_category': true,
+                              'found_in_subcategory': true,
+                            };
+                          }
+                        }
+                      }
+                    }
+                  } catch (e) {
+                    // Skip failed subcategories
+                  }
+                  return null;
+                });
+
+                // Add all subcategory futures to the main list
+                allFutures.addAll(subcategoryFutures);
+              }
+            }
+          } catch (e) {
+            debugPrint('🔍🔍 Error in category $categoryId: $e');
+          }
+        } else {
+          // Search directly in category with EXTREME SPEED
+          final categoryFuture = (() async {
+            try {
+              final productsResponse = await http
+                  .get(
+                    Uri.parse(
+                        'https://eclcommerce.ernestchemists.com.gh/api/product-categories/$categoryId'),
+                  )
+                  .timeout(Duration(seconds: 1)); // EXTREME SPEED timeout
+
+              if (productsResponse.statusCode == 200) {
+                final productsData = json.decode(productsResponse.body);
+                if (productsData['success'] == true) {
+                  final products = productsData['data'] as List;
+
+                  for (final product in products) {
+                    final productNameLower =
+                        product['name']?.toString().toLowerCase() ?? '';
+                    final searchQueryLower = productName.toLowerCase();
+
+                    if (productNameLower == searchQueryLower ||
+                        productNameLower.contains(searchQueryLower) ||
+                        searchQueryLower.contains(productNameLower)) {
+                      debugPrint(
+                          '🔍🔍 FOUND: ${product['name']} in $categoryName');
+
+                      return {
+                        'product': product,
+                        'category_id': categoryId,
+                        'category_name': categoryName,
+                        'found_in_category': true,
+                        'found_in_subcategory': false,
+                      };
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              debugPrint('🔍🔍 Error in category $categoryId: $e');
+            }
+            return null;
+          })();
+
+          allFutures.add(categoryFuture);
+        }
+      }
+
+      // Now wait for ANY result from ANY category/subcategory with EXTREME SPEED
+      debugPrint(
+          '🔍🔍 Waiting for ANY result from ${allFutures.length} parallel searches...');
+
+      // Use Future.any for the fastest possible result with ULTRA-AGGRESSIVE timeout
+      try {
+        final result = await Future.any(allFutures.where((f) => f != null))
+            .timeout(
+                Duration(milliseconds: 500)); // EXTREME SPEED: 500ms max wait
+        if (result != null) {
+          debugPrint('🔍🔍 EXTREME SPEED: Result found in under 500ms!');
+          return result;
+        }
+      } catch (e) {
+        debugPrint(
+            '🔍🔍 EXTREME SPEED: Future.any timeout, trying sequential fallback...');
+      }
+
+      // ULTRA-AGGRESSIVE fallback: check each future with minimal wait
+      for (final future in allFutures) {
+        try {
+          final result = await future
+              .timeout(Duration(milliseconds: 200)); // 200ms per future
+          if (result != null) {
+            debugPrint(
+                '🔍🔍 EXTREME SPEED: Result found in sequential fallback!');
+            return result;
+          }
+        } catch (e) {
+          // Continue to next future
+        }
+      }
+
+      debugPrint('🔍🔍 FAST COMPREHENSIVE SEARCH COMPLETED: Product not found');
+      return null;
+    } catch (e) {
+      debugPrint('🔍🔍 FAST COMPREHENSIVE SEARCH ERROR: $e');
+      return null;
+    }
+  }
+
+  // Smart category prioritization for faster search results
+  List<dynamic> _prioritizeCategories(
+      List<dynamic> categories, String productName) {
+    final productNameLower = productName.toLowerCase();
+    final prioritized = List<dynamic>.from(categories);
+
+    // Sort categories by relevance to the product name
+    prioritized.sort((a, b) {
+      final aName = a['name']?.toString().toLowerCase() ?? '';
+      final bName = b['name']?.toString().toLowerCase() ?? '';
+
+      // Check for exact matches first
+      if (aName.contains(productNameLower) && !bName.contains(productNameLower))
+        return -1;
+      if (!aName.contains(productNameLower) && bName.contains(productNameLower))
+        return 1;
+
+      // Check for partial matches
+      if (aName.contains(productNameLower.substring(0, 3)) &&
+          !bName.contains(productNameLower.substring(0, 3))) return -1;
+      if (!aName.contains(productNameLower.substring(0, 3)) &&
+          bName.contains(productNameLower.substring(0, 3))) return 1;
+
+      // Prioritize common categories that usually have products
+      final commonCategories = [
+        'medicines',
+        'personal care',
+        'health care devices',
+        'mother & baby'
+      ];
+      final aIsCommon = commonCategories.any((cat) => aName.contains(cat));
+      final bIsCommon = commonCategories.any((cat) => bName.contains(cat));
+
+      if (aIsCommon && !bIsCommon) return -1;
+      if (!aIsCommon && bIsCommon) return 1;
+
+      return 0;
     });
 
-    setState(() {
-      _searchResults = productResults.take(30).toList(); // Limit to 30 results
-    });
+    debugPrint(
+        '🔍🔍 Category priority: ${prioritized.map((c) => c['name']).toList()}');
+    return prioritized;
+  }
+
+  // EXTREME SPEED: Batch API search for instant results
+  Future<Map<String, dynamic>?> _tryBatchProductSearch(
+      String productName) async {
+    try {
+      // Try to get all products in one API call for maximum speed
+      final response = await http
+          .get(Uri.parse(
+              'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'))
+          .timeout(Duration(milliseconds: 250)); // Ultra-fast timeout
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> dataList = responseData['data'];
+        final searchQuery = productName.toLowerCase();
+
+        // Search through all products with early exit
+        for (final item in dataList) {
+          final productData = item['product'] as Map<String, dynamic>;
+          final productNameLower =
+              productData['name']?.toString().toLowerCase() ?? '';
+
+          if (productNameLower == searchQuery ||
+              productNameLower.contains(searchQuery) ||
+              searchQuery.contains(productNameLower)) {
+            // Found product! Now get category info
+            final categoryId = item['category_id'];
+            final categoryName = item['category_name'];
+            final subcategoryId = item['subcategory_id'];
+            final subcategoryName = item['subcategory_name'];
+
+            if (categoryId != null && categoryName != null) {
+              debugPrint(
+                  '🔍🔍 EXTREME SPEED: Batch API found: ${productData['name']} in $categoryName');
+              return {
+                'product': productData,
+                'category_id': categoryId,
+                'category_name': categoryName,
+                'subcategory_id': subcategoryId,
+                'subcategory_name': subcategoryName,
+                'found_in_category': true,
+                'found_in_subcategory': subcategoryId != null,
+              };
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('🔍🔍 Batch API error: $e');
+    }
+    return null;
   }
 
   // Background search function for compute
@@ -633,341 +1062,478 @@ class CategoryPageState extends State<CategoryPage> {
   }
 
   Widget _buildMainContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Search Section
-        Container(
-          padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Search Bar with Dropdown
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      focusNode: _searchFocusNode,
-                      onChanged: _searchProduct,
-                      onTap: () {
-                        if (_searchController.text.isNotEmpty) {
-                          setState(() {
-                            _showSearchDropdown = true;
-                          });
-                        }
-                      },
-                      decoration: InputDecoration(
-                        hintText: "Search products...",
-                        hintStyle: TextStyle(
-                          color: Colors.grey.shade400,
-                          fontSize: 13,
-                        ),
-                        prefixIcon: Icon(
-                          Icons.search,
-                          color: Colors.green.shade700,
-                          size: 20,
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        errorBorder: InputBorder.none,
-                        disabledBorder: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 8),
-                      ),
-                    ),
-                  ),
-                  // Search Dropdown
-                  if (_showSearchDropdown)
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Search Section
+          Container(
+            padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Search Bar with Dropdown
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     Container(
-                      margin: EdgeInsets.only(top: 4),
-                      constraints:
-                          BoxConstraints(maxHeight: 320), // Increased height
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Colors.green.shade300,
-                          width: 2,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        onChanged: _searchProduct,
+                        onTap: () {
+                          if (_searchController.text.isNotEmpty) {
+                            setState(() {
+                              _showSearchDropdown = true;
+                            });
+                          }
+                        },
+                        decoration: InputDecoration(
+                          hintText: "Search products...",
+                          hintStyle: TextStyle(
+                            color: Colors.grey.shade400,
+                            fontSize: 13,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: Colors.green.shade700,
+                            size: 20,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          errorBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(vertical: 8),
                         ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Debug header
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade50,
-                              borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(6),
+                    ),
+                    // Search Dropdown
+                    if (_showSearchDropdown)
+                      Container(
+                        margin: EdgeInsets.only(top: 4),
+                        constraints: BoxConstraints(maxHeight: 300),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.green.shade300,
+                            width: 2,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Debug header
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(6),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.search,
+                                    size: 14,
+                                    color: Colors.green.shade700,
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Search Results (${_searchResults.length})',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.green.shade700,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.search,
-                                  size: 14,
-                                  color: Colors.green.shade700,
-                                ),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Search Results (${_searchResults.length})',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.green.shade700,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          // Results
-                          Flexible(
-                            child: _isLoadingProducts
-                                ? Container(
-                                    padding: EdgeInsets.all(16),
-                                    child: Row(
-                                      children: [
-                                        SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                    Colors.green.shade700),
-                                          ),
-                                        ),
-                                        SizedBox(width: 12),
-                                        Text(
-                                          'Loading products...',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                : _searchResults.isEmpty
-                                    ? Container(
-                                        padding: EdgeInsets.all(16),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              Icons.search_off,
-                                              size: 32,
-                                              color: Colors.grey.shade400,
-                                            ),
-                                            SizedBox(height: 8),
-                                            Text(
-                                              'No products found',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey.shade600,
-                                                fontWeight: FontWeight.w500,
+                            // Results
+                            Flexible(
+                              child: _searchResults.isEmpty &&
+                                      _showSearchDropdown
+                                  ? Container(
+                                      padding: EdgeInsets.all(16),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  valueColor:
+                                                      AlwaysStoppedAnimation<
+                                                              Color>(
+                                                          Colors
+                                                              .green.shade700),
+                                                ),
                                               ),
-                                              textAlign: TextAlign.center,
-                                            ),
-                                          ],
-                                        ),
-                                      )
-                                    : Scrollbar(
-                                        thumbVisibility: true,
-                                        child: ListView.builder(
-                                          primary:
-                                              false, // Prevent PrimaryScrollController conflict
-                                          shrinkWrap: true,
-                                          padding: EdgeInsets.zero,
-                                          itemCount: _searchResults.length,
-                                          itemBuilder: (context, index) {
-                                            final item = _searchResults[index];
-                                            return _buildSearchResultItem(item);
-                                          },
-                                        ),
+                                              SizedBox(width: 12),
+                                              Text(
+                                                'Searching through all categories...',
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  color: Colors.grey.shade600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
-                          ),
-                        ],
+                                    )
+                                  : _searchResults.isEmpty
+                                      ? Container(
+                                          padding: EdgeInsets.all(16),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.search_off,
+                                                size: 32,
+                                                color: Colors.grey.shade400,
+                                              ),
+                                              SizedBox(height: 8),
+                                              Text(
+                                                'No products found',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey.shade600,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      : Scrollbar(
+                                          controller: _searchScrollController,
+                                          thumbVisibility: true,
+                                          child: ListView.builder(
+                                            controller: _searchScrollController,
+                                            primary: false,
+                                            shrinkWrap: true,
+                                            padding: EdgeInsets.zero,
+                                            itemCount: _searchResults.length,
+                                            itemBuilder: (context, index) {
+                                              final item =
+                                                  _searchResults[index];
+                                              return _buildSearchResultItem(
+                                                  item);
+                                            },
+                                            // Add physics to prevent overflow
+                                            physics:
+                                                const ClampingScrollPhysics(),
+                                          ),
+                                        ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                ],
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Find products by name',
-                style: TextStyle(color: Colors.green, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-        // Categories Title
-        Padding(
-          padding: EdgeInsets.fromLTRB(12, 0, 12, 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Browse Categories',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  ],
                 ),
-              ),
-              Text(
-                '${_filteredCategories.length} found',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-              ),
-            ],
+                SizedBox(height: 4),
+                Text(
+                  'Find products by name',
+                  style: TextStyle(color: Colors.green, fontSize: 12),
+                ),
+              ],
+            ),
           ),
-        ),
-        // Categories Grid
-        Expanded(child: _buildCategoriesGrid()),
-      ],
+          // Categories Title
+          Padding(
+            padding: EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Browse Categories',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                Text(
+                  '${_filteredCategories.length} found',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+          // Categories Grid
+          _buildCategoriesGrid(),
+        ],
+      ),
     );
   }
 
   Widget _buildSearchResultItem(dynamic item) {
-    return OpenContainer(
-      transitionType: ContainerTransitionType.fadeThrough,
-      openColor: Theme.of(context).scaffoldBackgroundColor,
-      closedColor: Colors.transparent,
-      closedElevation: 0,
-      openElevation: 0,
-      transitionDuration: Duration(milliseconds: 200),
-      closedShape: RoundedRectangleBorder(
+    final productName = item['name']?.toString() ?? 'Unknown Product';
+    final productImage = item['thumbnail']?.toString() ?? '';
+    final productPrice = item['price']?.toString() ?? '0.00';
+    final categoryName = item['category_name'];
+    final subcategoryName = item['subcategory_name'];
+
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
-      openBuilder: (context, _) {
-        // Navigate to the category page where this product belongs
-        final categoryId = item['category_id'] ?? item['data']?['category_id'];
-        final categoryName =
-            item['category_name'] ?? item['data']?['category_name'];
-        final subcategoryId =
-            item['subcategory_id'] ?? item['data']?['subcategory_id'];
-        final searchedProductName = item['name'];
-        final searchedProductId = item['id'];
-
-        if (categoryId != null && categoryName != null) {
-          // Check if the category has subcategories by looking at the original categories data
-          final category = _categories.firstWhere(
-            (cat) => cat['id'] == categoryId,
-            orElse: () => {'has_subcategories': false},
-          );
-
-          if (category['has_subcategories'] == true) {
-            return SubcategoryPage(
-              categoryName: categoryName,
-              categoryId: categoryId,
-              searchedProductName: searchedProductName,
-              searchedProductId: searchedProductId,
-              targetSubcategoryId: subcategoryId,
-            );
-          } else {
-            return ProductListPage(
-              categoryName: categoryName,
-              categoryId: categoryId,
-              searchedProductName: searchedProductName,
-              searchedProductId: searchedProductId,
-            );
-          }
-        } else {
-          // Fallback to categories page if navigation fails
-          return CategoryPage();
-        }
-      },
-      closedBuilder: (context, openContainer) => InkWell(
-        onTap: openContainer,
-        child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: [
-              // Product thumbnail
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(6),
-                  color: Colors.grey.shade100,
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: CachedNetworkImage(
-                    imageUrl: item['thumbnail'] ?? '',
+      child: ListTile(
+        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Container(
+            width: 50,
+            height: 50,
+            child: productImage.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: productImage,
                     fit: BoxFit.cover,
-                    memCacheWidth: 80,
-                    memCacheHeight: 80,
-                    maxWidthDiskCache: 80,
-                    maxHeightDiskCache: 80,
-                    cacheKey: 'search_${item['id']}_${item['thumbnail']}',
+                    memCacheWidth: 100,
+                    memCacheHeight: 100,
                     placeholder: (context, url) => Center(
                         child: CircularProgressIndicator(strokeWidth: 2)),
-                    errorWidget: (context, url, error) =>
-                        Icon(Icons.broken_image, size: 20),
+                    errorWidget: (context, url, error) => Container(
+                      color: Colors.grey.shade200,
+                      child: Icon(
+                        Icons.image_not_supported,
+                        color: Colors.grey.shade400,
+                        size: 24,
+                      ),
+                    ),
+                  )
+                : Container(
+                    color: Colors.grey.shade200,
+                    child: Icon(
+                      Icons.image_not_supported,
+                      color: Colors.grey.shade400,
+                      size: 24,
+                    ),
                   ),
-                ),
-              ),
-              SizedBox(width: 10),
-              // Product content
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      item['name'],
+          ),
+        ),
+        title: Text(
+          productName,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade800,
+          ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(height: 4),
+            if (categoryName != null) ...[
+              Row(
+                children: [
+                  Icon(
+                    Icons.category,
+                    size: 12,
+                    color: Colors.green.shade600,
+                  ),
+                  SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      categoryName,
                       style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
+                        fontSize: 11,
+                        color: Colors.green.shade600,
+                        fontWeight: FontWeight.w500,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: 2),
-                    Text(
-                      'GHS ${_formatPrice(item['price'])}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.green.shade700,
-                        fontWeight: FontWeight.w500,
-                      ),
+                  ),
+                ],
+              ),
+              if (subcategoryName != null) ...[
+                SizedBox(height: 2),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.subdirectory_arrow_right,
+                      size: 12,
+                      color: Colors.grey.shade600,
                     ),
-                    if (item['category_name'] != null) ...[
-                      SizedBox(height: 1),
-                      Text(
-                        item['category_name'],
+                    SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        subcategoryName,
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: 11,
                           color: Colors.grey.shade600,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ],
+                    ),
                   ],
                 ),
-              ),
-              // Arrow
-              Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 16),
+              ],
+              SizedBox(height: 4),
             ],
-          ),
+            Text(
+              'GH₵ ${_formatPrice(productPrice)}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Colors.green.shade700,
+              ),
+            ),
+          ],
         ),
+        onTap: () async {
+          // Show loading indicator
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Text('Searching...'),
+                ],
+              ),
+              duration: Duration(
+                  seconds: 30), // Long duration for comprehensive search
+              backgroundColor: Colors.blue.shade600,
+            ),
+          );
+
+          try {
+            // COMPREHENSIVE SEARCH: Go through ALL categories to find the exact product
+            debugPrint('🔍🔍 Starting comprehensive search for: $productName');
+            final searchResult = await _findProductInAllCategories(productName);
+
+            // Hide the loading snackbar
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+            if (searchResult != null) {
+              final foundProduct = searchResult['product'];
+              final foundCategoryId = searchResult['category_id'];
+              final foundCategoryName = searchResult['category_name'];
+              final foundSubcategoryId = searchResult['subcategory_id'];
+              final foundSubcategoryName = searchResult['subcategory_name'];
+              final foundInSubcategory =
+                  searchResult['found_in_subcategory'] ?? false;
+
+              debugPrint(
+                  '🔍🔍 Product found in: $foundCategoryName > ${foundSubcategoryName ?? "No subcategory"}');
+
+              // Store the found product for navigation
+              _storeSearchResultsForNavigation(foundProduct);
+
+              // Clear search and hide dropdown
+              setState(() {
+                _searchResults = [];
+                _showSearchDropdown = false;
+                _searchFocusNode.unfocus();
+              });
+
+              // Navigate to the correct page
+              if (foundInSubcategory && foundSubcategoryId != null) {
+                // Navigate to subcategory page
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SubcategoryPage(
+                      categoryId: foundCategoryId,
+                      categoryName: foundCategoryName,
+                      targetSubcategoryId: foundSubcategoryId,
+                      searchedProductId: foundProduct['id'],
+                      searchedProductName: foundProduct['name'],
+                    ),
+                  ),
+                );
+              } else {
+                // Navigate to product list page
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ProductListPage(
+                      categoryId: foundCategoryId,
+                      categoryName: foundCategoryName,
+                      searchedProductId: foundProduct['id'],
+                      searchedProductName: foundProduct['name'],
+                    ),
+                  ),
+                );
+              }
+
+              // Show success message
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                      'Found "${foundProduct['name']}" in $foundCategoryName${foundSubcategoryName != null ? ' > $foundSubcategoryName' : ''}'),
+                  backgroundColor: Colors.green.shade600,
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            } else {
+              // Product not found in any category
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content:
+                      Text('Product "$productName" not found in any category.'),
+                  backgroundColor: Colors.orange.shade600,
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            }
+          } catch (e) {
+            // Hide the loading snackbar
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+            debugPrint('🔍🔍 Error in comprehensive search: $e');
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content:
+                    Text('Error finding product location. Please try again.'),
+                backgroundColor: Colors.red.shade600,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        },
       ),
     );
   }
@@ -992,6 +1558,8 @@ class CategoryPageState extends State<CategoryPage> {
         }
 
         return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
@@ -1172,6 +1740,14 @@ class CategoryPageState extends State<CategoryPage> {
     debugPrint('🔍 _prefetchAllProducts() method completed');
     debugPrint('🔍 ==========================================');
   }
+
+  // Store search results for navigation persistence
+  void _storeSearchResultsForNavigation(dynamic searchedProduct) {
+    // Store the searched product for navigation persistence
+    SearchResultCache.storeSearchedProduct(searchedProduct);
+    debugPrint(
+        '🔍 Stored searched product for navigation: ${searchedProduct['name']}');
+  }
 }
 
 // Skeleton screen for category page
@@ -1185,7 +1761,6 @@ class CategoryPageSkeletonBody extends StatelessWidget {
       highlightColor: Colors.grey[200]!,
       child: Column(
         children: [
-          // Search bar skeleton
           Container(
             margin: EdgeInsets.all(16),
             height: 50,
@@ -1194,7 +1769,7 @@ class CategoryPageSkeletonBody extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
           ),
-          // Categories title skeleton
+
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(

@@ -47,17 +47,30 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
     );
     _animController.forward();
 
-    _videoController =
-        VideoPlayerController.asset('assets/images/Mobile browsers.mp4');
-    _videoController!.initialize().then((_) {
-      _videoController!.setLooping(true);
-      _videoController!.setVolume(0);
-      _videoController!.play();
-      setState(() {});
-    }).catchError((e) {
-      _videoInitFailed = true;
-      setState(() {});
-    });
+    try {
+      _videoController =
+          VideoPlayerController.asset('assets/images/Mobile browsers.mp4');
+      _videoController!.initialize().then((_) {
+        if (mounted) {
+          _videoController!.setLooping(true);
+          _videoController!.setVolume(0);
+          _videoController!.play();
+          setState(() {});
+        }
+      }).catchError((e) {
+        debugPrint('Video initialization error: $e');
+        if (mounted) {
+          _videoInitFailed = true;
+          setState(() {});
+        }
+      });
+    } catch (e) {
+      debugPrint('Video controller creation error: $e');
+      if (mounted) {
+        _videoInitFailed = true;
+        setState(() {});
+      }
+    }
   }
 
   @override

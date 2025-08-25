@@ -1,15 +1,12 @@
 // pages/wallet_page.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/wallet_provider.dart';
-import '../models/wallet.dart';
-import '../services/wallet_service.dart';
 import '../widgets/cart_icon_button.dart';
 import 'app_back_button.dart';
-import 'bottomnav.dart';
 import 'auth_service.dart';
 
 class WalletPage extends StatefulWidget {
@@ -46,6 +43,16 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
       'description': 'Direct Bank Transfer',
     },
   ];
+
+  /// Get the appropriate currency symbol for the current platform
+  String get _currencySymbol {
+    // iOS has better Unicode support, Android often doesn't support Ghana Cedi symbol
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      return '₵'; // Use Ghana Cedi symbol on iOS
+    } else {
+      return 'GHS '; // Use GHS text on Android and other platforms
+    }
+  }
 
   @override
   void initState() {
@@ -292,7 +299,6 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
           ),
         ],
       ),
-      bottomNavigationBar: const CustomBottomNav(initialIndex: 3),
     );
   }
 
@@ -675,7 +681,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
               children: [
                 _buildCashbackRule(
                   Icons.check_circle_rounded,
-                  'Orders over ₵500',
+                  'Orders over ${_currencySymbol}500',
                   'Get 5% cashback automatically',
                   Colors.green.shade600,
                   cardColor,
@@ -919,11 +925,11 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
             controller: _amountController,
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
-              labelText: 'Amount (₵)',
+              labelText: 'Amount (${_currencySymbol.trim()})',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
-              prefixText: '₵',
+              prefixText: _currencySymbol,
             ),
           ),
           const SizedBox(height: 16),

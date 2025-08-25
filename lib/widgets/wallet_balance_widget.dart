@@ -212,7 +212,6 @@ class WalletBalanceWidget extends StatelessWidget {
                   color: Colors.white,
                 ),
               ),
-
               Row(
                 children: [
                   Expanded(

@@ -13,12 +13,18 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
+import android.Manifest
 
 class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
     private val CHANNEL = "com.yourcompany.expresspay"
     private val NOTIFICATION_CHANNEL = "ecl_notifications"
+    private val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
     private var pendingResult: MethodChannel.Result? = null
     private var notificationPayload: String? = null
+    private var notificationPermissionResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -34,8 +40,7 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
             when (call.method) {
                 "requestPermissions" -> {
                     println("🔧 Android: Handling requestPermissions")
-                    // Permissions are handled automatically on Android 13+
-                    result.success("Permissions requested successfully")
+                    requestNotificationPermissions(result)
                 }
                 "test" -> {
                     println("🔧 Android: Handling test method")
@@ -252,5 +257,47 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(id, notification)
+    }
+    
+    private fun requestNotificationPermissions(result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Android 13+ requires explicit notification permission request
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
+                == PackageManager.PERMISSION_GRANTED) {
+                println("🔧 Android: Notification permission already granted")
+                result.success(mapOf("granted" to true, "message" to "Permission already granted"))
+            } else {
+                println("🔧 Android: Requesting notification permission")
+                notificationPermissionResult = result
+                ActivityCompat.requestPermissions(
+                    this, 
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS), 
+                    NOTIFICATION_PERMISSION_REQUEST_CODE
+                )
+            }
+        } else {
+            // For Android 12 and below, notifications are granted by default
+            println("🔧 Android: Notification permission not required for this Android version")
+            result.success(mapOf("granted" to true, "message" to "Permission not required for this Android version"))
+        }
+    }
+    
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE) {
+            val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+            println("🔧 Android: Notification permission result: $granted")
+            
+            notificationPermissionResult?.success(mapOf(
+                "granted" to granted,
+                "message" to if (granted) "Permission granted" else "Permission denied"
+            ))
+            notificationPermissionResult = null
+        }
     }
 }

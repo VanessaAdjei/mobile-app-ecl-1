@@ -52,6 +52,61 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     await cartProvider.refreshLoginStatus();
   }
 
+
+  bool _isOnHomePage() {
+    try {
+      // Check route name first
+      final currentRoute = ModalRoute.of(context);
+      if (currentRoute != null) {
+        final routeName = currentRoute.settings.name;
+        if (routeName == '/home') {
+          return true;
+        }
+      }
+
+      // Check if we're in root context (can't pop back)
+      if (Navigator.of(context).canPop() == false) {
+        return true;
+      }
+
+      // Check current page by looking at the context
+      final currentPage =
+          context.findAncestorWidgetOfExactType<home.HomePage>();
+      if (currentPage != null) {
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      debugPrint('Error checking if on home page: $e');
+      return false;
+    }
+  }
+
+  /// Check if we're currently on a specific page type
+  bool _isOnPage<T extends Widget>() {
+    try {
+      final currentPage = context.findAncestorWidgetOfExactType<T>();
+      return currentPage != null;
+    } catch (e) {
+      debugPrint('Error checking if on page: $e');
+      return false;
+    }
+  }
+
+  /// Get the name of the current page for debugging
+  String _getCurrentPageName() {
+    try {
+      if (_isOnHomePage()) return 'HomePage';
+      if (_isOnPage<Cart>()) return 'Cart';
+      if (_isOnPage<CategoryPage>()) return 'CategoryPage';
+      if (_isOnPage<Profile>()) return 'Profile';
+      return 'Unknown';
+    } catch (e) {
+      return 'Error: $e';
+    }
+  }
+
   Future<void> _checkForNewNotifications() async {
     try {
       final unreadCount =
@@ -136,6 +191,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     debugPrint('🔍 BOTTOM NAV TAPPED ===');
     debugPrint('Index: $index');
     debugPrint('Current Index: $_selectedIndex');
+    debugPrint('Current Page: ${_getCurrentPageName()}');
 
     // Clear any snackbars when user navigates
     if (mounted) {
@@ -148,12 +204,39 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
       return;
     }
 
-    // Only return early if we're actually on the same page AND it's not the home button
-    // For home button (index 0), we always want to navigate regardless of current index
-    // For cart button (index 1), we also want to allow navigation to go back to cart from other pages
-    if (index == _selectedIndex && index != 0 && index != 1) {
-      debugPrint('🔍 SAME INDEX (NOT HOME OR CART) - RETURNING ===');
-      return;
+    // Check if we're already on the selected page
+    // For home button (index 0), check if we're already on home page
+    // For other buttons, check if we're already on that page
+    if (index == _selectedIndex) {
+      if (index == 0) {
+        // Home button: check if we're already on home page
+        if (_isOnHomePage()) {
+          debugPrint('🔍 ALREADY ON HOME PAGE - STAYING PUT ===');
+          return;
+        }
+      } else {
+        // Other buttons: check if we're already on the target page
+        switch (index) {
+          case 1: // Cart
+            if (_isOnPage<Cart>()) {
+              debugPrint('🔍 ALREADY ON CART PAGE - STAYING PUT ===');
+              return;
+            }
+            break;
+          case 2: // Categories
+            if (_isOnPage<CategoryPage>()) {
+              debugPrint('🔍 ALREADY ON CATEGORIES PAGE - STAYING PUT ===');
+              return;
+            }
+            break;
+          case 3: // Profile
+            if (_isOnPage<Profile>()) {
+              debugPrint('🔍 ALREADY ON PROFILE PAGE - STAYING PUT ===');
+              return;
+            }
+            break;
+        }
+      }
     }
 
     // Set navigating flag

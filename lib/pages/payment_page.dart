@@ -45,8 +45,8 @@ class PaymentPage extends StatefulWidget {
   final String? contactNumber;
   final String deliveryOption;
   final String? guestEmail;
-  final double? latitude;
-  final double? longitude;
+  final double? lat;
+  final double? lng;
   final String? estimatedDeliveryTime;
 
   const PaymentPage({
@@ -55,8 +55,8 @@ class PaymentPage extends StatefulWidget {
     this.contactNumber,
     this.deliveryOption = 'Delivery',
     this.guestEmail,
-    this.latitude,
-    this.longitude,
+    this.lat,
+    this.lng,
     this.estimatedDeliveryTime,
   });
 
@@ -719,7 +719,22 @@ class PaymentPageState extends State<PaymentPage> {
                           ),
                           const SizedBox(height: 8),
 
-                          // Order Summary Section (Second)
+                          // Delivery Information Section (Second)
+                          if (widget.deliveryOption == 'delivery') ...[
+                            Animate(
+                              effects: [
+                                FadeEffect(duration: 400.ms),
+                                SlideEffect(
+                                    duration: 400.ms,
+                                    begin: Offset(0, 0.1),
+                                    end: Offset(0, 0))
+                              ],
+                              child: _buildDeliveryInfo(),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+
+                          // Order Summary Section (Third)
                           Animate(
                             effects: [
                               FadeEffect(duration: 400.ms),
@@ -1247,7 +1262,7 @@ class PaymentPageState extends State<PaymentPage> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'YOUR ORDER',
+                  'ORDER SUMMARY',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
@@ -1477,7 +1492,7 @@ class PaymentPageState extends State<PaymentPage> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'ORDER SUMMARY',
+                  'TOTAL',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
@@ -1765,6 +1780,201 @@ class PaymentPageState extends State<PaymentPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Build delivery information box
+  Widget _buildDeliveryInfo() {
+    // Debug: Print delivery information
+    print('🔍 [PAYMENT PAGE] Building delivery info:');
+    print('   📍 Address: ${widget.deliveryAddress}');
+    print('   📞 Contact: ${widget.contactNumber}');
+    print('   ⏰ Delivery Time: ${widget.estimatedDeliveryTime}');
+    print('   🚚 Delivery Option: ${widget.deliveryOption}');
+
+    // Force the delivery info to show even if data is missing (for debugging)
+    final hasData = (widget.deliveryAddress != null &&
+            widget.deliveryAddress!.isNotEmpty) ||
+        (widget.contactNumber != null && widget.contactNumber!.isNotEmpty) ||
+        (widget.estimatedDeliveryTime != null &&
+            widget.estimatedDeliveryTime!.isNotEmpty);
+
+    print('🔍 [PAYMENT PAGE] Has delivery data: $hasData');
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.green.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.green.shade200, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.green.shade100.withValues(alpha: 0.3),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade100,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(
+                    Icons.location_on,
+                    color: Colors.green[700],
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'DELIVERY INFORMATION',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: Colors.grey[800],
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Delivery Details
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Address
+                  if (widget.deliveryAddress != null &&
+                      widget.deliveryAddress!.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.home_outlined,
+                          color: Colors.green[700],
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Address',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                              color: Colors.green[700],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 24),
+                      child: Text(
+                        widget.deliveryAddress!,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Contact Number
+                  if (widget.contactNumber != null &&
+                      widget.contactNumber!.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.phone_outlined,
+                          color: Colors.green[700],
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Contact',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                              color: Colors.green[700],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 24),
+                      child: Text(
+                        widget.contactNumber!,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Delivery Time
+                  if (widget.estimatedDeliveryTime != null &&
+                      widget.estimatedDeliveryTime!.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          color: Colors.green[700],
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Estimated Delivery',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                              color: Colors.green[700],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 24),
+                      child: Text(
+                        widget.estimatedDeliveryTime!,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

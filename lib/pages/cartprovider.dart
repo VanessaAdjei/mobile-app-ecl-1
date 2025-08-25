@@ -22,10 +22,7 @@ class CartProvider with ChangeNotifier {
   String? _pendingItemBatch;
 
   String _normalizeProductName(String name) {
-  
-
     final normalized = name.toLowerCase().trim();
-
 
     final words =
         normalized.split(' ').where((word) => word.isNotEmpty).toList();
@@ -242,7 +239,6 @@ class CartProvider with ChangeNotifier {
                 originalProductId: matchingLocalItem.originalProductId ??
                     matchingLocalItem.productId,
               );
-           
             } else {
               // Check if this is the pending item we're trying to preserve
               bool isPendingItem = (_pendingOriginalProductId != null &&
@@ -256,7 +252,6 @@ class CartProvider with ChangeNotifier {
                 cartItem = cartItem.copyWith(
                   originalProductId: _pendingOriginalProductId,
                 );
-            
 
                 // Clear pending variables after use
                 _pendingOriginalProductId = null;
@@ -310,7 +305,6 @@ class CartProvider with ChangeNotifier {
                         flexibleMatchingLocalItem.originalProductId ??
                             flexibleMatchingLocalItem.productId,
                   );
-         
                 } else {
                   debugPrint('🔍 NO LOCAL ITEM FOUND FOR PRESERVATION ===');
                   debugPrint('Product: ${cartItem.name}');

@@ -22,6 +22,8 @@ class DeliveryService {
     String? pickupRegion,
     String? pickupCity,
     String? pickupSite,
+    double? lat,
+    double? lng,
   }) async {
     try {
       // Determine if user is logged in or guest
@@ -70,6 +72,12 @@ class DeliveryService {
         requestBody['addr_1'] = address ?? 'Not specified';
         requestBody['region'] = region ?? 'Not specified';
         requestBody['city'] = city ?? 'Not specified';
+
+        // Add coordinates if available
+        if (lat != null && lng != null) {
+          requestBody['lat'] = lat.toString();
+          requestBody['lng'] = lng.toString();
+        }
       } else if (deliveryOption == 'pickup') {
         // For pickup orders, include pickup fields and minimal address info
         requestBody['addr_1'] = 'Pickup order';
@@ -111,13 +119,35 @@ class DeliveryService {
         debugPrint('=== API SAVE SUCCESS ===');
         debugPrint('Parsed response data: ${json.encode(data)}');
         debugPrint('Response message: ${data['message']}');
-        debugPrint('Response data: ${data['data']}');
+        debugPrint('Response status: ${data['status']}');
+
+        // Extract new API response data
+        final closestStore = data['closest_store'];
+        final selectedStoreDescription = data['selected_store_description'];
+
+        if (closestStore != null) {
+          debugPrint('Closest store found:');
+          debugPrint('  - ID: ${closestStore['id']}');
+          debugPrint('  - Lat: ${closestStore['lat']}');
+          debugPrint('  - Lng: ${closestStore['lng']}');
+          debugPrint('  - Distance: ${closestStore['distance_text']}');
+          debugPrint('  - Duration: ${closestStore['duration_text']}');
+        }
+
+        if (selectedStoreDescription != null) {
+          debugPrint('Selected store: $selectedStoreDescription');
+        }
+
         debugPrint('========================');
+
         return {
           'success': true,
           'message':
               data['message'] ?? 'Delivery information saved successfully',
-          'data': data['data'],
+          'status': data['status'] ?? 'success',
+          'closest_store': closestStore,
+          'selected_store_description': selectedStoreDescription,
+          'data': data, // Keep original data for backward compatibility
         };
       } else {
         final errorData = json.decode(response.body);
@@ -205,10 +235,7 @@ class DeliveryService {
           };
         }
 
-  
-
         // Debug specific fields
-     
 
         // Map the API response fields to our expected format
         final deliveryData = {
@@ -236,8 +263,6 @@ class DeliveryService {
               billingAddr['pickup_site'] ??
               '',
         };
-
-    
 
         return {
           'success': true,
@@ -499,7 +524,6 @@ class DeliveryService {
         }
         // storeIndex++;
       }
-
 
       return {
         'success': true,

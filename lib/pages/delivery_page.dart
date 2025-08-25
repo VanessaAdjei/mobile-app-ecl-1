@@ -37,6 +37,9 @@ class DeliveryPageState extends State<DeliveryPage> {
   double? _longitude;
   bool _isGeocoding = false;
 
+  // API delivery time from save-billing-add response
+  String? _apiDeliveryTime;
+
   bool _highlightPhoneField = false;
   bool _highlightPickupField = false;
   bool _highlightNameField = false;
@@ -137,6 +140,16 @@ class DeliveryPageState extends State<DeliveryPage> {
         print('   📍 New Latitude: ${_latitude}');
         print('   📍 New Longitude: ${_longitude}');
         print('   📍 New coordinates: (${_latitude}, ${_longitude})');
+
+        // 🗺️ [MAP COORDINATES] Log the geocoding response details
+        print('🗺️ [MAP COORDINATES] ===== GEOCODING RESPONSE DETAILS =====');
+        print('🗺️ [MAP COORDINATES] Location object: $location');
+        print('🗺️ [MAP COORDINATES] Latitude: ${location.latitude}');
+        print('🗺️ [MAP COORDINATES] Longitude: ${location.longitude}');
+        print('🗺️ [MAP COORDINATES] ======================================');
+
+        // Fetch delivery time from API with new coordinates
+        _fetchDeliveryTimeFromAPI();
 
         if (oldLat != null && oldLng != null) {
           print('   📍 Previous coordinates: ($oldLat, $oldLng)');
@@ -341,49 +354,6 @@ class DeliveryPageState extends State<DeliveryPage> {
     }
   }
 
-  String _getEstimatedDeliveryTime() {
-    if (_regionController.text.isEmpty || _cityController.text.isEmpty) {
-      return 'Select location';
-    }
-
-    String region = _regionController.text.toLowerCase();
-    String city = _cityController.text.toLowerCase();
-
-    if (region.contains('greater accra') ||
-        city.contains('accra') ||
-        city.contains('tema') ||
-        city.contains('ashaiman') ||
-        city.contains('madina') ||
-        city.contains('teshie')) {
-      return '1-2 hours';
-    }
-
-    // Major cities (medium delivery)
-    if (region.contains('ashanti') ||
-        region.contains('western') ||
-        region.contains('central') ||
-        city.contains('kumasi') ||
-        city.contains('sekondi') ||
-        city.contains('takoradi') ||
-        city.contains('cape coast')) {
-      return '2-4 hours';
-    }
-
-    // Other regions (standard delivery)
-    if (region.contains('eastern') ||
-        region.contains('volta') ||
-        region.contains('northern') ||
-        region.contains('upper east') ||
-        region.contains('upper west') ||
-        region.contains('savannah') ||
-        region.contains('north east')) {
-      return '4-6 hours';
-    }
-
-    // Default fallback
-    return '3-5 hours';
-  }
-
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
@@ -530,18 +500,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                                 child: _buildContactInfo(),
                               ),
                               const SizedBox(height: 20),
-                              if (deliveryOption == 'delivery')
-                                Animate(
-                                  effects: [
-                                    FadeEffect(duration: 400.ms),
-                                    SlideEffect(
-                                        duration: 400.ms,
-                                        begin: Offset(0, 0.1),
-                                        end: Offset(0, 0))
-                                  ],
-                                  child: _buildDeliveryInfo(),
-                                ),
-                              const SizedBox(height: 20),
+
                               // Only show delivery notes for delivery option
                               if (deliveryOption == 'delivery') ...[
                                 Animate(
@@ -794,240 +753,6 @@ class DeliveryPageState extends State<DeliveryPage> {
               ),
               textAlign: TextAlign.center,
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDeliveryInfo() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.location_on,
-                  color: Colors.green[700],
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'DELIVERY INFORMATION',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Colors.grey[800],
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            if (_regionController.text.isNotEmpty &&
-                _cityController.text.isNotEmpty)
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.green.shade50,
-                      Colors.white,
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.green.shade200,
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.green.shade100.withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Compact header
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle,
-                            color: Colors.green.shade600,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'DELIVERY LOCATION',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.green.shade700,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      // Compact address display
-                      if (_addressController.text.isNotEmpty) ...[
-                        Text(
-                          _addressController.text,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                      ],
-
-                      Text(
-                        '${_cityController.text}, ${_regionController.text}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 13,
-                          color: Colors.grey[700],
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      // Compact delivery details
-                      Row(
-                        children: [
-                          // Delivery Fee
-                          Expanded(
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.local_shipping,
-                                  color: Colors.green.shade600,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 6),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Fee',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.grey[600],
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    Text(
-                                      'GHS ${deliveryFee.toStringAsFixed(2)}',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.green[700],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          // Estimated Delivery Time
-                          Expanded(
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.access_time,
-                                  color: Colors.orange.shade600,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 6),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Delivery',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.grey[600],
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    Text(
-                                      _getEstimatedDeliveryTime(),
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.orange[700],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Colors.orange.shade200,
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: Colors.orange.shade600,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Please fill in your region and city to see delivery information',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.orange.shade700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
           ],
         ),
       ),
@@ -1449,54 +1174,10 @@ class DeliveryPageState extends State<DeliveryPage> {
                 ),
                 child: Column(
                   children: [
-                    // Region Field
-                    _buildRegionDropdown(),
-                    const SizedBox(height: 16),
-
-                    // City Field
-                    _buildFormField(
-                      key: citySectionKey,
-                      controller: _cityController,
-                      label: 'City',
-                      icon: Icons.location_city_outlined,
-                      isRequired: true,
-                      isHighlighted: _highlightCityField,
-                      onChanged: (value) {
-                        setState(() {
-                          _highlightCityField = false;
-                          _updateDeliveryFee();
-                        });
-
-                        // Re-geocode address if it exists when city changes
-                        if (_addressController.text.isNotEmpty) {
-                          print(
-                              '🔄 [CITY] City changed, re-geocoding address...');
-                          Future.delayed(const Duration(milliseconds: 800), () {
-                            if (mounted) {
-                              _getCoordinatesFromAddress(
-                                  _addressController.text);
-                            }
-                          });
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Simple instruction text
-                    Text(
-                      'Please pick your address from the map below:',
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Map Picker Button - More prominent and clear
+                    // Map Picker Button - Now at the top as primary method
                     Container(
                       width: double.infinity,
-                      height: 48,
+                      height: 56,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
@@ -1523,14 +1204,14 @@ class DeliveryPageState extends State<DeliveryPage> {
                           borderRadius: BorderRadius.circular(12),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 12),
+                                horizontal: 20, vertical: 16),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(
                                   Icons.map_outlined,
                                   color: Colors.white,
-                                  size: 20,
+                                  size: 24,
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -1538,7 +1219,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                                     'Pick Location on Map',
                                     style: TextStyle(
                                       color: Colors.white,
-                                      fontSize: 15,
+                                      fontSize: 16,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
@@ -1546,7 +1227,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                                 Icon(
                                   Icons.arrow_forward_ios_rounded,
                                   color: Colors.white.withOpacity(0.8),
-                                  size: 16,
+                                  size: 18,
                                 ),
                               ],
                             ),
@@ -1555,7 +1236,44 @@ class DeliveryPageState extends State<DeliveryPage> {
                       ),
                     ),
 
-                    // Previous Location Display
+                    const SizedBox(height: 20),
+
+                    // Region Field - Now read-only from reverse geocoding
+                    _buildReadOnlyField(
+                      key: regionSectionKey,
+                      label: 'Region',
+                      icon: Icons.location_city_outlined,
+                      value: _regionController.text.isNotEmpty
+                          ? _regionController.text
+                          : 'Select location on map first',
+                      isHighlighted: _highlightRegionField,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // City Field - Now read-only from reverse geocoding
+                    _buildReadOnlyField(
+                      key: citySectionKey,
+                      label: 'City',
+                      icon: Icons.location_city_outlined,
+                      value: _cityController.text.isNotEmpty
+                          ? _cityController.text
+                          : 'Select location on map first',
+                      isHighlighted: _highlightCityField,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Address Field - Now read-only from reverse geocoding
+                    _buildReadOnlyField(
+                      key: addressSectionKey,
+                      label: 'Address',
+                      icon: Icons.location_on_outlined,
+                      value: _addressController.text.isNotEmpty
+                          ? _addressController.text
+                          : 'Select location on map first',
+                      isHighlighted: _highlightAddressField,
+                    ),
+
+                    // Location Status Display
                     if (_addressController.text.isNotEmpty) ...[
                       const SizedBox(height: 16),
                       Container(
@@ -1575,13 +1293,13 @@ class DeliveryPageState extends State<DeliveryPage> {
                             Row(
                               children: [
                                 Icon(
-                                  Icons.location_on_outlined,
+                                  Icons.check_circle_outline,
                                   color: Colors.green[600],
                                   size: 16,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Location Selected',
+                                  'Location Confirmed',
                                   style: TextStyle(
                                     color: Colors.green[700],
                                     fontSize: 12,
@@ -1596,6 +1314,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                               style: TextStyle(
                                 color: Colors.green[800],
                                 fontSize: 14,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
@@ -1688,7 +1407,14 @@ class DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  Widget _buildRegionDropdown() {
+  // Read-only field for location data from reverse geocoding
+  Widget _buildReadOnlyField({
+    required GlobalKey key,
+    required String label,
+    required IconData icon,
+    required String value,
+    required bool isHighlighted,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -1696,11 +1422,11 @@ class DeliveryPageState extends State<DeliveryPage> {
         Row(
           children: [
             Text(
-              'Region',
+              label,
               style: TextStyle(
                 fontWeight: FontWeight.w500,
                 fontSize: 14,
-                color: _highlightRegionField ? Colors.red : Colors.grey[700],
+                color: isHighlighted ? Colors.red : Colors.grey[700],
               ),
             ),
             Text(
@@ -1714,78 +1440,128 @@ class DeliveryPageState extends State<DeliveryPage> {
         ),
         const SizedBox(height: 8),
         Container(
+          key: key,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             border: Border.all(
-              color: _highlightRegionField ? Colors.red : Colors.grey[300]!,
-              width: _highlightRegionField ? 2 : 1,
+              color: isHighlighted ? Colors.red : Colors.grey[300]!,
+              width: isHighlighted ? 2 : 1,
             ),
             borderRadius: BorderRadius.circular(8),
-            color: _highlightRegionField ? Colors.red.shade50 : Colors.grey[50],
+            color: isHighlighted ? Colors.red.shade50 : Colors.grey[100],
           ),
-          child: DropdownButtonFormField<String>(
-            key: regionSectionKey,
-            value:
-                _regionController.text.isEmpty ? null : _regionController.text,
-            decoration: InputDecoration(
-              prefixIcon: Icon(
-                Icons.location_city_outlined,
-                color: _highlightRegionField ? Colors.red : Colors.grey[600],
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                color: isHighlighted ? Colors.red : Colors.grey[600],
+                size: 20,
               ),
-              border: InputBorder.none,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
-            hint: Text(
-              'Select your region',
-              style: TextStyle(
-                color: Colors.grey[500],
-                fontSize: 14,
-              ),
-            ),
-            items: regions.map((region) {
-              return DropdownMenuItem<String>(
-                value: region['description'],
+              const SizedBox(width: 12),
+              Expanded(
                 child: Text(
-                  region['description'],
+                  value,
                   style: TextStyle(
+                    color: value.contains('Select location')
+                        ? Colors.grey[500]
+                        : Colors.grey[800],
                     fontSize: 14,
-                    color: Colors.grey[800],
+                    fontStyle: value.contains('Select location')
+                        ? FontStyle.italic
+                        : FontStyle.normal,
                   ),
                 ),
-              );
-            }).toList(),
-            onChanged: (String? newValue) {
-              if (newValue != null) {
-                setState(() {
-                  _regionController.text = newValue;
-                  _highlightRegionField = false;
-                  _updateDeliveryFee();
-                });
-
-                if (_addressController.text.isNotEmpty) {
-                  print('🔄 [REGION] Region changed, re-geocoding address...');
-                  Future.delayed(const Duration(milliseconds: 800), () {
-                    if (mounted) {
-                      _getCoordinatesFromAddress(_addressController.text);
-                    }
-                  });
-                }
-              }
-            },
-            dropdownColor: Colors.white,
-            icon: Icon(
-              Icons.keyboard_arrow_down,
-              color: _highlightRegionField ? Colors.red : Colors.grey[600],
-            ),
-            style: TextStyle(
-              color: Colors.grey[800],
-              fontSize: 14,
-            ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
+
+  Future<void> _fetchDeliveryTimeFromAPI() async {
+    if (_latitude == null || _longitude == null) {
+      return;
+    }
+
+    try {
+      print('🚀 [DELIVERY] Fetching delivery time from API...');
+      print('   📍 Coordinates: ($_latitude, $_longitude)');
+
+      // Make a quick API call to get delivery time
+      final result = await DeliveryService.saveDeliveryInfo(
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        phone: _phoneController.text,
+        deliveryOption: 'delivery',
+        region: _regionController.text.trim(),
+        city: _cityController.text.trim(),
+        address: _addressController.text.trim(),
+        notes: '',
+        pickupRegion: null,
+        pickupCity: null,
+        pickupSite: null,
+        lat: _latitude,
+        lng: _longitude,
+      );
+
+      // 🗺️ [MAP API RESPONSE] Print the complete API response
+      print('🗺️ [MAP API RESPONSE] ===== COMPLETE API RESPONSE =====');
+      print('🗺️ [MAP API RESPONSE] Raw response: $result');
+      print('🗺️ [MAP API RESPONSE] Response type: ${result.runtimeType}');
+      print('🗺️ [MAP API RESPONSE] Success: ${result['success']}');
+
+      if (result['data'] != null) {
+        print('🗺️ [MAP API RESPONSE] Data: ${result['data']}');
+      }
+
+      if (result['closest_store'] != null) {
+        print(
+            '🗺️ [MAP API RESPONSE] Closest store: ${result['closest_store']}');
+        print(
+            '🗺️ [MAP API RESPONSE] Store ID: ${result['closest_store']['id']}');
+        print(
+            '🗺️ [MAP API RESPONSE] Store name: ${result['closest_store']['name']}');
+        print(
+            '🗺️ [MAP API RESPONSE] Store address: ${result['closest_store']['address']}');
+        print(
+            '🗺️ [MAP API RESPONSE] Distance: ${result['closest_store']['distance']}');
+        print(
+            '🗺️ [MAP API RESPONSE] Duration: ${result['closest_store']['duration']}');
+        print(
+            '🗺️ [MAP API RESPONSE] Duration text: ${result['closest_store']['duration_text']}');
+        print(
+            '🗺️ [MAP API RESPONSE] Coordinates: (${result['closest_store']['lat']}, ${result['closest_store']['lng']})');
+      }
+
+      if (result['delivery_fee'] != null) {
+        print('🗺️ [MAP API RESPONSE] Delivery fee: ${result['delivery_fee']}');
+      }
+
+      if (result['estimated_delivery_time'] != null) {
+        print(
+            '🗺️ [MAP API RESPONSE] Estimated delivery time: ${result['estimated_delivery_time']}');
+      }
+
+      print('🗺️ [MAP API RESPONSE] ======================================');
+
+      if (result['success'] && result['closest_store'] != null) {
+        final durationText = result['closest_store']['duration_text'];
+        if (durationText != null) {
+          setState(() {
+            _apiDeliveryTime = durationText;
+          });
+          print('✅ [DELIVERY] API delivery time updated: $_apiDeliveryTime');
+        }
+      }
+    } catch (e) {
+      print('❌ [DELIVERY] Error fetching delivery time: $e');
+      print('❌ [DELIVERY] Error type: ${e.runtimeType}');
+      print('❌ [DELIVERY] Error details: $e');
+    }
+  }
+
+  // Region dropdown removed - now using read-only field from reverse geocoding
 
   Widget _buildPhoneField(bool isPhoneValid) {
     return Column(
@@ -2240,12 +2016,26 @@ class DeliveryPageState extends State<DeliveryPage> {
                       (deliveryOption == 'pickup' && selectedPickupSite != null)
                           ? selectedPickupSite!['description']
                           : null,
+                  lat: _latitude,
+                  lng: _longitude,
                 );
 
                 if (!saveResult['success']) {
                   // Continue with order even if API save fails (removed warning SnackBar)
                   _proceedToPayment();
                   return;
+                }
+
+                // Extract delivery time from API response if available
+                if (saveResult['closest_store'] != null &&
+                    saveResult['closest_store']['duration_text'] != null) {
+                  _apiDeliveryTime =
+                      saveResult['closest_store']['duration_text'];
+                  print(
+                      '🚀 [DELIVERY] API delivery time extracted: $_apiDeliveryTime');
+                } else {
+                  print('⚠️ [DELIVERY] No duration_text found in API response');
+                  _apiDeliveryTime = null;
                 }
 
                 // Show success message at the top of the screen
@@ -2365,10 +2155,17 @@ class DeliveryPageState extends State<DeliveryPage> {
 
     // Log coordinates being passed to payment page
     if (_latitude != null && _longitude != null) {
-      print('🚀 [DELIVERY] Passing coordinates to PaymentPage:');
+      print(
+          '🚀 [DELIVERY] ===== EXACT COORDINATES PASSED TO PAYMENT PAGE =====');
+      print('🚀 [DELIVERY] 🎯 FINAL COORDINATES FOR PAYMENT:');
       print('   📍 Latitude: $_latitude');
       print('   📍 Longitude: $_longitude');
       print('   📍 Full coordinates: ($_latitude, $_longitude)');
+      print(
+          '   📍 Coordinates type: ${_latitude.runtimeType}, ${_longitude.runtimeType}');
+      print(
+          '   📍 Coordinates precision: ${_latitude?.toStringAsFixed(8)}, ${_longitude?.toStringAsFixed(8)}');
+      print('🚀 [DELIVERY] ======================================');
     } else {
       print('⚠️ [DELIVERY] No coordinates available to pass to PaymentPage');
     }
@@ -2381,9 +2178,9 @@ class DeliveryPageState extends State<DeliveryPage> {
           contactNumber: _phoneController.text,
           deliveryOption: deliveryOption,
           guestEmail: _emailController.text.trim(),
-          latitude: _latitude,
-          longitude: _longitude,
-          estimatedDeliveryTime: _getEstimatedDeliveryTime(),
+          lat: _latitude,
+          lng: _longitude,
+          estimatedDeliveryTime: _apiDeliveryTime,
         ),
       ),
     );
@@ -2450,6 +2247,9 @@ class DeliveryPageState extends State<DeliveryPage> {
           print(
               '🗺️ [MAP PICKER] State updated with new coordinates: ($_latitude, $_longitude)');
 
+          // Fetch delivery time from API with new coordinates
+          _fetchDeliveryTimeFromAPI();
+
           // Force a small delay to ensure iOS processes the coordinate update
           await Future.delayed(const Duration(milliseconds: 200));
 
@@ -2515,10 +2315,21 @@ class DeliveryPageState extends State<DeliveryPage> {
               _longitude = lng;
             });
 
-            print('🗺️ [MAP PICKER] Location selected from map:');
+            print(
+                '🗺️ [MAP PICKER] ===== EXACT LOCATION SELECTED FROM MAP =====');
+            print('🗺️ [MAP PICKER] 🎯 PRECISE COORDINATES SELECTED:');
             print('   📍 Latitude: $lat');
             print('   📍 Longitude: $lng');
             print('   📍 Full coordinates: ($lat, $lng)');
+            print(
+                '   📍 Coordinates type: ${lat.runtimeType}, ${lng.runtimeType}');
+            print(
+                '   📍 Coordinates precision: ${lat.toStringAsFixed(8)}, ${lng.toStringAsFixed(8)}');
+            print('🗺️ [MAP PICKER] 📍 STORED IN STATE:');
+            print('   📍 Stored Latitude: $_latitude');
+            print('   📍 Stored Longitude: $_longitude');
+            print('   📍 Stored coordinates: ($_latitude, $_longitude)');
+            print('🗺️ [MAP PICKER] ======================================');
 
             // Get address from coordinates (reverse geocoding)
             _getAddressFromCoordinates(lat, lng);
@@ -2536,25 +2347,79 @@ class DeliveryPageState extends State<DeliveryPage> {
 
       final placemarks = await placemarkFromCoordinates(lat, lng);
 
+      // 🗺️ [REVERSE GEOCODING RESPONSE] Log the complete response
+      print('🗺️ [REVERSE GEOCODING RESPONSE] ===== COMPLETE RESPONSE =====');
+      print('🗺️ [REVERSE GEOCODING RESPONSE] Raw placemarks: $placemarks');
+      print(
+          '🗺️ [REVERSE GEOCODING RESPONSE] Placemarks count: ${placemarks.length}');
+
       if (placemarks.isNotEmpty) {
         final placemark = placemarks.first;
+
+        // Log detailed placemark information
+        print('🗺️ [REVERSE GEOCODING RESPONSE] First placemark: $placemark');
+        print('🗺️ [REVERSE GEOCODING RESPONSE] Street: ${placemark.street}');
+        print(
+            '🗺️ [REVERSE GEOCODING RESPONSE] Sub-locality: ${placemark.subLocality}');
+        print(
+            '🗺️ [REVERSE GEOCODING RESPONSE] Locality: ${placemark.locality}');
+        print(
+            '🗺️ [REVERSE GEOCODING RESPONSE] Administrative area: ${placemark.administrativeArea}');
+        print('🗺️ [REVERSE GEOCODING RESPONSE] Country: ${placemark.country}');
+        print(
+            '🗺️ [REVERSE GEOCODING RESPONSE] Postal code: ${placemark.postalCode}');
+        print(
+            '🗺️ [REVERSE GEOCODING RESPONSE] ISO country code: ${placemark.isoCountryCode}');
+        print('🗺️ [REVERSE GEOCODING RESPONSE] Name: ${placemark.name}');
+        print(
+            '🗺️ [REVERSE GEOCODING RESPONSE] Thoroughfare: ${placemark.thoroughfare}');
+        print(
+            '🗺️ [REVERSE GEOCODING RESPONSE] Sub-thoroughfare: ${placemark.subThoroughfare}');
+
         final address =
             '${placemark.street ?? ''}, ${placemark.subLocality ?? ''}, ${placemark.locality ?? ''}';
 
         print('✅ [REVERSE GEOCODING] Address found: $address');
+        print(
+            '🗺️ [REVERSE GEOCODING RESPONSE] ======================================');
 
-        // Update address field with the found address
+        // Update all location fields with the found data from reverse geocoding
         if (mounted) {
           setState(() {
+            // Update region with administrative area
+            if (placemark.administrativeArea != null &&
+                placemark.administrativeArea!.isNotEmpty) {
+              _regionController.text = placemark.administrativeArea!;
+              print(
+                  '🗺️ [REVERSE GEOCODING] Updated region: ${placemark.administrativeArea}');
+            }
+
+            // Update city with locality
+            if (placemark.locality != null && placemark.locality!.isNotEmpty) {
+              _cityController.text = placemark.locality!;
+              print(
+                  '🗺️ [REVERSE GEOCODING] Updated city: ${placemark.locality}');
+            }
+
+            // Update address field
             _addressController.text = address.trim();
+            print('🗺️ [REVERSE GEOCODING] Updated address: $address');
+
+            // Update delivery fee since region/city changed
+            _updateDeliveryFee();
           });
         }
       } else {
         print(
             '⚠️ [REVERSE GEOCODING] No address found for coordinates: ($lat, $lng)');
+        print(
+            '🗺️ [REVERSE GEOCODING RESPONSE] ======================================');
       }
     } catch (e) {
       print('❌ [REVERSE GEOCODING] Error: $e');
+      print('❌ [REVERSE GEOCODING] Error type: ${e.runtimeType}');
+      print(
+          '🗺️ [REVERSE GEOCODING RESPONSE] ======================================');
     }
   }
 
@@ -2570,10 +2435,54 @@ class DeliveryPageState extends State<DeliveryPage> {
           .timeout(const Duration(seconds: 5)); // Reduced timeout
       if (result['success'] && mounted) {
         if (!mounted) return;
-        setState(() {
-          regions = List<Map<String, dynamic>>.from(result['data']);
-          isLoadingRegions = false;
-        });
+        try {
+          setState(() {
+            // Deduplicate regions by description to prevent dropdown errors
+            final rawRegions = List<Map<String, dynamic>>.from(result['data']);
+            final uniqueRegions = <String, Map<String, dynamic>>{};
+
+            print('🔍 [REGIONS] Processing ${rawRegions.length} raw regions');
+
+            for (final region in rawRegions) {
+              try {
+                final description = region['description']?.toString() ?? '';
+                if (description.isNotEmpty &&
+                    !uniqueRegions.containsKey(description)) {
+                  uniqueRegions[description] = region;
+                } else if (description.isNotEmpty) {
+                  print(
+                      '⚠️ [REGIONS] Duplicate region description found: "$description"');
+                }
+              } catch (e) {
+                print('⚠️ [REGIONS] Error processing region: $e');
+                continue;
+              }
+            }
+
+            regions = uniqueRegions.values.toList();
+            print(
+                '✅ [REGIONS] Deduplicated to ${regions.length} unique regions');
+            isLoadingRegions = false;
+
+            // Validate pre-filled region value after regions are loaded
+            if (_regionController.text.isNotEmpty) {
+              final regionExists = regions
+                  .any((r) => r['description'] == _regionController.text);
+              if (!regionExists) {
+                // Clear invalid region value to prevent dropdown errors
+                _regionController.clear();
+                print(
+                    '⚠️ [REGIONS] Pre-filled region "${_regionController.text}" not found in regions list, cleared');
+              }
+            }
+          });
+        } catch (e) {
+          print('❌ [REGIONS] Error setting regions state: $e');
+          setState(() {
+            regions = [];
+            isLoadingRegions = false;
+          });
+        }
       } else {
         if (!mounted) return;
         setState(() {
@@ -2619,11 +2528,54 @@ class DeliveryPageState extends State<DeliveryPage> {
       if (result['success'] && mounted) {
         final citiesData = List<Map<String, dynamic>>.from(result['data']);
         if (!mounted) return;
-        setState(() {
-          cities = citiesData;
-          _citiesCache[regionId] = citiesData; // Cache the result
-          isLoadingCities = false;
-        });
+        try {
+          setState(() {
+            // Deduplicate cities by description to prevent dropdown errors
+            final uniqueCities = <String, Map<String, dynamic>>{};
+
+            print('🔍 [CITIES] Processing ${citiesData.length} raw cities');
+
+            for (final city in citiesData) {
+              try {
+                final description = city['description']?.toString() ?? '';
+                if (description.isNotEmpty &&
+                    !uniqueCities.containsKey(description)) {
+                  uniqueCities[description] = city;
+                } else if (description.isNotEmpty) {
+                  print(
+                      '⚠️ [CITIES] Duplicate city description found: "$description"');
+                }
+              } catch (e) {
+                print('⚠️ [CITIES] Error processing city: $e');
+                continue;
+              }
+            }
+
+            cities = uniqueCities.values.toList();
+            print('✅ [CITIES] Deduplicated to ${cities.length} unique cities');
+            _citiesCache[regionId] =
+                uniqueCities.values.toList(); // Cache the deduplicated result
+            isLoadingCities = false;
+
+            // Validate pre-filled city value after cities are loaded
+            if (_cityController.text.isNotEmpty) {
+              final cityExists =
+                  cities.any((c) => c['description'] == _cityController.text);
+              if (!cityExists) {
+                // Clear invalid city value to prevent dropdown errors
+                _cityController.clear();
+                print(
+                    '⚠️ [CITIES] Pre-filled city "${_cityController.text}" not found in cities list, cleared');
+              }
+            }
+          });
+        } catch (e) {
+          print('❌ [CITIES] Error setting cities state: $e');
+          setState(() {
+            cities = [];
+            isLoadingCities = false;
+          });
+        }
       } else {
         if (!mounted) return;
         setState(() {
@@ -2665,11 +2617,54 @@ class DeliveryPageState extends State<DeliveryPage> {
       if (result['success'] && mounted) {
         final storesData = List<Map<String, dynamic>>.from(result['data']);
         if (!mounted) return;
-        setState(() {
-          stores = storesData;
-          _storesCache[cityId] = storesData; // Cache the result
-          isLoadingStores = false;
-        });
+        try {
+          setState(() {
+            // Deduplicate stores by description to prevent dropdown errors
+            final uniqueStores = <String, Map<String, dynamic>>{};
+
+            print('🔍 [STORES] Processing ${storesData.length} raw stores');
+
+            for (final store in storesData) {
+              try {
+                final description = store['description']?.toString() ?? '';
+                if (description.isNotEmpty &&
+                    !uniqueStores.containsKey(description)) {
+                  uniqueStores[description] = store;
+                } else if (description.isNotEmpty) {
+                  print(
+                      '⚠️ [STORES] Duplicate store description found: "$description"');
+                }
+              } catch (e) {
+                print('⚠️ [STORES] Error processing store: $e');
+                continue;
+              }
+            }
+
+            stores = uniqueStores.values.toList();
+            print('✅ [STORES] Deduplicated to ${stores.length} unique stores');
+            _storesCache[cityId] =
+                uniqueStores.values.toList(); // Cache the deduplicated result
+            isLoadingStores = false;
+
+            // Validate pre-filled pickup site value after stores are loaded
+            if (selectedPickupSite != null) {
+              final storeExists =
+                  stores.any((s) => s['id'] == selectedPickupSite!['id']);
+              if (!storeExists) {
+                // Clear invalid pickup site value to prevent dropdown errors
+                selectedPickupSite = null;
+                print(
+                    '⚠️ [STORES] Pre-filled pickup site not found in stores list, cleared');
+              }
+            }
+          });
+        } catch (e) {
+          print('❌ [STORES] Error setting stores state: $e');
+          setState(() {
+            stores = [];
+            isLoadingStores = false;
+          });
+        }
       } else {
         if (!mounted) return;
         setState(() {

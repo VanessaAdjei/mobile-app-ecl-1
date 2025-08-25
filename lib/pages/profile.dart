@@ -9,6 +9,7 @@ import 'package:eclapp/pages/tandc.dart';
 import 'package:eclapp/pages/theme_provider.dart';
 import 'package:eclapp/pages/wallet_page.dart';
 import 'package:eclapp/pages/ernest_friday_page.dart';
+import 'package:eclapp/pages/homepage.dart' as home;
 import 'package:eclapp/providers/promotional_event_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -451,8 +452,19 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
               ),
               centerTitle: true,
             ),
-            leading: BackButtonUtils.simple(
-              backgroundColor: Colors.white.withAlpha((255 * 0.2).toInt()),
+            leading: BackButtonUtils.custom(
+              backgroundColor: Colors.green.shade700,
+              onPressed: () {
+                if (Navigator.canPop(context)) {
+                  Navigator.pop(context);
+                } else {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const home.HomePage()),
+                  );
+                }
+              },
             ),
             actions: [
               Container(

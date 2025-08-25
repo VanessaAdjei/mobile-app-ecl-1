@@ -1074,30 +1074,11 @@ class PurchaseScreenState extends State<PurchaseScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.green.shade700,
         elevation: 0,
         centerTitle: true,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.green.shade700,
-                Colors.green.shade800,
-              ],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-        ),
         leading: BackButtonUtils.custom(
-          backgroundColor: Colors.white.withValues(alpha: 0.2),
+          backgroundColor: Colors.green.shade700,
           onPressed: () {
             Navigator.pushReplacement(
               context,
@@ -1110,37 +1091,18 @@ class PurchaseScreenState extends State<PurchaseScreen> {
         title: Text(
           'Your Orders',
           style: GoogleFonts.poppins(
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.w600,
             color: Colors.white,
-            letterSpacing: 0.5,
           ),
         ),
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.refresh, color: Colors.white),
-              onPressed: _refreshOrders,
-              tooltip: 'Refresh',
-            ),
+          CartIconButton(
+            iconColor: Colors.white,
+            iconSize: 22,
+            backgroundColor: Colors.transparent,
           ),
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: CartIconButton(
-              iconColor: Colors.white,
-              iconSize: 24,
-              backgroundColor: Colors.transparent,
-            ),
-          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: _isLoading

@@ -21,6 +21,7 @@ import 'services/homepage_optimization_service.dart';
 import 'services/background_prefetch_service.dart';
 import 'pages/onboarding_splash_page.dart';
 import 'pages/prescription.dart';
+import 'pages/notification_permission_page.dart';
 import 'pages/notification_provider.dart';
 import 'services/background_order_checker.dart';
 
@@ -34,8 +35,8 @@ import 'services/background_store_data_service.dart';
 import 'services/background_inventory_monitor_service.dart';
 import 'providers/wallet_provider.dart';
 import 'providers/promotional_event_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'services/notification_service.dart';
-import 'dart:async';
 
 void main() async {
   final appStartTime = DateTime.now();
@@ -84,9 +85,9 @@ Future<void> _fastRestart() async {
   debugPrint('🚀 Main: Fast restart completed');
 }
 
-// Full cold start path for first launch
+// Full cold start path for first launch - optimized for fast onboarding
 Future<void> _coldStart() async {
-  debugPrint('🚀 Main: Cold start - full initialization');
+  debugPrint('🚀 Main: Cold start - optimized for fast onboarding');
 
   await AuthService.clearAllGuestIds();
 
@@ -94,10 +95,11 @@ Future<void> _coldStart() async {
   debugPrint('🚀 Main: Starting critical service initialization...');
   final criticalStartTime = DateTime.now();
 
+  // Only initialize absolutely essential services for onboarding
   await Future.wait([
-    AppOptimizationService().initialize(),
     BannerCacheService().initialize(),
-  ]);
+  ]).timeout(
+      const Duration(milliseconds: 500)); // Very fast timeout for onboarding
 
   final criticalInitTime = DateTime.now().difference(criticalStartTime);
   debugPrint(
@@ -106,16 +108,17 @@ Future<void> _coldStart() async {
   // Start non-critical services in background (non-blocking)
   unawaited(_initializeNonCriticalServices());
 
-  // Prefetch only essential data (blocking with aggressive timeout)
-  debugPrint('🚀 Main: Starting essential data prefetching...');
+  // Prefetch only essential data (blocking with very aggressive timeout for onboarding)
+  debugPrint(
+      '🚀 Main: Starting essential data prefetching (fast for onboarding)...');
   final prefetchStartTime = DateTime.now();
 
   try {
     await Future.wait([
       BannerCacheService().getBanners(),
       // Removed blocking popular products fetch - moved to background
-    ]).timeout(const Duration(
-        milliseconds: 800)); // Reduced to 800ms for faster startup
+    ]).timeout(
+        const Duration(milliseconds: 300)); // Very fast timeout for onboarding
   } catch (e) {
     if (e is TimeoutException) {
       debugPrint(
@@ -231,9 +234,81 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   Future<void> _checkFirstLaunch() async {
     final prefs = await SharedPreferences.getInstance();
+
+    // Check if this is a fresh install by looking for app installation date
+    final appInstallDate = prefs.getString('app_install_date');
+    final currentDate = DateTime.now().toIso8601String();
+
+    if (appInstallDate == null) {
+      // This is a fresh install - set the install date and show onboarding
+      await prefs.setString('app_install_date', currentDate);
+      setState(() {
+        _isFirstLaunch = true;
+      });
+      debugPrint('🚀 Main: Fresh install detected - showing onboarding');
+    } else {
+      // Check if the app was uninstalled and reinstalled
+      // If the install date is very old (more than 30 days), treat as fresh install
+      try {
+        final installDate = DateTime.parse(appInstallDate);
+        final daysSinceInstall = DateTime.now().difference(installDate).inDays;
+
+        if (daysSinceInstall > 30) {
+          // App was likely uninstalled and reinstalled - show onboarding again
+          await prefs.setString('app_install_date', currentDate);
+          setState(() {
+            _isFirstLaunch = true;
+          });
+          debugPrint(
+              '🚀 Main: App reinstall detected (${daysSinceInstall} days old) - showing onboarding');
+        } else {
+          // Normal app launch - don't show onboarding
+          setState(() {
+            _isFirstLaunch = false;
+          });
+          debugPrint('🚀 Main: Normal app launch - skipping onboarding');
+        }
+      } catch (e) {
+        // If there's an error parsing the date, treat as fresh install
+        await prefs.setString('app_install_date', currentDate);
+        setState(() {
+          _isFirstLaunch = true;
+        });
+        debugPrint('🚀 Main: Date parsing error - treating as fresh install');
+      }
+    }
+  }
+
+  /// Reset onboarding state for testing purposes
+  Future<void> _resetOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('app_install_date');
     setState(() {
-      _isFirstLaunch = !(prefs.getBool('hasLaunchedBefore') ?? false);
+      _isFirstLaunch = true;
     });
+    debugPrint('🚀 Main: Onboarding reset manually for testing');
+  }
+
+  /// Check if app was recently installed (within last 24 hours)
+  Future<bool> _isRecentlyInstalled() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final appInstallDate = prefs.getString('app_install_date');
+
+      if (appInstallDate == null) return true;
+
+      final installDate = DateTime.parse(appInstallDate);
+      final hoursSinceInstall = DateTime.now().difference(installDate).inHours;
+
+      return hoursSinceInstall < 24;
+    } catch (e) {
+      return true; // If there's an error, treat as recently installed
+    }
+  }
+
+  /// Public method to reset onboarding for testing (can be called from UI)
+  void resetOnboardingForTesting() {
+    _resetOnboarding();
   }
 
   Future<void> _checkAuthStatus() async {
@@ -338,8 +413,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    // If still loading, show a minimal loading indicator or go straight to onboarding
     if (_isFirstLaunch == null) {
-      // Still loading - show branded loading screen
+      // Show minimal loading or go straight to onboarding
       return MaterialApp(
         home: Scaffold(
           backgroundColor: Colors.white,
@@ -350,37 +426,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 // ECL Logo
                 Image(
                   image: AssetImage('assets/images/png.png'),
-                  width: 150,
-                  height: 150,
-                ),
-                SizedBox(height: 30),
-                // Loading indicator with progress
-                SizedBox(
-                  width: 200,
-                  child: LinearProgressIndicator(
-                    backgroundColor: Colors.grey[300],
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
-                    minHeight: 4,
-                  ),
+                  width: 120,
+                  height: 120,
                 ),
                 SizedBox(height: 20),
-                // Loading text
-                Text(
-                  'Loading ECL App...',
-                  style: TextStyle(
-                    color: Colors.green,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+                // Simple loading indicator
+                SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
                   ),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'Please wait while we prepare your experience',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 12,
-                  ),
-                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -574,10 +631,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               home: _isFirstLaunch == true
                   ? OnboardingSplashPage(
                       onFinish: () async {
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.setBool('hasLaunchedBefore', true);
                         setState(() {
                           _isFirstLaunch = false;
+                        });
+
+                        // Show notification permission request after onboarding
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          _showNotificationPermissionIfNeeded();
                         });
                       },
                     )
@@ -668,6 +728,29 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           NativeNotificationService.clearPendingNotificationPayload();
         }
       });
+    }
+  }
+
+  /// Show notification permission request if needed
+  Future<void> _showNotificationPermissionIfNeeded() async {
+    try {
+      final permission = Permission.notification;
+      final status = await permission.status;
+
+      // Only show if permission is not granted and not permanently denied
+      if (!status.isGranted && !status.isPermanentlyDenied) {
+        final context =
+            NativeNotificationService.globalNavigatorKey.currentContext;
+        if (context != null) {
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const NotificationPermissionPage(),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error showing notification permission: $e');
     }
   }
 
