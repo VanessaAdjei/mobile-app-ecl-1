@@ -223,7 +223,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                       end: Offset(0, 0))
                 ],
                 child: Container(
-                  padding: EdgeInsets.only(top: topPadding),
+                  padding: EdgeInsets.only(top: topPadding * 0.5),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,

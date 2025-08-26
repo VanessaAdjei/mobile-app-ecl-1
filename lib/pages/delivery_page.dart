@@ -1238,41 +1238,6 @@ class DeliveryPageState extends State<DeliveryPage> {
 
                     const SizedBox(height: 20),
 
-                    // Region Field - Now read-only from reverse geocoding
-                    _buildReadOnlyField(
-                      key: regionSectionKey,
-                      label: 'Region',
-                      icon: Icons.location_city_outlined,
-                      value: _regionController.text.isNotEmpty
-                          ? _regionController.text
-                          : 'Select location on map first',
-                      isHighlighted: _highlightRegionField,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // City Field - Now read-only from reverse geocoding
-                    _buildReadOnlyField(
-                      key: citySectionKey,
-                      label: 'City',
-                      icon: Icons.location_city_outlined,
-                      value: _cityController.text.isNotEmpty
-                          ? _cityController.text
-                          : 'Select location on map first',
-                      isHighlighted: _highlightCityField,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Address Field - Now read-only from reverse geocoding
-                    _buildReadOnlyField(
-                      key: addressSectionKey,
-                      label: 'Address',
-                      icon: Icons.location_on_outlined,
-                      value: _addressController.text.isNotEmpty
-                          ? _addressController.text
-                          : 'Select location on map first',
-                      isHighlighted: _highlightAddressField,
-                    ),
-
                     // Location Status Display
                     if (_addressController.text.isNotEmpty) ...[
                       const SizedBox(height: 16),
@@ -1488,7 +1453,6 @@ class DeliveryPageState extends State<DeliveryPage> {
       print('🚀 [DELIVERY] Fetching delivery time from API...');
       print('   📍 Coordinates: ($_latitude, $_longitude)');
 
-      // Make a quick API call to get delivery time
       final result = await DeliveryService.saveDeliveryInfo(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
@@ -1505,7 +1469,7 @@ class DeliveryPageState extends State<DeliveryPage> {
         lng: _longitude,
       );
 
-      // 🗺️ [MAP API RESPONSE] Print the complete API response
+      
       print('🗺️ [MAP API RESPONSE] ===== COMPLETE API RESPONSE =====');
       print('🗺️ [MAP API RESPONSE] Raw response: $result');
       print('🗺️ [MAP API RESPONSE] Response type: ${result.runtimeType}');
@@ -1516,34 +1480,17 @@ class DeliveryPageState extends State<DeliveryPage> {
       }
 
       if (result['closest_store'] != null) {
-        print(
-            '🗺️ [MAP API RESPONSE] Closest store: ${result['closest_store']}');
-        print(
-            '🗺️ [MAP API RESPONSE] Store ID: ${result['closest_store']['id']}');
-        print(
-            '🗺️ [MAP API RESPONSE] Store name: ${result['closest_store']['name']}');
-        print(
-            '🗺️ [MAP API RESPONSE] Store address: ${result['closest_store']['address']}');
-        print(
-            '🗺️ [MAP API RESPONSE] Distance: ${result['closest_store']['distance']}');
-        print(
-            '🗺️ [MAP API RESPONSE] Duration: ${result['closest_store']['duration']}');
-        print(
-            '🗺️ [MAP API RESPONSE] Duration text: ${result['closest_store']['duration_text']}');
-        print(
-            '🗺️ [MAP API RESPONSE] Coordinates: (${result['closest_store']['lat']}, ${result['closest_store']['lng']})');
-      }
+         }
 
       if (result['delivery_fee'] != null) {
-        print('🗺️ [MAP API RESPONSE] Delivery fee: ${result['delivery_fee']}');
+      
       }
 
       if (result['estimated_delivery_time'] != null) {
-        print(
-            '🗺️ [MAP API RESPONSE] Estimated delivery time: ${result['estimated_delivery_time']}');
+       
       }
 
-      print('🗺️ [MAP API RESPONSE] ======================================');
+   
 
       if (result['success'] && result['closest_store'] != null) {
         final durationText = result['closest_store']['duration_text'];
@@ -1551,17 +1498,15 @@ class DeliveryPageState extends State<DeliveryPage> {
           setState(() {
             _apiDeliveryTime = durationText;
           });
-          print('✅ [DELIVERY] API delivery time updated: $_apiDeliveryTime');
+         
         }
       }
     } catch (e) {
-      print('❌ [DELIVERY] Error fetching delivery time: $e');
-      print('❌ [DELIVERY] Error type: ${e.runtimeType}');
-      print('❌ [DELIVERY] Error details: $e');
+    
     }
   }
 
-  // Region dropdown removed - now using read-only field from reverse geocoding
+
 
   Widget _buildPhoneField(bool isPhoneValid) {
     return Column(

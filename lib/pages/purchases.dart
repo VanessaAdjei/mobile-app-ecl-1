@@ -1073,50 +1073,101 @@ class PurchaseScreenState extends State<PurchaseScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        backgroundColor: Colors.green.shade700,
-        elevation: 0,
-        centerTitle: true,
-        leading: BackButtonUtils.custom(
-          backgroundColor: Colors.green.shade700,
-          onPressed: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const Profile(),
+      body: Column(
+        children: [
+          // Enhanced header with better design (matching notifications)
+          Container(
+            padding:
+                EdgeInsets.only(top: MediaQuery.of(context).padding.top * 0.5),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.green.shade600,
+                  Colors.green.shade700,
+                  Colors.green.shade800,
+                ],
+                stops: [0.0, 0.5, 1.0],
               ),
-            );
-          },
-        ),
-        title: Text(
-          'Your Orders',
-          style: GoogleFonts.poppins(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Row(
+                  children: [
+                    AppBackButton(
+                      backgroundColor: Colors.white.withValues(alpha: 0.2),
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const Profile(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Your Orders',
+                            style: GoogleFonts.poppins(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            'Track your purchase history',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    CartIconButton(
+                      iconColor: Colors.white,
+                      iconSize: 22,
+                      backgroundColor: Colors.transparent,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
-        actions: [
-          CartIconButton(
-            iconColor: Colors.white,
-            iconSize: 22,
-            backgroundColor: Colors.transparent,
+
+          // Orders content
+          Expanded(
+            child: _isLoading
+                ? _buildLoadingSkeleton()
+                : _error != null
+                    ? ErrorDisplay(
+                        title: 'Error Loading Orders',
+                        message: _error ??
+                            'An error occurred while loading your orders',
+                        onRetry: _refreshOrders,
+                      )
+                    : _orders.isEmpty
+                        ? _buildEmptyState()
+                        : _buildOrderList(),
           ),
-          const SizedBox(width: 8),
         ],
       ),
-      body: _isLoading
-          ? _buildLoadingSkeleton()
-          : _error != null
-              ? ErrorDisplay(
-                  title: 'Error Loading Orders',
-                  message:
-                      _error ?? 'An error occurred while loading your orders',
-                  onRetry: _refreshOrders,
-                )
-              : _orders.isEmpty
-                  ? _buildEmptyState()
-                  : _buildOrderList(),
       bottomNavigationBar: CustomBottomNav(initialIndex: 0),
     );
   }

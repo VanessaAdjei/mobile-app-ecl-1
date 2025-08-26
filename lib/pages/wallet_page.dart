@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/wallet_provider.dart';
@@ -215,50 +216,82 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
       backgroundColor: backgroundColor,
       body: CustomScrollView(
         slivers: [
-          // Enhanced App Bar
-          SliverAppBar(
-            expandedHeight: 60,
-            floating: false,
-            pinned: true,
-            backgroundColor: primaryColor,
-            elevation: 4,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
+          // Enhanced header with better design (matching notifications)
+          SliverToBoxAdapter(
+            child: Animate(
+              effects: [
+                FadeEffect(duration: 400.ms),
+                SlideEffect(
+                    duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
+              ],
+              child: Container(
+                padding: EdgeInsets.only(
+                    top: MediaQuery.of(context).padding.top * 0.5),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      primaryColor,
-                      primaryColor.withValues(alpha: 0.8),
+                      Colors.green.shade600,
+                      Colors.green.shade700,
+                      Colors.green.shade800,
                     ],
+                    stops: [0.0, 0.5, 1.0],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0, vertical: 8.0),
+                    child: Row(
+                      children: [
+                        AppBackButton(
+                          backgroundColor: Colors.white.withValues(alpha: 0.2),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'My Wallet',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                'Manage your digital wallet',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        CartIconButton(
+                          iconColor: Colors.white,
+                          iconSize: 22,
+                          backgroundColor: Colors.transparent,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              title: Text(
-                'My Wallet',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              centerTitle: true,
             ),
-            leading: BackButtonUtils.simple(
-              backgroundColor: Colors.white.withAlpha((255 * 0.2).toInt()),
-            ),
-            actions: [
-              Container(
-                margin: const EdgeInsets.only(right: 16),
-                child: CartIconButton(
-                  iconColor: Colors.white,
-                  iconSize: 22,
-                  backgroundColor: Colors.transparent,
-                ),
-              ),
-            ],
           ),
 
           // Wallet Content

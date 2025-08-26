@@ -288,49 +288,84 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.green.shade700,
-                Colors.green.shade800,
+      body: Column(
+        children: [
+          // Enhanced header with better design (matching notifications)
+          Container(
+            padding:
+                EdgeInsets.only(top: MediaQuery.of(context).padding.top * 0.5),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.green.shade600,
+                  Colors.green.shade700,
+                  Colors.green.shade800,
+                ],
+                stops: [0.0, 0.5, 1.0],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
               ],
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+            child: SafeArea(
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Row(
+                  children: [
+                    AppBackButton(
+                      backgroundColor: Colors.white.withValues(alpha: 0.2),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Uploaded Prescriptions',
+                            style: GoogleFonts.poppins(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            'View your prescription history',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
-        ),
-        leading: BackButtonUtils.simple(
-          backgroundColor: Colors.white.withValues(alpha: 0.2),
-        ),
-        title: Text(
-          'Uploaded Prescriptions',
-          style: GoogleFonts.poppins(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-            letterSpacing: 0.5,
+
+          // Prescriptions content
+          Expanded(
+            child: _isLoading
+                ? _buildLoadingSkeleton()
+                : _error != null
+                    ? _buildErrorState()
+                    : _prescriptions.isEmpty
+                        ? _buildEmptyState()
+                        : _buildPrescriptionsList(),
           ),
-        ),
+        ],
       ),
-      body: _isLoading
-          ? _buildLoadingSkeleton()
-          : _error != null
-              ? _buildErrorState()
-              : _prescriptions.isEmpty
-                  ? _buildEmptyState()
-                  : _buildPrescriptionsList(),
     );
   }
 

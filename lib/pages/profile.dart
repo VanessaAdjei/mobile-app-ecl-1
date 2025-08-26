@@ -13,6 +13,7 @@ import 'package:eclapp/pages/homepage.dart' as home;
 import 'package:eclapp/providers/promotional_event_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'auth_service.dart';
@@ -421,61 +422,93 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
       backgroundColor: backgroundColor,
       body: CustomScrollView(
         slivers: [
-          // Enhanced App Bar
-          SliverAppBar(
-            expandedHeight: 60,
-            floating: false,
-            pinned: true,
-            backgroundColor: Colors.green.shade700,
-            elevation: 4,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
+          // Enhanced header with better design (matching notifications)
+          SliverToBoxAdapter(
+            child: Animate(
+              effects: [
+                FadeEffect(duration: 400.ms),
+                SlideEffect(
+                    duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
+              ],
+              child: Container(
+                padding: EdgeInsets.only(
+                    top: MediaQuery.of(context).padding.top * 0.5),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
+                      Colors.green.shade600,
                       Colors.green.shade700,
                       Colors.green.shade800,
                     ],
+                    stops: [0.0, 0.5, 1.0],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0, vertical: 8.0),
+                    child: Row(
+                      children: [
+                        AppBackButton(
+                          backgroundColor: Colors.white.withValues(alpha: 0.2),
+                          onPressed: () {
+                            if (Navigator.canPop(context)) {
+                              Navigator.pop(context);
+                            } else {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) =>
+                                        const home.HomePage()),
+                              );
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Your Profile',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                'Manage your account settings',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        CartIconButton(
+                          iconColor: Colors.white,
+                          iconSize: 22,
+                          backgroundColor: Colors.transparent,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              title: Text(
-                'Your Profile',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              centerTitle: true,
             ),
-            leading: BackButtonUtils.custom(
-              backgroundColor: Colors.green.shade700,
-              onPressed: () {
-                if (Navigator.canPop(context)) {
-                  Navigator.pop(context);
-                } else {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const home.HomePage()),
-                  );
-                }
-              },
-            ),
-            actions: [
-              Container(
-                margin: const EdgeInsets.only(right: 16),
-                child: CartIconButton(
-                  iconColor: Colors.white,
-                  iconSize: 22,
-                  backgroundColor: Colors.transparent,
-                ),
-              ),
-            ],
           ),
 
           // Profile Content
