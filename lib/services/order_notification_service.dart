@@ -64,6 +64,11 @@ class OrderNotificationService {
       // Update count immediately for fast badge updates
       await _addNotificationOptimized(notification);
 
+      // Notify the provider about the new order notification
+      if (_onBadgeUpdate != null) {
+        _onBadgeUpdate!(await getUnreadCount());
+      }
+
       // Show system notification
       try {
         await NativeNotificationService.showNotification(

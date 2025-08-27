@@ -52,7 +52,6 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     await cartProvider.refreshLoginStatus();
   }
 
-
   bool _isOnHomePage() {
     try {
       // Check route name first
@@ -428,8 +427,11 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
                           top: -3,
                           child: Container(
                             padding: const EdgeInsets.all(2),
-                            decoration: const BoxDecoration(
-                              color: Colors.orange,
+                            decoration: BoxDecoration(
+                              // Blue dot for new orders, orange for other notifications
+                              color: notificationProvider.newOrderCount > 0
+                                  ? Colors.blue
+                                  : Colors.orange,
                               shape: BoxShape.circle,
                             ),
                             constraints: const BoxConstraints(

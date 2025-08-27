@@ -672,9 +672,12 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     subtextColor,
                     0,
                   ),
-                  Selector<NotificationProvider, int>(
-                    selector: (context, provider) => provider.unreadCount,
-                    builder: (context, unreadCount, child) {
+                  Selector<NotificationProvider, Map<String, int>>(
+                    selector: (context, provider) => {
+                      'unreadCount': provider.unreadCount,
+                      'newOrderCount': provider.newOrderCount,
+                    },
+                    builder: (context, counts, child) {
                       return _buildEnhancedProfileOption(
                         context,
                         Icons.notifications_outlined,
@@ -692,7 +695,10 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         textColor,
                         subtextColor,
                         1,
-                        badgeCount: unreadCount,
+                        badgeCount: counts['unreadCount'],
+                        badgeColor: counts['newOrderCount']! > 0
+                            ? Colors.blue
+                            : Colors.orange,
                       );
                     },
                   ),
@@ -903,6 +909,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
     Color subtextColor,
     int index, {
     int? badgeCount,
+    Color? badgeColor,
   }) {
     return TweenAnimationBuilder(
       tween: Tween<double>(begin: 0, end: 1),
@@ -998,11 +1005,12 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.red,
+                            color: badgeColor ?? Colors.red,
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.red.withValues(alpha: 0.3),
+                                color: (badgeColor ?? Colors.red)
+                                    .withValues(alpha: 0.3),
                                 blurRadius: 4,
                                 offset: const Offset(0, 1),
                               ),

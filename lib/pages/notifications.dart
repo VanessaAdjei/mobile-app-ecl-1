@@ -307,7 +307,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
           Icon(
             Icons.notifications_none,
             size: 80,
-            color: Colors.grey[400],
+            color: Colors.blue[400],
           ),
           const SizedBox(height: 16),
           Text(
@@ -515,12 +515,12 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                             width: 16,
                             height: 16,
                             decoration: BoxDecoration(
-                              color: Colors.green,
+                              color: Colors.blue,
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 3),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.green.withValues(alpha: 0.6),
+                                  color: Colors.blue.withValues(alpha: 0.6),
                                   blurRadius: 6,
                                   offset: const Offset(0, 2),
                                 ),
@@ -1130,7 +1130,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
       case 'purple':
         return Colors.purple;
       default:
-        return Colors.grey;
+        return Colors.blue;
     }
   }
 }

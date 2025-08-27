@@ -457,6 +457,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
             OrderNotificationService.setBadgeUpdateCallback((count) {
               notificationProvider.updateBadgeCount(count);
+              // Also check if this is a new order notification
+              notificationProvider.notifyNewOrderNotification();
             });
 
             return notificationProvider;
