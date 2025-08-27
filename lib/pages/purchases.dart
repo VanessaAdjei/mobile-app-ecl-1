@@ -434,6 +434,10 @@ class PurchaseScreenState extends State<PurchaseScreen> {
         return Colors.red;
       case 'pending':
         return Colors.orange;
+      case 'declined':
+      case 'failed':
+      case 'rejected':
+        return Colors.red;
       default:
         return Colors.grey;
     }
@@ -498,12 +502,13 @@ class PurchaseScreenState extends State<PurchaseScreen> {
     final status = order['status'] ?? 'Processing';
     final transactionId = order['transaction_id']?.toString() ?? '';
     final isExpanded = _expandedOrders.contains(transactionId);
+    final isDeclined = _isOrderDeclined(status);
 
     List<dynamic> orderItems = [];
     if (isMultiItem) {
       if (order['order_items'] is List &&
           (order['order_items'] as List).isNotEmpty) {
-        orderItems = order['order_items'];
+        orderItems = order['items'];
       } else if (order['items'] is List &&
           (order['items'] as List).isNotEmpty) {
         orderItems = order['items'];
@@ -515,7 +520,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
       margin: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: InkWell(
-        onTap: () => _navigateToOrderTracking(order),
+        onTap: isDeclined ? null : () => _navigateToOrderTracking(order),
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Column(
@@ -535,6 +540,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
                   transactionId,
                   isExpanded,
                   orderItems),
+              if (isDeclined) _buildDeclinedOrderMessage(),
             ],
           ),
         ),
@@ -817,6 +823,38 @@ class PurchaseScreenState extends State<PurchaseScreen> {
     );
   }
 
+  Widget _buildDeclinedOrderMessage() {
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.error_outline,
+            color: Colors.red.shade600,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Order not placed, payment failed',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: Colors.red.shade700,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _navigateToOrderTracking(dynamic order) {
     try {
       final castedOrder = Map<String, dynamic>.from(order);
@@ -854,6 +892,14 @@ class PurchaseScreenState extends State<PurchaseScreen> {
         method.contains('delivery') ||
         method == 'cash_on_delivery' ||
         method == 'cash on delivery';
+  }
+
+  bool _isOrderDeclined(String status) {
+    final lowerStatus = status.toLowerCase();
+    return lowerStatus.contains('declined') ||
+        lowerStatus.contains('failed') ||
+        lowerStatus.contains('cancelled') ||
+        lowerStatus.contains('rejected');
   }
 
   bool _isValidOrder(dynamic order) {

@@ -10,6 +10,7 @@ import 'package:eclapp/pages/theme_provider.dart';
 import 'package:eclapp/pages/wallet_page.dart';
 import 'package:eclapp/pages/ernest_friday_page.dart';
 import 'package:eclapp/pages/homepage.dart' as home;
+import 'package:eclapp/pages/refill_page.dart';
 import 'package:eclapp/providers/promotional_event_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -128,6 +129,13 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => screen),
+    );
+  }
+
+  void _navigateToRefillPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const RefillPage()),
     );
   }
 
@@ -438,7 +446,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.green.shade600,
+                      Colors.green.shade700,
                       Colors.green.shade700,
                       Colors.green.shade800,
                     ],
@@ -580,7 +588,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                           child: Icon(
                             Icons.person,
                             size: 60,
-                            color: Colors.grey.shade600,
+                            color: Colors.green.shade600,
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -629,7 +637,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                           ),
                           child: Icon(
                             Icons.account_circle_outlined,
-                            color: primaryColor,
+                            color: Colors.indigo.shade600,
                             size: 24,
                           ),
                         ),
@@ -649,6 +657,21 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                   const SizedBox(height: 20),
 
                   // Enhanced Profile Options
+                  _buildEnhancedProfileOption(
+                    context,
+                    Icons.person_outline,
+                    "Profile Information",
+                    "View your profile details",
+                    _userLoggedIn
+                        ? () => _navigateTo(ProfileScreen())
+                        : () => _showSignInRequiredDialog(context,
+                            feature: 'profile information'),
+                    Colors.green.shade700,
+                    cardColor,
+                    textColor,
+                    subtextColor,
+                    0,
+                  ),
                   Selector<NotificationProvider, int>(
                     selector: (context, provider) => provider.unreadCount,
                     builder: (context, unreadCount, child) {
@@ -664,29 +687,14 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                               }
                             : () => _showSignInRequiredDialog(context,
                                 feature: 'notifications'),
-                        primaryColor,
+                        Colors.blue.shade700,
                         cardColor,
                         textColor,
                         subtextColor,
-                        0,
+                        1,
                         badgeCount: unreadCount,
                       );
                     },
-                  ),
-                  _buildEnhancedProfileOption(
-                    context,
-                    Icons.person_outline,
-                    "Profile Information",
-                    "View your profile details",
-                    _userLoggedIn
-                        ? () => _navigateTo(ProfileScreen())
-                        : () => _showSignInRequiredDialog(context,
-                            feature: 'profile information'),
-                    primaryColor,
-                    cardColor,
-                    textColor,
-                    subtextColor,
-                    1,
                   ),
                   _buildEnhancedProfileOption(
                     context,
@@ -697,11 +705,26 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         ? () => _navigateTo(PrescriptionHistoryScreen())
                         : () => _showSignInRequiredDialog(context,
                             feature: 'uploaded prescriptions'),
-                    primaryColor,
+                    Colors.indigo.shade600,
                     cardColor,
                     textColor,
                     subtextColor,
                     2,
+                  ),
+                  _buildEnhancedProfileOption(
+                    context,
+                    Icons.refresh,
+                    "Refill Medicines",
+                    "Browse and reorder your refillable medications",
+                    _userLoggedIn
+                        ? () => _navigateToRefillPage()
+                        : () => _showSignInRequiredDialog(context,
+                            feature: 'refill medicines'),
+                    Colors.green.shade600,
+                    cardColor,
+                    textColor,
+                    subtextColor,
+                    3,
                   ),
                   _buildEnhancedProfileOption(
                     context,
@@ -712,11 +735,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         ? () => _navigateTo(PurchaseScreen())
                         : () => _showSignInRequiredDialog(context,
                             feature: 'order tracking and purchases'),
-                    primaryColor,
+                    Colors.orange.shade600,
                     cardColor,
                     textColor,
                     subtextColor,
-                    3,
+                    4,
                   ),
                   _buildEnhancedProfileOption(
                     context,
@@ -727,11 +750,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         ? () => _navigateTo(const WalletPage())
                         : () => _showSignInRequiredDialog(context,
                             feature: 'wallet'),
-                    primaryColor,
+                    Colors.teal.shade600,
                     cardColor,
                     textColor,
                     subtextColor,
-                    4,
+                    5,
                   ),
                   const SizedBox(height: 12),
                   // Ernest Friday Option - COMMENTED OUT
@@ -762,11 +785,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                       "Sign In",
                       "Access your account and manage orders",
                       _handleLogin,
-                      Colors.blue.shade400,
+                      Colors.blue.shade800,
                       cardColor,
                       textColor,
                       subtextColor,
-                      6,
+                      10,
                     ),
 
                   const SizedBox(height: 30),
@@ -784,7 +807,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                           ),
                           child: Icon(
                             Icons.support_outlined,
-                            color: primaryColor,
+                            color: Colors.amber.shade600,
                             size: 24,
                           ),
                         ),
@@ -810,19 +833,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     "About Us",
                     "Learn more about our company",
                     () => _navigateTo(AboutUsScreen()),
-                    primaryColor,
-                    cardColor,
-                    textColor,
-                    subtextColor,
-                    6,
-                  ),
-                  _buildEnhancedProfileOption(
-                    context,
-                    Icons.privacy_tip_outlined,
-                    "Privacy Statement",
-                    "Read our privacy statement",
-                    () => _navigateTo(PrivacyPolicyScreen()),
-                    primaryColor,
+                    Colors.cyan.shade600,
                     cardColor,
                     textColor,
                     subtextColor,
@@ -830,15 +841,27 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                   ),
                   _buildEnhancedProfileOption(
                     context,
-                    Icons.description_outlined,
-                    "Terms and Conditions",
-                    "Read our terms of service",
-                    () => _navigateTo(TermsAndConditionsScreen()),
-                    primaryColor,
+                    Icons.privacy_tip_outlined,
+                    "Privacy Statement",
+                    "Read our privacy statement",
+                    () => _navigateTo(PrivacyPolicyScreen()),
+                    Colors.deepPurple.shade600,
                     cardColor,
                     textColor,
                     subtextColor,
                     8,
+                  ),
+                  _buildEnhancedProfileOption(
+                    context,
+                    Icons.description_outlined,
+                    "Terms and Conditions",
+                    "Read our terms of service",
+                    () => _navigateTo(TermsAndConditionsScreen()),
+                    Colors.brown.shade600,
+                    cardColor,
+                    textColor,
+                    subtextColor,
+                    9,
                   ),
 
                   if (_userLoggedIn) ...[
@@ -849,11 +872,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                       "Logout",
                       "Sign out from your account",
                       _showLogoutDialog,
-                      Colors.red.shade400,
+                      Colors.red.shade700,
                       cardColor,
                       textColor,
                       subtextColor,
-                      9,
+                      11,
                     ),
                   ],
 

@@ -85,26 +85,21 @@ class BackgroundCartChecker {
     try {
       if (_cartProvider == null) return;
 
-      debugPrint('BackgroundCartChecker: Checking cart changes...');
+
 
       // Check if user is logged in
       final isLoggedIn = await AuthService.isLoggedIn();
       if (!isLoggedIn) {
-        debugPrint(
-            '🛒 BackgroundCartChecker: User not logged in, skipping cart check');
+
         return;
       }
 
       // Check for any pending cart operations
       final cartItems = _cartProvider!.cartItems;
-      debugPrint(
-          '🛒 BackgroundCartChecker: Current cart items: ${cartItems.length}');
 
-      // Always sync to ensure consistency, even with empty cart
-      debugPrint('🛒 BackgroundCartChecker: Syncing with API...');
       await _cartProvider!.syncWithApi();
     } catch (e) {
-      debugPrint('🛒 BackgroundCartChecker: Error checking cart changes: $e');
+
     }
   }
 
@@ -126,21 +121,21 @@ class BackgroundCartChecker {
       // Sync with server
       await _cartProvider!.syncWithApi();
 
-      debugPrint('🛒 BackgroundCartChecker: Periodic sync completed');
+
     } catch (e) {
-      debugPrint('🛒 BackgroundCartChecker: Error during periodic sync: $e');
+     
     }
   }
 
   /// Force a cart check immediately
   Future<void> forceCartCheck() async {
-    debugPrint('🛒 BackgroundCartChecker: Force cart check requested');
+    
     await _checkCartChanges();
   }
 
   /// Force a server sync immediately
   Future<void> forceServerSync() async {
-    debugPrint('🛒 BackgroundCartChecker: Force server sync requested');
+
     await _performPeriodicSync();
   }
 

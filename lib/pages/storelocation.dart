@@ -113,6 +113,13 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
 
         // Test distance calculations
         _testDistanceCalculation();
+
+        // Refresh stores to apply distance sorting now that location is available
+        if (allStores.isNotEmpty) {
+          setState(() {
+            // Trigger rebuild to show stores sorted by distance
+          });
+        }
       } else {
         debugPrint('❌ Location services not available');
         // Set default Ghana location if location services not available
@@ -167,43 +174,54 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       return stores; // Return unsorted if no location
     }
 
-    return List<dynamic>.from(stores)
-      ..sort((a, b) {
-        // Extract coordinates from store data
-        // Try to get coordinates from API response first
-        double aLat = 0.0;
-        double aLon = 0.0;
-        double bLat = 0.0;
-        double bLon = 0.0;
+    // Filter stores with valid coordinates from API
+    final storesWithCoords = stores.where((store) {
+      final lat = store['lat'];
+      final lon = store['lng'];
 
-        // Try to parse coordinates from API response - handle null values properly
-        if (a['latitude'] != null && a['longitude'] != null) {
-          aLat = double.tryParse(a['latitude'].toString()) ?? 0.0;
-          aLon = double.tryParse(a['longitude'].toString()) ?? 0.0;
-        }
-        if (b['latitude'] != null && b['longitude'] != null) {
-          bLat = double.tryParse(b['latitude'].toString()) ?? 0.0;
-          bLon = double.tryParse(b['longitude'].toString()) ?? 0.0;
-        }
+      if (lat == null || lon == null) {
+        debugPrint('⚠️ Store ${store['description']}: Missing coordinates');
+        return false;
+      }
+
+      final latValue = double.tryParse(lat.toString());
+      final lonValue = double.tryParse(lon.toString());
+
+      if (latValue == null ||
+          lonValue == null ||
+          latValue == 0.0 ||
+          lonValue == 0.0) {
+        debugPrint(
+            '⚠️ Store ${store['description']}: Invalid coordinates ($lat, $lon)');
+        return false;
+      }
+
+      debugPrint(
+          '✅ Store ${store['description']}: Valid coordinates ($latValue, $lonValue)');
+      return true;
+    }).toList();
+
+    if (storesWithCoords.isEmpty) {
+      debugPrint(
+          '❌ No stores with valid coordinates found, falling back to name sorting');
+      return _sortByName(stores);
+    }
+
+    debugPrint(
+        '📍 Sorting ${storesWithCoords.length} stores with valid coordinates');
+
+    return List<dynamic>.from(storesWithCoords)
+      ..sort((a, b) {
+        // Extract coordinates directly from API response (we know they're valid from filtering)
+        final aLat = double.parse(a['lat'].toString());
+        final aLon = double.parse(a['lng'].toString());
+        final bLat = double.parse(b['lat'].toString());
+        final bLon = double.parse(b['lng'].toString());
 
         debugPrint(
             'Store A (${a['description']}): API coords = ($aLat, $aLon)');
         debugPrint(
             'Store B (${b['description']}): API coords = ($bLat, $bLon)');
-
-        // If coordinates are not available or invalid, use estimated coordinates based on region/city
-        if (aLat == 0.0 || aLon == 0.0) {
-          final aCoords = _getEstimatedCoordinates(a);
-          aLat = aCoords['lat']!;
-          aLon = aCoords['lon']!;
-          debugPrint('Store A: Using estimated coords = ($aLat, $aLon)');
-        }
-        if (bLat == 0.0 || bLon == 0.0) {
-          final bCoords = _getEstimatedCoordinates(b);
-          bLat = bCoords['lat']!;
-          bLon = bCoords['lon']!;
-          debugPrint('Store B: Using estimated coords = ($bLat, $bLon)');
-        }
 
         // Calculate distances
         final aDistance = locationService.calculateDistance(
@@ -233,15 +251,15 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
 
     // Debug: Show final sorted order
     debugPrint('📍 FINAL SORTED ORDER ===');
-    for (int i = 0; i < stores.length; i++) {
-      final store = stores[i];
+    for (int i = 0; i < storesWithCoords.length; i++) {
+      final store = storesWithCoords[i];
       final distance = store['distance'] ?? 'N/A';
       debugPrint(
           '${i + 1}. ${store['description']} - ${locationService.formatDistance(distance)}');
     }
     debugPrint('========================');
 
-    return stores;
+    return storesWithCoords;
   }
 
   // Check if location is within Ghana bounds
@@ -271,6 +289,13 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       _locationController.text = 'Accra (Default)';
     });
     debugPrint('📍 Default Ghana location set: Accra (5.6037, -0.1870)');
+
+    // Refresh stores to apply distance sorting with default location
+    if (allStores.isNotEmpty) {
+      setState(() {
+        // Trigger rebuild to show stores sorted by distance
+      });
+    }
   }
 
   // Test distance calculation with known coordinates
@@ -687,7 +712,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
         allStores = allStoresList;
         isLoadingAllStores = false;
       });
-     
     } catch (e) {
       debugPrint('Error loading all stores: $e');
       setState(() {
@@ -699,210 +723,201 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (Navigator.canPop(context)) {
-          Navigator.pop(context);
-        } else {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => HomePage()),
-            (route) => false,
-          );
-        }
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-          elevation: Theme.of(context).appBarTheme.elevation,
-          centerTitle: Theme.of(context).appBarTheme.centerTitle,
-          leading: BackButtonUtils.simple(
-            backgroundColor: Colors.white.withValues(alpha: 0.2),
-          ),
-          title: Text(
-            'Store Locations',
-            style: Theme.of(context).appBarTheme.titleTextStyle,
-          ),
-          actions: [
-            Container(
-              margin: EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              _buildHeaderSection(),
+              // Search and filter section below header
+              Container(
+                margin: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: _buildSearchAndFilterCard(),
               ),
-              child: CartIconButton(
-                iconColor: Colors.white,
-                iconSize: 24,
-                backgroundColor: Colors.transparent,
+              Container(
+                margin: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: _buildSortingOptions(),
               ),
-            ),
-          ],
-        ),
-        body: SafeArea(
-          child: Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.green.shade50,
-                  Colors.white,
-                ],
+              Expanded(
+                child: _buildStoreList(),
               ),
-            ),
-            child: Column(
-              children: [
-                _buildHeaderSection(),
-                Expanded(
-                  child: _buildStoreList(),
-                ),
-              ],
-            ),
+            ],
           ),
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildHeaderSection() {
-    return Container(
-      margin: EdgeInsets.fromLTRB(0, 0, 0, 8),
-      padding: EdgeInsets.fromLTRB(0, 0, 0, 12),
-      width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.green.shade100,
-            Colors.green.shade50,
+    final theme = Theme.of(context);
+    final topPadding = MediaQuery.of(context).padding.top;
+
+    return Animate(
+      effects: [
+        FadeEffect(duration: 400.ms),
+        SlideEffect(duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
+      ],
+      child: Container(
+        padding: EdgeInsets.only(top: topPadding * 0.5),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.green.shade600,
+              Colors.green.shade700,
+              Colors.green.shade800,
+            ],
+            stops: [0.0, 0.5, 1.0],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
-        borderRadius: BorderRadius.vertical(
-          bottom: Radius.circular(16),
-        ),
-      ),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+        child: SafeArea(
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.location_on, color: Colors.green.shade600, size: 20),
-                SizedBox(width: 6),
-                Text(
-                  'Find a Store',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade800,
-                  ),
+                Row(
+                  children: [
+                    AppBackButton(
+                      backgroundColor: Colors.white.withValues(alpha: 0.2),
+                      onPressed: () => Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (context) => HomePage()),
+                        (route) => false,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Find a Store',
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            'Locate the nearest Ernest Chemists store',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.2, end: 0),
-            SizedBox(height: 8),
-            _buildSearchAndFilterCard(),
-            SizedBox(height: 8),
-            _buildSortingOptions(),
-          ],
+            ),
+          ),
         ),
       ),
     );
   }
 
   Widget _buildSearchAndFilterCard() {
-    return Card(
-      elevation: 1,
-      shadowColor: Colors.green.shade100,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Container(
-        padding: EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white,
-              Colors.green.shade50,
-            ],
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-        ),
-        child: Row(
-          children: [
-            // Region Dropdown
-            Expanded(
-              flex: 1,
-              child: _buildCompactDropdown(
-                value: selectedRegion,
-                hint: 'Region',
-                items: regions
-                    .map<String>((region) => region['description'] ?? '')
-                    .toList(),
-                isLoading: isLoadingRegions,
-                error: regionsError,
-                onChanged: (String? newValue) {
-                  if (newValue == null || regions.isEmpty) return;
-
-                  final selectedRegionData = regions.firstWhere(
-                    (region) => region['description'] == newValue,
-                    orElse: () => null,
-                  );
-                  setState(() {
-                    selectedRegion = selectedRegionData;
-                    selectedCity = null;
-                  });
-                  if (selectedRegionData != null) {
-                    _loadCitiesForFiltering(selectedRegionData);
-                  }
-                },
-                onRetry: _loadRegions,
-              ),
-            ),
-            SizedBox(width: 4),
-            // City Dropdown
-            Expanded(
-              flex: 1,
-              child: _buildCompactDropdown(
-                value: selectedCity,
-                hint: 'City',
-                items: cities
-                    .map<String>((city) => city['description'] ?? '')
-                    .toList(),
-                isLoading: isLoadingCities,
-                error: citiesError,
-                onChanged: (String? newValue) {
-                  if (newValue == null || cities.isEmpty) return;
-
-                  final selectedCityData = cities.firstWhere(
-                    (city) => city['description'] == newValue,
-                    orElse: () => null,
-                  );
-                  setState(() {
-                    selectedCity = selectedCityData;
-                  });
-                },
-                onRetry: () => _loadCitiesForFiltering(selectedRegion),
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
-    )
-        .animate()
-        .fadeIn(duration: 400.ms, delay: 200.ms)
-        .slideY(begin: 0.2, end: 0);
+      child: Row(
+        children: [
+          // Region Dropdown
+          Expanded(
+            flex: 1,
+            child: _buildCompactDropdown(
+              value: selectedRegion,
+              hint: 'Region',
+              items: regions
+                  .map<String>((region) => region['description'] ?? '')
+                  .toList(),
+              isLoading: isLoadingRegions,
+              error: regionsError,
+              onChanged: (String? newValue) {
+                if (newValue == null || regions.isEmpty) return;
+
+                final selectedRegionData = regions.firstWhere(
+                  (region) => region['description'] == newValue,
+                  orElse: () => null,
+                );
+                setState(() {
+                  selectedRegion = selectedRegionData;
+                  selectedCity = null;
+                });
+                if (selectedRegionData != null) {
+                  _loadCitiesForFiltering(selectedRegionData);
+                }
+              },
+              onRetry: _loadRegions,
+            ),
+          ),
+          SizedBox(width: 4),
+          // City Dropdown
+          Expanded(
+            flex: 1,
+            child: _buildCompactDropdown(
+              value: selectedCity,
+              hint: 'City',
+              items: cities
+                  .map<String>((city) => city['description'] ?? '')
+                  .toList(),
+              isLoading: isLoadingCities,
+              error: citiesError,
+              onChanged: (String? newValue) {
+                if (newValue == null || cities.isEmpty) return;
+
+                final selectedCityData = cities.firstWhere(
+                  (city) => city['description'] == newValue,
+                  orElse: () => null,
+                );
+                setState(() {
+                  selectedCity = selectedCityData;
+                });
+              },
+              onRetry: () => _loadCitiesForFiltering(selectedRegion),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildSortingOptions() {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 4),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -987,10 +1002,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           ],
         ],
       ),
-    )
-        .animate()
-        .fadeIn(duration: 400.ms, delay: 300.ms)
-        .slideY(begin: 0.2, end: 0);
+    );
   }
 
   Widget _buildLocationPermissionRequest() {
@@ -1506,13 +1518,80 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       return _buildEmptyState();
     }
 
-    return ListView.builder(
-      padding: EdgeInsets.symmetric(horizontal: 16),
-      itemCount: filteredStores.length,
-      itemBuilder: (context, index) {
-        final store = filteredStores[index];
-        return _buildStoreCard(store, index);
-      },
+    return Column(
+      children: [
+        // Distance sorting indicator
+        if (sortBy == 'distance' && userLocation != null) ...[
+          Container(
+            margin: EdgeInsets.fromLTRB(16, 8, 16, 12),
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.sort_by_alpha,
+                  color: Colors.green.shade600,
+                  size: 18,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Stores sorted by distance from your location',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green.shade700,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Closest stores appear first',
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          color: Colors.green.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${filteredStores.length} stores',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.green.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        // Store list
+        Expanded(
+          child: ListView.builder(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            itemCount: filteredStores.length,
+            itemBuilder: (context, index) {
+              final store = filteredStores[index];
+              return _buildStoreCard(store, index);
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -1843,6 +1922,39 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                                   ),
                                 ),
                               ),
+                            // Show distance if available
+                            if (store['distance'] != null &&
+                                sortBy == 'distance')
+                              Container(
+                                margin: EdgeInsets.only(left: 8),
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade50,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border:
+                                      Border.all(color: Colors.green.shade200),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.straighten,
+                                      size: 10,
+                                      color: Colors.green.shade600,
+                                    ),
+                                    SizedBox(width: 2),
+                                    Text(
+                                      _formatDistance(store['distance']),
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.green.shade700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                           ],
                         ),
                         if (storeAddress.isNotEmpty)
@@ -1953,6 +2065,41 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       }
     }
     return false;
+  }
+
+  // Format distance for display
+  String _formatDistance(dynamic distance) {
+    if (distance == null) return 'N/A';
+
+    final distanceValue =
+        distance is double ? distance : double.tryParse(distance.toString());
+    if (distanceValue == null) return 'N/A';
+
+    if (distanceValue < 1.0) {
+      return '${(distanceValue * 1000).round()}m';
+    } else if (distanceValue < 10.0) {
+      return '${distanceValue.toStringAsFixed(1)}km';
+    } else {
+      return '${distanceValue.round()}km';
+    }
+  }
+
+  // Get stores with valid coordinates for distance sorting
+  List<dynamic> _getStoresWithValidCoords() {
+    return allStores.where((store) {
+      final lat = store['lat'];
+      final lon = store['lng'];
+
+      if (lat == null || lon == null) return false;
+
+      final latValue = double.tryParse(lat.toString());
+      final lonValue = double.tryParse(lon.toString());
+
+      return latValue != null &&
+          lonValue != null &&
+          latValue != 0.0 &&
+          lonValue != 0.0;
+    }).toList();
   }
 
   Widget _buildCityCard(dynamic city) {

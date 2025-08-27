@@ -1786,21 +1786,12 @@ class PaymentPageState extends State<PaymentPage> {
 
   /// Build delivery information box
   Widget _buildDeliveryInfo() {
-    // Debug: Print delivery information
-    print('🔍 [PAYMENT PAGE] Building delivery info:');
-    print('   📍 Address: ${widget.deliveryAddress}');
-    print('   📞 Contact: ${widget.contactNumber}');
-    print('   ⏰ Delivery Time: ${widget.estimatedDeliveryTime}');
-    print('   🚚 Delivery Option: ${widget.deliveryOption}');
-
     // Force the delivery info to show even if data is missing (for debugging)
     final hasData = (widget.deliveryAddress != null &&
             widget.deliveryAddress!.isNotEmpty) ||
         (widget.contactNumber != null && widget.contactNumber!.isNotEmpty) ||
         (widget.estimatedDeliveryTime != null &&
             widget.estimatedDeliveryTime!.isNotEmpty);
-
-    print('🔍 [PAYMENT PAGE] Has delivery data: $hasData');
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -2219,7 +2210,15 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
     if (widget.paymentMethod.toLowerCase() == 'cash on delivery') {
       _status = "success";
       _paymentSuccess = true;
-      _statusMessage = "Order successfully placed! You will pay on delivery.";
+      // Check if it's pickup or delivery
+      final shippingType =
+          widget.paymentParams['shipping_type']?.toString().toLowerCase();
+      if (shippingType == 'pickup') {
+        _statusMessage =
+            "Order successfully placed! You will pay when you pick up.";
+      } else {
+        _statusMessage = "Order successfully placed! You will pay on delivery.";
+      }
       _isLoading = false;
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -3138,7 +3137,14 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
     if (status?.toLowerCase() == 'loading') {
       return 'Please wait while we process your payment...';
     } else if (widget.paymentMethod.toLowerCase() == 'cash on delivery') {
-      return 'Your order has been placed successfully. You will pay when the items are delivered.';
+      // Check if it's pickup or delivery
+      final shippingType =
+          widget.paymentParams['shipping_type']?.toString().toLowerCase();
+      if (shippingType == 'pickup') {
+        return 'Your order has been placed successfully. You will pay when you pick up your items.';
+      } else {
+        return 'Your order has been placed successfully. You will pay when the items are delivered.';
+      }
     } else if (status?.toLowerCase() == 'success') {
       return 'Your payment was successful and your order has been placed.';
     } else if (status?.toLowerCase() == 'failed') {

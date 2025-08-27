@@ -21,8 +21,6 @@ class BackgroundOrderTrackingService {
   static void startBackgroundTracking() {
     if (_isRunning) return;
 
-    debugPrint(
-        '📦 BackgroundOrderTrackingService: Starting background order tracking');
     _isRunning = true;
 
     // Initial tracking after delay
@@ -48,13 +46,9 @@ class BackgroundOrderTrackingService {
   // Track orders in background
   static Future<void> _trackOrdersInBackground() async {
     try {
-      debugPrint(
-          '📦 BackgroundOrderTrackingService: Starting background order tracking');
-
       // Get user's orders
       final orders = await _getUserOrders();
       if (orders.isEmpty) {
-        debugPrint('📦 BackgroundOrderTrackingService: No orders to track');
         return;
       }
 
@@ -82,8 +76,7 @@ class BackgroundOrderTrackingService {
         return orders.cast<Map<String, dynamic>>();
       }
     } catch (e) {
-      debugPrint(
-          '📦 BackgroundOrderTrackingService: Error getting user orders: $e');
+
     }
     return [];
   }
@@ -114,7 +107,7 @@ class BackgroundOrderTrackingService {
         await _sendStatusChangeNotification(order, lastStatus, currentStatus);
       }
     } catch (e) {
-      debugPrint('📦 BackgroundOrderTrackingService: Error tracking order: $e');
+
     }
   }
 
@@ -137,8 +130,7 @@ class BackgroundOrderTrackingService {
         return data['status'];
       }
     } catch (e) {
-      debugPrint(
-          '📦 BackgroundOrderTrackingService: Error getting order status: $e');
+
     }
     return null;
   }
@@ -148,10 +140,7 @@ class BackgroundOrderTrackingService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_orders', json.encode(orders));
-    } catch (e) {
-      debugPrint(
-          '📦 BackgroundOrderTrackingService: Error saving user orders: $e');
-    }
+    } catch (e) {}
   }
 
   // Send status change notification
@@ -193,13 +182,7 @@ class BackgroundOrderTrackingService {
         body: body,
         payload: 'order_$orderId',
       );
-
-      debugPrint(
-          '📦 BackgroundOrderTrackingService: Status change notification sent for order $orderId');
-    } catch (e) {
-      debugPrint(
-          '📦 BackgroundOrderTrackingService: Error sending notification: $e');
-    }
+    } catch (e) {}
   }
 
   // Get authentication token
@@ -208,8 +191,6 @@ class BackgroundOrderTrackingService {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getString('auth_token');
     } catch (e) {
-      debugPrint(
-          '📦 BackgroundOrderTrackingService: Error getting auth token: $e');
       return null;
     }
   }
@@ -226,10 +207,7 @@ class BackgroundOrderTrackingService {
       for (final order in shippedOrders) {
         await _checkDeliveryStatus(order);
       }
-    } catch (e) {
-      debugPrint(
-          '📦 BackgroundOrderTrackingService: Error checking delivery updates: $e');
-    }
+    } catch (e) {}
   }
 
   // Check delivery status for shipped orders
@@ -252,8 +230,7 @@ class BackgroundOrderTrackingService {
         }
       }
     } catch (e) {
-      debugPrint(
-          '📦 BackgroundOrderTrackingService: Error checking delivery status: $e');
+
     }
   }
 
@@ -276,10 +253,7 @@ class BackgroundOrderTrackingService {
         final data = json.decode(response.body);
         return data['delivery_status'];
       }
-    } catch (e) {
-      debugPrint(
-          '📦 BackgroundOrderTrackingService: Error getting delivery status: $e');
-    }
+    } catch (e) {}
     return null;
   }
 

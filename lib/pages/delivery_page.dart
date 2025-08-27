@@ -805,7 +805,11 @@ class DeliveryPageState extends State<DeliveryPage> {
               items: regions.map((region) {
                 return DropdownMenuItem(
                   value: region,
-                  child: Text(region['description'] ?? ''),
+                  child: Text(
+                    region['description'] ?? '',
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
                 );
               }).toList(),
               onChanged: (value) {
@@ -829,7 +833,11 @@ class DeliveryPageState extends State<DeliveryPage> {
                 items: cities.map((city) {
                   return DropdownMenuItem(
                     value: city,
-                    child: Text(city['description'] ?? ''),
+                    child: Text(
+                      city['description'] ?? '',
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
                   );
                 }).toList(),
                 onChanged: (value) {
@@ -853,7 +861,11 @@ class DeliveryPageState extends State<DeliveryPage> {
                 items: stores.map((store) {
                   return DropdownMenuItem(
                     value: store,
-                    child: Text(store['description'] ?? ''),
+                    child: Text(
+                      store['description'] ?? '',
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
                   );
                 }).toList(),
                 onChanged: (value) {
@@ -959,6 +971,7 @@ class DeliveryPageState extends State<DeliveryPage> {
         ),
         const SizedBox(height: 8),
         Container(
+          width: double.infinity,
           decoration: BoxDecoration(
             border: Border.all(
               color: _highlightPickupField ? Colors.red : Colors.grey[300]!,
@@ -1025,6 +1038,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               color: Colors.grey[800],
               fontSize: 14,
             ),
+            isExpanded: true,
           ),
         ),
       ],
@@ -1469,7 +1483,6 @@ class DeliveryPageState extends State<DeliveryPage> {
         lng: _longitude,
       );
 
-      
       print('🗺️ [MAP API RESPONSE] ===== COMPLETE API RESPONSE =====');
       print('🗺️ [MAP API RESPONSE] Raw response: $result');
       print('🗺️ [MAP API RESPONSE] Response type: ${result.runtimeType}');
@@ -1479,18 +1492,11 @@ class DeliveryPageState extends State<DeliveryPage> {
         print('🗺️ [MAP API RESPONSE] Data: ${result['data']}');
       }
 
-      if (result['closest_store'] != null) {
-         }
+      if (result['closest_store'] != null) {}
 
-      if (result['delivery_fee'] != null) {
-      
-      }
+      if (result['delivery_fee'] != null) {}
 
-      if (result['estimated_delivery_time'] != null) {
-       
-      }
-
-   
+      if (result['estimated_delivery_time'] != null) {}
 
       if (result['success'] && result['closest_store'] != null) {
         final durationText = result['closest_store']['duration_text'];
@@ -1498,15 +1504,10 @@ class DeliveryPageState extends State<DeliveryPage> {
           setState(() {
             _apiDeliveryTime = durationText;
           });
-         
         }
       }
-    } catch (e) {
-    
-    }
+    } catch (e) {}
   }
-
-
 
   Widget _buildPhoneField(bool isPhoneValid) {
     return Column(

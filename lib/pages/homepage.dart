@@ -14,6 +14,7 @@ import 'bottomnav.dart';
 import 'itemdetail.dart';
 import 'package:shimmer/shimmer.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'search_results_page.dart';
@@ -67,7 +68,10 @@ class ProductCache {
   static DateTime? _lastCacheTime;
   static DateTime? _lastShuffleTime;
 
-  static const Duration _cacheValidDuration = Duration(hours: 24);
+  static const Duration _cacheValidDuration =
+      Duration(hours: 2); // Reduced from 24 hours for better performance
+  static const Duration _staleWhileRevalidateDuration =
+      Duration(hours: 6); // Allow stale data for 6 hours
   static const Duration _shuffleInterval = Duration(hours: 24);
   static const String _popularProductsKey = 'cached_popular_products';
   static const String _lastCacheTimeKey = 'last_cache_time';
@@ -81,6 +85,16 @@ class ProductCache {
     debugPrint(
         '🔄 ProductCache: Cache valid: $isValid, Time since cache: ${timeSinceCache.inMinutes} minutes');
     return isValid;
+  }
+
+  // Check if we can use stale data while revalidating
+  static bool get canUseStaleData {
+    if (_lastCacheTime == null) return false;
+    final timeSinceCache = DateTime.now().difference(_lastCacheTime!);
+    final canUse = timeSinceCache < _staleWhileRevalidateDuration;
+    debugPrint(
+        '🔄 ProductCache: Can use stale data: $canUse, Time since cache: ${timeSinceCache.inMinutes} minutes');
+    return canUse;
   }
 
   // Check if products need to be shuffled (every 24 hours)
@@ -543,11 +557,10 @@ class HomePageState extends State<HomePage>
     _isLoadingContent = true;
 
     try {
-      // Check if we already have cached popular products
-      if (ProductCache.isCacheValid &&
-          ProductCache.cachedPopularProducts.isNotEmpty) {
+      // Check if we already have cached popular products (stale-while-revalidate approach)
+      if (ProductCache.cachedPopularProducts.isNotEmpty) {
         debugPrint(
-            'HomePage: Using cached popular products, skipping API call');
+            'HomePage: Using cached popular products, showing immediately');
         debugPrint('🔍 USING CACHED PRODUCTS:');
         for (int i = 0; i < ProductCache.cachedPopularProducts.length; i++) {
           final product = ProductCache.cachedPopularProducts[i];
@@ -556,6 +569,7 @@ class HomePageState extends State<HomePage>
         debugPrint('🔍 END CACHED PRODUCTS');
         setState(() {
           popularProducts = ProductCache.cachedPopularProducts;
+          _isLoadingPopular = false;
         });
 
         // Start auto-scroll for cached popular products
@@ -564,10 +578,17 @@ class HomePageState extends State<HomePage>
             _startPopularProductsAutoScroll();
           }
         });
+
+        // If cache is stale, refresh in background (non-blocking)
+        if (!ProductCache.isCacheValid && ProductCache.canUseStaleData) {
+          debugPrint(
+              '🔄 HomePage: Cache is stale, refreshing in background...');
+          unawaited(_fetchPopularProducts());
+        }
       } else {
-        // Load popular products only if cache is expired
+        // Load popular products only if cache is completely empty
         debugPrint(
-            'HomePage: Loading popular products (cache expired or empty)');
+            'HomePage: No cached popular products, fetching from API...');
         await _fetchPopularProducts();
       }
 
@@ -1282,21 +1303,11 @@ class HomePageState extends State<HomePage>
 
     WidgetsBinding.instance.addObserver(this);
 
-    ProductCache.loadFromStorage();
+    // Load cached data immediately if available (non-blocking)
+    _loadCachedDataImmediately();
 
-    // Initialize optimization service
-    _initializeOptimizationService();
-
-    // Load cached data immediately if available
-    if (_optimizationService.hasCachedProducts) {
-      setState(() {
-        _products = _optimizationService.cachedProducts;
-        filteredProducts = _optimizationService.cachedProducts;
-        // Keep loading state true for skeleton to show
-        _isLoading = true;
-        _error = null;
-      });
-    }
+    // Initialize services in background (non-blocking)
+    unawaited(_initializeServicesInBackground());
 
     // Load section shuffle timestamp from storage synchronously
     _loadSectionShuffleTimeSync();
@@ -1335,6 +1346,46 @@ class HomePageState extends State<HomePage>
     });
 
     // Auto-scroll will be initialized when popular products are loaded
+  }
+
+  // Load cached data immediately without blocking
+  void _loadCachedDataImmediately() {
+    // Load from ProductCache if available
+    if (ProductCache.cachedProducts.isNotEmpty) {
+      setState(() {
+        _products = ProductCache.cachedProducts;
+        filteredProducts = ProductCache.cachedProducts;
+        _isLoading = true;
+        _error = null;
+      });
+    }
+
+    // Load popular products from cache if available
+    if (ProductCache.cachedPopularProducts.isNotEmpty) {
+      setState(() {
+        popularProducts = ProductCache.cachedPopularProducts;
+        _isLoadingPopular = false;
+      });
+    } else {
+      // Show loading skeleton immediately for better perceived performance
+      setState(() {
+        _isLoadingPopular = true;
+      });
+    }
+  }
+
+  // Initialize services in background (non-blocking)
+  Future<void> _initializeServicesInBackground() async {
+    // Load storage in background
+    await ProductCache.loadFromStorage();
+
+    // Initialize optimization service
+    await _optimizationService.initialize();
+
+    // Update UI with any newly loaded cached data
+    if (mounted) {
+      _loadCachedDataImmediately();
+    }
   }
 
   Future<void> _initializeOptimizationService() async {
@@ -2465,7 +2516,9 @@ class HomePageState extends State<HomePage>
   }
 
   Future<void> _fetchPopularProducts() async {
-    debugPrint('🔄 HomePage: _fetchPopularProducts called');
+    final startTime = DateTime.now();
+    debugPrint(
+        '🔄 HomePage: _fetchPopularProducts called at ${startTime.toIso8601String()}');
     if (!mounted) return;
 
     // Check if we have valid cached popular products
@@ -2492,7 +2545,8 @@ class HomePageState extends State<HomePage>
             Uri.parse(
                 'https://eclcommerce.ernestchemists.com.gh/api/popular-products'),
           )
-          .timeout(Duration(seconds: 15));
+          .timeout(Duration(
+              seconds: 8)); // Reduced timeout for faster failure detection
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
@@ -2553,6 +2607,11 @@ class HomePageState extends State<HomePage>
             _startPopularProductsAutoScroll();
           }
         });
+
+        // Performance tracking
+        final totalTime = DateTime.now().difference(startTime);
+        debugPrint(
+            '⚡ HomePage: Popular products loaded in ${totalTime.inMilliseconds}ms');
       } else {
         if (!mounted) return;
         setState(() {

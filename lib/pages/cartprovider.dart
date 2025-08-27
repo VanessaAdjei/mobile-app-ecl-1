@@ -26,11 +26,8 @@ class CartProvider with ChangeNotifier {
 
     final words =
         normalized.split(' ').where((word) => word.isNotEmpty).toList();
-    debugPrint('Words: $words');
 
     final result = words.join(' ').toLowerCase();
-    debugPrint('Result: "$result"');
-    debugPrint('=============================');
 
     return result;
   }
@@ -562,13 +559,7 @@ class CartProvider with ChangeNotifier {
           _cartItems[syncedItemIndex] = _cartItems[syncedItemIndex].copyWith(
             originalProductId: originalProductId,
           );
-          debugPrint('🔍 RESTORED ORIGINAL PRODUCT ID ===');
-          debugPrint('Product: ${_cartItems[syncedItemIndex].name}');
-          debugPrint(
-              'Original Product ID: ${_cartItems[syncedItemIndex].originalProductId}');
-          debugPrint(
-              'Server Product ID: ${_cartItems[syncedItemIndex].serverProductId}');
-          debugPrint('====================================');
+
           notifyListeners();
         } else {
           // Try flexible matching for e-panol products if exact match fails
@@ -604,13 +595,7 @@ class CartProvider with ChangeNotifier {
                 _cartItems[flexibleMatchIndex].copyWith(
               originalProductId: originalProductId,
             );
-            debugPrint('🔍 RESTORED ORIGINAL PRODUCT ID (FLEXIBLE MATCH) ===');
-            debugPrint('Product: ${_cartItems[flexibleMatchIndex].name}');
-            debugPrint(
-                'Original Product ID: ${_cartItems[flexibleMatchIndex].originalProductId}');
-            debugPrint(
-                'Server Product ID: ${_cartItems[flexibleMatchIndex].serverProductId}');
-            debugPrint('==================================================');
+            
             notifyListeners();
           } else {
             debugPrint('🔍 NO MATCHING ITEM FOUND FOR RESTORATION ===');
