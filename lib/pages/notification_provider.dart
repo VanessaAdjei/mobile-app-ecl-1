@@ -5,7 +5,7 @@ import '../services/order_notification_service.dart';
 class NotificationProvider extends ChangeNotifier {
   int _unreadCount = 0;
   bool _hasShownSnackbar = false;
-  int _newOrderCount = 0; // Track new order notifications specifically
+  int _newOrderCount = 0; 
 
   int get unreadCount => _unreadCount;
   bool get hasShownSnackbar => _hasShownSnackbar;
@@ -20,7 +20,7 @@ class NotificationProvider extends ChangeNotifier {
         '📱 NotificationProvider: Initialized with $_unreadCount unread notifications, $_newOrderCount new orders');
   }
 
-  /// Load the current unread count from storage
+
   Future<void> _loadUnreadCount() async {
     try {
       _unreadCount = await OrderNotificationService.getCurrentUnreadCount();
@@ -71,17 +71,16 @@ class NotificationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Mark notifications as read when user actually views them
+
   Future<void> markNotificationsAsViewed() async {
-    // Only mark as read if user actually opened the notifications page
-    // This ensures the badge stays until user actually reads them
+  
     await OrderNotificationService.markAllAsRead();
     await _loadUnreadCount();
-    await _loadNewOrderCount(); // Also refresh new order count
+    await _loadNewOrderCount(); 
     notifyListeners();
   }
 
-  /// Clear all notifications
+
   Future<void> clearAllNotifications() async {
     await OrderNotificationService.clearAllNotifications();
     await _loadUnreadCount();
