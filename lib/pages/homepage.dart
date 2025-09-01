@@ -983,85 +983,131 @@ class HomePageState extends State<HomePage>
       builder: (context) {
         return Container(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Handle bar
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle bar
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-              // Title
-              Text(
-                'Contact Us',
-                style: GoogleFonts.poppins(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade800,
+                // Title
+                Text(
+                  'Need Help?',
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
+                const SizedBox(height: 8),
 
-              Text(
-                'Choose how you\'d like to reach us',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  color: Colors.grey.shade600,
+                Text(
+                  'Contact us for support or any questions',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
-              // Call option
-              _buildContactOption(
-                icon: Icons.phone_rounded,
-                title: 'Call Us',
-                subtitle: '0302908674',
-                color: Colors.green.shade600,
-                onTap: () {
-                  Navigator.pop(context);
-                  _launchPhoneDialer(phoneNumber);
-                  makePhoneCall(phoneNumber);
-                },
-              ),
+                // Help context
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            color: Colors.blue.shade600,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'What can we help you with?',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '• App issues & technical support\n• Payment problems',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: Colors.blue.shade600,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
-              const SizedBox(height: 12),
+                const SizedBox(height: 20),
 
-              // WhatsApp option
-              _buildContactOption(
-                icon: Icons.message_rounded,
-                title: 'WhatsApp',
-                subtitle: 'Chat with us instantly',
-                color: const Color(0xFF25D366),
-                onTap: () {
-                  Navigator.pop(context);
-                  _launchWhatsApp(
-                      phoneNumber, "Hello, I'm interested in your products!");
-                },
-              ),
+                // Call option
+                _buildContactOption(
+                  icon: Icons.phone_rounded,
+                  title: 'Call Us',
+                  subtitle: '0302908674',
+                  color: Colors.green.shade600,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _launchPhoneDialer(phoneNumber);
+                    makePhoneCall(phoneNumber);
+                  },
+                ),
 
-              const SizedBox(height: 12),
+                const SizedBox(height: 12),
 
-              // Email option
-              _buildContactOption(
-                icon: Icons.email_rounded,
-                title: 'Email Us',
-                subtitle: 'info@ernestchemists.com',
-                color: Colors.blue.shade600,
-                onTap: () {
-                  Navigator.pop(context);
-                  _launchEmail(
-                      'info@ernestchemists.com', 'ECL Support Request');
-                },
-              ),
+                // WhatsApp option
+                _buildContactOption(
+                  icon: Icons.message_rounded,
+                  title: 'WhatsApp',
+                  subtitle: 'Chat with us instantly',
+                  color: const Color(0xFF25D366),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _launchWhatsApp(phoneNumber,
+                        "Hello! I need help with the ECL app. Can you assist me?");
+                  },
+                ),
 
-              const SizedBox(height: 20),
-            ],
+                const SizedBox(height: 12),
+
+                // Email option
+                _buildContactOption(
+                  icon: Icons.email_rounded,
+                  title: 'Email Us',
+                  subtitle: 'support@ernestchemists.com',
+                  color: Colors.blue.shade600,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _launchEmail('support@ernestchemists.com',
+                        'ECL App Support & Inquiry');
+                  },
+                ),
+
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
         );
       },
@@ -1475,7 +1521,6 @@ class HomePageState extends State<HomePage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    // Clear search when app becomes active
     if (state == AppLifecycleState.resumed && mounted) {
       _clearSearch();
     }
@@ -1842,7 +1887,7 @@ class HomePageState extends State<HomePage>
               Expanded(
                 child: _buildActionCard(
                   icon: Icons.people,
-                  title: "Meet Our Pharmacists",
+                  title: "Ask Our Pharmacists",
                   color: Colors.blue[600]!,
                   onTap: () {
                     Navigator.push(
@@ -2278,10 +2323,11 @@ class HomePageState extends State<HomePage>
                         ),
                       ),
                     ),
-                    // Popular Products Section
+
                     SliverToBoxAdapter(
                       child: _buildPopularProducts(isTablet: isTablet),
                     ),
+
                     // Selfcare Section
                     SliverToBoxAdapter(
                       child: _buildProductSection(
@@ -2351,7 +2397,7 @@ class HomePageState extends State<HomePage>
     }
 
     return Container(
-      height: isTablet ? 120 : 160,
+      height: isTablet ? 80 : 120,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),

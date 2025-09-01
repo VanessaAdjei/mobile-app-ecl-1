@@ -58,6 +58,11 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
   late AnimationController _fadeController;
   late AnimationController _slideController;
 
+  // Scroll control for hiding/showing filter sections
+  final ScrollController _scrollController = ScrollController();
+  bool _showFilters = true;
+  double _lastScrollOffset = 0.0;
+
   @override
   void initState() {
     super.initState();
@@ -70,6 +75,9 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       vsync: this,
     );
 
+    // Add scroll listener to hide/show filters
+    _scrollController.addListener(_onScroll);
+
     // Load initial data
     _loadRegions();
     _loadAllStores();
@@ -80,7 +88,33 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
   void dispose() {
     _fadeController.dispose();
     _slideController.dispose();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  // Handle scroll events to show/hide filters
+  void _onScroll() {
+    final currentOffset = _scrollController.offset;
+
+    // Hide filters when scrolling down, show when scrolling up
+    if (currentOffset > _lastScrollOffset && currentOffset > 50) {
+      // Scrolling down and past threshold - hide filters
+      if (_showFilters) {
+        setState(() {
+          _showFilters = false;
+        });
+      }
+    } else if (currentOffset < _lastScrollOffset && currentOffset < 100) {
+      // Scrolling up and near top - show filters
+      if (!_showFilters) {
+        setState(() {
+          _showFilters = true;
+        });
+      }
+    }
+
+    _lastScrollOffset = currentOffset;
   }
 
   // Initialize location services
@@ -730,20 +764,46 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           Column(
             children: [
               _buildHeaderSection(),
-              // Search and filter section below header
-              Container(
-                margin: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: _buildSearchAndFilterCard(),
-              ),
-              Container(
-                margin: EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: _buildSortingOptions(),
-              ),
+              // Search and filter section below header - conditionally shown
+              if (_showFilters) ...[
+                Container(
+                  margin: EdgeInsets.fromLTRB(
+                      16, 8, 16, 4), // Reduced margins significantly
+                  child: _buildSearchAndFilterCard(),
+                ),
+                Container(
+                  margin: EdgeInsets.fromLTRB(
+                      16, 0, 16, 4), // Reduced margins significantly
+                  child: _buildSortingOptions(),
+                ),
+              ],
               Expanded(
                 child: _buildStoreList(),
               ),
             ],
           ),
+          // Floating action button to show filters when hidden
+          if (!_showFilters)
+            Positioned(
+              bottom: 20,
+              right: 20,
+              child: FloatingActionButton(
+                onPressed: () {
+                  setState(() {
+                    _showFilters = true;
+                  });
+                  // Scroll to top to show filters
+                  _scrollController.animateTo(
+                    0,
+                    duration: Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                },
+                backgroundColor: Colors.green.shade600,
+                child: Icon(Icons.filter_list, color: Colors.white),
+                mini: true,
+              ),
+            ),
         ],
       ),
     );
@@ -1583,6 +1643,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
         // Store list
         Expanded(
           child: ListView.builder(
+            controller: _scrollController, // Add scroll controller
             padding: EdgeInsets.symmetric(horizontal: 16),
             itemCount: filteredStores.length,
             itemBuilder: (context, index) {

@@ -1489,9 +1489,8 @@ class CategoryPageState extends State<CategoryPage> {
                   Text('Searching...'),
                 ],
               ),
-              duration: Duration(
-                  seconds: 30), // Long duration for comprehensive search
-              backgroundColor: Colors.blue.shade600,
+              duration: Duration(seconds: 30),
+              backgroundColor: Colors.green.shade700,
             ),
           );
 

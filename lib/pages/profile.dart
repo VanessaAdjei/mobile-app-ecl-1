@@ -833,6 +833,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                   const SizedBox(height: 20),
 
                   // Enhanced Support Options
+
                   _buildEnhancedProfileOption(
                     context,
                     Icons.info_outline,
@@ -843,7 +844,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     cardColor,
                     textColor,
                     subtextColor,
-                    7,
+                    8,
                   ),
                   _buildEnhancedProfileOption(
                     context,
