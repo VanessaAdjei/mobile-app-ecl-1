@@ -65,7 +65,7 @@ class NotificationProvider extends ChangeNotifier {
   Future<void> markAllAsRead() async {
     await OrderNotificationService.markAllAsRead();
     await _loadUnreadCount();
-    await _loadNewOrderCount(); // Also refresh new order count
+    await _loadNewOrderCount(); 
     notifyListeners();
   }
 
