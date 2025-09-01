@@ -5,21 +5,19 @@ import '../services/order_notification_service.dart';
 class NotificationProvider extends ChangeNotifier {
   int _unreadCount = 0;
   bool _hasShownSnackbar = false;
-  int _newOrderCount = 0; 
+  int _newOrderCount = 0;
 
   int get unreadCount => _unreadCount;
   bool get hasShownSnackbar => _hasShownSnackbar;
-  int get newOrderCount => _newOrderCount; 
-
+  int get newOrderCount => _newOrderCount;
 
   Future<void> initialize() async {
     debugPrint('📱 NotificationProvider: Initializing...');
     await _loadUnreadCount();
-    await _loadNewOrderCount(); 
+    await _loadNewOrderCount();
     debugPrint(
         '📱 NotificationProvider: Initialized with $_unreadCount unread notifications, $_newOrderCount new orders');
   }
-
 
   Future<void> _loadUnreadCount() async {
     try {
@@ -71,23 +69,19 @@ class NotificationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-
   Future<void> markNotificationsAsViewed() async {
-  
     await OrderNotificationService.markAllAsRead();
     await _loadUnreadCount();
-    await _loadNewOrderCount(); 
+    await _loadNewOrderCount();
     notifyListeners();
   }
-
 
   Future<void> clearAllNotifications() async {
     await OrderNotificationService.clearAllNotifications();
     await _loadUnreadCount();
-    await _loadNewOrderCount(); // Also refresh new order count
+    await _loadNewOrderCount();
   }
 
-  /// Notify that a new notification was created (optimized for speed)
   void notifyNewNotification() {
     debugPrint(
         '📱 NotificationProvider: New notification created, updating count immediately...');
