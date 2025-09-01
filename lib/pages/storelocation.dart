@@ -785,7 +785,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           // Floating action button to show filters when hidden
           if (!_showFilters)
             Positioned(
-              bottom: 20,
+              bottom: 80, // Increased from 20 to avoid bottom navigation bar
               right: 20,
               child: FloatingActionButton(
                 onPressed: () {

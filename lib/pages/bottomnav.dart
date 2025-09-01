@@ -329,8 +329,9 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     final iconSize = screenWidth * 0.05; // 5% of screen width
     final fontSize = screenWidth * 0.025; // 2.5% of screen width
 
-    // Ensure minimum and maximum values
-    final finalNavHeight = navHeight.clamp(60.0, 85.0);
+    // Ensure minimum and maximum values with extra padding to prevent overflow
+    final finalNavHeight = navHeight.clamp(88.0,
+        118.0); // Increased further to eliminate the remaining 1.8 pixel overflow
     final finalIconSize = iconSize.clamp(18.0, 24.0);
     final finalFontSize = fontSize.clamp(8.0, 12.0);
 
