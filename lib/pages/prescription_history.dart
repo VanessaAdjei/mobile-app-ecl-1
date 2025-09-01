@@ -6,7 +6,6 @@ import 'package:eclapp/pages/auth_service.dart';
 import 'app_back_button.dart';
 import 'package:eclapp/widgets/error_display.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:eclapp/widgets/optimized_image_widget.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class PrescriptionHistoryScreen extends StatefulWidget {
@@ -28,6 +27,10 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   static List<Map<String, dynamic>>? _cachedPrescriptions;
   static DateTime? _lastFetchTime;
   static const Duration _cacheValidDuration = Duration(minutes: 30);
+
+  // Image loading optimization
+  final Map<String, bool> _imageLoadingStates = {};
+  final Map<String, String?> _imageErrors = {};
 
   @override
   void initState() {
@@ -126,6 +129,9 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
               _prescriptions = prescriptions;
               _isLoading = false;
             });
+
+            // Preload images for better performance
+            _preloadImages();
           }
         } else {
           throw Exception('No prescription data found');
@@ -255,13 +261,70 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(20),
           child: Stack(
             children: [
-              InteractiveViewer(
-                child: OptimizedImageWidget.large(
-                  imageUrl: fileUrl,
-                  fit: BoxFit.contain,
+              Container(
+                width: double.infinity,
+                height: double.infinity,
+                decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
+                  color: Colors.white,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: InteractiveViewer(
+                    constrained: true,
+                    minScale: 0.5,
+                    maxScale: 3.0,
+                    child: CachedNetworkImage(
+                      imageUrl: fileUrl,
+                      fit: BoxFit.contain,
+                      // Full resolution image loading
+                      memCacheWidth: 1200,
+                      memCacheHeight: 1200,
+                      maxWidthDiskCache: 1600,
+                      maxHeightDiskCache: 1600,
+                      // Better placeholder
+                      placeholder: (context, url) => Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Center(
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.green),
+                          ),
+                        ),
+                      ),
+                      // Error handling
+                      errorWidget: (context, url, error) => Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                size: 48,
+                                color: Colors.grey,
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'Failed to load image',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
               Positioned(
@@ -423,6 +486,8 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
         // Performance optimizations
         addAutomaticKeepAlives: false,
         addRepaintBoundaries: false,
+        // Additional performance optimizations
+        cacheExtent: 200,
         itemBuilder: (context, index) {
           final prescription = _prescriptions[index];
 
@@ -455,20 +520,24 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                             width: 60,
                             height: 60,
                             fit: BoxFit.cover,
-                            memCacheWidth: 120, // Optimize memory usage
-                            memCacheHeight: 120,
+                            // Optimize memory usage for thumbnails
+                            memCacheWidth: 60,
+                            memCacheHeight: 60,
+                            // Add image loading optimization
+                            maxWidthDiskCache: 120,
+                            maxHeightDiskCache: 120,
+                            // Faster placeholder
                             placeholder: (context, url) => Container(
                               color: Colors.grey[200],
                               child: const Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
+                                child: Icon(
+                                  Icons.image,
+                                  color: Colors.grey,
+                                  size: 20,
                                 ),
                               ),
                             ),
+                            // Optimized error widget
                             errorWidget: (context, url, error) => Icon(
                               Icons.medical_services_outlined,
                               size: 30,
@@ -545,6 +614,35 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
         return Colors.orange;
       default:
         return Colors.grey;
+    }
+  }
+
+  // Preload images for better performance
+  void _preloadImages() {
+    for (final prescription in _prescriptions) {
+      if (prescription['file'] != null) {
+        final imageUrl = prescription['file'];
+        if (!_imageLoadingStates.containsKey(imageUrl)) {
+          _imageLoadingStates[imageUrl] = false;
+          // Preload image in background
+          _preloadImage(imageUrl);
+        }
+      }
+    }
+  }
+
+  Future<void> _preloadImage(String imageUrl) async {
+    try {
+      _imageLoadingStates[imageUrl] = true;
+      // Use a lightweight preload approach
+      await precacheImage(
+        CachedNetworkImageProvider(imageUrl),
+        context,
+      );
+      _imageLoadingStates[imageUrl] = false;
+    } catch (e) {
+      _imageLoadingStates[imageUrl] = false;
+      _imageErrors[imageUrl] = e.toString();
     }
   }
 }

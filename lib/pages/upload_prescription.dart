@@ -123,19 +123,30 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
     );
   }
 
+  bool? _cachedLoginStatus;
+
   Future<bool> _checkLoginStatus() async {
+    if (_cachedLoginStatus != null) {
+      return _cachedLoginStatus!;
+    }
+
     try {
-      // Use a simpler check that doesn't require network verification
       final token = await const FlutterSecureStorage().read(key: 'auth_token');
-      debugPrint('🔍 Token check: ${token != null ? 'EXISTS' : 'NULL'}');
-      if (token != null) {
-        debugPrint('🔍 Token length: ${token.length}');
+      _cachedLoginStatus = token != null;
+      debugPrint('🔍 Token check: ${_cachedLoginStatus! ? 'EXISTS' : 'NULL'}');
+      if (_cachedLoginStatus!) {
+        debugPrint('🔍 Token length: ${token!.length}');
       }
-      return token != null;
+      return _cachedLoginStatus!;
     } catch (e) {
       debugPrint('🔍 Error checking login status: $e');
+      _cachedLoginStatus = false;
       return false;
     }
+  }
+
+  void _clearLoginCache() {
+    _cachedLoginStatus = null;
   }
 
   Future<void> _pickImage() async {
@@ -144,7 +155,6 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
 
     if (!isLoggedIn) {
       if (mounted) {
-        // Show a simple message asking user to log in
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Please sign in to upload a prescription'),
@@ -153,8 +163,6 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
               label: 'Sign In',
               textColor: Colors.white,
               onPressed: () async {
-                debugPrint(
-                    '🔍 Upload: Opening SignInScreen without any parameters');
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -163,7 +171,8 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                 );
                 debugPrint('🔍 Upload: SignInScreen closed');
 
-                // Check if user is now logged in
+                
+                _clearLoginCache();
                 final isLoggedIn = await _checkLoginStatus();
                 debugPrint(
                     '🔍 Upload: After SignInScreen, isLoggedIn: $isLoggedIn');
@@ -194,6 +203,8 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
       final XFile? pickedFile = await _picker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 80,
+        maxWidth: 1024, // Limit image size for better performance
+        maxHeight: 1024,
       );
 
       if (pickedFile != null && mounted) {
@@ -252,7 +263,8 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                 );
                 debugPrint('🔍 Submit: SignInScreen closed');
 
-                // Check if user is now logged in
+                // Clear cache and check if user is now logged in
+                _clearLoginCache();
                 final isLoggedIn = await _checkLoginStatus();
                 debugPrint(
                     '🔍 Submit: After SignInScreen, isLoggedIn: $isLoggedIn');
@@ -290,8 +302,8 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
       _isSubmitting = true;
     });
 
-    // Simulate API call
-    await Future.delayed(Duration(seconds: 2));
+    // Simulate API call - reduced delay for better performance
+    await Future.delayed(Duration(milliseconds: 500));
 
     if (mounted) {
       setState(() {
@@ -519,6 +531,8 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                                   width: double.infinity,
                                   height: double.infinity,
                                   fit: BoxFit.cover,
+                                  cacheWidth: 400, // Optimize memory usage
+                                  cacheHeight: 400,
                                 ),
                                 Positioned(
                                   top: 8,

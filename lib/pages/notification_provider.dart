@@ -65,7 +65,7 @@ class NotificationProvider extends ChangeNotifier {
   Future<void> markAllAsRead() async {
     await OrderNotificationService.markAllAsRead();
     await _loadUnreadCount();
-    await _loadNewOrderCount(); 
+    await _loadNewOrderCount();
     notifyListeners();
   }
 
@@ -90,40 +90,30 @@ class NotificationProvider extends ChangeNotifier {
     _unreadCount++;
     notifyListeners();
 
-    // Then refresh from storage in background
-    _loadUnreadCount();
-    _loadNewOrderCount(); // Also refresh new order count
-  }
-
-  /// Notify that a new order notification was created (optimized for speed)
-  void notifyNewOrderNotification() {
-    debugPrint(
-        '📱 NotificationProvider: New ORDER notification created, updating count immediately...');
-
-    // Update counts immediately for fast badge updates
-    _unreadCount++;
-    _newOrderCount++;
-    notifyListeners();
-
-    // Then refresh from storage in background
     _loadUnreadCount();
     _loadNewOrderCount();
   }
 
-  /// Update badge count immediately (for external calls)
+  void notifyNewOrderNotification() {
+    _unreadCount++;
+    _newOrderCount++;
+    notifyListeners();
+
+    _loadUnreadCount();
+    _loadNewOrderCount();
+  }
+
   void updateBadgeCount(int newCount) {
     if (_unreadCount != newCount) {
       _unreadCount = newCount;
       notifyListeners();
-      debugPrint(
-          '📱 NotificationProvider: Badge count updated to $_unreadCount');
     }
   }
 
-  /// Force refresh from storage
+
   Future<void> forceRefresh() async {
     await _loadUnreadCount();
-    await _loadNewOrderCount(); // Also refresh new order count
+    await _loadNewOrderCount(); 
   }
 
   /// Mark snackbar as shown globally
