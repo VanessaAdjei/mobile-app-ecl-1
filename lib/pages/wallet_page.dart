@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/wallet_provider.dart';
 import '../widgets/cart_icon_button.dart';
+import '../widgets/ecard_widget.dart';
 import 'app_back_button.dart';
 import 'auth_service.dart';
 
@@ -20,30 +21,15 @@ class WalletPage extends StatefulWidget {
 class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
   late AnimationController _headerAnimationController;
   late AnimationController _contentAnimationController;
-  late Animation<double> _headerAnimation;
   late Animation<double> _contentAnimation;
 
   final TextEditingController _amountController = TextEditingController();
-  String _selectedPaymentMethod = 'Mobile Money';
-  bool _isTopUpDialogVisible = false;
 
-  final List<Map<String, dynamic>> _paymentMethods = [
-    {
-      'name': 'Mobile Money',
-      'icon': Icons.phone_android,
-      'description': 'Pay with Momo',
-    },
-    {
-      'name': 'Card',
-      'icon': Icons.credit_card,
-      'description': 'Pay with Card',
-    },
-    {
-      'name': 'Bank Transfer',
-      'icon': Icons.account_balance,
-      'description': 'Direct Bank Transfer',
-    },
-  ];
+  // User data for e-card
+  String _userName = 'ECL USER';
+  String _userEmail = '';
+  String _userPhone = '';
+  int? _userId;
 
   /// Get the appropriate currency symbol for the current platform
   String get _currencySymbol {
@@ -67,11 +53,6 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
     _contentAnimationController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
-    );
-
-    _headerAnimation = CurvedAnimation(
-      parent: _headerAnimationController,
-      curve: Curves.easeOutQuart,
     );
 
     _contentAnimation = CurvedAnimation(
@@ -104,6 +85,30 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
     final walletProvider = Provider.of<WalletProvider>(context, listen: false);
     if (!walletProvider.isInitialized) {
       await walletProvider.initialize();
+    }
+
+    // Load user data for e-card
+    await _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final userData = await AuthService.getCurrentUser();
+      debugPrint('🔍 Loaded user data: $userData');
+      if (userData != null) {
+        setState(() {
+          _userName = userData['name'] ?? 'ECL USER';
+          _userEmail = userData['email'] ?? '';
+          _userPhone = userData['phone'] ?? '';
+          _userId = userData['id'];
+        });
+        debugPrint(
+            '👤 User details - ID: $_userId, Name: $_userName, Email: $_userEmail, Phone: $_userPhone');
+      } else {
+        debugPrint('❌ No user data found');
+      }
+    } catch (e) {
+      debugPrint('Error loading user data: $e');
     }
   }
 
@@ -216,7 +221,6 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
       backgroundColor: backgroundColor,
       body: CustomScrollView(
         slivers: [
-          // Enhanced header with better design (matching notifications)
           SliverToBoxAdapter(
             child: Animate(
               effects: [
@@ -311,9 +315,8 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
                 children: [
                   const SizedBox(height: 20),
 
-                  // Wallet Balance Card
-                  _buildWalletBalanceCard(
-                      themeProvider, primaryColor, cardColor, textColor),
+                  // E-Card
+                  _buildECard(themeProvider),
 
                   const SizedBox(height: 20),
 
@@ -335,91 +338,71 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildWalletBalanceCard(WalletProvider walletProvider,
-      Color primaryColor, Color cardColor, Color textColor) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha((255 * 0.08).toInt()),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            // Balance Section
-            Center(
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: primaryColor.withAlpha((255 * 0.1).toInt()),
-                      borderRadius: BorderRadius.circular(50),
-                    ),
-                    child: Icon(
-                      Icons.account_balance_wallet,
-                      size: 32,
-                      color: primaryColor,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Available Balance',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    walletProvider.formattedBalance,
-                    style: GoogleFonts.poppins(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
-                    ),
-                  ),
-                ],
+  Widget _buildECard(WalletProvider walletProvider) {
+    return Column(
+      children: [
+        // E-Card Widget
+        ECardWidget(
+          cardNumber: _generateCardNumber(),
+          cardHolderName: _userName,
+          balance: walletProvider.balance,
+          currency: _currencySymbol,
+          userEmail: _userEmail,
+          userPhone: _userPhone,
+          onTap: () {
+            // Add tap functionality if needed
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('ECL Digital Wallet Card'),
+                duration: const Duration(seconds: 2),
+                backgroundColor: Colors.green.shade600,
               ),
-            ),
-            const SizedBox(height: 24),
-
-            // Stats Grid
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSimpleStatItem(
-                    'Refunds',
-                    walletProvider.formatCurrency(walletProvider.totalRefunds),
-                    Colors.blue.shade600,
-                  ),
-                ),
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: Colors.grey.shade200,
-                ),
-                Expanded(
-                  child: _buildSimpleStatItem(
-                    'Cashback',
-                    walletProvider.formatCurrency(walletProvider.totalCashback),
-                    Colors.orange.shade600,
-                  ),
-                ),
-              ],
-            ),
-          ],
+            );
+          },
         ),
-      ),
+
+        const SizedBox(height: 16),
+
+        // Quick Stats below the card
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha((255 * 0.08).toInt()),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildSimpleStatItem(
+                  'Refunds',
+                  walletProvider.formatCurrency(walletProvider.totalRefunds),
+                  Colors.blue.shade600,
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 40,
+                color: Colors.grey.shade200,
+              ),
+              Expanded(
+                child: _buildSimpleStatItem(
+                  'Cashback',
+                  walletProvider.formatCurrency(walletProvider.totalCashback),
+                  Colors.orange.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -445,40 +428,6 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
           textAlign: TextAlign.center,
         ),
       ],
-    );
-  }
-
-  Widget _buildStatItem(
-      String label, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withAlpha((255 * 0.1).toInt()),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: Colors.white70,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
     );
   }
 
@@ -595,37 +544,6 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildSimpleInfoItem(IconData icon, String title, String description) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.grey.shade600, size: 18),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              Text(
-                description,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 
@@ -869,277 +787,26 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildInfoItem(IconData icon, String title, String description,
-      Color iconColor, Color textColor) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: iconColor.withAlpha((255 * 0.1).toInt()),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Icon(icon, color: iconColor, size: 16),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
-                ),
-              ),
-              Text(
-                description,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+  // Generate card number based on user ID
+  String _generateCardNumber() {
+    try {
+      // Use user ID at the end, fill the rest with zeros
+      String userId = _userId?.toString() ?? '1234';
 
-  Widget _buildSimpleActionButton(
-      String label, IconData icon, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color.withAlpha((255 * 0.05).toInt()),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withAlpha((255 * 0.2).toInt())),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+      // Create 16-digit card number with user ID at the end
+      String cardNumber = '0000000000000000';
 
-  void _showTopUpDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => _buildTopUpDialog(),
-    );
-  }
+      // Replace the last digits with user ID
+      if (userId.length <= 16) {
+        cardNumber = cardNumber.substring(0, 16 - userId.length) + userId;
+      } else {
+        // If user ID is too long, use last 16 digits
+        cardNumber = userId.substring(userId.length - 16);
+      }
 
-  Widget _buildTopUpDialog() {
-    return AlertDialog(
-      title: Text(
-        'Top Up Wallet',
-        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _amountController,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: 'Amount (${_currencySymbol.trim()})',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              prefixText: _currencySymbol,
-            ),
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            value: _selectedPaymentMethod,
-            decoration: InputDecoration(
-              labelText: 'Payment Method',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            items: _paymentMethods.map((method) {
-              return DropdownMenuItem<String>(
-                value: method['name'] as String,
-                child: Row(
-                  children: [
-                    Icon(method['icon'] as IconData),
-                    const SizedBox(width: 8),
-                    Text(method['name'] as String),
-                  ],
-                ),
-              );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                _selectedPaymentMethod = value!;
-              });
-            },
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: _processTopUp,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green.shade700,
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Top Up'),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _processTopUp() async {
-    final amount = double.tryParse(_amountController.text);
-    if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid amount'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
+      return cardNumber;
+    } catch (e) {
+      return '0000000000001234'; // Fallback
     }
-
-    Navigator.pop(context);
-
-    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
-    final result = await walletProvider.topUpWallet(
-      amount: amount,
-      paymentMethod: _selectedPaymentMethod,
-    );
-
-    if (result['success']) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message']),
-          backgroundColor: Colors.green,
-        ),
-      );
-      _amountController.clear();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message']),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _showHelpDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Wallet Help & Support',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHelpItem(
-              Icons.refresh,
-              'Refunds & Returns',
-              'Money from cancelled orders or product returns automatically goes to your wallet.',
-            ),
-            const SizedBox(height: 12),
-            _buildHelpItem(
-              Icons.card_giftcard,
-              'Cashback & Rewards',
-              'Earn money back on purchases through promotions and loyalty programs.',
-            ),
-            const SizedBox(height: 12),
-            _buildHelpItem(
-              Icons.shopping_cart,
-              'Using Wallet Balance',
-              'Spend your wallet balance on future purchases within the ECL app.',
-            ),
-            const SizedBox(height: 12),
-            _buildHelpItem(
-              Icons.security,
-              'Secure Storage',
-              'Your money is safely stored and can only be used within the ECL app.',
-            ),
-            const SizedBox(height: 12),
-            _buildHelpItem(
-              Icons.account_balance_wallet,
-              'Top Up',
-              'Add money to your wallet using mobile money, cards, or bank transfer.',
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Got it'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHelpItem(IconData icon, String title, String description) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: Colors.green.shade700, size: 20),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showComingSoonSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.blue,
-      ),
-    );
   }
 }

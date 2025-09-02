@@ -12,10 +12,7 @@ class WalletService {
   static const String _baseUrl =
       'https://eclcommerce.ernestchemists.com.gh/api';
   static const String _walletEndpoint = '/wallet';
-  static const String _transactionsEndpoint = '/wallet/transactions';
   static const String _topUpEndpoint = '/wallet/top-up';
-  static const String _withdrawEndpoint = '/wallet/withdraw';
-  static const String _transferEndpoint = '/wallet/transfer';
 
   // Cache keys
   static const String _walletCacheKey = 'wallet_cache';
@@ -62,38 +59,9 @@ class WalletService {
     );
   }
 
-  // Create mock transactions (no API needed)
-  static List<WalletTransaction> _createMockTransactions(String userId) {
-    return [
-      WalletTransaction(
-        id: 'mock_transaction_1_$userId',
-        walletId: 'mock_wallet_$userId',
-        type: 'cashback',
-        amount: 25.0,
-        description: 'Cashback from order #12345',
-        reference: 'CASHBACK_12345',
-        status: 'completed',
-        createdAt: DateTime.now().subtract(Duration(days: 1)),
-        metadata: {
-          'order_id': '12345',
-          'order_amount': '500.0',
-        },
-      ),
-      WalletTransaction(
-        id: 'mock_transaction_2_$userId',
-        walletId: 'mock_wallet_$userId',
-        type: 'refund',
-        amount: 15.0,
-        description: 'Refund for cancelled order #12340',
-        reference: 'REFUND_12340',
-        status: 'completed',
-        createdAt: DateTime.now().subtract(Duration(days: 3)),
-        metadata: {
-          'order_id': '12340',
-          'reason': 'Order cancelled by customer',
-        },
-      ),
-    ];
+  // Create empty transactions list (no mock data)
+  static List<WalletTransaction> _createEmptyTransactions(String userId) {
+    return [];
   }
 
   // Create a new wallet for the current user (MOCK ONLY - no API)
@@ -134,19 +102,18 @@ class WalletService {
         return cachedTransactions;
       }
 
-      // Return mock transactions since there's no API
-      developer.log('Returning mock transactions for user: $userId',
+      // Return empty transactions list since there's no API
+      developer.log('Returning empty transactions for user: $userId',
           name: 'WalletService');
-      final mockTransactions = _createMockTransactions(userId);
+      final emptyTransactions = _createEmptyTransactions(userId);
 
       if (page == 1) {
-        await _cacheTransactions(mockTransactions);
+        await _cacheTransactions(emptyTransactions);
       }
 
-      return mockTransactions;
+      return emptyTransactions;
     } catch (e) {
-      developer.log('Error getting mock transactions: $e',
-          name: 'WalletService');
+      developer.log('Error getting transactions: $e', name: 'WalletService');
       rethrow;
     }
   }
@@ -332,61 +299,32 @@ class WalletService {
     }
   }
 
-  // Auto-process cashback for qualifying orders (MOCK VERSION - No Backend Required)
+  // Auto-process cashback for qualifying orders (DISABLED - No Backend)
   static Future<Map<String, dynamic>> autoProcessCashback({
     required double orderAmount,
     required String orderId,
   }) async {
     try {
       developer.log(
-          'Starting MOCK cashback process for order: $orderId, amount: ₵$orderAmount',
+          'Cashback processing disabled for order: $orderId, amount: ₵$orderAmount',
           name: 'WalletService');
 
-      // Only process cashback for orders over ₵500
-      if (orderAmount < 500) {
-        developer.log(
-            'Order amount ₵$orderAmount is below ₵500 threshold - no cashback',
-            name: 'WalletService');
-        return {
-          'success': false,
-          'message': 'Order must be over ₵500 to qualify for cashback',
-          'cashback_amount': 0.0,
-          'qualifies': false,
-        };
-      }
-
-      // Calculate cashback amount (5% of order amount)
-      final cashbackAmount = orderAmount * 0.05;
-      developer.log('Calculated cashback amount: ₵$cashbackAmount',
-          name: 'WalletService');
-
-      // MOCK: Simulate successful cashback processing
-      developer.log('MOCK: Simulating successful cashback processing...',
-          name: 'WalletService');
-
-      // Simulate a small delay to make it feel real
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      developer.log('MOCK: Cashback processed successfully!',
-          name: 'WalletService');
-
-      return {
-        'success': true,
-        'message':
-            'MOCK: Cashback of ₵${cashbackAmount.toStringAsFixed(2)} added to wallet',
-        'cashback_amount': cashbackAmount,
-        'qualifies': true,
-        'is_mock': true, // Flag to indicate this is mock data
-      };
-    } catch (e) {
-      developer.log('Error in MOCK cashback process: $e',
-          name: 'WalletService');
+      // Return disabled message
       return {
         'success': false,
-        'message': 'MOCK: Failed to process cashback: ${e.toString()}',
+        'message': 'Cashback feature is currently disabled',
         'cashback_amount': 0.0,
         'qualifies': false,
-        'is_mock': true,
+        'is_mock': false,
+      };
+    } catch (e) {
+      developer.log('Error in cashback process: $e', name: 'WalletService');
+      return {
+        'success': false,
+        'message': 'Failed to process cashback: ${e.toString()}',
+        'cashback_amount': 0.0,
+        'qualifies': false,
+        'is_mock': false,
       };
     }
   }

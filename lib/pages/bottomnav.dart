@@ -324,14 +324,14 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    // Calculate responsive dimensions
-    final navHeight = screenHeight * 0.09; // 9% of screen height
-    final iconSize = screenWidth * 0.05; // 5% of screen width
-    final fontSize = screenWidth * 0.025; // 2.5% of screen width
+    
+    final navHeight = screenHeight * 0.09; 
+    final iconSize = screenWidth * 0.05; 
+    final fontSize = screenWidth * 0.025; 
 
-    // Ensure minimum and maximum values with extra padding to prevent overflow
-    final finalNavHeight = navHeight.clamp(88.0,
-        118.0); // Increased further to eliminate the remaining 1.8 pixel overflow
+    
+    final finalNavHeight = navHeight.clamp(95.0,
+        125.0); 
     final finalIconSize = iconSize.clamp(18.0, 24.0);
     final finalFontSize = fontSize.clamp(8.0, 12.0);
 

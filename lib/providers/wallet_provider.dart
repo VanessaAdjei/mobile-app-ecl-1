@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import '../models/wallet.dart';
 import '../services/wallet_service.dart';
-import '../pages/auth_service.dart';
 
 class WalletProvider extends ChangeNotifier {
   Wallet? _wallet;
@@ -91,114 +90,24 @@ class WalletProvider extends ChangeNotifier {
   }) async {
     try {
       debugPrint(
-          '🔄 WalletProvider: Starting MOCK cashback process for order $orderId (₵$orderAmount)');
+          '🔄 WalletProvider: Cashback processing disabled for order $orderId (₵$orderAmount)');
 
-      // 🔒 EXTRA PRECAUTION: Authentication check as backup security
-      final isLoggedIn = await AuthService.isLoggedIn();
-      if (!isLoggedIn) {
-        debugPrint(
-            '🚫 WalletProvider: EXTRA CHECK - Guest user detected, cashback denied');
-        return {
-          'success': false,
-          'message':
-              'Cashback is only available for registered users. Please log in or create an account.',
-          'cashback_amount': 0.0,
-          'qualifies': false,
-          'is_mock': true,
-          'auth_required': true,
-        };
-      }
-
-      // 🔒 EXTRA PRECAUTION: User ID validation
-      final userId = await AuthService.getCurrentUserID();
-      if (userId == null) {
-        debugPrint(
-            '🚫 WalletProvider: EXTRA CHECK - Could not get user ID, cashback denied');
-        return {
-          'success': false,
-          'message': 'User authentication failed. Please log in again.',
-          'cashback_amount': 0.0,
-          'qualifies': false,
-          'is_mock': true,
-          'auth_required': true,
-        };
-      }
-
-      // Check if wallet is initialized
-      if (!_isInitialized) {
-        debugPrint(
-            '🔄 WalletProvider: Wallet not initialized, initializing now...');
-        await initialize();
-      }
-
-      // Ensure wallet exists for authenticated user
-      if (_wallet == null) {
-        debugPrint(
-            '🔄 WalletProvider: Creating wallet for authenticated user: $userId');
-        _wallet = Wallet(
-          id: 'wallet_${DateTime.now().millisecondsSinceEpoch}',
-          userId: userId,
-          balance: 0.0,
-          currency: 'GHS',
-          status: 'active',
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
-      }
-
-      final result = await WalletService.autoProcessCashback(
-        orderAmount: orderAmount,
-        orderId: orderId,
-      );
-
-      debugPrint('🔄 WalletProvider: MOCK Cashback result: $result');
-
-      if (result['success'] && result['is_mock'] == true) {
-        debugPrint(
-            '🔄 WalletProvider: MOCK Cashback successful, simulating wallet update...');
-
-        // MOCK: Cashback amount is now automatically calculated from transactions
-        final cashbackAmount = result['cashback_amount'] as double;
-
-        // Add mock transaction
-        final mockTransaction = WalletTransaction(
-          id: 'mock_cashback_${DateTime.now().millisecondsSinceEpoch}',
-          walletId: _wallet!.id,
-          type: 'cashback',
-          amount: cashbackAmount,
-          description: result['message'],
-          reference: 'MOCK_CASHBACK_$orderId',
-          status: 'completed',
-          createdAt: DateTime.now(),
-          metadata: {
-            'order_id': orderId,
-            'order_amount': orderAmount,
-            'is_mock': true,
-          },
-        );
-
-        _transactions.insert(0, mockTransaction);
-        debugPrint(
-            '🔄 WalletProvider: MOCK Wallet updated successfully. New balance: ₵${_wallet!.balance}');
-
-        // Notify listeners to update UI
-        notifyListeners();
-
-        // Invoke callback if provided (e.g., navigate to wallet)
-        if (onCashbackSuccess != null) {
-          onCashbackSuccess();
-        }
-      }
-
-      return result;
-    } catch (e) {
-      debugPrint('❌ WalletProvider: Error in MOCK cashback process: $e');
+      // Return disabled message
       return {
         'success': false,
-        'message': 'MOCK: Failed to process cashback: ${e.toString()}',
+        'message': 'Cashback feature is currently disabled',
         'cashback_amount': 0.0,
         'qualifies': false,
-        'is_mock': true,
+        'is_mock': false,
+      };
+    } catch (e) {
+      debugPrint('❌ WalletProvider: Error in cashback process: $e');
+      return {
+        'success': false,
+        'message': 'Failed to process cashback: ${e.toString()}',
+        'cashback_amount': 0.0,
+        'qualifies': false,
+        'is_mock': false,
       };
     }
   }
