@@ -29,12 +29,14 @@ import '../widgets/empty_state.dart';
 import 'section_products_page.dart';
 import 'package:animations/animations.dart';
 import 'package:visibility_detector/visibility_detector.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/promotional_event_provider.dart';
+import '../providers/clearance_sale_provider.dart';
 import '../widgets/ernest_friday_banner.dart';
 import '../widgets/ernest_friday_notification.dart';
+import '../widgets/clearance_sale_banner.dart';
 import 'ernest_friday_page.dart';
 
 class ImagePreloader {
@@ -68,10 +70,8 @@ class ProductCache {
   static DateTime? _lastCacheTime;
   static DateTime? _lastShuffleTime;
 
-  static const Duration _cacheValidDuration =
-      Duration(hours: 2); // Reduced from 24 hours for better performance
-  static const Duration _staleWhileRevalidateDuration =
-      Duration(hours: 6); // Allow stale data for 6 hours
+  static const Duration _cacheValidDuration = Duration(hours: 2);
+  static const Duration _staleWhileRevalidateDuration = Duration(hours: 6);
   static const Duration _shuffleInterval = Duration(hours: 24);
   static const String _popularProductsKey = 'cached_popular_products';
   static const String _lastCacheTimeKey = 'last_cache_time';
@@ -87,7 +87,6 @@ class ProductCache {
     return isValid;
   }
 
-  // Check if we can use stale data while revalidating
   static bool get canUseStaleData {
     if (_lastCacheTime == null) return false;
     final timeSinceCache = DateTime.now().difference(_lastCacheTime!);
@@ -97,7 +96,6 @@ class ProductCache {
     return canUse;
   }
 
-  // Check if products need to be shuffled (every 24 hours)
   static bool get shouldShuffle {
     if (_lastShuffleTime == null) return true;
     final timeSinceShuffle = DateTime.now().difference(_lastShuffleTime!);
@@ -107,7 +105,6 @@ class ProductCache {
     return shouldShuffle;
   }
 
-  // Get popular products with automatic shuffling every 24 hours
   static List<Product> get popularProductsWithShuffle {
     if (shouldShuffle) {
       debugPrint('🎲 ProductCache: Shuffling popular products after 24 hours');
@@ -1342,6 +1339,8 @@ class HomePageState extends State<HomePage>
     }
   }
 
+  // Check if search bar should be highlighted and focus it
+
   @override
   void initState() {
     super.initState();
@@ -2068,6 +2067,13 @@ class HomePageState extends State<HomePage>
         ],
       ),
       bottomNavigationBar: CustomBottomNav(initialIndex: 0),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.pushNamed(context, '/clearance-admin');
+        },
+        backgroundColor: Colors.red[700],
+        child: const Icon(Icons.admin_panel_settings, color: Colors.white),
+      ),
     );
   }
 
@@ -2218,6 +2224,10 @@ class HomePageState extends State<HomePage>
                     //       ),
                     //     ),
                     //   ),
+                    // Clearance Sale Banner
+                    SliverToBoxAdapter(
+                      child: const ClearanceSaleBanner(),
+                    ),
                     SliverToBoxAdapter(
                       child: buildOrderMedicineCard(),
                     ),

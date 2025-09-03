@@ -2418,14 +2418,10 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       // Hero Section
                       _buildHeroSection(),
                       SizedBox(height: 10),
-                      // Healthcare Services Section
-                      _buildModernSectionHeader(
-                          'Healthcare Services',
-                          Icons.medical_services,
-                          'Consultation & AI assistance'),
-                      SizedBox(height: 12),
+
+                      SizedBox(height: 22),
                       _buildConsolidatedServicesCard(),
-                      SizedBox(height: 8),
+                      SizedBox(height: 48),
 
                       // Health Tips Section
                       _buildModernSectionHeaderWithRefresh(
@@ -2434,7 +2430,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                           'Expert health advice & insights',
                           _refreshHealthTips),
                       _buildModernHealthBlogsSection(),
-                      SizedBox(height: 100), // Space for floating bot
+                      // Space for floating bot
                     ],
                   ),
                 ),
@@ -4027,18 +4023,47 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       );
     }
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 6,
-        childAspectRatio: 0.9,
-      ),
-      itemCount: _healthTips.length,
-      itemBuilder: (context, index) =>
-          _buildModernHealthTipCard(_healthTips[index]),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Scroll indicator
+        Padding(
+          padding: EdgeInsets.only(left: 4, bottom: 8),
+          child: Row(
+            children: [
+              Icon(
+                Icons.swipe_left,
+                size: 16,
+                color: Colors.green[600],
+              ),
+              SizedBox(width: 4),
+              Text(
+                'Swipe to see more health tips',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.green[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Horizontal scrollable health tips
+        SizedBox(
+          height: 200,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _healthTips.length,
+            itemBuilder: (context, index) {
+              return Container(
+                width: 180,
+                margin: EdgeInsets.only(right: 12),
+                child: _buildModernHealthTipCard(_healthTips[index]),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -4128,7 +4153,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 // Image container
                 Container(
                   width: double.infinity,
-                  height: 120,
+                  height: 80,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(20),
@@ -4225,7 +4250,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
             // Content section
             Expanded(
               child: Padding(
-                padding: EdgeInsets.all(6),
+                padding: EdgeInsets.all(4),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -4260,24 +4285,24 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                         ),
                       ],
                     ),
-                    SizedBox(height: 4),
+                    SizedBox(height: 2),
                     // Summary text
                     Text(
                       tip.summary ?? tip.content,
                       style: GoogleFonts.poppins(
-                        fontSize: 9,
+                        fontSize: 8,
                         color: Colors.grey[600],
-                        height: 1.2,
+                        height: 1.1,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: 6),
+                    SizedBox(height: 4),
                     // Action button
                     if (tip.url.isNotEmpty)
                       Container(
                         width: double.infinity,
-                        padding: EdgeInsets.symmetric(vertical: 6),
+                        padding: EdgeInsets.symmetric(vertical: 4),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [

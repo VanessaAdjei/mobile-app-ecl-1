@@ -22,6 +22,7 @@ import 'services/background_prefetch_service.dart';
 import 'pages/onboarding_splash_page.dart';
 import 'pages/prescription.dart';
 import 'pages/notification_permission_page.dart';
+import 'pages/clearance_admin_page.dart';
 import 'pages/notification_provider.dart';
 import 'services/background_order_checker.dart';
 
@@ -35,6 +36,7 @@ import 'services/background_store_data_service.dart';
 import 'services/background_inventory_monitor_service.dart';
 import 'providers/wallet_provider.dart';
 import 'providers/promotional_event_provider.dart';
+import 'providers/clearance_sale_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'services/notification_service.dart';
 
@@ -485,6 +487,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             return promotionalProvider;
           },
         ),
+        ChangeNotifierProvider(
+          create: (context) {
+            final clearanceProvider = ClearanceSaleProvider();
+            clearanceProvider.initialize();
+            return clearanceProvider;
+          },
+        ),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
@@ -647,6 +656,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               routes: {
                 '/profile': (context) => Profile(),
                 '/wallet': (context) => WalletPage(),
+                '/clearance-admin': (context) => const ClearanceAdminPage(),
                 '/prescription-upload': (context) =>
                     FutureBuilder<Map<String, dynamic>>(
                       future: _getPrescriptionData(),

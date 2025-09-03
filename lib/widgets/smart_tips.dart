@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../pages/pharmacists.dart';
+import '../pages/wallet_page.dart';
 
 class SmartTips extends StatefulWidget {
   const SmartTips({super.key});
@@ -18,47 +20,59 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
   PageController? _pageController;
 
   bool _isVisible = false;
-  String _currentTip = '';
   int _tipIndex = 0;
 
-  final List<TipData> _tips = [
-    TipData(
-      id: 'search_tip',
-      message:
-          '🔍 Try searching for "paracetamol" or "e-panol" to find products quickly!',
-      icon: Icons.search,
-      color: Colors.blue,
-      condition: TipCondition.always,
-    ),
-    TipData(
-      id: 'cart_tip',
-      message: '🛒 Your cart is empty. Add some products to get started!',
-      icon: Icons.shopping_cart,
-      color: Colors.orange,
-      condition: TipCondition.emptyCart,
-    ),
-    TipData(
-      id: 'pharmacist_tip',
-      message: '👨‍⚕️ Need advice? Our pharmacists are here to help!',
-      icon: Icons.medical_services,
-      color: Colors.green,
-      condition: TipCondition.always,
-    ),
-    TipData(
-      id: 'location_tip',
-      message: '📍 Find the nearest ECL store for pickup or delivery!',
-      icon: Icons.location_on,
-      color: Colors.red,
-      condition: TipCondition.always,
-    ),
-    TipData(
-      id: 'categories_tip',
-      message: '📦 Browse categories to discover new products!',
-      icon: Icons.category,
-      color: Colors.purple,
-      condition: TipCondition.always,
-    ),
-  ];
+  List<TipData> get _tips => [
+        TipData(
+          id: 'search_tip',
+          message:
+              '🔍 Pro tip: Search for "paracetamol" or "vitamins" to find products instantly!',
+          icon: Icons.search,
+          color: Colors.blue,
+          condition: TipCondition.always,
+          hasAction: false,
+        ),
+        TipData(
+          id: 'pharmacist_tip',
+          message:
+              '👨‍⚕️ Need health advice? Chat with our licensed pharmacists 24/7!',
+          icon: Icons.medical_services,
+          color: Colors.teal,
+          condition: TipCondition.always,
+          hasAction: true,
+          actionText: 'Chat Now',
+          onAction: _handlePharmacistAction,
+        ),
+        TipData(
+          id: 'delivery_tip',
+          message:
+              '🚚 Fast delivery available! Choose pickup or home delivery.',
+          icon: Icons.local_shipping,
+          color: Colors.orange,
+          condition: TipCondition.always,
+          hasAction: false,
+        ),
+        TipData(
+          id: 'safety_tip',
+          message:
+              '⚠️ Always consult your doctor before trying new medications.',
+          icon: Icons.warning,
+          color: Colors.red,
+          condition: TipCondition.always,
+          hasAction: false,
+        ),
+        TipData(
+          id: 'welcome_tip',
+          message:
+              '🎉 Welcome to ECL! Your digital wallet is ready with your personal e-card.',
+          icon: Icons.credit_card,
+          color: Colors.green,
+          condition: TipCondition.always,
+          hasAction: true,
+          actionText: 'View Wallet',
+          onAction: _handleWalletAction,
+        ),
+      ];
 
   @override
   void initState() {
@@ -141,10 +155,7 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
 
   void _showNextTip() {
     if (_tipIndex < _tips.length && mounted) {
-      final tip = _tips[_tipIndex];
-
       setState(() {
-        _currentTip = tip.message;
         _isVisible = true;
       });
 
@@ -205,11 +216,66 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
     _markTipsAsSeen();
   }
 
-  // Method to reset tips for testing (can be removed in production)
-  static Future<void> resetTips() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('has_seen_smart_tips', false);
-    debugPrint('🔍 SmartTips: Tips reset for testing');
+  void _handleTipAction(TipData tip) {
+    debugPrint('🔍 SmartTips: Action triggered for tip: ${tip.id}');
+
+    // Add haptic feedback
+    // HapticFeedback.lightImpact();
+
+    // Execute the action
+    if (tip.onAction != null) {
+      tip.onAction!();
+    }
+
+    // Auto-advance to next tip after action
+    Future.delayed(Duration(milliseconds: 500), () {
+      if (mounted && _tipIndex < _tips.length - 1) {
+        _pageController?.nextPage(
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
+  }
+
+  // Action handlers for each tip
+
+  void _handlePharmacistAction() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const PharmacistsPage(),
+      ),
+    );
+  }
+
+  void _handleDeliveryAction() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('🚚 Delivery options available!'),
+        backgroundColor: Colors.orange,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _handleSafetyAction() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('⚠️ Safety guidelines displayed!'),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _handleWalletAction() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const WalletPage(),
+      ),
+    );
   }
 
   @override
@@ -228,20 +294,32 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
         child: FadeTransition(
           opacity: _fadeAnimation ?? const AlwaysStoppedAnimation(1.0),
           child: Container(
-            height: 200, // Reduced from 220 to 200
+            height: 240, // Reduced to make it more compact
             padding: const EdgeInsets.all(12), // Reduced from 14 to 12
             decoration: BoxDecoration(
-              color: Colors.white, // Solid white background
-              borderRadius: BorderRadius.circular(16),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white,
+                  Colors.grey.shade50,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.blue.withOpacity(0.5),
-                width: 2,
+                color: Colors.green.withOpacity(0.3),
+                width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 15,
-                  offset: const Offset(0, 6),
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+                BoxShadow(
+                  color: Colors.green.withOpacity(0.1),
+                  blurRadius: 30,
+                  offset: const Offset(0, 12),
                 ),
               ],
             ),
@@ -252,20 +330,45 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      '💡 Smart Tips',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14, // Increased from 13
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[800],
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.lightbulb,
+                            color: Colors.green,
+                            size: 16,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Welcome Tips',
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      onPressed: _closeTips,
-                      icon: const Icon(Icons.close, size: 18),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      tooltip: 'Close tips',
+                    GestureDetector(
+                      onTap: _closeTips,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          size: 16,
+                          color: Colors.grey,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -285,178 +388,290 @@ class _SmartTipsState extends State<SmartTips> with TickerProviderStateMixin {
                     },
                     itemBuilder: (context, index) {
                       final tip = _tips[index];
-                      return Container(
-                        padding: const EdgeInsets.all(6), // Reduced from 8
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Tip content
-                            Container(
-                              padding:
-                                  const EdgeInsets.all(4), // Reduced from 6
-                              decoration: BoxDecoration(
-                                color: tip.color.withOpacity(0.1),
-                                borderRadius:
-                                    BorderRadius.circular(4), // Reduced from 6
-                              ),
-                              child: Icon(
-                                tip.icon,
-                                color: tip.color,
-                                size: 16, // Reduced from 18
-                              ),
+                      return GestureDetector(
+                        onTap: () {
+                          // Make the entire tip card clickable for better UX
+                          if (tip.hasAction && tip.onAction != null) {
+                            _handleTipAction(tip);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: tip.color.withOpacity(0.1),
+                              width: 1,
                             ),
-                            const SizedBox(height: 4), // Reduced from 6
-                            Text(
-                              tip.message,
-                              style: GoogleFonts.poppins(
-                                fontSize: 10, // Reduced from 11
-                                color: Colors.grey[700],
-                                height: 1.1, // Reduced from 1.2
-                              ),
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4), // Reduced from 6
-                            // Progress indicator
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 3, // Reduced from 4
-                                    vertical: 1, // Reduced from 2
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Tip content
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      tip.color.withOpacity(0.1),
+                                      tip.color.withOpacity(0.05),
+                                    ],
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: tip.color.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(
-                                        4), // Reduced from 6
-                                    border: Border.all(
-                                      color: tip.color.withOpacity(0.3),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Tip ${index + 1} of ${_tips.length}',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 8, // Reduced from 9
-                                      color: tip.color,
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: tip.color.withOpacity(0.2),
+                                    width: 1,
                                   ),
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 4), // Reduced from 6
-                            // Navigation buttons
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      debugPrint(
-                                          '🔍 SmartTips: Next button tapped at index $index');
-                                      if (index < _tips.length - 1) {
-                                        // Navigate to next page
-                                        debugPrint(
-                                            '🔍 SmartTips: Navigating to next page');
-                                        _pageController?.nextPage(
-                                          duration:
-                                              const Duration(milliseconds: 300),
-                                          curve: Curves.easeInOut,
-                                        );
-                                        // Update tip index to match the new page
-                                        setState(() {
-                                          _tipIndex = index + 1;
-                                        });
-                                        debugPrint(
-                                            '🔍 SmartTips: Updated tip index to $_tipIndex');
-                                      } else {
-                                        // Last tip - complete all tips
-                                        debugPrint(
-                                            '🔍 SmartTips: Last tip reached, completing all tips');
-                                        _completeAllTips();
-                                      }
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 4, // Reduced from 6
+                                child: Icon(
+                                  tip.icon,
+                                  color: tip.color,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(height: 4), // Reduced from 6
+                              Text(
+                                tip.message,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  color: Colors.grey[800],
+                                  height: 1.3,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                textAlign: TextAlign.center,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 6),
+                              // Interactive action button
+                              if (tip.hasAction &&
+                                  tip.actionText != null &&
+                                  tip.onAction != null)
+                                GestureDetector(
+                                  onTap: () => _handleTipAction(tip),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          tip.color,
+                                          tip.color.withOpacity(0.8),
+                                        ],
                                       ),
-                                      decoration: BoxDecoration(
-                                        color: tip.color.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(
-                                            4), // Reduced from 6
-                                        border: Border.all(
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
                                           color: tip.color.withOpacity(0.3),
-                                          width: 1,
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
                                         ),
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          index == _tips.length - 1
-                                              ? 'Got it!'
-                                              : 'Next',
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.touch_app,
+                                          color: Colors.white,
+                                          size: 12,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          tip.actionText!,
                                           style: GoogleFonts.poppins(
-                                            fontSize: 10, // Reduced from 11
-                                            fontWeight: FontWeight.w500,
-                                            color: tip.color,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 4),
+                              // Progress indicator
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          tip.color.withOpacity(0.1),
+                                          tip.color.withOpacity(0.05),
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: tip.color.withOpacity(0.3),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      '${index + 1} of ${_tips.length}',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 9,
+                                        color: tip.color,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4), // Reduced from 6
+                              // Navigation buttons
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        debugPrint(
+                                            '🔍 SmartTips: Next button tapped at index $index');
+                                        if (index < _tips.length - 1) {
+                                          // Navigate to next page
+                                          debugPrint(
+                                              '🔍 SmartTips: Navigating to next page');
+                                          _pageController?.nextPage(
+                                            duration: const Duration(
+                                                milliseconds: 300),
+                                            curve: Curves.easeInOut,
+                                          );
+                                          // Update tip index to match the new page
+                                          setState(() {
+                                            _tipIndex = index + 1;
+                                          });
+                                          debugPrint(
+                                              '🔍 SmartTips: Updated tip index to $_tipIndex');
+                                        } else {
+                                          // Last tip - complete all tips
+                                          debugPrint(
+                                              '🔍 SmartTips: Last tip reached, completing all tips');
+                                          _completeAllTips();
+                                        }
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 6,
+                                          horizontal: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              tip.color.withOpacity(0.15),
+                                              tip.color.withOpacity(0.1),
+                                            ],
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: tip.color.withOpacity(0.4),
+                                            width: 1,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: tip.color.withOpacity(0.1),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            index == _tips.length - 1
+                                                ? 'Got it!'
+                                                : 'Next',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                              color: tip.color,
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 4), // Reduced from 6
-                                Expanded(
-                                  child: GestureDetector(
-                                    onTap: index == _tips.length - 1
-                                        ? () {
-                                            debugPrint(
-                                                '🔍 SmartTips: Complete button tapped');
-                                            _completeAllTips();
-                                          }
-                                        : () {
-                                            debugPrint(
-                                                '🔍 SmartTips: Skip All button tapped');
-                                            _skipAllTips();
-                                          },
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 4, // Reduced from 6
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: index == _tips.length - 1
-                                            ? tip.color.withOpacity(0.1)
-                                            : Colors.grey.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(
-                                            4), // Reduced from 6
-                                        border: Border.all(
-                                          color: index == _tips.length - 1
-                                              ? tip.color.withOpacity(0.3)
-                                              : Colors.grey.withOpacity(0.3),
-                                          width: 1,
+                                  const SizedBox(width: 4), // Reduced from 6
+                                  Expanded(
+                                    child: GestureDetector(
+                                      onTap: index == _tips.length - 1
+                                          ? () {
+                                              debugPrint(
+                                                  '🔍 SmartTips: Complete button tapped');
+                                              _completeAllTips();
+                                            }
+                                          : () {
+                                              debugPrint(
+                                                  '🔍 SmartTips: Skip All button tapped');
+                                              _skipAllTips();
+                                            },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 6,
+                                          horizontal: 8,
                                         ),
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          index == _tips.length - 1
-                                              ? 'Complete'
-                                              : 'Skip All',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 10, // Reduced from 11
-                                            fontWeight: FontWeight.w500,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: index == _tips.length - 1
+                                                ? [
+                                                    tip.color.withOpacity(0.15),
+                                                    tip.color.withOpacity(0.1),
+                                                  ]
+                                                : [
+                                                    Colors.grey
+                                                        .withOpacity(0.1),
+                                                    Colors.grey
+                                                        .withOpacity(0.05),
+                                                  ],
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          border: Border.all(
                                             color: index == _tips.length - 1
-                                                ? tip.color
-                                                : Colors.grey[600],
+                                                ? tip.color.withOpacity(0.4)
+                                                : Colors.grey.withOpacity(0.3),
+                                            width: 1,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: (index == _tips.length - 1
+                                                      ? tip.color
+                                                      : Colors.grey)
+                                                  .withOpacity(0.1),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            index == _tips.length - 1
+                                                ? 'Complete'
+                                                : 'Skip All',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                              color: index == _tips.length - 1
+                                                  ? tip.color
+                                                  : Colors.grey[600],
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     },
@@ -477,6 +692,9 @@ class TipData {
   final IconData icon;
   final Color color;
   final TipCondition condition;
+  final String? actionText;
+  final VoidCallback? onAction;
+  final bool hasAction;
 
   TipData({
     required this.id,
@@ -484,6 +702,9 @@ class TipData {
     required this.icon,
     required this.color,
     required this.condition,
+    this.actionText,
+    this.onAction,
+    this.hasAction = false,
   });
 }
 
