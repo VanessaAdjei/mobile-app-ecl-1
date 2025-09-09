@@ -11,13 +11,11 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'cart_item.dart';
 import 'package:eclapp/pages/product_model.dart';
-import 'package:eclapp/pages/auth_service.dart';
 import 'bottomnav.dart';
 import 'cartprovider.dart';
 import 'package:html/parser.dart' show parse;
 import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:eclapp/pages/signinpage.dart';
 import 'homepage.dart';
 import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -26,6 +24,7 @@ import '../widgets/optimized_quantity_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/universal_page_optimization_service.dart';
 import '../services/clearance_sale_api_service.dart';
+import 'prescription.dart';
 
 class ClearanceItemDetailPage extends StatefulWidget {
   final ClearanceProduct product;
@@ -118,6 +117,41 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
     _scaleController.dispose();
     _skeletonTimer?.cancel();
     super.dispose();
+  }
+
+  void _navigateToPrescriptionUpload() async {
+    debugPrint('🔍 Navigating to PrescriptionUploadPage...');
+
+    // Get auth token for prescription upload
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token') ?? '';
+
+    // Convert ClearanceProduct to Map for prescription page
+    final productMap = {
+      'id': widget.product.id,
+      'name': widget.product.name,
+      'price': widget.product.clearancePrice,
+      'image': widget.product.thumbnail,
+      'batch_no': widget.product.batchNo,
+      'url_name': widget.product.urlName,
+      'product': {
+        'id': widget.product.id,
+        'name': widget.product.name,
+        'thumbnail': widget.product.thumbnail,
+      }
+    };
+
+    debugPrint('🔍 Product map created: ${productMap['name']}');
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PrescriptionUploadPage(
+          item: productMap,
+          token: token,
+        ),
+      ),
+    );
+    debugPrint('🔍 Navigation completed');
   }
 
   Future<List<Product>> _fetchRelatedProductsWithCache(String urlName) async {
@@ -892,14 +926,18 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
               child: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.green.shade600, Colors.green.shade800],
+                    colors: widget.product.isPrescribed == true
+                        ? [Colors.red.shade600, Colors.red.shade800]
+                        : [Colors.green.shade600, Colors.green.shade800],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(22),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.green.shade200.withValues(alpha: 0.3),
+                      color: widget.product.isPrescribed == true
+                          ? Colors.red.shade200.withValues(alpha: 0.3)
+                          : Colors.green.shade200.withValues(alpha: 0.3),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -933,7 +971,13 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
                     return ElevatedButton(
                       onPressed: () async {
                         HapticFeedback.mediumImpact();
-                        _addToCartWithQuantity(context, widget.product);
+
+                        // Check if product is prescribed
+                        if (widget.product.isPrescribed == true) {
+                          _navigateToPrescriptionUpload();
+                        } else {
+                          _addToCartWithQuantity(context, widget.product);
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         padding: EdgeInsets.symmetric(horizontal: 10),
@@ -947,13 +991,21 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.add_shopping_cart,
-                              color: Colors.white, size: 16),
+                          Icon(
+                              widget.product.isPrescribed == true
+                                  ? Icons.medical_services
+                                  : (isInCart
+                                      ? Icons.shopping_cart
+                                      : Icons.add_shopping_cart),
+                              color: Colors.white,
+                              size: 16),
                           SizedBox(width: 4),
                           Text(
-                            isInCart
-                                ? 'In Cart (${cartQuantity})'
-                                : 'Add to Cart',
+                            widget.product.isPrescribed == true
+                                ? 'Upload Prescription'
+                                : (isInCart
+                                    ? 'In Cart (${cartQuantity})'
+                                    : 'Add to Cart'),
                             style: GoogleFonts.poppins(
                               fontWeight: FontWeight.bold,
                               fontSize: 14,

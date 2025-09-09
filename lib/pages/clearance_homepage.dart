@@ -214,11 +214,8 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
           actualDiscount = clearanceProvider.discountPercentage;
         }
       }
-    } catch (e) {
-      // Use default if provider not available
-    }
+    } catch (e) {}
 
-    // Mock data with actual discount applied
     final mockProducts = [
       ClearanceProduct(
         id: 1,
@@ -1851,13 +1848,23 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
                   ),
                 ),
                 const Spacer(),
-                Text(
-                  'Random Picks',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      'Random Picks',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.swipe,
+                      size: 16,
+                      color: Colors.grey[500],
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1866,18 +1873,42 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
           // Carousel
           Container(
             height: 150,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: featuredProducts.length,
-              itemBuilder: (context, index) {
-                final product = featuredProducts[index];
-                return Container(
-                  width: 140,
-                  margin: const EdgeInsets.only(right: 8),
-                  child: _buildFeaturedProductCard(product),
-                );
-              },
+            child: Stack(
+              children: [
+                ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: featuredProducts.length,
+                  physics: const BouncingScrollPhysics(),
+                  itemBuilder: (context, index) {
+                    final product = featuredProducts[index];
+                    return Container(
+                      width: 140,
+                      margin: const EdgeInsets.only(right: 12),
+                      child: _buildFeaturedProductCard(product),
+                    );
+                  },
+                ),
+                // Right fade indicator
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 20,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          Colors.white.withValues(alpha: 0.0),
+                          Colors.white.withValues(alpha: 0.8),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
