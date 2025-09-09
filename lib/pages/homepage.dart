@@ -2992,7 +2992,7 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
 
   Future<void> _initializeBannerCache() async {
     await _bannerCacheService.initialize();
-    await fetchBanners();
+    fetchBanners();
   }
 
   @override
@@ -3123,13 +3123,11 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
   Future<void> fetchBanners() async {
     if (!mounted) return;
 
-    setState(() => _isLoadingBanners = true);
-
+    // Load cached banners first (synchronous) - no loading state
     try {
-      // Use cached banners if available
       final cachedBanners = await _bannerCacheService.getBanners();
 
-      if (mounted) {
+      if (mounted && cachedBanners.isNotEmpty) {
         setState(() {
           banners = cachedBanners;
           _isLoadingBanners = false;
@@ -3139,19 +3137,31 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
         _bannerCacheService.preloadBannerImages(context);
 
         // Print performance summary periodically
-        if (banners.isNotEmpty) {
-          debugPrint(
-              'Banner widget loaded ${banners.length} banners successfully');
-          _bannerCacheService.printPerformanceSummary();
-        }
+        debugPrint(
+            'Banner widget loaded ${cachedBanners.length} cached banners successfully');
+        _bannerCacheService.printPerformanceSummary();
       }
     } catch (e) {
-      debugPrint('Banner widget error: $e');
-      if (mounted) {
+      debugPrint('Banner widget cached load error: $e');
+    }
+
+    // Then refresh in background (non-blocking)
+    _refreshBannersInBackground();
+  }
+
+  Future<void> _refreshBannersInBackground() async {
+    try {
+      final freshBanners = await _bannerCacheService.getBanners();
+      if (mounted && freshBanners.isNotEmpty) {
         setState(() {
-          _isLoadingBanners = false;
+          banners = freshBanners;
         });
+        debugPrint(
+            'Banner widget refreshed with ${freshBanners.length} fresh banners');
       }
+    } catch (e) {
+      debugPrint('Banner widget background refresh error: $e');
+      // Silent fail for background refresh
     }
   }
 }

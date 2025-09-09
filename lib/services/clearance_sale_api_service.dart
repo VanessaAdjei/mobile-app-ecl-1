@@ -294,6 +294,7 @@ class ClearanceSaleApiService {
         quantity: "100",
         category: "Pain Relief",
         route: "oral",
+        isPrescribed: false,
       ),
       ClearanceProduct(
         id: 2,
@@ -311,6 +312,7 @@ class ClearanceSaleApiService {
         quantity: "50",
         category: "Vitamins",
         route: "oral",
+        isPrescribed: false,
       ),
       ClearanceProduct(
         id: 3,
@@ -328,6 +330,7 @@ class ClearanceSaleApiService {
         quantity: "75",
         category: "Pain Relief",
         route: "oral",
+        isPrescribed: false,
       ),
       ClearanceProduct(
         id: 4,
@@ -345,6 +348,7 @@ class ClearanceSaleApiService {
         quantity: "30",
         category: "Vitamins",
         route: "oral",
+        isPrescribed: false,
       ),
       ClearanceProduct(
         id: 5,
@@ -362,6 +366,7 @@ class ClearanceSaleApiService {
         quantity: "60",
         category: "Supplements",
         route: "oral",
+        isPrescribed: false,
       ),
       ClearanceProduct(
         id: 6,
@@ -379,6 +384,7 @@ class ClearanceSaleApiService {
         quantity: "25",
         category: "Supplements",
         route: "oral",
+        isPrescribed: false,
       ),
       ClearanceProduct(
         id: 7,
@@ -396,6 +402,7 @@ class ClearanceSaleApiService {
         quantity: "80",
         category: "Pain Relief",
         route: "oral",
+        isPrescribed: false,
       ),
       ClearanceProduct(
         id: 8,
@@ -413,6 +420,7 @@ class ClearanceSaleApiService {
         quantity: "40",
         category: "Supplements",
         route: "oral",
+        isPrescribed: false,
       ),
     ];
 
@@ -597,6 +605,7 @@ class ClearanceProduct {
   final String quantity;
   final String category;
   final String route;
+  final bool? isPrescribed;
   final String? otcpom;
   final String? drug;
   final String? wellness;
@@ -618,6 +627,7 @@ class ClearanceProduct {
     required this.quantity,
     required this.category,
     required this.route,
+    this.isPrescribed,
     this.otcpom,
     this.drug,
     this.wellness,
@@ -647,6 +657,7 @@ class ClearanceProduct {
       quantity: json['quantity']?.toString() ?? '',
       category: json['category'] ?? '',
       route: json['route'] ?? '',
+      isPrescribed: json['otcpom'] == 'pom',
       otcpom: json['otcpom'],
       drug: json['drug'],
       wellness: json['wellness'],

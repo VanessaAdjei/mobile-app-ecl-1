@@ -85,7 +85,6 @@ class WalletService {
     }
   }
 
-  // Get wallet transactions (MOCK ONLY - no API)
   static Future<List<WalletTransaction>> getTransactions({
     int page = 1,
     int limit = 20,

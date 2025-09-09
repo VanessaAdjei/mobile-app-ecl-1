@@ -22,7 +22,7 @@ class ClearanceSaleProvider extends ChangeNotifier {
 
   // Get clearance discount percentage
   double get discountPercentage {
-    return 50.0;
+    return _clearanceData?.discountPercentage ?? 50.0;
   }
 
   // Get clearance sale name
@@ -73,10 +73,8 @@ class ClearanceSaleProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      
       _isActive = prefs.getBool(_clearanceActiveKey) ?? false;
 
-      
       final clearanceDataJson = prefs.getString(_clearanceDataKey);
       if (clearanceDataJson != null) {
         final data = json.decode(clearanceDataJson);

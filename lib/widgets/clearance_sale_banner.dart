@@ -166,7 +166,7 @@ class _ClearanceSaleBannerState extends State<ClearanceSaleBanner>
                                     children: [
                                       // Sale name with new styling
                                       Text(
-                                        '🔥 UP TO 50% OFF',
+                                        '🔥 UP TO ${clearanceProvider.discountPercentage.toInt()}% OFF',
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 22,

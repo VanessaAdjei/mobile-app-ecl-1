@@ -1,4 +1,5 @@
 // pages/refill_page.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_back_button.dart';
@@ -32,10 +33,10 @@ class RefillPageState extends State<RefillPage> {
         errorMessage = null;
       });
 
-      // Simulate API delay
+      // Simulate API delay with potential network error
       await Future.delayed(Duration(seconds: 1));
 
-      // Dummy data for testing the design
+   
       final dummyMedicines = [
         RefillMedicine(
           id: 1,
@@ -104,43 +105,122 @@ class RefillPageState extends State<RefillPage> {
         ),
       ];
 
-      setState(() {
-        refillableMedicines = dummyMedicines;
-        isLoading = false;
-      });
+      // Validate data before setting
+      if (dummyMedicines.isEmpty) {
+        throw Exception('No refillable medicines found');
+      }
+
+      // Check if widget is still mounted before updating state
+      if (mounted) {
+        setState(() {
+          refillableMedicines = dummyMedicines;
+          isLoading = false;
+        });
+      }
 
       // Uncomment the lines below to use real API instead of dummy data
-      // final medicines = await RefillApiService.getRefillableMedicines();
-      // setState(() {
-      //   refillableMedicines = medicines;
-      //   isLoading = false;
-      // });
+      // try {
+      //   final medicines = await RefillApiService.getRefillableMedicines();
+      //   if (mounted) {
+      //     setState(() {
+      //       refillableMedicines = medicines;
+      //       isLoading = false;
+      //     });
+      //   }
+      // } catch (apiError) {
+      //   throw Exception('Failed to fetch medicines from server: ${apiError.toString()}');
+      // }
+    } on FormatException catch (e) {
+      // Handle data format errors
+      _handleError(
+          'Invalid data format received: ${e.message}', 'Data Format Error');
+    } on TimeoutException {
+      // Handle timeout errors
+      _handleError('Request timed out. Please check your internet connection.',
+          'Connection Timeout');
+    } on SocketException {
+
+      _handleError(
+          'No internet connection. Please check your network settings.',
+          'No Internet Connection');
+    } on HttpException catch (e) {
+   
+      _handleError('Server error occurred: ${e.message}', 'Server Error');
+    } on Exception catch (e) {
+     
+      _handleError('Failed to load refillable medicines: ${e.toString()}',
+          'Loading Error');
     } catch (e) {
+    
+      _handleError(
+          'An unexpected error occurred: ${e.toString()}', 'Unexpected Error');
+    }
+  }
+
+  void _handleError(String message, String title) {
+    if (mounted) {
       setState(() {
-        errorMessage = e.toString();
+        errorMessage = message;
         isLoading = false;
       });
 
-      // Show error snackbar
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content:
-                Text('Failed to load refillable medicines: ${e.toString()}'),
-            backgroundColor: Colors.red.shade600,
-            duration: Duration(seconds: 3),
-            action: SnackBarAction(
-              label: 'Retry',
-              textColor: Colors.white,
-              onPressed: () => _loadRefillableMedicines(),
-            ),
+      // Show detailed error snackbar
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                message,
+                style: GoogleFonts.poppins(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
-        );
-      }
+          backgroundColor: Colors.red.shade600,
+          duration: Duration(seconds: 5),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          margin: const EdgeInsets.all(16),
+          action: SnackBarAction(
+            label: 'Retry',
+            textColor: Colors.white,
+            onPressed: () => _loadRefillableMedicines(),
+          ),
+        ),
+      );
     }
   }
 
   Future<void> _addToCart(RefillMedicine medicine) async {
+    if (!mounted) return;
+
     try {
       // Show loading indicator
       ScaffoldMessenger.of(context).showSnackBar(
@@ -156,23 +236,68 @@ class RefillPageState extends State<RefillPage> {
                 ),
               ),
               const SizedBox(width: 12),
-              Text('Adding ${medicine.name} to cart...'),
+              Expanded(
+                child: Text(
+                  'Adding ${medicine.name} to cart...',
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
             ],
           ),
           backgroundColor: Colors.blue.shade600,
           duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          margin: const EdgeInsets.all(16),
         ),
       );
+
+      // Simulate API call with potential errors
+      await Future.delayed(Duration(seconds: 1));
+
+      // Simulate potential errors for testing
+      // Uncomment the line below to test error handling
+      // throw Exception('Server temporarily unavailable');
 
       // Use the product ID for the refill-cart API
       final success = await RefillApiService.addToCartForRefill(medicine.id);
 
+      if (!mounted) return;
+
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${medicine.name} added to cart for refill'),
+            content: Row(
+              children: [
+                Icon(
+                  Icons.check_circle,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${medicine.name} added to cart for refill',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
             backgroundColor: Colors.green.shade600,
-            duration: Duration(seconds: 2),
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            margin: const EdgeInsets.all(16),
             action: SnackBarAction(
               label: 'View Cart',
               textColor: Colors.white,
@@ -183,18 +308,87 @@ class RefillPageState extends State<RefillPage> {
           ),
         );
       } else {
-        throw Exception('Failed to add medicine to cart');
+        throw Exception(
+            'Unable to add medicine to cart. Please try again or contact support if the problem persists.');
+      }
+    } on TimeoutException {
+      _handleAddToCartError(
+          medicine, 'Connection timeout. Try again.', 'Timeout');
+    } on SocketException {
+      _handleAddToCartError(medicine, 'No internet connection.', 'No Internet');
+    } on HttpException {
+      _handleAddToCartError(
+          medicine, 'Server unavailable. Try again.', 'Server Error');
+    } on FormatException {
+      _handleAddToCartError(medicine, 'Processing error. Try again.', 'Error');
+    } on Exception catch (e) {
+      // Check if it's our custom error message
+      if (e.toString().contains('Unable to add medicine to cart')) {
+        _handleAddToCartError(
+            medicine, 'Cannot add to cart. Try again.', 'Add Failed');
+      } else {
+        _handleAddToCartError(medicine, 'Failed to add to cart.', 'Error');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text('Failed to add ${medicine.name} to cart: ${e.toString()}'),
-          backgroundColor: Colors.red.shade600,
-          duration: Duration(seconds: 3),
-        ),
-      );
+      _handleAddToCartError(medicine, 'Something went wrong.', 'Error');
     }
+  }
+
+  void _handleAddToCartError(
+      RefillMedicine medicine, String message, String title) {
+    if (!mounted) return;
+
+    // Determine the appropriate icon based on error type
+    IconData errorIcon = Icons.error_outline;
+    Color backgroundColor = Colors.red.shade600;
+
+    if (title.contains('Timeout') || title.contains('Connection')) {
+      errorIcon = Icons.wifi_off;
+      backgroundColor = Colors.orange.shade600;
+    } else if (title.contains('Server')) {
+      errorIcon = Icons.cloud_off;
+      backgroundColor = Colors.red.shade700;
+    } else if (title.contains('Cannot Add')) {
+      errorIcon = Icons.remove_shopping_cart;
+      backgroundColor = Colors.amber.shade700;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              errorIcon,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: backgroundColor,
+        duration: Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        margin: const EdgeInsets.all(16),
+        action: SnackBarAction(
+          label: 'Retry',
+          textColor: Colors.white,
+          onPressed: () => _addToCart(medicine),
+        ),
+      ),
+    );
   }
 
   @override
