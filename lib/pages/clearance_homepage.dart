@@ -58,8 +58,10 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
   final RefreshController _refreshController = RefreshController();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final ScrollController _featuredScrollController = ScrollController();
   AnimationController? _pulseController;
   AnimationController? _slideController;
+  Timer? _autoScrollTimer;
 
   // Filtering and sorting
   String _selectedCategory = 'All';
@@ -74,6 +76,7 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
   void initState() {
     super.initState();
     _initializeAnimations();
+    _startAutoScroll();
     // Clear any cached network images to prevent conflicts
     imageCache.clear();
     // Use post-frame callback to avoid setState during build
@@ -99,6 +102,39 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
   void _startAnimations() {
     _pulseController?.repeat(reverse: true);
     _slideController?.forward();
+  }
+
+  void _startAutoScroll() {
+    _autoScrollTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (_featuredScrollController.hasClients &&
+          _clearanceProducts.isNotEmpty) {
+        final currentOffset = _featuredScrollController.offset;
+        final maxScrollExtent =
+            _featuredScrollController.position.maxScrollExtent;
+
+        if (currentOffset >= maxScrollExtent) {
+          // If at the end, scroll back to beginning
+          _featuredScrollController.animateTo(
+            0.0,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+          );
+        } else {
+          // Scroll to next item (140px width + 12px margin = 152px)
+          final nextOffset = currentOffset + 152;
+          _featuredScrollController.animateTo(
+            nextOffset,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+          );
+        }
+      }
+    });
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
   }
 
   void _updateCategories() {
@@ -165,8 +201,10 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
     _refreshController.dispose();
     _searchController.dispose();
     _scrollController.dispose();
+    _featuredScrollController.dispose();
     _pulseController?.dispose();
     _slideController?.dispose();
+    _stopAutoScroll();
     super.dispose();
   }
 
@@ -179,18 +217,19 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
     });
 
     try {
-      // Try to load from real API first
-      print('🔄 Attempting to load from API...');
+      print('Attempting to load from API...');
       await _loadClearanceFromAPI();
-      print('✅ Successfully loaded from API');
+      print('Successfully loaded from API');
     } catch (e) {
-      // For debugging - let's see what the error is
-      print('❌ API failed with error: $e');
-      print('❌ Error type: ${e.runtimeType}');
+      print('API failed with error: $e');
+      print(' Error type: ${e.runtimeType}');
 
-      // Still fallback to mock data
-      print('🔄 Falling back to mock data...');
-      await _loadMockClearanceProducts();
+      
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load products: ${e.toString()}';
+        });
+      }
     }
 
     if (mounted) {
@@ -198,242 +237,6 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
         _isLoading = false;
       });
     }
-  }
-
-  Future<void> _loadMockClearanceProducts() async {
-    // Add a small delay to simulate loading
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    // Get the actual discount from clearance sale provider
-    double actualDiscount = 50.0; // Default fallback
-    try {
-      if (mounted) {
-        final clearanceProvider =
-            Provider.of<ClearanceSaleProvider>(context, listen: false);
-        if (clearanceProvider.isActive) {
-          actualDiscount = clearanceProvider.discountPercentage;
-        }
-      }
-    } catch (e) {}
-
-    final mockProducts = [
-      ClearanceProduct(
-        id: 1,
-        name: "Paracetamol 500mg",
-        description: "Pain relief medication",
-        urlName: "paracetamol-500mg",
-        status: "active",
-        batchNo: "B001",
-        originalPrice: 15.00,
-        clearancePrice: 15.00 * (1 - actualDiscount / 100),
-        discountAmount: 15.00 * (actualDiscount / 100),
-        discountPercentage: actualDiscount,
-        thumbnail: "assets/images/popular1.png",
-        quantity: "100",
-        category: "Drug",
-        route: "oral",
-        isPrescribed: false,
-        otcpom: 'otc',
-        drug: 'drug',
-        wellness: null,
-        selfcare: null,
-        accessories: null,
-      ),
-      ClearanceProduct(
-        id: 2,
-        name: "Vitamin C 1000mg",
-        description: "Immune system support",
-        urlName: "vitamin-c-1000mg",
-        status: "active",
-        batchNo: "B002",
-        originalPrice: 25.00,
-        clearancePrice: 25.00 * (1 - actualDiscount / 100),
-        discountAmount: 25.00 * (actualDiscount / 100),
-        discountPercentage: actualDiscount,
-        thumbnail: "assets/images/popular2.png",
-        quantity: "50",
-        category: "Wellness",
-        route: "oral",
-        isPrescribed: false,
-        otcpom: 'otc',
-        drug: null,
-        wellness: 'wellness',
-        selfcare: null,
-        accessories: null,
-      ),
-      ClearanceProduct(
-        id: 3,
-        name: "Ibuprofen 400mg",
-        description: "Anti-inflammatory pain relief",
-        urlName: "ibuprofen-400mg",
-        status: "active",
-        batchNo: "B003",
-        originalPrice: 20.00,
-        clearancePrice: 20.00 * (1 - actualDiscount / 100),
-        discountAmount: 20.00 * (actualDiscount / 100),
-        discountPercentage: actualDiscount,
-        thumbnail: "assets/images/popular3.png",
-        quantity: "75",
-        category: "Drug",
-        route: "oral",
-        isPrescribed: false,
-        otcpom: 'otc',
-        drug: 'drug',
-        wellness: null,
-        selfcare: null,
-        accessories: null,
-      ),
-      ClearanceProduct(
-        id: 4,
-        name: "Multivitamin Complex",
-        description: "Daily vitamin supplement",
-        urlName: "multivitamin-complex",
-        status: "active",
-        batchNo: "B004",
-        originalPrice: 30.00,
-        clearancePrice: 30.00 * (1 - actualDiscount / 100),
-        discountAmount: 30.00 * (actualDiscount / 100),
-        discountPercentage: actualDiscount,
-        thumbnail: "assets/images/popular4.png",
-        quantity: "60",
-        category: "Wellness",
-        route: "oral",
-        isPrescribed: false,
-        otcpom: 'otc',
-        drug: null,
-        wellness: 'wellness',
-        selfcare: null,
-        accessories: null,
-      ),
-      ClearanceProduct(
-        id: 5,
-        name: "Aspirin 100mg",
-        description: "Blood thinner and pain relief",
-        urlName: "aspirin-100mg",
-        status: "active",
-        batchNo: "B005",
-        originalPrice: 12.00,
-        clearancePrice: 12.00 * (1 - actualDiscount / 100),
-        discountAmount: 12.00 * (actualDiscount / 100),
-        discountPercentage: actualDiscount,
-        thumbnail: "assets/images/popular5.png",
-        quantity: "90",
-        category: "Drug",
-        route: "oral",
-        isPrescribed: false,
-        otcpom: 'otc',
-        drug: 'drug',
-        wellness: null,
-        selfcare: null,
-        accessories: null,
-      ),
-      ClearanceProduct(
-        id: 19,
-        name: "Amoxicillin 500mg",
-        description: "Antibiotic for bacterial infections",
-        urlName: "amoxicillin-500mg",
-        status: "active",
-        batchNo: "B019",
-        originalPrice: 35.00,
-        clearancePrice: 35.00 * (1 - actualDiscount / 100),
-        discountAmount: 35.00 * (actualDiscount / 100),
-        discountPercentage: actualDiscount,
-        thumbnail: "assets/images/popular1.png",
-        quantity: "50",
-        category: "Drug",
-        route: "oral",
-        isPrescribed: true,
-        otcpom: 'pom',
-        drug: 'drug',
-        wellness: null,
-        selfcare: null,
-        accessories: null,
-      ),
-      ClearanceProduct(
-        id: 16,
-        name: "Blood Pressure Monitor",
-        description: "Digital blood pressure monitor",
-        urlName: "blood-pressure-monitor",
-        status: "active",
-        batchNo: "B016",
-        originalPrice: 45.00,
-        clearancePrice: 45.00 * (1 - actualDiscount / 100),
-        discountAmount: 45.00 * (actualDiscount / 100),
-        discountPercentage: actualDiscount,
-        thumbnail: "assets/images/popular1.png",
-        quantity: "25",
-        category: "Accessories",
-        route: "device",
-        isPrescribed: false,
-        otcpom: 'otc',
-        drug: null,
-        wellness: null,
-        selfcare: null,
-        accessories: 'accessories',
-      ),
-      ClearanceProduct(
-        id: 17,
-        name: "Thermometer",
-        description: "Digital thermometer",
-        urlName: "thermometer",
-        status: "active",
-        batchNo: "B017",
-        originalPrice: 15.00,
-        clearancePrice: 15.00 * (1 - actualDiscount / 100),
-        discountAmount: 15.00 * (actualDiscount / 100),
-        discountPercentage: actualDiscount,
-        thumbnail: "assets/images/popular2.png",
-        quantity: "50",
-        category: "Accessories",
-        route: "device",
-        isPrescribed: false,
-        otcpom: 'otc',
-        drug: null,
-        wellness: null,
-        selfcare: null,
-        accessories: 'accessories',
-      ),
-      ClearanceProduct(
-        id: 18,
-        name: "First Aid Kit",
-        description: "Complete first aid kit",
-        urlName: "first-aid-kit",
-        status: "active",
-        batchNo: "B018",
-        originalPrice: 25.00,
-        clearancePrice: 25.00 * (1 - actualDiscount / 100),
-        discountAmount: 25.00 * (actualDiscount / 100),
-        discountPercentage: actualDiscount,
-        thumbnail: "assets/images/popular3.png",
-        quantity: "30",
-        category: "Self Care",
-        route: "kit",
-        isPrescribed: false,
-        otcpom: 'otc',
-        drug: null,
-        wellness: null,
-        selfcare: 'selfcare',
-        accessories: null,
-      ),
-    ];
-
-    if (mounted) {
-      setState(() {
-        _clearanceProducts = mockProducts;
-        _updateCategories();
-        _applyFilters();
-      });
-    }
-
-    // Force banner update with actual percentage
-    print('Loaded ${_clearanceProducts.length} clearance products');
-    print('Banner will show: Up to ${_getMaxDiscountPercentage()}% OFF');
-
-    // Debug: Print categories from mock data
-    final mockCategories =
-        _clearanceProducts.map((p) => p.category).toSet().toList();
-    mockCategories.sort();
-    print('🏷️ Mock Categories: $mockCategories');
   }
 
   Future<void> _loadClearanceFromAPI() async {
@@ -445,7 +248,7 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
             Uri.parse(
                 'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
@@ -466,8 +269,7 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
           }
         }
 
-        // Get the actual discount from clearance sale provider
-        double actualDiscount = 50.0; // Default fallback
+        double actualDiscount = 50.0;
         try {
           if (mounted) {
             final clearanceProvider =
@@ -476,26 +278,23 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
               actualDiscount = clearanceProvider.discountPercentage;
             }
           }
-        } catch (e) {
-          // Use default if provider not available
-        }
+        } catch (e) {}
 
-        // Convert API products to ClearanceProduct format
         final clearanceProducts = dataList.map<ClearanceProduct>((item) {
           final productData = item['product'] as Map<String, dynamic>;
           final originalPrice = (item['price'] ?? 0.0).toDouble();
           final clearancePrice = originalPrice * (1 - actualDiscount / 100);
           final discountAmount = originalPrice * (actualDiscount / 100);
 
-          // Debug image fields for first few products
+  
           if (dataList.indexOf(item) < 3) {
             print('🔍 Product ${productData['name']} image fields:');
             print('  - thumbnail: ${productData['thumbnail']}');
             print('  - image: ${productData['image']}');
-            print('  - product_img: ${productData['product_img']}');
+            print('  - product_img: ${productData['product_img'
+            ]}');
           }
-
-          // Get the final image URL
+ 
           final imageUrl = productData['thumbnail'] ??
               productData['image'] ??
               productData['product_img'] ??
@@ -505,8 +304,7 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
             print('  - Final image URL: $imageUrl');
           }
 
-          // Determine category based on API fields
-          String category = 'Drug'; // Default category
+          String category = 'Drug';
           if (productData['drug'] == 'drug' || productData['drug'] == true) {
             category = 'Drug';
           } else if (productData['wellness'] == 'wellness') {
@@ -517,7 +315,6 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
             category = 'Accessories';
           }
 
-          // Debug category detection for first few products
           if (dataList.indexOf(item) < 3) {
             print('🏷️ Product ${productData['name']} category fields:');
             print('  - otcpom: ${productData['otcpom']}');
@@ -528,12 +325,10 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
             print('  - Final category: $category');
           }
 
-          // Debug: Check for accessories products specifically
           if (productData['accessories'] == 'accessories') {
             print('🔍 Found accessories product: ${productData['name']}');
           }
 
-          // Debug ID mapping for first few products
           if (dataList.indexOf(item) < 3) {
             print('🆔 Product ${productData['name']} ID mapping:');
             print('  - item[id]: ${item['id']}');
@@ -573,6 +368,8 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
             _updateCategories();
             _applyFilters();
           });
+          // Restart auto-scroll when new products are loaded
+          _startAutoScroll();
         }
 
         print(
@@ -1875,19 +1672,30 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
             height: 150,
             child: Stack(
               children: [
-                ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: featuredProducts.length,
-                  physics: const BouncingScrollPhysics(),
-                  itemBuilder: (context, index) {
-                    final product = featuredProducts[index];
-                    return Container(
-                      width: 140,
-                      margin: const EdgeInsets.only(right: 12),
-                      child: _buildFeaturedProductCard(product),
-                    );
+                NotificationListener<ScrollNotification>(
+                  onNotification: (ScrollNotification notification) {
+                    if (notification is ScrollStartNotification) {
+                      _stopAutoScroll();
+                    } else if (notification is ScrollEndNotification) {
+                      _startAutoScroll();
+                    }
+                    return false;
                   },
+                  child: ListView.builder(
+                    controller: _featuredScrollController,
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: featuredProducts.length,
+                    physics: const BouncingScrollPhysics(),
+                    itemBuilder: (context, index) {
+                      final product = featuredProducts[index];
+                      return Container(
+                        width: 140,
+                        margin: const EdgeInsets.only(right: 12),
+                        child: _buildFeaturedProductCard(product),
+                      );
+                    },
+                  ),
                 ),
                 // Right fade indicator
                 Positioned(

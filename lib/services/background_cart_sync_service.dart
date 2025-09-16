@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../pages/cartprovider.dart';
 
 class BackgroundCartSyncService {
   static Timer? _syncTimer;
@@ -12,12 +11,10 @@ class BackgroundCartSyncService {
   static const Duration _syncInterval = Duration(minutes: 5);
   static const Duration _initialDelay = Duration(seconds: 30);
 
-  // Cache for cart data
   static Map<String, dynamic>? _lastCartData;
   static DateTime? _lastSyncTime;
   static const Duration _cacheExpiration = Duration(minutes: 10);
 
-  // Start background cart synchronization
   static void startBackgroundSync() {
     if (_isRunning) return;
 
@@ -99,8 +96,8 @@ class BackgroundCartSyncService {
     if (_lastCartData == null) return true;
 
     try {
-      final oldItems = _lastCartData!['items'] as List;
-      final newItems = newData['items'] as List;
+      final oldItems = _lastCartData!['items'] as List? ?? [];
+      final newItems = newData['items'] as List? ?? [];
 
       if (oldItems.length != newItems.length) return true;
 
@@ -170,7 +167,7 @@ class BackgroundCartSyncService {
       final cartData = await _getCurrentCartData();
       if (cartData == null) return;
 
-      final items = cartData['items'] as List;
+      final items = cartData['items'] as List? ?? [];
       final outOfStockItems = <String>[];
 
       for (final item in items) {

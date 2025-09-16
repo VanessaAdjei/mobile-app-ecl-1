@@ -705,8 +705,7 @@ class HomePageState extends State<HomePage>
             batch_no: item['batch_no'] ?? '',
             price: (item['price'] ?? 0).toString(),
             thumbnail: productData['thumbnail'] ?? productData['image'] ?? '',
-            quantity: item['qty_in_stock']?.toString() ??
-                '', // Fixed: Get from root item, not product
+            quantity: item['qty_in_stock']?.toString() ?? '',
             category: productData['category'] ?? '',
             route: productData['route'] ?? '',
             otcpom: productData['otcpom'],
@@ -717,13 +716,10 @@ class HomePageState extends State<HomePage>
           );
         }).toList();
 
-        // Cache the products
         ProductCache.cacheProducts(allProducts);
 
-        // Process products and update state
         _processProducts(allProducts);
 
-        // Preload images in background
         _preloadImages(allProducts);
       } else {
         throw Exception('Server error');
@@ -803,65 +799,44 @@ class HomePageState extends State<HomePage>
         _lastSectionShuffleTime = DateTime.parse(shuffleTimeString);
         debugPrint(
             'HomePage: Loaded section shuffle timestamp: $_lastSectionShuffleTime');
-      } else {
-        debugPrint(
-            'HomePage: No section shuffle timestamp found, will shuffle on first load');
-      }
-    } catch (e) {
-      debugPrint('    HomePage: Error loading section shuffle timestamp: $e');
-    }
+      } else {}
+    } catch (e) {}
   }
 
-  // Synchronous version for initState
   void _loadSectionShuffleTimeSync() {
     SharedPreferences.getInstance().then((prefs) {
       final shuffleTimeString = prefs.getString('section_shuffle_time');
       if (shuffleTimeString != null) {
         _lastSectionShuffleTime = DateTime.parse(shuffleTimeString);
-        debugPrint(
-            '📱 HomePage: Loaded section shuffle timestamp: $_lastSectionShuffleTime');
-      } else {
-        debugPrint(
-            '📱 HomePage: No section shuffle timestamp found, will shuffle on first load');
-      }
-    }).catchError((e) {
-      debugPrint('❌ HomePage: Error loading section shuffle timestamp: $e');
-    });
+      } else {}
+    }).catchError((e) {});
   }
 
-  // Method to manually reset shuffle timestamp (for testing)
   Future<void> _resetSectionShuffleTimestamp() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('section_shuffle_time');
       _lastSectionShuffleTime = null;
-      debugPrint('🔄 HomePage: Section shuffle timestamp reset manually');
-    } catch (e) {
-      debugPrint('❌ HomePage: Error resetting section shuffle timestamp: $e');
-    }
+    } catch (e) {}
   }
 
-  // Method to reset loaded flag for refresh functionality
   void _resetLoadedFlag() {
     _hasBeenLoaded = false;
     debugPrint('🔄 HomePage: Loaded flag reset for refresh');
   }
 
-  // Wrapper method for refresh that resets the loaded flag
   Future<void> _handleRefresh() async {
     debugPrint('🔄 HomePage: Refresh requested, resetting loaded flag');
     _resetLoadedFlag();
     await _loadAllContent();
   }
 
-  // Public method to manually reload home page content
   Future<void> reloadHomePage() async {
     debugPrint('🔄 HomePage: Manual reload requested');
     _resetLoadedFlag();
     await _loadAllContent();
   }
 
-  // Helper method to process products and categorize them
   void _processProducts(List<Product> allProducts) {
     if (!mounted) return;
 
@@ -870,7 +845,6 @@ class HomePageState extends State<HomePage>
       filteredProducts = allProducts;
     });
 
-    // Optimize filtering by doing it once
     final List<Product> otcDrugProducts = [];
     final List<Product> wellnessList = [];
     final List<Product> selfcareList = [];
@@ -895,11 +869,10 @@ class HomePageState extends State<HomePage>
       }
     }
 
-    // Ensure we have the shuffle timestamp before deciding whether to shuffle
     if (_lastSectionShuffleTime == null) {
       debugPrint(
           '🎲 HomePage: Section shuffle timestamp not loaded yet, skipping shuffle check');
-      // Set default order without shuffling
+
       if (mounted) {
         setState(() {
           drugsSectionProducts = otcDrugProducts;
@@ -945,10 +918,9 @@ class HomePageState extends State<HomePage>
     }
   }
 
-  // Preload images for better performance
   void _preloadImages(List<Product> products) {
     final imageUrls = products
-        .take(20) // Preload first 20 images
+        .take(20)
         .map((product) => getProductImageUrl(product.thumbnail))
         .where((url) => url.isNotEmpty)
         .toList();
@@ -973,14 +945,23 @@ class HomePageState extends State<HomePage>
   void _showContactOptions(String phoneNumber) {
     showModalBottomSheet(
       context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
         return Container(
-          padding: const EdgeInsets.all(24),
-          child: SingleChildScrollView(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 20,
+                offset: Offset(0, -5),
+              ),
+            ],
+          ),
+          child: Container(
+            padding: EdgeInsets.fromLTRB(20, 12, 20, 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -993,77 +974,77 @@ class HomePageState extends State<HomePage>
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(height: 20),
-
-                // Title
-                Text(
-                  'Need Help?',
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                Text(
-                  'Contact us for support or any questions',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
                 const SizedBox(height: 16),
 
-                // Help context
+                // Header with gradient
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blue.shade200),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.green.shade50,
+                        Colors.blue.shade50,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Row(
+                      Container(
+                        padding: EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.green.shade200,
+                              blurRadius: 6,
+                              offset: Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: Image.asset(
+                          'assets/images/png.png',
+                          width: 20,
+                          height: 20,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Column(
                         children: [
-                          Icon(
-                            Icons.info_outline,
-                            color: Colors.blue.shade600,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
                           Text(
-                            'What can we help you with?',
+                            'We\'re Here to Help!',
                             style: GoogleFonts.poppins(
                               fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.blue.shade700,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                          Text(
+                            'Choose your preferred way to get in touch',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: Colors.grey.shade600,
+                              height: 1.1,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '• App issues & technical support\n• Payment problems',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: Colors.blue.shade600,
-                          height: 1.4,
-                        ),
-                      ),
                     ],
                   ),
                 ),
+                const SizedBox(height: 16),
 
-                const SizedBox(height: 20),
-
-                // Call option
-                _buildContactOption(
+                // Contact options
+                _buildModernContactOption(
                   icon: Icons.phone_rounded,
                   title: 'Call Us',
-                  subtitle: '0302908674',
+                  subtitle: 'Speak directly with our team',
+                  phone: '0302908674',
                   color: Colors.green.shade600,
                   onTap: () {
                     Navigator.pop(context);
@@ -1072,13 +1053,13 @@ class HomePageState extends State<HomePage>
                   },
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
 
-                // WhatsApp option
-                _buildContactOption(
+                _buildModernContactOption(
                   icon: Icons.message_rounded,
                   title: 'WhatsApp',
                   subtitle: 'Chat with us instantly',
+                  phone: 'Chat Now',
                   color: const Color(0xFF25D366),
                   onTap: () {
                     Navigator.pop(context);
@@ -1087,13 +1068,13 @@ class HomePageState extends State<HomePage>
                   },
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
 
-                // Email option
-                _buildContactOption(
+                _buildModernContactOption(
                   icon: Icons.email_rounded,
                   title: 'Email Us',
-                  subtitle: 'support@ernestchemists.com',
+                  subtitle: 'Send us a detailed message',
+                  phone: 'support@ernestchemists.com',
                   color: Colors.blue.shade600,
                   onTap: () {
                     Navigator.pop(context);
@@ -1101,8 +1082,6 @@ class HomePageState extends State<HomePage>
                         'ECL App Support & Inquiry');
                   },
                 ),
-
-                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -1111,44 +1090,52 @@ class HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildContactOption({
+  Widget _buildModernContactOption({
     required IconData icon,
     required String title,
     required String subtitle,
+    required String phone,
     required Color color,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: color.withValues(alpha: 0.08),
               blurRadius: 8,
-              offset: const Offset(0, 2),
+              offset: Offset(0, 2),
             ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    color.withValues(alpha: 0.1),
+                    color.withValues(alpha: 0.05),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
                 icon,
                 color: color,
-                size: 24,
+                size: 20,
               ),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1156,26 +1143,50 @@ class HomePageState extends State<HomePage>
                   Text(
                     title,
                     style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
                       color: Colors.grey.shade800,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   Text(
                     subtitle,
                     style: GoogleFonts.poppins(
-                      fontSize: 13,
+                      fontSize: 12,
                       color: Colors.grey.shade600,
+                      height: 1.2,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      phone,
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(
-              Icons.arrow_forward_ios,
-              color: Colors.grey.shade400,
-              size: 16,
+            Container(
+              padding: EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: color,
+                size: 12,
+              ),
             ),
           ],
         ),
@@ -1886,7 +1897,7 @@ class HomePageState extends State<HomePage>
               Expanded(
                 child: _buildActionCard(
                   icon: Icons.people,
-                  title: "Ask Our Pharmacists",
+                  title: "Meet Your Pharmacists",
                   color: Colors.blue[600]!,
                   onTap: () {
                     Navigator.push(

@@ -17,17 +17,16 @@ class HealthTipsService {
   static const Duration _cacheExpiration =
       Duration(minutes: 30); // Cache for 30 minutes
 
-  // Background service properties
+ 
   static Timer? _backgroundTimer;
   static bool _isBackgroundServiceRunning = false;
   static const Duration _backgroundRefreshInterval = Duration(minutes: 10);
   static const Duration _initialLoadDelay = Duration(seconds: 5);
 
-  // Background service management
+
   static void startBackgroundService() {
     if (_isBackgroundServiceRunning) return;
 
-    
     _isBackgroundServiceRunning = true;
 
     // Initial load after a short delay
@@ -57,7 +56,6 @@ class HealthTipsService {
         _cachedTips = tips;
         _hasLoadedOnce = true;
         _lastFetchTime = DateTime.now();
-
       }
     } catch (e) {
       debugPrint('HealthTipsService: Background refresh failed: $e');
@@ -66,20 +64,31 @@ class HealthTipsService {
 
   static Future<List<HealthTip>> _fetchTipsFromAPI() async {
     try {
+      debugPrint('HealthTipsService: Attempting to fetch from API: $_baseUrl');
       final Map<String, String> queryParams = {'Lang': 'en'};
       final uri = Uri.parse(_baseUrl).replace(queryParameters: queryParams);
 
-      final response = await http.get(uri).timeout(Duration(seconds: 8));
+      debugPrint('HealthTipsService: Making request to: $uri');
+      final response = await http.get(uri).timeout(Duration(seconds: 15));
+
+      debugPrint('HealthTipsService: Response status: ${response.statusCode}');
+      debugPrint(
+          'HealthTipsService: Response body length: ${response.body.length}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        debugPrint('HealthTipsService: Successfully parsed JSON data');
 
         try {
           final healthfinderResponse = MyHealthfinderResponse.fromJson(data);
+          debugPrint(
+              'HealthTipsService: Parsed ${healthfinderResponse.tips.length} tips from API');
           if (healthfinderResponse.tips.isNotEmpty) {
             final shuffledTips =
                 List<HealthTip>.from(healthfinderResponse.tips);
             shuffledTips.shuffle(Random());
+            debugPrint(
+                'HealthTipsService: Returning ${shuffledTips.length} shuffled tips');
             return shuffledTips;
           }
         } catch (parseError) {
@@ -88,17 +97,24 @@ class HealthTipsService {
 
           // Try simpler parsing as fallback
           final simpleTips = _parseSimpleResponse(data);
+          debugPrint(
+              'HealthTipsService: Fallback parsing returned ${simpleTips.length} tips');
           if (simpleTips.isNotEmpty) {
             final shuffledTips = List<HealthTip>.from(simpleTips);
             shuffledTips.shuffle(Random());
             return shuffledTips;
           }
         }
+      } else {
+        debugPrint(
+            'HealthTipsService: API returned status code: ${response.statusCode}');
       }
     } catch (e) {
       debugPrint('HealthTipsService: API fetch error: $e');
     }
 
+    debugPrint(
+        'HealthTipsService: No tips fetched from API, returning empty list');
     return [];
   }
 
@@ -149,17 +165,22 @@ class HealthTipsService {
 
     // If no cache, try to fetch immediately but with shorter timeout
     try {
-
-      final tips = await _fetchTipsFromAPI().timeout(Duration(seconds: 4));
+      debugPrint('HealthTipsService: Attempting immediate fetch...');
+      final tips = await _fetchTipsFromAPI().timeout(Duration(seconds: 10));
 
       if (tips.isNotEmpty) {
+        debugPrint(
+            'HealthTipsService: Immediate fetch successful, got ${tips.length} tips');
         _cachedTips = tips;
         _hasLoadedOnce = true;
         _lastFetchTime = DateTime.now();
 
         final result = _cachedTips.take(limit).toList();
-      
+        debugPrint(
+            'HealthTipsService: Returning ${result.length} tips from immediate fetch');
         return result;
+      } else {
+        debugPrint('HealthTipsService: Immediate fetch returned empty tips');
       }
     } catch (e) {
       debugPrint('HealthTipsService: Immediate fetch failed: $e');

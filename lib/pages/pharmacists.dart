@@ -97,11 +97,14 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   Map<String, dynamic> _decodeJson(String s) => jsonDecode(s);
 
   Future<void> _loadHealthTips() async {
+    debugPrint('PharmacistsPage: _loadHealthTips called');
     setState(() {
       _isLoadingHealthTips = true;
     });
 
     final backgroundTips = HealthTipsService.getCurrentTips(limit: 4);
+    debugPrint(
+        'PharmacistsPage: Background tips count: ${backgroundTips.length}');
     if (backgroundTips.isNotEmpty) {
       setState(() {
         _healthTips = backgroundTips;
@@ -120,6 +123,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       return;
     }
 
+    debugPrint('PharmacistsPage: No cache available, showing fallback tips');
     _showInstantFallbackTips();
 
     _loadFreshHealthTipsInBackground();
@@ -166,6 +170,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   }
 
   void _showInstantFallbackTips() {
+    debugPrint('PharmacistsPage: Showing instant fallback tips');
     final instantTips = [
       HealthTip(
         title: 'Stay Hydrated',
@@ -213,6 +218,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       _healthTips = instantTips;
       _isLoadingHealthTips = false;
     });
+    debugPrint(
+        'PharmacistsPage: Fallback tips set, count: ${_healthTips.length}');
   }
 
   Future<void> _loadFreshHealthTipsInBackground() async {
@@ -2424,12 +2431,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       SizedBox(height: 48),
 
                       // Health Tips Section
-                      _buildModernSectionHeaderWithRefresh(
-                          'Health Tips',
-                          Icons.health_and_safety,
-                          'Expert health advice & insights',
-                          _refreshHealthTips),
-                      _buildModernHealthBlogsSection(),
+                      _buildRedesignedHealthTipsSection(),
                       // Space for floating bot
                     ],
                   ),
@@ -3898,61 +3900,53 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   Widget _buildModernHealthBlogsSection() {
     if (_isLoadingHealthTips) {
       return Container(
-        height: 200,
+        height: 160,
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.grey[50]!, Colors.white],
+            colors: [Colors.green.shade50, Colors.white],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey[200]!, width: 1),
+          border: Border.all(color: Colors.green.shade200, width: 1),
         ),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: EdgeInsets.all(16),
+                padding: EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.green[400]!, Colors.green[600]!],
+                    colors: [Colors.green.shade500, Colors.green.shade600],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.green.withValues(alpha: 0.2),
+                      color: Colors.green.withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: Offset(0, 4),
                     ),
                   ],
                 ),
                 child: SizedBox(
-                  width: 24,
-                  height: 24,
+                  width: 20,
+                  height: 20,
                   child: CircularProgressIndicator(
                     valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    strokeWidth: 3,
+                    strokeWidth: 2.5,
                   ),
                 ),
               ),
-              SizedBox(height: 16),
+              SizedBox(height: 12),
               Text(
-                'Updating health insights...',
+                'Loading health tips...',
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: Colors.grey[700],
-                ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Loading the latest health tips',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: Colors.grey[500],
+                  color: Colors.grey.shade700,
                 ),
               ),
             ],
@@ -3963,58 +3957,50 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
 
     if (_healthTips.isEmpty) {
       return Container(
-        height: 200,
+        height: 160,
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.grey[50]!, Colors.white],
+            colors: [Colors.blue.shade50, Colors.white],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey[200]!, width: 1),
+          border: Border.all(color: Colors.blue.shade200, width: 1),
         ),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: EdgeInsets.all(16),
+                padding: EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.blue[400]!, Colors.blue[600]!],
+                    colors: [Colors.blue.shade500, Colors.blue.shade600],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.blue.withValues(alpha: 0.2),
+                      color: Colors.blue.withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: Offset(0, 4),
                     ),
                   ],
                 ),
                 child: Icon(
-                  Icons.health_and_safety,
-                  size: 32,
+                  Icons.health_and_safety_rounded,
+                  size: 24,
                   color: Colors.white,
                 ),
               ),
-              SizedBox(height: 16),
+              SizedBox(height: 12),
               Text(
-                'No health insights available',
+                'No health tips available',
                 style: GoogleFonts.poppins(
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: Colors.grey[700],
-                ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Check back later for new tips',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: Colors.grey[500],
+                  color: Colors.grey.shade700,
                 ),
               ),
             ],
@@ -4023,47 +4009,306 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Scroll indicator
-        Padding(
-          padding: EdgeInsets.only(left: 4, bottom: 8),
-          child: Row(
-            children: [
-              Icon(
-                Icons.swipe_left,
-                size: 16,
-                color: Colors.green[600],
+    return SizedBox(
+      height: 180,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: _healthTips.length,
+        itemBuilder: (context, index) {
+          return Container(
+            width: 160,
+            margin: EdgeInsets.only(right: 16),
+            child: _buildRedesignedHealthTipCard(_healthTips[index]),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildRedesignedHealthTipCard(HealthTip tip) {
+    // Get appropriate icon and color based on category
+    IconData icon;
+    Color primaryColor;
+    Color accentColor;
+
+    switch (tip.category.toLowerCase()) {
+      case 'nutrition':
+      case 'diet':
+        icon = Icons.restaurant_rounded;
+        primaryColor = Colors.orange.shade600;
+        accentColor = Colors.orange.shade50;
+        break;
+      case 'exercise':
+      case 'physical activity':
+        icon = Icons.fitness_center_rounded;
+        primaryColor = Colors.blue.shade600;
+        accentColor = Colors.blue.shade50;
+        break;
+      case 'mental health':
+        icon = Icons.psychology_rounded;
+        primaryColor = Colors.purple.shade600;
+        accentColor = Colors.purple.shade50;
+        break;
+      case 'prevention':
+        icon = Icons.shield_rounded;
+        primaryColor = Colors.green.shade600;
+        accentColor = Colors.green.shade50;
+        break;
+      case 'wellness':
+        icon = Icons.health_and_safety_rounded;
+        primaryColor = Colors.teal.shade600;
+        accentColor = Colors.teal.shade50;
+        break;
+      case 'heart health':
+      case 'cardiovascular':
+        icon = Icons.favorite_rounded;
+        primaryColor = Colors.red.shade600;
+        accentColor = Colors.red.shade50;
+        break;
+      case 'diabetes':
+        icon = Icons.monitor_heart_rounded;
+        primaryColor = Colors.orange.shade600;
+        accentColor = Colors.orange.shade50;
+        break;
+      case 'pregnancy':
+      case 'women\'s health':
+        icon = Icons.pregnant_woman_rounded;
+        primaryColor = Colors.pink.shade600;
+        accentColor = Colors.pink.shade50;
+        break;
+      default:
+        icon = Icons.health_and_safety_rounded;
+        primaryColor = Colors.green.shade600;
+        accentColor = Colors.green.shade50;
+    }
+
+    return GestureDetector(
+      onTap: tip.url.isNotEmpty ? () => _showHealthTipDetails(tip) : null,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border:
+              Border.all(color: primaryColor.withValues(alpha: 0.2), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: primaryColor.withValues(alpha: 0.1),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image section
+            Container(
+              width: double.infinity,
+              height: 70,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+                color: accentColor,
               ),
-              SizedBox(width: 4),
-              Text(
-                'Swipe to see more health tips',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: Colors.green[600],
-                  fontWeight: FontWeight.w500,
+              child: tip.imageUrl != null && tip.imageUrl!.isNotEmpty
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
+                      ),
+                      child: Image.network(
+                        tip.imageUrl!,
+                        width: double.infinity,
+                        height: 70,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: accentColor,
+                              borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(16),
+                                topRight: Radius.circular(16),
+                              ),
+                            ),
+                            child: Center(
+                              child: Icon(
+                                icon,
+                                color: primaryColor,
+                                size: 32,
+                              ),
+                            ),
+                          );
+                        },
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: accentColor,
+                              borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(16),
+                                topRight: Radius.circular(16),
+                              ),
+                            ),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                value: loadingProgress.expectedTotalBytes !=
+                                        null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                    : null,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(primaryColor),
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    )
+                  : Container(
+                      decoration: BoxDecoration(
+                        color: accentColor,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
+                        ),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          icon,
+                          color: primaryColor,
+                          size: 32,
+                        ),
+                      ),
+                    ),
+            ),
+
+            // Header with icon and category
+            Container(
+              padding: EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [primaryColor, primaryColor.withValues(alpha: 0.8)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
                 ),
               ),
-            ],
-          ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: Colors.white,
+                      size: 10,
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      tip.category.toUpperCase(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Content
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.all(4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    Text(
+                      tip.title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade800,
+                        height: 0.8,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: 1),
+
+                    // Summary
+                    Expanded(
+                      child: Text(
+                        tip.summary ?? tip.content,
+                        style: GoogleFonts.poppins(
+                          fontSize: 9,
+                          color: Colors.grey.shade600,
+                          height: 1.0,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+
+                    SizedBox(height: 2),
+
+                    // Action button
+                    if (tip.url.isNotEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.symmetric(vertical: 2),
+                        decoration: BoxDecoration(
+                          color: accentColor,
+                          borderRadius: BorderRadius.circular(2),
+                          border: Border.all(
+                              color: primaryColor.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 6,
+                              color: primaryColor,
+                            ),
+                            SizedBox(width: 1),
+                            Text(
+                              'Learn More',
+                              style: GoogleFonts.poppins(
+                                fontSize: 7,
+                                color: primaryColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
-        // Horizontal scrollable health tips
-        SizedBox(
-          height: 200,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: _healthTips.length,
-            itemBuilder: (context, index) {
-              return Container(
-                width: 180,
-                margin: EdgeInsets.only(right: 12),
-                child: _buildModernHealthTipCard(_healthTips[index]),
-              );
-            },
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -4864,6 +5109,138 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildRedesignedHealthTipsSection() {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.green.shade50,
+            Colors.white,
+            Colors.blue.shade50,
+          ],
+          stops: [0.0, 0.5, 1.0],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.green.shade600, Colors.green.shade700],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green.withValues(alpha: 0.2),
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.health_and_safety_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Health Tips',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade800,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    Text(
+                      'Expert health advice & insights',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: _refreshHealthTips,
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'Refresh',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.green.shade600,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+
+          // Content
+          if (_isLoadingHealthTips)
+            Container(
+              height: 100,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(
+                      color: Colors.green.shade600,
+                      strokeWidth: 2,
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Loading health tips...',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            _buildModernHealthBlogsSection(),
+        ],
       ),
     );
   }

@@ -1,7 +1,6 @@
 // pages/order_tracking_page.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -513,6 +512,9 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       final orderItems = getOrderItems();
       final totalQuantity = getTotalQuantity();
       final totalAmount = getTotalAmount();
+      final orderNumber = widget.orderDetails['order_number'] ??
+          widget.orderDetails['delivery_id'] ??
+          'N/A';
 
       debugPrint('🔍 Order date: $orderDate');
       debugPrint('🔍 Status: $status');
@@ -520,6 +522,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       debugPrint('🔍 Total amount: $totalAmount');
 
       return Scaffold(
+        backgroundColor: Colors.grey[50],
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -530,14 +533,14 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
+                  Colors.green.shade600,
                   Colors.green.shade700,
-                  Colors.green.shade800,
                 ],
               ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 8,
+                  blurRadius: 10,
                   offset: Offset(0, 2),
                 ),
               ],
@@ -594,21 +597,42 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
           ],
         ),
         body: _isLoading
-            ? Center(child: CircularProgressIndicator())
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Colors.green.shade600),
+                    ),
+                    SizedBox(height: 16),
+                    Text(
+                      'Loading order details...',
+                      style: GoogleFonts.poppins(
+                        color: Colors.grey[600],
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              )
             : RefreshIndicator(
                 onRefresh: _loadDeliveryInfo,
+                color: Colors.green.shade600,
                 child: SingleChildScrollView(
                   physics: AlwaysScrollableScrollPhysics(),
-                  padding: EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildOrderSummaryCard(
-                          orderDate, orderItems, totalQuantity, totalAmount),
+                      _buildModernHeader(orderNumber, status, orderDate),
                       SizedBox(height: 16),
-                      _buildStatusCard(status),
+                      _buildOrderItemsCard(
+                          orderItems, totalQuantity, totalAmount),
+                      SizedBox(height: 16),
+                      _buildStatusTimelineCard(status),
                       SizedBox(height: 16),
                       _buildDeliveryDetailsCard(),
+                      SizedBox(height: 16),
                     ],
                   ),
                 ),
@@ -656,143 +680,87 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     }
   }
 
-  Widget _buildOrderSummaryCard(
-      DateTime? orderDate,
-      List<Map<String, dynamic>> orderItems,
-      int totalQuantity,
-      double totalAmount) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Order Summary',
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
-            SizedBox(height: 16),
-            // Show order items
-            ...orderItems.map((item) => _buildOrderItemRow(item)),
-            Divider(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Order Date',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-                Text(
-                  orderDate != null
-                      ? DateFormat('MMM dd, yyyy').format(orderDate)
-                      : 'N/A',
-                  style: TextStyle(fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
-            SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Total Items',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-                Text(
-                  formatQuantityText(totalQuantity),
-                  style: TextStyle(fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
-            SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Total Amount',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-                Text(
-                  'GHS ${totalAmount.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green[700],
-                  ),
-                ),
-              ],
-            ),
+  Widget _buildModernHeader(
+      String orderNumber, String status, DateTime? orderDate) {
+    return Container(
+      margin: EdgeInsets.all(12),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            Colors.grey[50]!,
           ],
         ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildOrderItemRow(Map<String, dynamic> item) {
-    final productName = item['product_name'] ?? 'Unknown Product';
-    final productImg = getImageUrl(item['product_img']);
-    final qty = item['qty'] ?? 1;
-    final price = (item['price'] ?? 0.0).toDouble();
-    final batchNo = item['batch_no'] ?? '';
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.network(
-              productImg,
-              width: 60,
-              height: 60,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
-                width: 60,
-                height: 60,
-                color: Colors.grey[200],
-                child: Icon(Icons.error_outline, color: Colors.red),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Order #$orderNumber',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      orderDate != null
+                          ? DateFormat('MMM dd, yyyy • hh:mm a')
+                              .format(orderDate)
+                          : 'Date not available',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+              _buildStatusBadge(status),
+            ],
           ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          SizedBox(height: 12),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
+                Icon(
+                  Icons.local_shipping_rounded,
+                  color: Colors.green.shade600,
+                  size: 14,
+                ),
+                SizedBox(width: 6),
                 Text(
-                  productName,
+                  'Track your order in real-time',
                   style: GoogleFonts.poppins(
-                    fontSize: 14,
+                    fontSize: 11,
+                    color: Colors.green.shade700,
                     fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Qty: $qty',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                ),
-                if (batchNo.isNotEmpty) ...[
-                  SizedBox(height: 2),
-                  Text(
-                    'Batch: $batchNo',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                  ),
-                ],
-                SizedBox(height: 4),
-                Text(
-                  'GHS ${price.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    color: Colors.green[700],
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
                   ),
                 ),
               ],
@@ -803,54 +771,294 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     );
   }
 
-  Widget _buildStatusCard(String currentStatus) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Order Status',
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
+  Widget _buildStatusBadge(String status) {
+    Color statusColor;
+    String statusText;
+    IconData statusIcon;
+
+    switch (status.toLowerCase()) {
+      case 'delivered':
+        statusColor = Colors.green;
+        statusText = 'Delivered';
+        statusIcon = Icons.check_circle_rounded;
+        break;
+      case 'shipped':
+      case 'out for delivery':
+        statusColor = Colors.blue;
+        statusText = 'Shipped';
+        statusIcon = Icons.local_shipping_rounded;
+        break;
+      case 'processing':
+      case 'confirmed':
+        statusColor = Colors.orange;
+        statusText = 'Processing';
+        statusIcon = Icons.settings_rounded;
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusText = 'Pending';
+        statusIcon = Icons.schedule_rounded;
+    }
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: statusColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            statusIcon,
+            color: statusColor,
+            size: 16,
+          ),
+          SizedBox(width: 6),
+          Text(
+            statusText,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: statusColor,
             ),
-            SizedBox(height: 16),
-            _buildStatusTimeline(currentStatus),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildStatusTimeline(String currentStatus) {
+  Widget _buildStatusTimelineCard(String currentStatus) {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 12),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Order Progress',
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          SizedBox(height: 16),
+          _buildModernStatusTimeline(currentStatus),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderItemsCard(List<Map<String, dynamic>> orderItems,
+      int totalQuantity, double totalAmount) {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 12),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Order Items',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  formatQuantityText(totalQuantity),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          ...orderItems.map((item) => _buildModernOrderItemRow(item)),
+          Divider(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Total Amount',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              Text(
+                'GHS ${totalAmount.toStringAsFixed(2)}',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green.shade600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernOrderItemRow(Map<String, dynamic> item) {
+    final productName = item['product_name'] ?? 'Unknown Product';
+    final productImg = getImageUrl(item['product_img']);
+    final qty = item['qty'] ?? 1;
+    final price = (item['price'] ?? 0.0).toDouble();
+    final batchNo = item['batch_no'] ?? '';
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 4),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey[200]!, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 4,
+            offset: Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Product Image
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.network(
+              productImg,
+              width: 40,
+              height: 40,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(
+                width: 40,
+                height: 40,
+                color: Colors.grey[100],
+                child: Icon(Icons.image_rounded,
+                    color: Colors.grey[400], size: 18),
+              ),
+            ),
+          ),
+          SizedBox(width: 10),
+          // Product Details
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  productName,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                    height: 1.1,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                SizedBox(height: 4),
+                // Quantity Badge
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Qty: $qty',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.blue.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Price
+          Text(
+            'GHS ${price.toStringAsFixed(2)}',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: Colors.green.shade600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernStatusTimeline(String currentStatus) {
     final statuses = [
       {
-        'icon': Icons.shopping_cart,
+        'icon': Icons.shopping_cart_rounded,
         'title': 'Order Placed',
+        'description': 'Your order has been received',
         'status': 'pending'
       },
       {
-        'icon': Icons.check_circle,
+        'icon': Icons.verified_rounded,
         'title': 'Order Confirmed',
+        'description': 'We\'re preparing your order',
         'status': 'processing'
       },
       {
-        'icon': Icons.local_shipping,
+        'icon': Icons.local_shipping_rounded,
         'title': 'Out for Delivery',
+        'description': 'Your order is on the way',
         'status': 'shipped'
       },
-      {'icon': Icons.home, 'title': 'Delivered', 'status': 'delivered'},
+      {
+        'icon': Icons.home_rounded,
+        'title': 'Delivered',
+        'description': 'Order delivered successfully',
+        'status': 'delivered'
+      },
     ];
 
-    // Normalize the current status
     final normalizedStatus = currentStatus.toLowerCase().trim();
-    // Debug print
 
     return Column(
       children: List.generate(statuses.length, (index) {
@@ -859,54 +1067,108 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         final isCompleted = _isStatusCompleted(statusStr, normalizedStatus);
         final isCurrent = statusStr == normalizedStatus;
 
-        // Debug print
-
-        return Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: isCompleted ? Colors.green[700] : Colors.grey[300],
-                shape: BoxShape.circle,
-                border: isCurrent
-                    ? Border.all(color: Colors.green[700]!, width: 2)
-                    : null,
-              ),
-              child: Icon(
-                status['icon'] as IconData,
-                color: isCompleted ? Colors.white : Colors.grey[600],
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        return Container(
+          margin: EdgeInsets.only(bottom: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Column(
                 children: [
-                  Text(
-                    status['title'] as String,
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: isCurrent
-                          ? Colors.green[700]
-                          : isCompleted
-                              ? Colors.black87
-                              : Colors.grey[600],
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: isCompleted
+                          ? Colors.green.shade600
+                          : isCurrent
+                              ? Colors.blue.shade600
+                              : Colors.grey[300],
+                      shape: BoxShape.circle,
+                      boxShadow: isCompleted || isCurrent
+                          ? [
+                              BoxShadow(
+                                color:
+                                    (isCompleted ? Colors.green : Colors.blue)
+                                        .shade600
+                                        .withValues(alpha: 0.3),
+                                blurRadius: 4,
+                                offset: Offset(0, 1),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Icon(
+                      status['icon'] as IconData,
+                      color: isCompleted || isCurrent
+                          ? Colors.white
+                          : Colors.grey[600],
+                      size: 18,
                     ),
                   ),
-                  SizedBox(height: 8),
                   if (index < statuses.length - 1)
                     Container(
-                      height: 1,
-                      color: isCompleted
-                          ? Colors.green[700]!.withValues(alpha: 0.2)
-                          : Colors.grey[300],
+                      width: 2,
+                      height: 24,
+                      margin: EdgeInsets.only(top: 4),
+                      decoration: BoxDecoration(
+                        color: isCompleted
+                            ? Colors.green.shade300
+                            : Colors.grey[300],
+                        borderRadius: BorderRadius.circular(1),
+                      ),
                     ),
                 ],
               ),
-            ),
-          ],
+              SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      status['title'] as String,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isCurrent
+                            ? Colors.blue.shade600
+                            : isCompleted
+                                ? Colors.green.shade600
+                                : Colors.grey[600],
+                      ),
+                    ),
+                    SizedBox(height: 1),
+                    Text(
+                      status['description'] as String,
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    if (isCurrent) ...[
+                      SizedBox(height: 6),
+                      Container(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Text(
+                          'Current Status',
+                          style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.blue.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         );
       }),
     );
@@ -926,106 +1188,145 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   }
 
   Widget _buildDeliveryDetailsCard() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Delivery Details',
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
-            SizedBox(height: 16),
-            if (_deliveryAddress == 'Address not available' ||
-                _contactNumber == 'Contact not available') ...[
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
-                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline,
-                        color: Colors.orange[700], size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Delivery details are being loaded from your saved delivery information. '
-                        'If you haven\'t set up delivery details yet, please visit the delivery page to add them.',
-                        style: TextStyle(
-                          color: Colors.orange[700],
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 16),
-            ],
-            _buildInfoRow(
-              Icons.location_on,
-              'Delivery Address',
-              _deliveryAddress ?? 'Address not available',
-            ),
-            SizedBox(height: 16),
-            _buildInfoRow(
-              Icons.phone,
-              'Contact Number',
-              _contactNumber ?? 'Contact number not available',
-            ),
-            SizedBox(height: 16),
-            _buildInfoRow(
-              Icons.local_shipping,
-              'Delivery Method',
-              _deliveryOption ?? 'Standard Delivery',
-            ),
-          ],
-        ),
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 12),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String title, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 20, color: Colors.grey[600]),
-        SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Text(
-                title,
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
+              Icon(
+                Icons.location_on_rounded,
+                color: Colors.green.shade600,
+                size: 24,
               ),
-              SizedBox(height: 4),
+              SizedBox(width: 8),
               Text(
-                value,
+                'Delivery Details',
                 style: GoogleFonts.poppins(
                   fontSize: 16,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                   color: Colors.black87,
                 ),
               ),
             ],
           ),
-        ),
-      ],
+          SizedBox(height: 12),
+          if (_deliveryAddress == 'Address not available' ||
+              _contactNumber == 'Contact not available') ...[
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline_rounded,
+                      color: Colors.orange.shade600, size: 18),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Delivery details are being loaded from your saved delivery information. '
+                      'If you haven\'t set up delivery details yet, please visit the delivery page to add them.',
+                      style: GoogleFonts.poppins(
+                        color: Colors.orange.shade700,
+                        fontSize: 12,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 12),
+          ],
+          _buildModernInfoRow(
+            Icons.location_on_rounded,
+            'Delivery Address',
+            _deliveryAddress ?? 'Address not available',
+            Colors.red.shade600,
+          ),
+          SizedBox(height: 10),
+          _buildModernInfoRow(
+            Icons.phone_rounded,
+            'Contact Number',
+            _contactNumber ?? 'Contact number not available',
+            Colors.blue.shade600,
+          ),
+          SizedBox(height: 10),
+          _buildModernInfoRow(
+            Icons.local_shipping_rounded,
+            'Delivery Method',
+            _deliveryOption ?? 'Standard Delivery',
+            Colors.green.shade600,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernInfoRow(
+      IconData icon, String title, String value, Color iconColor) {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 20, color: iconColor),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  value,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

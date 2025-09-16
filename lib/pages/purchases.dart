@@ -508,10 +508,10 @@ class PurchaseScreenState extends State<PurchaseScreen> {
     if (isMultiItem) {
       if (order['order_items'] is List &&
           (order['order_items'] as List).isNotEmpty) {
-        orderItems = order['items'];
+        orderItems = order['order_items'] ?? [];
       } else if (order['items'] is List &&
           (order['items'] as List).isNotEmpty) {
-        orderItems = order['items'];
+        orderItems = order['items'] ?? [];
       }
     }
 
