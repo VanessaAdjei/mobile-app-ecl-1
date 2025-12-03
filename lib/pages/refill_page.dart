@@ -1,12 +1,12 @@
 // pages/refill_page.dart
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
 import 'bottomnav.dart';
 import '../models/refill_medicine.dart';
-import '../services/refill_api_service.dart';
 
 class RefillPage extends StatefulWidget {
   const RefillPage({super.key});
@@ -36,7 +36,7 @@ class RefillPageState extends State<RefillPage> {
       // Simulate API delay with potential network error
       await Future.delayed(Duration(seconds: 1));
 
-   
+      // Dummy data for demonstration
       final dummyMedicines = [
         RefillMedicine(
           id: 1,
@@ -67,22 +67,22 @@ class RefillPageState extends State<RefillPage> {
         RefillMedicine(
           id: 3,
           name: 'Vitamin D3 1000IU',
-          description: 'Essential vitamin for bone health',
+          description: 'Vitamin D supplement for bone health',
           dosage: '1000IU tablets',
           price: '18.75',
           thumbnail:
-              'https://images.unsplash.com/photo-1550572017-edd951aa0b65?w=200&h=200&fit=crop&crop=center',
+              'https://images.unsplash.com/photo-1550572017-edd951aa4b65?w=200&h=200&fit=crop&crop=center',
           category: 'Vitamins',
           lastPurchased: '3 weeks ago',
           isRefillable: true,
-          quantityInStock: 25,
+          quantityInStock: 75,
         ),
         RefillMedicine(
           id: 4,
           name: 'Ibuprofen 400mg',
           description: 'Anti-inflammatory pain relief',
           dosage: '400mg tablets',
-          price: '22.30',
+          price: '12.30',
           thumbnail:
               'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&h=200&fit=crop&crop=center',
           category: 'Pain Relief',
@@ -92,303 +92,113 @@ class RefillPageState extends State<RefillPage> {
         ),
         RefillMedicine(
           id: 5,
-          name: 'Omeprazole 20mg',
-          description: 'Proton pump inhibitor for acid reflux',
-          dosage: '20mg capsules',
-          price: '35.00',
+          name: 'Metformin 500mg',
+          description: 'Diabetes management medication',
+          dosage: '500mg tablets',
+          price: '22.80',
           thumbnail:
               'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=200&h=200&fit=crop&crop=center',
-          category: 'Digestive Health',
-          lastPurchased: '2 months ago',
+          category: 'Diabetes',
+          lastPurchased: '2 weeks ago',
           isRefillable: true,
-          quantityInStock: 20,
+          quantityInStock: 25,
         ),
       ];
 
-      // Validate data before setting
-      if (dummyMedicines.isEmpty) {
-        throw Exception('No refillable medicines found');
-      }
+      if (!mounted) return;
 
-      // Check if widget is still mounted before updating state
-      if (mounted) {
-        setState(() {
-          refillableMedicines = dummyMedicines;
-          isLoading = false;
-        });
-      }
-
-      // Uncomment the lines below to use real API instead of dummy data
-      // try {
-      //   final medicines = await RefillApiService.getRefillableMedicines();
-      //   if (mounted) {
-      //     setState(() {
-      //       refillableMedicines = medicines;
-      //       isLoading = false;
-      //     });
-      //   }
-      // } catch (apiError) {
-      //   throw Exception('Failed to fetch medicines from server: ${apiError.toString()}');
-      // }
-    } on FormatException catch (e) {
-      // Handle data format errors
-      _handleError(
-          'Invalid data format received: ${e.message}', 'Data Format Error');
-    } on TimeoutException {
-      // Handle timeout errors
-      _handleError('Request timed out. Please check your internet connection.',
-          'Connection Timeout');
-    } on SocketException {
-
-      _handleError(
-          'No internet connection. Please check your network settings.',
-          'No Internet Connection');
-    } on HttpException catch (e) {
-   
-      _handleError('Server error occurred: ${e.message}', 'Server Error');
-    } on Exception catch (e) {
-     
-      _handleError('Failed to load refillable medicines: ${e.toString()}',
-          'Loading Error');
-    } catch (e) {
-    
-      _handleError(
-          'An unexpected error occurred: ${e.toString()}', 'Unexpected Error');
-    }
-  }
-
-  void _handleError(String message, String title) {
-    if (mounted) {
       setState(() {
-        errorMessage = message;
+        refillableMedicines = dummyMedicines;
         isLoading = false;
       });
-
-      // Show detailed error snackbar
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                message,
-                style: GoogleFonts.poppins(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.red.shade600,
-          duration: Duration(seconds: 5),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-          margin: const EdgeInsets.all(16),
-          action: SnackBarAction(
-            label: 'Retry',
-            textColor: Colors.white,
-            onPressed: () => _loadRefillableMedicines(),
-          ),
-        ),
-      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        errorMessage = 'Failed to load refillable medicines: $e';
+        isLoading = false;
+      });
     }
   }
 
   Future<void> _addToCart(RefillMedicine medicine) async {
-    if (!mounted) return;
-
     try {
       // Show loading indicator
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Center(
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(Colors.green.shade600),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Adding ${medicine.name} to cart...',
+                const SizedBox(height: 16),
+                Text(
+                  'Processing refill...',
                   style: GoogleFonts.poppins(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                    color: Colors.grey.shade700,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          backgroundColor: Colors.blue.shade600,
+        ),
+      );
+
+      // Simulate API call
+      await Future.delayed(Duration(seconds: 1));
+
+      if (!mounted) return;
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${medicine.name} refill added to cart successfully!',
+            style: GoogleFonts.poppins(),
+          ),
+          backgroundColor: Colors.green.shade600,
           duration: Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
           ),
-          margin: const EdgeInsets.all(16),
         ),
       );
-
-      // Simulate API call with potential errors
-      await Future.delayed(Duration(seconds: 1));
-
-      // Simulate potential errors for testing
-      // Uncomment the line below to test error handling
-      // throw Exception('Server temporarily unavailable');
-
-      // Use the product ID for the refill-cart API
-      final success = await RefillApiService.addToCartForRefill(medicine.id);
-
+    } catch (e) {
       if (!mounted) return;
 
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(
-                  Icons.check_circle,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '${medicine.name} added to cart for refill',
-                    style: GoogleFonts.poppins(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green.shade600,
-            duration: Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            margin: const EdgeInsets.all(16),
-            action: SnackBarAction(
-              label: 'View Cart',
-              textColor: Colors.white,
-              onPressed: () {
-                // TODO: Navigate to cart page
-              },
-            ),
+      // Close loading dialog if still open
+      Navigator.of(context).pop();
+
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to refill ${medicine.name}',
+            style: GoogleFonts.poppins(),
           ),
-        );
-      } else {
-        throw Exception(
-            'Unable to add medicine to cart. Please try again or contact support if the problem persists.');
-      }
-    } on TimeoutException {
-      _handleAddToCartError(
-          medicine, 'Connection timeout. Try again.', 'Timeout');
-    } on SocketException {
-      _handleAddToCartError(medicine, 'No internet connection.', 'No Internet');
-    } on HttpException {
-      _handleAddToCartError(
-          medicine, 'Server unavailable. Try again.', 'Server Error');
-    } on FormatException {
-      _handleAddToCartError(medicine, 'Processing error. Try again.', 'Error');
-    } on Exception catch (e) {
-      // Check if it's our custom error message
-      if (e.toString().contains('Unable to add medicine to cart')) {
-        _handleAddToCartError(
-            medicine, 'Cannot add to cart. Try again.', 'Add Failed');
-      } else {
-        _handleAddToCartError(medicine, 'Failed to add to cart.', 'Error');
-      }
-    } catch (e) {
-      _handleAddToCartError(medicine, 'Something went wrong.', 'Error');
+          backgroundColor: Colors.red.shade600,
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      );
     }
-  }
-
-  void _handleAddToCartError(
-      RefillMedicine medicine, String message, String title) {
-    if (!mounted) return;
-
-    // Determine the appropriate icon based on error type
-    IconData errorIcon = Icons.error_outline;
-    Color backgroundColor = Colors.red.shade600;
-
-    if (title.contains('Timeout') || title.contains('Connection')) {
-      errorIcon = Icons.wifi_off;
-      backgroundColor = Colors.orange.shade600;
-    } else if (title.contains('Server')) {
-      errorIcon = Icons.cloud_off;
-      backgroundColor = Colors.red.shade700;
-    } else if (title.contains('Cannot Add')) {
-      errorIcon = Icons.remove_shopping_cart;
-      backgroundColor = Colors.amber.shade700;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              errorIcon,
-              color: Colors.white,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: backgroundColor,
-        duration: Duration(seconds: 3),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-        margin: const EdgeInsets.all(16),
-        action: SnackBarAction(
-          label: 'Retry',
-          textColor: Colors.white,
-          onPressed: () => _addToCart(medicine),
-        ),
-      ),
-    );
   }
 
   @override
@@ -480,95 +290,102 @@ class RefillPageState extends State<RefillPage> {
 
   Widget _buildContent() {
     if (isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.green.shade600),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Checking for refillable medicines...',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
-      );
+      return _buildLoadingState();
     }
 
     if (errorMessage != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 80,
-              color: Colors.red.shade400,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Error Loading Medicines',
-              style: GoogleFonts.poppins(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                errorMessage!,
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  color: Colors.grey.shade600,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () => _loadRefillableMedicines(),
-              icon: Icon(Icons.refresh),
-              label: Text('Retry'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green.shade600,
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-            ),
-          ],
-        ),
-      );
+      return _buildErrorState();
     }
 
     if (refillableMedicines.isEmpty) {
-      return Center(
+      return _buildEmptyState();
+    }
+
+    return _buildMedicinesList();
+  }
+
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                CircularProgressIndicator(
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(Colors.green.shade600),
+                  strokeWidth: 3,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Checking for refillable medicines...',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'This may take a moment',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 300.ms);
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.medication_outlined,
-              size: 80,
-              color: Colors.grey.shade400,
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Icon(
+                Icons.error_outline,
+                size: 60,
+                color: Colors.red.shade400,
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Text(
-              'No Refillable Medicines',
+              'Oops! Something went wrong',
               style: GoogleFonts.poppins(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade700,
+                color: Colors.grey.shade800,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'You haven\'t purchased any refillable\nmedicines yet.',
+              errorMessage ?? 'Unknown error occurred',
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 color: Colors.grey.shade600,
@@ -576,121 +393,172 @@ class RefillPageState extends State<RefillPage> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            Text(
-              'Once you purchase refillable medicines,\nthey will appear here for easy reordering.',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: Colors.grey.shade500,
+            ElevatedButton.icon(
+              onPressed: () {
+                setState(() {
+                  errorMessage = null;
+                });
+                _loadRefillableMedicines();
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try Again'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green.shade600,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-              textAlign: TextAlign.center,
             ),
           ],
         ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: refillableMedicines.length,
-      itemBuilder: (context, index) {
-        final medicine = refillableMedicines[index];
-        return _buildMedicineCard(medicine, index);
-      },
-    );
+      ),
+    ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.3, end: 0);
   }
 
-  Widget _buildMedicineCard(RefillMedicine medicine, int index) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(30),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.medication_outlined,
+                size: 80,
+                color: Colors.grey.shade400,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'No Refillable Medicines',
+              style: GoogleFonts.poppins(
+                fontSize: 24,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade800,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'You haven\'t purchased any refillable\nmedicines yet.',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: Colors.grey.shade600,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: Colors.blue.shade600,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Once you purchase refillable medicines, they will appear here for easy reordering.',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.blue.shade700,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _addToCart(medicine),
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
+    ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.3, end: 0);
+  }
+
+  Widget _buildMedicinesList() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with count
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
             child: Row(
               children: [
-                // Product image
                 Container(
-                  width: 60,
-                  height: 60,
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
+                    color: Colors.green.shade100,
                     borderRadius: BorderRadius.circular(8),
-                    color: Colors.grey.shade100,
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: medicine.thumbnail.isNotEmpty
-                        ? Image.network(
-                            medicine.thumbnail,
-                            width: 60,
-                            height: 60,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Icon(
-                                Icons.medication,
-                                color: Colors.grey.shade400,
-                                size: 24,
-                              );
-                            },
-                          )
-                        : Icon(
-                            Icons.medication,
-                            color: Colors.grey.shade400,
-                            size: 24,
-                          ),
+                  child: Icon(
+                    Icons.medication_liquid,
+                    color: Colors.green.shade600,
+                    size: 20,
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Product info
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        medicine.name,
+                        'Available for Refill',
                         style: GoogleFonts.poppins(
-                          fontSize: 15,
+                          fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: Colors.grey.shade800,
                         ),
                       ),
-                      const SizedBox(height: 4),
                       Text(
-                        '₵${double.parse(medicine.price).toStringAsFixed(2)}',
+                        '${refillableMedicines.length} medicines ready to reorder',
                         style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.green.shade600,
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
                         ),
                       ),
                     ],
                   ),
                 ),
-                // Add to cart button
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.green.shade600,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    'Add',
+                    '${refillableMedicines.length}',
                     style: GoogleFonts.poppins(
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
                     ),
@@ -699,8 +567,224 @@ class RefillPageState extends State<RefillPage> {
               ],
             ),
           ),
-        ),
+          const SizedBox(height: 30),
+
+          // Medicines list
+          Expanded(
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              itemCount: refillableMedicines.length,
+              itemBuilder: (context, index) {
+                final medicine = refillableMedicines[index];
+                return _buildMedicineCard(medicine, index);
+              },
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  Widget _buildMedicineCard(RefillMedicine medicine, int index) {
+    return Container(
+      margin: EdgeInsets.only(
+        bottom: 12,
+        top: index == 0 ? 0 : 0,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _addToCart(medicine),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              children: [
+                // Product image with refill badge
+                Stack(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.grey.shade100,
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: medicine.thumbnail.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: medicine.thumbnail,
+                                width: 60,
+                                height: 60,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => Container(
+                                  color: Colors.grey.shade200,
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.green.shade400,
+                                    ),
+                                  ),
+                                ),
+                                errorWidget: (context, url, error) => Container(
+                                  color: Colors.grey.shade200,
+                                  child: Icon(
+                                    Icons.medication,
+                                    color: Colors.grey.shade400,
+                                    size: 28,
+                                  ),
+                                ),
+                              )
+                            : Icon(
+                                Icons.medication,
+                                color: Colors.grey.shade400,
+                                size: 28,
+                              ),
+                      ),
+                    ),
+                    // Stock quantity badge
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade600,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: Text(
+                          '${medicine.quantityInStock}',
+                          style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 12),
+
+                // Product info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        medicine.name,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade800,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        medicine.dosage,
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Text(
+                            'GHS ${double.parse(medicine.price).toStringAsFixed(2)}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.green.shade600,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'Last: ${medicine.lastPurchased}',
+                              style: GoogleFonts.poppins(
+                                fontSize: 10,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Refill button
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.green.shade600, Colors.green.shade700],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.shade300,
+                        blurRadius: 6,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.refresh,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        'Refill',
+                        style: GoogleFonts.poppins(
+                          fontSize: 8,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    )
+        .animate(delay: Duration(milliseconds: index * 100))
+        .fadeIn(duration: 300.ms)
+        .slideX(begin: 0.3, end: 0, duration: 300.ms, curve: Curves.easeOut)
+        .scale(
+            begin: const Offset(0.9, 0.9),
+            end: const Offset(1.0, 1.0),
+            duration: 300.ms);
   }
 }

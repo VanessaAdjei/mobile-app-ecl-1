@@ -2,10 +2,12 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../pages/product_model.dart';
+import '../models/product.dart' as models;
 import '../pages/itemdetail.dart';
 import '../services/homepage_optimization_service.dart';
 import '../services/stock_utility_service.dart';
 import 'package:flutter/foundation.dart'; // Added for kDebugMode
+import 'wishlist_button.dart';
 
 class HomeProductCard extends StatelessWidget {
   final Product product;
@@ -18,6 +20,7 @@ class HomeProductCard extends StatelessWidget {
   final bool showPrice;
   final bool showName;
   final bool showHero;
+  final bool showWishlistButton;
 
   const HomeProductCard({
     super.key,
@@ -31,6 +34,7 @@ class HomeProductCard extends StatelessWidget {
     this.showPrice = true,
     this.showName = true,
     this.showHero = true,
+    this.showWishlistButton = false,
   });
 
   // Truncate product names to keep them short
@@ -209,6 +213,35 @@ class HomeProductCard extends StatelessWidget {
                         return const SizedBox.shrink();
                       },
                     ),
+                    // Wishlist button
+                    if (showWishlistButton)
+                      Positioned(
+                        top: 4,
+                        left: 4,
+                        child: WishlistButton(
+                          product: models.Product(
+                            id: product.id,
+                            name: product.name,
+                            description: product.description,
+                            urlName: product.urlName,
+                            status: product.status,
+                            batchNo: '',
+                            price: product.price,
+                            thumbnail: product.thumbnail,
+                            quantity: product.quantity,
+                            category: product.category,
+                            route: product.route ?? '',
+                            otcpom: product.otcpom ?? '',
+                            drug: product.drug ?? '',
+                            wellness: product.wellness ?? '',
+                            selfcare: product.selfcare ?? '',
+                            accessories: product.accessories ?? '',
+                          ),
+                          size: 14,
+                          color: Colors.white,
+                          activeColor: Colors.red,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -602,9 +635,47 @@ class ProductCard extends StatelessWidget {
                 ),
               ),
             ),
+            // Wishlist button
+            if (showFavoriteButton)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: WishlistButton(
+                  product: product is models.Product
+                      ? product
+                      : models.Product(
+                          id: _getProductId(),
+                          name: _getProductName(),
+                          description: '',
+                          urlName: _getUrlName(),
+                          status: '',
+                          batchNo: '',
+                          price: _getProductPrice(),
+                          thumbnail: _getProductImage(),
+                          quantity: '',
+                          category: '',
+                          route: '',
+                        ),
+                  size: 16,
+                  color: Colors.white,
+                  activeColor: Colors.red,
+                ),
+              ),
           ],
         ),
       ),
     );
+  }
+
+  int _getProductId() {
+    if (product is Product) return product.id;
+    if (product is Map) return product['id'] ?? 0;
+    return 0;
+  }
+
+  String _getUrlName() {
+    if (product is Product) return product.urlName;
+    if (product is Map) return product['urlname'] ?? product['urlName'] ?? '';
+    return '';
   }
 }

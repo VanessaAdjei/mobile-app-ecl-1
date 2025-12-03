@@ -11,6 +11,8 @@ import 'package:eclapp/pages/wallet_page.dart';
 import 'package:eclapp/pages/ernest_friday_page.dart';
 import 'package:eclapp/pages/homepage.dart' as home;
 import 'package:eclapp/pages/refill_page.dart';
+import 'package:eclapp/pages/wishlist_page.dart';
+import 'package:eclapp/services/wishlist_service.dart';
 import 'package:eclapp/providers/promotional_event_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -699,6 +701,27 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         badgeColor: counts['newOrderCount']! > 0
                             ? Colors.blue
                             : Colors.orange,
+                      );
+                    },
+                  ),
+                  // Wishlist Option
+                  FutureBuilder<int>(
+                    future: WishlistService.instance.getWishlistCount(),
+                    builder: (context, snapshot) {
+                      final wishlistCount = snapshot.data ?? 0;
+                      return _buildEnhancedProfileOption(
+                        context,
+                        Icons.favorite_outline,
+                        "My Wishlist",
+                        "View your saved products",
+                        () => _navigateTo(const WishlistPage()),
+                        Colors.pink.shade600,
+                        cardColor,
+                        textColor,
+                        subtextColor,
+                        1,
+                        badgeCount: wishlistCount > 0 ? wishlistCount : null,
+                        badgeColor: Colors.pink,
                       );
                     },
                   ),

@@ -38,6 +38,8 @@ import '../widgets/ernest_friday_banner.dart';
 import '../widgets/ernest_friday_notification.dart';
 import '../widgets/clearance_sale_banner.dart';
 import 'ernest_friday_page.dart';
+import 'wishlist_page.dart';
+import '../services/wishlist_service.dart';
 
 class ImagePreloader {
   static final Map<String, bool> _preloadedImages = {};
@@ -2078,13 +2080,13 @@ class HomePageState extends State<HomePage>
         ],
       ),
       bottomNavigationBar: CustomBottomNav(initialIndex: 0),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.pushNamed(context, '/clearance-admin');
-        },
-        backgroundColor: Colors.red[700],
-        child: const Icon(Icons.admin_panel_settings, color: Colors.white),
-      ),
+      // floatingActionButton: FloatingActionButton(
+      //   onPressed: () {
+      //     Navigator.pushNamed(context, '/clearance-admin');
+      //   },
+      //   backgroundColor: Colors.red[700],
+      //   child: const Icon(Icons.admin_panel_settings, color: Colors.white),
+      // ),
     );
   }
 
@@ -2192,10 +2194,14 @@ class HomePageState extends State<HomePage>
                               height: isTablet ? 100 : 85,
                             ),
                           ),
-                          CartIconButton(
-                            iconColor: Colors.white,
-                            iconSize: isTablet ? 28 : 24,
-                            backgroundColor: Colors.transparent,
+                          Row(
+                            children: [
+                              CartIconButton(
+                                iconColor: Colors.white,
+                                iconSize: isTablet ? 28 : 24,
+                                backgroundColor: Colors.transparent,
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -2466,6 +2472,7 @@ class HomePageState extends State<HomePage>
                           fontSize: isTablet ? 16 : 15,
                           padding: 0,
                           imageHeight: isTablet ? 80 : 100,
+                          showWishlistButton: false,
                           showPrice: false,
                           showName: false,
                           showHero: false, // Disable Hero in the grid
@@ -3414,6 +3421,7 @@ class _AnimatedVisibilityProductCardState
           fontSize: widget.fontSize,
           padding: widget.padding,
           imageHeight: widget.imageHeight,
+          showWishlistButton: true,
           onTap: openContainer,
           showHero: false, // Disable Hero in closedBuilder
         ),

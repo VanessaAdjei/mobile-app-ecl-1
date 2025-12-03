@@ -544,27 +544,27 @@ class ProfileScreenState extends State<ProfileScreen>
     required Color subtextColor,
   }) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.grey.shade200, width: 1),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(4),
             ),
             child: Icon(
               icon,
               color: Colors.green.shade600,
-              size: 14,
+              size: 12,
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -572,16 +572,16 @@ class ProfileScreenState extends State<ProfileScreen>
                 Text(
                   label,
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: 11,
                     color: subtextColor,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   value,
                   style: GoogleFonts.poppins(
-                    fontSize: 16,
+                    fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: textColor,
                   ),
@@ -592,7 +592,7 @@ class ProfileScreenState extends State<ProfileScreen>
           Icon(
             Icons.chevron_right_rounded,
             color: Colors.grey.shade400,
-            size: 20,
+            size: 16,
           ),
         ],
       ),

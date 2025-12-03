@@ -337,7 +337,6 @@ class PaymentPageState extends State<PaymentPage> {
           });
           return;
         }
-
         // Extract just the token string for CODPaymentService
         String? tokenString;
         if (authHeader.startsWith('Bearer ')) {
@@ -840,127 +839,131 @@ class PaymentPageState extends State<PaymentPage> {
                     ),
                   ],
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Payment Methods Section
-                    Animate(
-                      effects: [
-                        FadeEffect(duration: 400.ms),
-                        SlideEffect(
-                            duration: 400.ms,
-                            begin: Offset(0, 0.1),
-                            end: Offset(0, 0))
-                      ],
-                      child: _buildPaymentMethods(),
-                    ),
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Payment Methods Section
+                      Animate(
+                        effects: [
+                          FadeEffect(duration: 400.ms),
+                          SlideEffect(
+                              duration: 400.ms,
+                              begin: Offset(0, 0.1),
+                              end: Offset(0, 0))
+                        ],
+                        child: _buildPaymentMethods(),
+                      ),
 
-                    // Payment Button
-                    Animate(
-                      effects: [
-                        FadeEffect(duration: 400.ms),
-                        SlideEffect(
-                            duration: 400.ms,
-                            begin: Offset(0, 0.1),
-                            end: Offset(0, 0))
-                      ],
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        child: Consumer<CartProvider>(
-                          builder: (context, cart, child) {
-                            return Container(
-                              width: double.infinity,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Colors.green.shade600,
-                                    Colors.green.shade700,
+                      // Payment Button
+                      Animate(
+                        effects: [
+                          FadeEffect(duration: 400.ms),
+                          SlideEffect(
+                              duration: 400.ms,
+                              begin: Offset(0, 0.1),
+                              end: Offset(0, 0))
+                        ],
+                        child: Container(
+                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                          child: Consumer<CartProvider>(
+                            builder: (context, cart, child) {
+                              return Container(
+                                width: double.infinity,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Colors.green.shade600,
+                                      Colors.green.shade700,
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color:
+                                          Colors.green.withValues(alpha: 0.3),
+                                      blurRadius: 6,
+                                      offset: Offset(0, 2),
+                                    ),
                                   ],
                                 ),
-                                borderRadius: BorderRadius.circular(10),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.green.withValues(alpha: 0.3),
-                                    blurRadius: 6,
-                                    offset: Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(10),
-                                  onTap: _isProcessingPayment
-                                      ? null
-                                      : () => processPayment(cart),
-                                  child: Center(
-                                    child: _isProcessingPayment
-                                        ? Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              SizedBox(
-                                                height: 16,
-                                                width: 16,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                  color: Colors.white,
-                                                  strokeWidth: 2,
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(10),
+                                    onTap: _isProcessingPayment
+                                        ? null
+                                        : () => processPayment(cart),
+                                    child: Center(
+                                      child: _isProcessingPayment
+                                          ? Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                SizedBox(
+                                                  height: 16,
+                                                  width: 16,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    color: Colors.white,
+                                                    strokeWidth: 2,
+                                                  ),
                                                 ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Text(
-                                                selectedPaymentMethod ==
-                                                        'Cash on Delivery'
-                                                    ? 'Processing COD Order...'
-                                                    : 'Processing...',
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 14,
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  selectedPaymentMethod ==
+                                                          'Cash on Delivery'
+                                                      ? 'Processing COD Order...'
+                                                      : 'Processing...',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 14,
+                                                  ),
                                                 ),
-                                              ),
-                                            ],
-                                          )
-                                        : Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Icon(
-                                                selectedPaymentMethod ==
-                                                        'Cash on Delivery'
-                                                    ? Icons.money
-                                                    : Icons.payment,
-                                                color: Colors.white,
-                                                size: 16,
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                selectedPaymentMethod ==
-                                                        'Cash on Delivery'
-                                                    ? 'PLACE ORDER (COD)'
-                                                    : 'CONTINUE TO PAYMENT',
-                                                style: TextStyle(
+                                              ],
+                                            )
+                                          : Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  selectedPaymentMethod ==
+                                                          'Cash on Delivery'
+                                                      ? Icons.money
+                                                      : Icons.payment,
                                                   color: Colors.white,
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w600,
-                                                  letterSpacing: 0.2,
+                                                  size: 16,
                                                 ),
-                                              ),
-                                            ],
-                                          ),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  selectedPaymentMethod ==
+                                                          'Cash on Delivery'
+                                                      ? 'PLACE ORDER (COD)'
+                                                      : 'CONTINUE TO PAYMENT',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w600,
+                                                    letterSpacing: 0.2,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            );
-                          },
+                              );
+                            },
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -3008,7 +3011,12 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                                 builder: (context) =>
                                                     OrderTrackingPage(
                                                   orderDetails: {
+                                                    'id': _transactionId,
                                                     'order_id': _transactionId,
+                                                    'order_number':
+                                                        _transactionId,
+                                                    'delivery_id':
+                                                        _transactionId,
                                                     'transaction_id':
                                                         _transactionId,
                                                     'status': _status,

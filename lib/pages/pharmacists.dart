@@ -65,6 +65,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   List<HealthTip> _healthTips = [];
   bool _isLoadingHealthTips = false;
   bool _isUserLoggedIn = false;
+  bool _shouldHighlightBooking = false;
 
   static List<HealthTip> _cachedHealthTips = [];
   static DateTime? _lastHealthTipsCacheTime;
@@ -1049,7 +1050,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                                 Colors.blue,
                                 [
                                   _buildEnhancedDropdownField(
-                                    'Consultation Type',
+                                    ' Mode of Consultation',
                                     _selectedConsultationType,
                                     _consultationTypes,
                                     (value) => setState(() =>
@@ -2938,14 +2939,30 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     );
   }
 
-  void _openVirtualAssistant() {
+  void _openVirtualAssistant() async {
     // Simple chat page without AI integration
-    Navigator.push(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => SimpleErnestChatPage(),
       ),
     );
+
+    // If user pressed Book Appointment, highlight the booking box
+    if (result == true && mounted) {
+      setState(() {
+        _shouldHighlightBooking = true;
+      });
+
+      // Remove highlight after 3 seconds
+      Future.delayed(Duration(seconds: 3), () {
+        if (mounted) {
+          setState(() {
+            _shouldHighlightBooking = false;
+          });
+        }
+      });
+    }
   }
 
   void _testErnestConnection() async {
@@ -3251,177 +3268,209 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           SizedBox(height: 16),
 
           // Compact Service Options
-          Row(
-            children: [
-              Expanded(
-                child: InkWell(
-                  onTap: _isUserLoggedIn
-                      ? _showBookingForm
-                      : _showLoginRequiredDialog,
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.blue[400]!,
-                          Colors.blue[500]!,
-                          Colors.blue[600]!
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        stops: [0.0, 0.5, 1.0],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.blue.withValues(alpha: 0.2),
-                          blurRadius: 6,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
+          IntrinsicHeight(
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: _isUserLoggedIn
+                        ? _showBookingForm
+                        : _showLoginRequiredDialog,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Stack(
                       children: [
-                        Container(
-                          padding: EdgeInsets.all(8),
+                        AnimatedContainer(
+                          duration: Duration(milliseconds: 300),
+                          height: 160,
+                          padding: EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.25),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.3)),
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.blue[400]!,
+                                Colors.blue[500]!,
+                                Colors.blue[600]!
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              stops: [0.0, 0.5, 1.0],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _shouldHighlightBooking
+                                    ? Colors.yellow.withValues(alpha: 0.6)
+                                    : Colors.blue.withValues(alpha: 0.2),
+                                blurRadius: _shouldHighlightBooking ? 12 : 6,
+                                offset: Offset(0, 2),
+                                spreadRadius: _shouldHighlightBooking ? 2 : 0,
+                              ),
+                            ],
                           ),
-                          child: Icon(
-                            Icons.video_call,
-                            color: Colors.white,
-                            size: 20,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.25),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.3)),
+                                ),
+                                child: Icon(
+                                  Icons.video_call,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'Book Consultation',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Video, Audio & Chat',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 10,
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                ),
+                              ),
+                              SizedBox(height: 6),
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '24/7 Available',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 9,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Book Consultation',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Video, Audio & Chat',
-                          style: GoogleFonts.poppins(
-                            fontSize: 10,
-                            color: Colors.white.withValues(alpha: 0.9),
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        Container(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '24/7 Available',
-                            style: GoogleFonts.poppins(
-                              fontSize: 9,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w500,
+                        // Border overlay that doesn't affect container size
+                        if (_shouldHighlightBooking)
+                          Positioned.fill(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.yellow[600]!,
+                                  width: 3,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                   ),
                 ),
-              ),
-              SizedBox(width: 12),
-              // Ernest AI
-              Expanded(
-                child: InkWell(
-                  onTap: _openVirtualAssistant,
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.purple[400]!,
-                          Colors.purple[500]!,
-                          Colors.purple[600]!
+                SizedBox(width: 12),
+                // Ernest AI
+                Expanded(
+                  child: InkWell(
+                    onTap: _openVirtualAssistant,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      height: 160,
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.purple[400]!,
+                            Colors.purple[500]!,
+                            Colors.purple[600]!
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          stops: [0.0, 0.5, 1.0],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.purple.withValues(alpha: 0.2),
+                            blurRadius: 6,
+                            offset: Offset(0, 2),
+                          ),
                         ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        stops: [0.0, 0.5, 1.0],
                       ),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.purple.withValues(alpha: 0.2),
-                          blurRadius: 6,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.25),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.3)),
-                          ),
-                          child: Icon(
-                            Icons.smart_toy,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Ask Ernest',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'AI health tips',
-                          style: GoogleFonts.poppins(
-                            fontSize: 10,
-                            color: Colors.white.withValues(alpha: 0.9),
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        Container(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            'Instant Help',
-                            style: GoogleFonts.poppins(
-                              fontSize: 9,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.25),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.3)),
+                            ),
+                            child: Icon(
+                              Icons.smart_toy,
                               color: Colors.white,
-                              fontWeight: FontWeight.w500,
+                              size: 20,
                             ),
                           ),
-                        ),
-                      ],
+                          SizedBox(height: 8),
+                          Text(
+                            'Ask Ernest',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'AI health tips',
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'Instant Help',
+                              style: GoogleFonts.poppins(
+                                fontSize: 9,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -6084,16 +6133,8 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
   // Removed _shouldSuggestAppointment method
 
   void _navigateToAppointment() {
-    Navigator.pop(context); // Close chat
-    // Navigate to appointment booking section
-    // This will take user back to the main pharmacists page where they can book
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Navigating to appointment booking...'),
-        backgroundColor: Colors.purple[600],
-        duration: Duration(seconds: 2),
-      ),
-    );
+    // Return true to indicate booking intent, which will highlight the booking box
+    Navigator.pop(context, true);
   }
 
   void _handleYesResponse() {

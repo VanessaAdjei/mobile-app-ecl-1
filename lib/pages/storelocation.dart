@@ -10,6 +10,7 @@ import 'package:shimmer/shimmer.dart';
 import '../services/delivery_service.dart';
 import '../services/location_service.dart';
 import 'package:geolocator/geolocator.dart';
+import 'store_map_page.dart';
 
 class StoreSelectionPage extends StatefulWidget {
   const StoreSelectionPage({super.key});
@@ -876,6 +877,38 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                    // Map view button
+                    Container(
+                      margin: EdgeInsets.only(left: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.map,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                        onPressed: () {
+                          // Use allStores if available, otherwise use filtered stores
+                          final storesToShow = allStores.isNotEmpty
+                              ? allStores
+                              : _getFilteredAllStores();
+                          print(
+                              '🗺️ Opening map with ${storesToShow.length} stores');
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => StoreMapPage(
+                                stores: storesToShow,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ],

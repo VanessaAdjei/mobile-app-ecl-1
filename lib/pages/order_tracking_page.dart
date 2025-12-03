@@ -1190,14 +1190,14 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   Widget _buildDeliveryDetailsCard() {
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 12),
-      padding: EdgeInsets.all(16),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 12,
+            blurRadius: 8,
             offset: Offset(0, 2),
           ),
         ],
@@ -1210,49 +1210,48 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
               Icon(
                 Icons.location_on_rounded,
                 color: Colors.green.shade600,
-                size: 24,
+                size: 20,
               ),
-              SizedBox(width: 8),
+              SizedBox(width: 6),
               Text(
                 'Delivery Details',
                 style: GoogleFonts.poppins(
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: Colors.black87,
                 ),
               ),
             ],
           ),
-          SizedBox(height: 12),
+          SizedBox(height: 8),
           if (_deliveryAddress == 'Address not available' ||
               _contactNumber == 'Contact not available') ...[
             Container(
-              padding: EdgeInsets.all(12),
+              padding: EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.orange.shade200),
               ),
               child: Row(
                 children: [
                   Icon(Icons.info_outline_rounded,
-                      color: Colors.orange.shade600, size: 18),
-                  SizedBox(width: 10),
+                      color: Colors.orange.shade600, size: 16),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Delivery details are being loaded from your saved delivery information. '
-                      'If you haven\'t set up delivery details yet, please visit the delivery page to add them.',
+                      'Delivery details are being loaded from your saved delivery information.',
                       style: GoogleFonts.poppins(
                         color: Colors.orange.shade700,
-                        fontSize: 12,
-                        height: 1.3,
+                        fontSize: 11,
+                        height: 1.2,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            SizedBox(height: 12),
+            SizedBox(height: 8),
           ],
           _buildModernInfoRow(
             Icons.location_on_rounded,
@@ -1260,14 +1259,14 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
             _deliveryAddress ?? 'Address not available',
             Colors.red.shade600,
           ),
-          SizedBox(height: 10),
+          SizedBox(height: 6),
           _buildModernInfoRow(
             Icons.phone_rounded,
             'Contact Number',
             _contactNumber ?? 'Contact number not available',
             Colors.blue.shade600,
           ),
-          SizedBox(height: 10),
+          SizedBox(height: 6),
           _buildModernInfoRow(
             Icons.local_shipping_rounded,
             'Delivery Method',
@@ -1282,24 +1281,24 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   Widget _buildModernInfoRow(
       IconData icon, String title, String value, Color iconColor) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.grey[200]!),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: EdgeInsets.all(8),
+            padding: EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: iconColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6),
             ),
-            child: Icon(icon, size: 20, color: iconColor),
+            child: Icon(icon, size: 16, color: iconColor),
           ),
-          SizedBox(width: 16),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1307,19 +1306,19 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                 Text(
                   title,
                   style: GoogleFonts.poppins(
-                    fontSize: 14,
+                    fontSize: 12,
                     color: Colors.grey[600],
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                SizedBox(height: 6),
+                SizedBox(height: 4),
                 Text(
                   value,
                   style: GoogleFonts.poppins(
-                    fontSize: 16,
+                    fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: Colors.black87,
-                    height: 1.3,
+                    height: 1.2,
                   ),
                 ),
               ],

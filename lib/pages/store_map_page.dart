@@ -1,0 +1,500 @@
+// pages/store_map_page.dart
+
+import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../widgets/animated_map_pin.dart';
+import '../services/location_service.dart';
+
+class StoreMapPage extends StatefulWidget {
+  final List<dynamic> stores;
+  final String? selectedStoreId;
+
+  const StoreMapPage({
+    super.key,
+    required this.stores,
+    this.selectedStoreId,
+  });
+
+  @override
+  State<StoreMapPage> createState() => _StoreMapPageState();
+}
+
+class _StoreMapPageState extends State<StoreMapPage> {
+  late GoogleMapController _mapController;
+  Set<Marker> _markers = {};
+  String? _selectedMarkerId;
+  Position? _userLocation;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedMarkerId = widget.selectedStoreId;
+    _getUserLocation();
+  }
+
+  Future<void> _getUserLocation() async {
+    try {
+      final locationService = LocationService();
+      final position = await locationService.getCurrentLocation();
+
+      setState(() {
+        _userLocation = position;
+        _isLoading = false;
+      });
+
+      await _createMarkers();
+
+      // Move camera to show all stores
+      if (_markers.isNotEmpty) {
+        _fitMarkersInView();
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      print('Error getting user location: $e');
+    }
+  }
+
+  Future<void> _createMarkers() async {
+    final markers = <Marker>{};
+
+    print('🗺️ Creating markers for ${widget.stores.length} stores');
+
+    // Add some test stores if no stores are available
+    List<dynamic> storesToProcess = widget.stores;
+    if (storesToProcess.isEmpty) {
+      print('🗺️ No stores available, adding test stores');
+      storesToProcess = [
+        {
+          'id': 'test1',
+          'description': 'Test Store Accra',
+          'address': 'Accra, Ghana',
+          'latitude': '5.6037',
+          'longitude': '-0.1870',
+        },
+        {
+          'id': 'test2',
+          'description': 'Test Store Kumasi',
+          'address': 'Kumasi, Ghana',
+          'latitude': '6.6885',
+          'longitude': '-1.6244',
+        },
+      ];
+    }
+
+    for (final store in storesToProcess) {
+      final storeId = store['id']?.toString() ?? '';
+      final storeName = store['description'] ?? 'Unknown Store';
+      final storeAddress = store['address'] ?? '';
+
+      print('🗺️ Processing store: $storeName');
+      print('🗺️ Store data keys: ${store.keys.toList()}');
+      print('🗺️ Latitude: ${store['latitude']}');
+      print('🗺️ Longitude: ${store['longitude']}');
+
+      // Get coordinates
+      double lat, lng;
+      if (store['latitude'] != null && store['longitude'] != null) {
+        lat = double.parse(store['latitude'].toString());
+        lng = double.parse(store['longitude'].toString());
+        print('🗺️ Using API coordinates: $lat, $lng');
+      } else {
+        // Use estimated coordinates
+        final coords = _getEstimatedCoordinates(store);
+        lat = coords['lat']!;
+        lng = coords['lng']!;
+        print('🗺️ Using estimated coordinates: $lat, $lng');
+      }
+
+      final isSelected = storeId == _selectedMarkerId;
+
+      // Create custom marker icon
+      final customIcon = await CustomAnimatedMarker.createAnimatedMarker(
+        text: '🏪',
+        backgroundColor: isSelected ? Colors.blue : Colors.green,
+        textColor: Colors.white,
+        icon: Icons.store,
+        size: 50.0,
+      );
+
+      markers.add(
+        Marker(
+          markerId: MarkerId(storeId),
+          position: LatLng(lat, lng),
+          infoWindow: InfoWindow(
+            title: storeName,
+            snippet: storeAddress,
+          ),
+          icon: customIcon,
+          onTap: () => _onMarkerTap(storeId),
+        ),
+      );
+    }
+
+    // Add user location marker if available
+    if (_userLocation != null) {
+      final userIcon = await CustomAnimatedMarker.createAnimatedMarker(
+        text: '📍',
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+        icon: Icons.person,
+        size: 40.0,
+      );
+
+      markers.add(
+        Marker(
+          markerId: const MarkerId('user_location'),
+          position: LatLng(_userLocation!.latitude, _userLocation!.longitude),
+          infoWindow: const InfoWindow(
+            title: 'Your Location',
+            snippet: 'Current position',
+          ),
+          icon: userIcon,
+        ),
+      );
+    }
+
+    print('🗺️ Created ${markers.length} markers');
+
+    setState(() {
+      _markers = markers;
+    });
+  }
+
+  void _onMarkerTap(String markerId) {
+    setState(() {
+      _selectedMarkerId = markerId;
+    });
+
+    // Recreate markers with updated selection
+    _createMarkers();
+
+    // Find the tapped store and show info
+    final store = widget.stores.firstWhere(
+      (store) => store['id']?.toString() == markerId,
+      orElse: () => null,
+    );
+
+    if (store != null) {
+      _showStoreInfo(store);
+    }
+  }
+
+  void _showStoreInfo(dynamic store) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle bar
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Store info
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.store,
+                    color: Colors.green[700],
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        store['description'] ?? 'Unknown Store',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        store['address'] ?? 'No address available',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            // Action buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _launchMaps(
+                      store['description'] ?? '',
+                      store['address'] ?? '',
+                    ),
+                    icon: const Icon(Icons.directions),
+                    label: const Text('Get Directions'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[700],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                    label: const Text('Close'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launchMaps(String storeName, String storeAddress) async {
+    try {
+      final query = Uri.encodeComponent('$storeName, $storeAddress');
+      final url = 'https://www.google.com/maps/search/?api=1&query=$query';
+
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not open the map')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  void _fitMarkersInView() {
+    print('🗺️ _fitMarkersInView called with ${_markers.length} markers');
+    if (_markers.isEmpty) {
+      print('🗺️ No markers to fit in view');
+      return;
+    }
+    if (_mapController == null) {
+      print('🗺️ Map controller is null');
+      return;
+    }
+
+    double minLat = double.infinity;
+    double maxLat = -double.infinity;
+    double minLng = double.infinity;
+    double maxLng = -double.infinity;
+
+    for (final marker in _markers) {
+      final lat = marker.position.latitude;
+      final lng = marker.position.longitude;
+      print('🗺️ Marker at: $lat, $lng');
+
+      minLat = minLat < lat ? minLat : lat;
+      maxLat = maxLat > lat ? maxLat : lat;
+      minLng = minLng < lng ? minLng : lng;
+      maxLng = maxLng > lng ? maxLng : lng;
+    }
+
+    print('🗺️ Bounds: SW($minLat, $minLng) NE($maxLat, $maxLng)');
+
+    final bounds = LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
+
+    _mapController.animateCamera(
+      CameraUpdate.newLatLngBounds(bounds, 100.0),
+    );
+    print('🗺️ Camera animation started');
+  }
+
+  Map<String, double> _getEstimatedCoordinates(dynamic store) {
+    // Default coordinates for Ghana (center of the country)
+    double lat = 7.9465;
+    double lng = -1.0232;
+
+    final regionName = store['region_name']?.toString().toLowerCase() ?? '';
+    final cityName = store['city_name']?.toString().toLowerCase() ?? '';
+    final storeName = store['description']?.toString().toLowerCase() ?? '';
+
+    // More precise coordinates for major Ghanaian cities and regions
+    if (regionName.contains('accra') || cityName.contains('accra')) {
+      if (storeName.contains('circle')) {
+        lat = 5.5500;
+        lng = -0.1833;
+      } else if (storeName.contains('nester') || storeName.contains('square')) {
+        lat = 5.6037;
+        lng = -0.1870;
+      } else if (storeName.contains('volta') || storeName.contains('place')) {
+        lat = 5.6037;
+        lng = -0.1870;
+      } else {
+        lat = 5.6037;
+        lng = -0.1870;
+      }
+    } else if (regionName.contains('kumasi') || cityName.contains('kumasi')) {
+      lat = 6.6885;
+      lng = -1.6244;
+    } else if (regionName.contains('tamale') || cityName.contains('tamale')) {
+      lat = 9.4035;
+      lng = -0.8423;
+    } else if (regionName.contains('sekondi') ||
+        cityName.contains('sekondi') ||
+        regionName.contains('takoradi') ||
+        cityName.contains('takoradi')) {
+      lat = 4.9340;
+      lng = -1.7300;
+    }
+
+    return {'lat': lat, 'lng': lng};
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Store Locations'),
+        backgroundColor: Colors.green[700],
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.my_location),
+            onPressed: () {
+              if (_userLocation != null) {
+                _mapController.animateCamera(
+                  CameraUpdate.newLatLngZoom(
+                    LatLng(_userLocation!.latitude, _userLocation!.longitude),
+                    15.0,
+                  ),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          GoogleMap(
+            onMapCreated: (GoogleMapController controller) {
+              _mapController = controller;
+              print('🗺️ Map controller created');
+              // Fit all markers in view after map is created
+              Future.delayed(const Duration(milliseconds: 1000), () {
+                print('🗺️ Attempting to fit markers in view');
+                _fitMarkersInView();
+              });
+            },
+            initialCameraPosition: CameraPosition(
+              target: _userLocation != null
+                  ? LatLng(_userLocation!.latitude, _userLocation!.longitude)
+                  : const LatLng(7.9465, -1.0232), // Ghana center
+              zoom: 10.0,
+            ),
+            markers: _markers,
+            myLocationEnabled: true,
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: true,
+            mapToolbarEnabled: false,
+            compassEnabled: true,
+            mapType: MapType.normal,
+            minMaxZoomPreference: const MinMaxZoomPreference(6.0, 20.0),
+          ),
+
+          // Store count indicator
+          Positioned(
+            top: 16,
+            left: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.store,
+                    color: Colors.green[700],
+                    size: 16,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${widget.stores.length} stores',
+                    style: TextStyle(
+                      color: Colors.green[700],
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -4,6 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
+import '../widgets/animated_map_pin.dart';
 
 class MapPickerPage extends StatefulWidget {
   final double initialLatitude;
@@ -37,7 +38,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
     super.initState();
     _initialLocation = LatLng(widget.initialLatitude, widget.initialLongitude);
     _selectedLocation = _initialLocation;
-    _updateMarkers();
+    _initializeMarkers();
     _getAddressFromCoordinates(widget.initialLatitude, widget.initialLongitude);
 
     print('🗺️ [MAP] MapPickerPage initialized');
@@ -50,13 +51,26 @@ class _MapPickerPageState extends State<MapPickerPage> {
     print('   📍 [iOS DEBUG] _initialLocation created: $_initialLocation');
   }
 
+  Future<void> _initializeMarkers() async {
+    await _updateMarkers();
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
-  void _updateMarkers() {
+  Future<void> _updateMarkers() async {
+    // Create custom animated marker icon
+    final customIcon = await CustomAnimatedMarker.createAnimatedMarker(
+      text: '📍',
+      backgroundColor: Colors.green,
+      textColor: Colors.white,
+      icon: Icons.location_on,
+      size: 50.0,
+    );
+
     _markers = {
       Marker(
         markerId: const MarkerId('selected_location'),
@@ -66,7 +80,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
           snippet: 'Tap to confirm this location',
         ),
         draggable: true,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        icon: customIcon,
         onDragEnd: (newPosition) {
           setState(() {
             _selectedLocation = newPosition;
@@ -283,7 +297,6 @@ class _MapPickerPageState extends State<MapPickerPage> {
   /// Search for a location and move map to it
   Future<void> _searchLocation(String query) async {
     try {
-     
       List<Location> locations = await locationFromAddress(query);
 
       // Strategy 2: If no results, try with Ghana context
@@ -420,11 +433,11 @@ class _MapPickerPageState extends State<MapPickerPage> {
               zoom: 18.0, // Higher zoom for better accuracy
             ),
             markers: _markers,
-            onTap: (LatLng position) {
+            onTap: (LatLng position) async {
               setState(() {
                 _selectedLocation = position;
-                _updateMarkers();
               });
+              await _updateMarkers();
               _getAddressFromCoordinates(position.latitude, position.longitude);
               print(
                   '🗺️ [MAP] Map tapped at: (${position.latitude}, ${position.longitude})');
