@@ -33,6 +33,7 @@
         android:enableOnBackInvokedCallback="true"
         android:label="ECL-ECOM"
         android:icon="@mipmap/ic_launcher"
+        android:networkSecurityConfig="@xml/network_security_config"
         tools:replace="android:label">
 
         <!-- ExpressPay Activity -->

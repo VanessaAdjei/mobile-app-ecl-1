@@ -39,24 +39,43 @@ class RefillMedicine {
   });
 
   factory RefillMedicine.fromJson(Map<String, dynamic> json) {
+    // Handle nested product data (like regular products API)
+    Map<String, dynamic> productData = json;
+    if (json.containsKey('product') &&
+        json['product'] is Map<String, dynamic>) {
+      productData = json['product'] as Map<String, dynamic>;
+      // Merge with root level data for fields like price, batch_no, etc.
+      productData = {...productData, ...json};
+    }
+
     return RefillMedicine(
-      id: json['id'] ?? 0,
-      name: json['name'] ?? 'No name',
-      description: json['description'] ?? '',
-      dosage: json['dosage'] ?? '',
-      price: (json['price'] ?? 0).toString(),
-      thumbnail: json['thumbnail'] ?? json['image'] ?? '',
-      category: json['category'] ?? '',
-      lastPurchased: json['last_purchased'] ?? '',
-      isRefillable: json['is_refillable'] ?? false,
-      batchNo: json['batch_no'],
-      route: json['route'],
-      otcpom: json['otcpom'],
-      drug: json['drug'],
-      wellness: json['wellness'],
-      selfcare: json['selfcare'],
-      accessories: json['accessories'],
-      quantityInStock: json['quantity_in_stock'] ?? 0,
+      id: productData['id'] ?? json['id'] ?? 0,
+      name: productData['name'] ?? json['name'] ?? 'No name',
+      description: productData['description'] ?? json['description'] ?? '',
+      dosage: productData['dosage'] ?? json['dosage'] ?? '',
+      price: (productData['price'] ?? json['price'] ?? 0).toString(),
+      thumbnail: productData['thumbnail'] ??
+          productData['image'] ??
+          json['thumbnail'] ??
+          json['image'] ??
+          '',
+      category: productData['category'] ?? json['category'] ?? '',
+      lastPurchased:
+          productData['last_purchased'] ?? json['last_purchased'] ?? '',
+      isRefillable:
+          productData['is_refillable'] ?? json['is_refillable'] ?? false,
+      batchNo: productData['batch_no'] ?? json['batch_no'],
+      route: productData['route'] ?? json['route'],
+      otcpom: productData['otcpom'] ?? json['otcpom'],
+      drug: productData['drug'] ?? json['drug'],
+      wellness: productData['wellness'] ?? json['wellness'],
+      selfcare: productData['selfcare'] ?? json['selfcare'],
+      accessories: productData['accessories'] ?? json['accessories'],
+      quantityInStock: productData['quantity_in_stock'] ??
+          productData['qty_in_stock'] ??
+          json['quantity_in_stock'] ??
+          json['qty_in_stock'] ??
+          0,
     );
   }
 

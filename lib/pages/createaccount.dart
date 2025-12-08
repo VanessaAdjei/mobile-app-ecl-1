@@ -85,8 +85,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
       // Handle specific error messages from the API
       String errorMessage = "An error occurred. Please try again.";
 
-      final errorString = e.toString().toLowerCase();
+      // Get error message - try to extract the actual message if it's an Exception
+      String errorString = e.toString().toLowerCase();
+      if (e is Exception) {
+        // For Exception objects, the message might be in the toString()
+        errorString = e.toString().toLowerCase();
+      }
       debugPrint('🔍 PROCESSED ERROR STRING: $errorString');
+
+      // Check error type first for better detection
+      final errorTypeString = e.runtimeType.toString().toLowerCase();
+      debugPrint('🔍 ERROR TYPE STRING: $errorTypeString');
 
       if (errorString.contains('email is already registered')) {
         errorMessage =
@@ -106,12 +115,42 @@ class _SignUpScreenState extends State<SignUpScreen> {
       } else if (errorString.contains('server is currently unavailable')) {
         errorMessage =
             "Server is currently unavailable. Please try again later.";
+      } else if ((errorString.contains('unable to connect to the server') &&
+              (errorString.contains('network') ||
+                  errorString.contains('blocking') ||
+                  errorString.contains('due to network'))) ||
+          errorString.contains('unable to complete the request') ||
+          (errorString.contains('try again later') &&
+              errorString.contains('network'))) {
+        errorMessage =
+            "Unable to connect to the server due to network issues. Please try again later or check your internet connection.";
+        debugPrint('🔍 Network/connection error detected: $errorString');
       } else if (errorString.contains('unable to connect to the server')) {
         errorMessage =
             "Unable to connect to the server. Please check your internet connection.";
       } else if (errorString.contains('request took too long to complete')) {
         errorMessage =
             "The request took too long to complete. Please try again.";
+      } else if (errorString.contains('handshake') ||
+          errorString.contains('certificate') ||
+          errorString.contains('certificate_verify_failed') ||
+          errorString.contains('ssl') ||
+          errorString.contains('tls') ||
+          errorString.contains('connection security') ||
+          errorTypeString.contains('handshake')) {
+        errorMessage =
+            "SSL certificate error. Please check your connection and try again. If the problem persists, contact support.";
+        debugPrint(
+            '🔍 Certificate error detected, showing error message: $errorMessage');
+        debugPrint('🔍 Widget mounted: $mounted');
+        if (mounted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _showError(errorMessage);
+            }
+          });
+        }
+        return;
       } else if (errorString.contains('already registered')) {
         // Generic "already registered" error
         errorMessage =
@@ -131,7 +170,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
         return;
       }
 
-      _showError(errorMessage);
+      // Show the error message (either specific or generic)
+      debugPrint('🔍 Showing error message: $errorMessage');
+      debugPrint('🔍 Original error: ${e.toString()}');
+      debugPrint('🔍 Widget mounted: $mounted');
+
+      // Always try to show the error
+      if (mounted) {
+        try {
+          // Try to show immediately first
+          _showError(errorMessage);
+        } catch (e) {
+          // If that fails, try in next frame
+          debugPrint('⚠️ Error showing immediately, trying in next frame: $e');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              try {
+                _showError(errorMessage);
+              } catch (e2) {
+                debugPrint('⚠️ Error showing in postFrameCallback: $e2');
+              }
+            }
+          });
+        }
+      } else {
+        debugPrint('⚠️ Widget not mounted, cannot show error');
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -602,52 +666,66 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   void _showError(String message, {bool showSignInAction = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.error_outline, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(message)),
-              ],
-            ),
-            if (showSignInAction) ...[
-              const SizedBox(height: 4),
-              Text(
-                'Or try using a different email address',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontSize: 12,
-                ),
+    if (!mounted) {
+      debugPrint('⚠️ Cannot show error - widget not mounted: $message');
+      return;
+    }
+
+    debugPrint('🔍 Showing SnackBar with message: $message');
+
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.error_outline, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(message)),
+                ],
               ),
+              if (showSignInAction) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Or try using a different email address',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
+          backgroundColor: Colors.red.shade600,
+          duration: const Duration(seconds: 5),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          action: showSignInAction
+              ? SnackBarAction(
+                  label: 'Sign In',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SignInScreen(),
+                      ),
+                    );
+                  },
+                )
+              : null,
         ),
-        backgroundColor: Colors.red.shade600,
-        duration: const Duration(seconds: 5),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        action: showSignInAction
-            ? SnackBarAction(
-                label: 'Sign In',
-                textColor: Colors.white,
-                onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SignInScreen(),
-                    ),
-                  );
-                },
-              )
-            : null,
-      ),
-    );
+      );
+      debugPrint('✅ SnackBar shown successfully');
+    } catch (e) {
+      debugPrint('❌ Error showing SnackBar: $e');
+      // Fallback: try to show a simple dialog or print to console
+      debugPrint('ERROR MESSAGE: $message');
+    }
   }
 
   void _highlightEmailField() {

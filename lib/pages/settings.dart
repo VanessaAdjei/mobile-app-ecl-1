@@ -5,6 +5,7 @@ import 'package:eclapp/pages/profile.dart';
 import 'package:eclapp/pages/tandc.dart';
 import 'package:eclapp/pages/theme_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -55,9 +56,23 @@ class SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadUserData() async {
     final secureStorage = FlutterSecureStorage();
-    String name = await secureStorage.read(key: 'userName') ?? "User";
-    String email =
-        await secureStorage.read(key: 'userEmail') ?? "No email available";
+    String name = "User";
+    String email = "No email available";
+
+    try {
+      name = await secureStorage.read(key: 'userName') ?? "User";
+      email =
+          await secureStorage.read(key: 'userEmail') ?? "No email available";
+    } on PlatformException catch (e) {
+      // Suppress -34018 keychain entitlement errors silently
+      if (e.code == '-34018' || e.message?.contains('34018') == true) {
+        debugPrint('Keychain access error suppressed in settings');
+      } else {
+        rethrow;
+      }
+    } catch (e) {
+      debugPrint('Error loading user data in settings: $e');
+    }
 
     setState(() {
       _userName = name;

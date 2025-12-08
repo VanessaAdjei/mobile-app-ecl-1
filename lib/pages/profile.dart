@@ -8,13 +8,12 @@ import 'package:eclapp/pages/purchases.dart';
 import 'package:eclapp/pages/tandc.dart';
 import 'package:eclapp/pages/theme_provider.dart';
 import 'package:eclapp/pages/wallet_page.dart';
-import 'package:eclapp/pages/ernest_friday_page.dart';
 import 'package:eclapp/pages/homepage.dart' as home;
 import 'package:eclapp/pages/refill_page.dart';
 import 'package:eclapp/pages/wishlist_page.dart';
 import 'package:eclapp/services/wishlist_service.dart';
-import 'package:eclapp/providers/promotional_event_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -46,6 +45,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
   late AnimationController _headerAnimationController;
   late AnimationController _contentAnimationController;
   late Animation<double> _contentAnimation;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -77,6 +77,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
   void dispose() {
     _headerAnimationController.dispose();
     _contentAnimationController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -111,8 +112,21 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
   Future<void> _loadUserData() async {
     try {
       final secureStorage = FlutterSecureStorage();
-      final name = await secureStorage.read(key: 'userName');
-      final email = await secureStorage.read(key: 'userEmail');
+      String? name;
+      String? email;
+      try {
+        name = await secureStorage.read(key: 'userName');
+        email = await secureStorage.read(key: 'userEmail');
+      } on PlatformException catch (e) {
+        // Suppress -34018 keychain entitlement errors silently
+        if (e.code == '-34018' || e.message?.contains('34018') == true) {
+          debugPrint('Keychain access error suppressed in profile');
+          name = null;
+          email = null;
+        } else {
+          rethrow;
+        }
+      }
       if (!mounted) return;
       setState(() {
         _userName = name ?? "User";
@@ -122,7 +136,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
       if (!mounted) return;
       setState(() {
         _userName = "User";
-        _userEmail = "Error loading data";
+        _userEmail = "No email available";
       });
     }
   }
@@ -431,6 +445,8 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
     return Scaffold(
       backgroundColor: backgroundColor,
       body: CustomScrollView(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           // Enhanced header with better design (matching notifications)
           SliverToBoxAdapter(
@@ -603,24 +619,62 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                           ),
                         ),
                         const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withAlpha((255 * 0.2).toInt()),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(
-                            _userLoggedIn
-                                ? _userEmail
-                                : "Please sign in to continue",
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
+                        _userLoggedIn
+                            ? Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white
+                                      .withAlpha((255 * 0.2).toInt()),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Text(
+                                  _userEmail,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              )
+                            : GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => SignInScreen(),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white
+                                        .withAlpha((255 * 0.2).toInt()),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        "Please sign in to continue",
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 14,
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        Icons.arrow_forward_ios,
+                                        size: 12,
+                                        color: Colors.white,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                         const SizedBox(height: 20),
                       ],
                     ),

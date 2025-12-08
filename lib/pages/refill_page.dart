@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
 import 'bottomnav.dart';
 import '../models/refill_medicine.dart';
+import '../models/product.dart';
+import 'auth_service.dart';
 
 class RefillPage extends StatefulWidget {
   const RefillPage({super.key});
@@ -19,11 +23,18 @@ class RefillPageState extends State<RefillPage> {
   List<RefillMedicine> refillableMedicines = [];
   bool isLoading = true;
   String? errorMessage;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _loadRefillableMedicines();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadRefillableMedicines() async {
@@ -33,88 +44,230 @@ class RefillPageState extends State<RefillPage> {
         errorMessage = null;
       });
 
-      // Simulate API delay with potential network error
-      await Future.delayed(Duration(seconds: 1));
+      // Check if user is logged in
+      final token = await AuthService.getToken();
+      if (token == null) {
+        if (!mounted) return;
+        setState(() {
+          errorMessage = 'Please sign in to view refillable medicines';
+          isLoading = false;
+        });
+        return;
+      }
 
-      // Dummy data for demonstration
-      final dummyMedicines = [
-        RefillMedicine(
-          id: 1,
-          name: 'Paracetamol 500mg',
-          description: 'Pain relief and fever reducer',
-          dosage: '500mg tablets',
-          price: '15.50',
-          thumbnail:
-              'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&h=200&fit=crop&crop=center',
-          category: 'Pain Relief',
-          lastPurchased: '2 weeks ago',
-          isRefillable: true,
-          quantityInStock: 50,
-        ),
-        RefillMedicine(
-          id: 2,
-          name: 'Amoxicillin 250mg',
-          description: 'Antibiotic for bacterial infections',
-          dosage: '250mg capsules',
-          price: '25.00',
-          thumbnail:
-              'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=200&h=200&fit=crop&crop=center',
-          category: 'Antibiotics',
-          lastPurchased: '1 month ago',
-          isRefillable: true,
-          quantityInStock: 30,
-        ),
-        RefillMedicine(
-          id: 3,
-          name: 'Vitamin D3 1000IU',
-          description: 'Vitamin D supplement for bone health',
-          dosage: '1000IU tablets',
-          price: '18.75',
-          thumbnail:
-              'https://images.unsplash.com/photo-1550572017-edd951aa4b65?w=200&h=200&fit=crop&crop=center',
-          category: 'Vitamins',
-          lastPurchased: '3 weeks ago',
-          isRefillable: true,
-          quantityInStock: 75,
-        ),
-        RefillMedicine(
-          id: 4,
-          name: 'Ibuprofen 400mg',
-          description: 'Anti-inflammatory pain relief',
-          dosage: '400mg tablets',
-          price: '12.30',
-          thumbnail:
-              'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&h=200&fit=crop&crop=center',
-          category: 'Pain Relief',
-          lastPurchased: '1 week ago',
-          isRefillable: true,
-          quantityInStock: 40,
-        ),
-        RefillMedicine(
-          id: 5,
-          name: 'Metformin 500mg',
-          description: 'Diabetes management medication',
-          dosage: '500mg tablets',
-          price: '22.80',
-          thumbnail:
-              'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=200&h=200&fit=crop&crop=center',
-          category: 'Diabetes',
-          lastPurchased: '2 weeks ago',
-          isRefillable: true,
-          quantityInStock: 25,
-        ),
-      ];
+      // Fetch prescriptions from API
+      final prescriptionResponse = await http.post(
+        Uri.parse(
+            'https://eclcommerce.ernestchemists.com.gh/api/view-prescription'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (prescriptionResponse.statusCode != 200) {
+        if (prescriptionResponse.statusCode == 401) {
+          throw Exception('Your session has expired. Please log in again.');
+        }
+        throw Exception(
+            'Failed to load prescriptions (${prescriptionResponse.statusCode})');
+      }
+
+      final prescriptionData = json.decode(prescriptionResponse.body);
+      final prescriptions =
+          List<Map<String, dynamic>>.from(prescriptionData['data'] ?? []);
+
+      debugPrint(
+          '🔍 Fetched ${prescriptions.length} prescriptions for refill medicines');
+
+      // Filter only approved/processed prescriptions that contain medicines
+      final approvedPrescriptions = prescriptions.where((prescription) {
+        final status = prescription['status']?.toString().toLowerCase() ?? '';
+        // Include approved, processed, or completed prescriptions
+        return status == 'approved' ||
+            status == 'processed' ||
+            status == 'completed' ||
+            status == 'active';
+      }).toList();
+
+      debugPrint(
+          '🔍 Found ${approvedPrescriptions.length} approved prescriptions');
+
+      // Extract medicines from prescriptions
+      List<RefillMedicine> medicines = [];
+
+      // Fetch all products to get images and details
+      List<Product> allProducts = [];
+      try {
+        final productsResponse = await http
+            .get(Uri.parse(
+                'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'))
+            .timeout(const Duration(seconds: 10));
+
+        if (productsResponse.statusCode == 200) {
+          final Map<String, dynamic> productsData =
+              json.decode(productsResponse.body);
+          final List<dynamic> productsList = productsData['data'] ?? [];
+          allProducts = productsList.map<Product>((item) {
+            final productData = item['product'] as Map<String, dynamic>;
+            return Product(
+              id: productData['id'] ?? 0,
+              name: productData['name'] ?? 'No name',
+              description: productData['description'] ?? '',
+              urlName: productData['url_name'] ?? '',
+              status: productData['status'] ?? '',
+              batchNo: item['batch_no'] ?? '',
+              price: (item['price'] ?? 0).toString(),
+              thumbnail: productData['thumbnail'] ?? productData['image'] ?? '',
+              quantity: productData['qty_in_stock']?.toString() ?? '',
+              category: productData['category'] ?? '',
+              route: productData['route'] ?? '',
+              otcpom: productData['otcpom'],
+              drug: productData['drug'],
+              wellness: productData['wellness'],
+              selfcare: productData['selfcare'],
+              accessories: productData['accessories'],
+            );
+          }).toList();
+        }
+      } catch (e) {
+        debugPrint('Error fetching products: $e');
+      }
+
+      // Helper to find product by ID or name
+      Product? findProduct(dynamic productId, String? productName) {
+        if (allProducts.isEmpty) return null;
+
+        if (productId != null) {
+          try {
+            final id = productId is String
+                ? int.tryParse(productId) ?? 0
+                : productId as int? ?? 0;
+            if (id > 0) {
+              try {
+                return allProducts.firstWhere((p) => p.id == id);
+              } catch (e) {
+                // ID not found, try name search
+              }
+            }
+          } catch (e) {
+            // Continue to name search
+          }
+        }
+
+        if (productName != null && productName.isNotEmpty) {
+          try {
+            return allProducts.firstWhere(
+              (p) => p.name.toLowerCase().contains(productName.toLowerCase()),
+            );
+          } catch (e) {
+            // Name not found, return null
+            return null;
+          }
+        }
+
+        return null;
+      }
+
+      // Extract medicines from prescriptions
+      for (final prescription in approvedPrescriptions) {
+        // Check if prescription has product/medicine data
+        if (prescription.containsKey('product') &&
+            prescription['product'] != null) {
+          final productData = prescription['product'] is Map<String, dynamic>
+              ? prescription['product'] as Map<String, dynamic>
+              : {};
+
+          final productId = prescription['product_id'] ??
+              productData['id'] ??
+              prescription['id'];
+          final productName = prescription['product_name'] ??
+              productData['name'] ??
+              prescription['name'] ??
+              'Prescribed Medicine';
+
+          // Find matching product for image and details
+          final matchedProduct = findProduct(productId, productName);
+
+          // Calculate last purchased date
+          final createdAt =
+              prescription['created_at'] ?? prescription['updated_at'] ?? '';
+          String lastPurchased = 'Recently';
+          if (createdAt.isNotEmpty) {
+            try {
+              final date = DateTime.parse(createdAt);
+              final now = DateTime.now();
+              final difference = now.difference(date);
+              if (difference.inDays > 0) {
+                lastPurchased =
+                    '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'} ago';
+              } else if (difference.inHours > 0) {
+                lastPurchased =
+                    '${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ago';
+              }
+            } catch (e) {
+              // Keep default
+            }
+          }
+
+          final medicine = RefillMedicine(
+            id: productId is int
+                ? productId
+                : (productId is String ? int.tryParse(productId) ?? 0 : 0),
+            name: productName,
+            description: productData['description'] ??
+                prescription['description'] ??
+                'Prescribed medicine',
+            dosage: productData['dosage'] ??
+                prescription['dosage'] ??
+                productData['route'] ??
+                '',
+            price: (prescription['price'] ??
+                    productData['price'] ??
+                    matchedProduct?.price ??
+                    '0')
+                .toString(),
+            thumbnail:
+                matchedProduct?.thumbnail ?? productData['thumbnail'] ?? '',
+            category: productData['category'] ??
+                prescription['category'] ??
+                matchedProduct?.category ??
+                'Prescribed',
+            lastPurchased: lastPurchased,
+            isRefillable: true,
+            batchNo: prescription['batch_no'] ?? productData['batch_no'],
+            route: productData['route'] ?? matchedProduct?.route,
+            otcpom: productData['otcpom'] ?? matchedProduct?.otcpom,
+            drug: productData['drug'] ?? matchedProduct?.drug,
+            wellness: productData['wellness'] ?? matchedProduct?.wellness,
+            selfcare: productData['selfcare'] ?? matchedProduct?.selfcare,
+            accessories:
+                productData['accessories'] ?? matchedProduct?.accessories,
+            quantityInStock: int.tryParse(matchedProduct?.quantity ?? '0') ??
+                productData['qty_in_stock'] ??
+                productData['quantity_in_stock'] ??
+                0,
+          );
+
+          // Avoid duplicates
+          if (!medicines.any((m) => m.id == medicine.id && m.id != 0)) {
+            medicines.add(medicine);
+          }
+        }
+      }
 
       if (!mounted) return;
 
       setState(() {
-        refillableMedicines = dummyMedicines;
+        refillableMedicines = medicines;
         isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        errorMessage = 'Failed to load refillable medicines: $e';
+        errorMessage =
+            'Failed to load refillable medicines: ${e.toString().replaceAll('Exception: ', '')}';
         isLoading = false;
       });
     }
@@ -154,7 +307,7 @@ class RefillPageState extends State<RefillPage> {
         ),
       );
 
-      // Simulate API call
+      // Simulate API call (no refill API yet)
       await Future.delayed(Duration(seconds: 1));
 
       if (!mounted) return;
@@ -181,17 +334,19 @@ class RefillPageState extends State<RefillPage> {
       if (!mounted) return;
 
       // Close loading dialog if still open
-      Navigator.of(context).pop();
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
 
       // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Failed to refill ${medicine.name}',
+            'Failed to refill ${medicine.name}: ${e.toString()}',
             style: GoogleFonts.poppins(),
           ),
           backgroundColor: Colors.red.shade600,
-          duration: Duration(seconds: 2),
+          duration: Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
@@ -257,7 +412,7 @@ class RefillPageState extends State<RefillPage> {
                           ),
                           const SizedBox(height: 1),
                           Text(
-                            'Tap any medicine to add directly to cart',
+                            'Refill your prescribed medicines',
                             style: Theme.of(context)
                                 .textTheme
                                 .bodySmall
@@ -448,7 +603,7 @@ class RefillPageState extends State<RefillPage> {
             ),
             const SizedBox(height: 12),
             Text(
-              'You haven\'t purchased any refillable\nmedicines yet.',
+              'You don\'t have any approved prescribed\nmedicines available for refill yet.',
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 color: Colors.grey.shade600,
@@ -474,7 +629,7 @@ class RefillPageState extends State<RefillPage> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Once you purchase refillable medicines, they will appear here for easy reordering.',
+                      'Only approved prescribed medicines from your prescriptions will appear here for easy refill.',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         color: Colors.blue.shade700,
@@ -572,8 +727,10 @@ class RefillPageState extends State<RefillPage> {
           // Medicines list
           Expanded(
             child: ListView.builder(
+              controller: _scrollController,
               padding: EdgeInsets.zero,
               itemCount: refillableMedicines.length,
+              physics: const AlwaysScrollableScrollPhysics(),
               itemBuilder: (context, index) {
                 final medicine = refillableMedicines[index];
                 return _buildMedicineCard(medicine, index);

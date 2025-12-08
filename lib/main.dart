@@ -4,6 +4,8 @@ import 'package:eclapp/pages/authprovider.dart';
 import 'package:eclapp/pages/profile.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/pages/wallet_page.dart';
 import 'package:provider/provider.dart';
@@ -39,38 +41,186 @@ import 'providers/promotional_event_provider.dart';
 import 'providers/clearance_sale_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'services/notification_service.dart';
+import 'services/http_client_service.dart';
 
 void main() async {
-  final appStartTime = DateTime.now();
-  debugPrint('🚀 Main: App starting at ${appStartTime.toIso8601String()}');
+  // Run in a zone to catch all errors including unhandled exceptions
+  runZonedGuarded(() async {
+    final appStartTime = DateTime.now();
+    debugPrint('🚀 Main: App starting at ${appStartTime.toIso8601String()}');
 
-  WidgetsFlutterBinding.ensureInitialized();
+    WidgetsFlutterBinding.ensureInitialized();
 
-  // Configure image cache for better performance
-  PaintingBinding.instance.imageCache.maximumSize = 1000;
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 100 << 20; // 100 MB
+    // Suppress error widget displays for keychain entitlement errors
+    ErrorWidget.builder = (FlutterErrorDetails details) {
+      final exception = details.exception;
+      final errorString = exception.toString().toLowerCase();
 
-  // Check if this is a restart (faster path)
-  final prefs = await SharedPreferences.getInstance();
-  final isRestart = prefs.getBool('app_was_running') ?? false;
+      // Suppress -34018 keychain entitlement errors
+      if (exception is PlatformException) {
+        if (exception.code == '-34018' ||
+            exception.message?.contains('34018') == true ||
+            exception.message?.contains('entitlement') == true) {
+          // Return empty widget instead of error widget
+          return const SizedBox.shrink();
+        }
+      }
 
-  if (isRestart) {
-    debugPrint('🚀 Main: App restart detected, using optimized path');
-    // For restarts, skip some initialization
-    await _fastRestart();
-  } else {
-    debugPrint('🚀 Main: Cold start detected, full initialization');
-    await _coldStart();
-  }
+      if (errorString.contains('34018') ||
+          errorString.contains('entitlement') ||
+          errorString.contains('required entitlement') ||
+          errorString.contains('unexpected security result code')) {
+        // Return empty widget instead of error widget
+        return const SizedBox.shrink();
+      }
 
-  // Mark app as running
-  await prefs.setBool('app_was_running', true);
+      // For other errors, show default error widget
+      return ErrorWidget(details.exception);
+    };
 
-  final totalStartupTime = DateTime.now().difference(appStartTime);
-  debugPrint(
-      '🚀 Main: Total startup time: ${totalStartupTime.inMilliseconds}ms');
+    // Global error handler to suppress -34018 keychain entitlement errors
+    // This must be set up BEFORE any FlutterSecureStorage calls
+    FlutterError.onError = (FlutterErrorDetails details) {
+      // Suppress -34018 keychain entitlement errors silently
+      final exception = details.exception;
+      final errorString = exception.toString().toLowerCase();
+      final contextString = details.context?.toString().toLowerCase() ?? '';
+      final libraryString = details.library ?? '';
 
-  runApp(const MyApp());
+      if (exception is PlatformException) {
+        final platformException = exception;
+        if (platformException.code == '-34018' ||
+            platformException.message?.contains('34018') == true ||
+            platformException.message?.contains('entitlement') == true ||
+            platformException.message?.contains('required entitlement') ==
+                true ||
+            platformException.message
+                    ?.contains('Unexpected security result code') ==
+                true) {
+          // Silently suppress this error - don't show it to users
+          return; // Don't show the error
+        }
+      }
+
+      // Also check error string, context, and library for -34018 or entitlement messages
+      if (errorString.contains('34018') ||
+          errorString.contains('entitlement') ||
+          errorString.contains('required entitlement') ||
+          errorString.contains('unexpected security result code') ||
+          errorString.contains('security result code') ||
+          contextString.contains('34018') ||
+          contextString.contains('entitlement') ||
+          libraryString.contains('dart_vm_initializer')) {
+        // Silently suppress this error - don't show it to users
+        return; // Don't show the error
+      }
+
+      // For other errors, check if it's a keychain error in the stack trace
+      final stackString = details.stack?.toString().toLowerCase() ?? '';
+      if (stackString.contains('34018') ||
+          stackString.contains('entitlement') ||
+          stackString.contains('flutter_secure_storage')) {
+        // Suppress keychain-related errors even if not caught above
+        return;
+      }
+
+      // For other errors, use default behavior
+      FlutterError.presentError(details);
+    };
+
+    // Handle uncaught errors in async code
+    PlatformDispatcher.instance.onError = (error, stack) {
+      // Suppress -34018 keychain entitlement errors silently
+      final errorString = error.toString().toLowerCase();
+
+      if (error is PlatformException) {
+        final platformException = error;
+        if (platformException.code == '-34018' ||
+            platformException.message?.contains('34018') == true ||
+            platformException.message?.contains('entitlement') == true ||
+            platformException.message?.contains('required entitlement') ==
+                true ||
+            platformException.message
+                    ?.contains('Unexpected security result code') ==
+                true) {
+          // Silently suppress this error - don't show it to users
+          return true; // Error handled, don't show it
+        }
+      }
+
+      // Also check error string for -34018 or entitlement messages
+      if (errorString.contains('34018') ||
+          errorString.contains('entitlement') ||
+          errorString.contains('required entitlement') ||
+          errorString.contains('unexpected security result code') ||
+          errorString.contains('security result code')) {
+        // Silently suppress this error - don't show it to users
+        return true; // Error handled, don't show it
+      }
+
+      // For other errors, let them propagate
+      return false;
+    };
+
+    // Initialize HTTP client service for certificate handling
+    await HttpClientService.initialize();
+
+    // Configure image cache for better performance
+    PaintingBinding.instance.imageCache.maximumSize = 1000;
+    PaintingBinding.instance.imageCache.maximumSizeBytes = 100 << 20; // 100 MB
+
+    // Check if this is a restart (faster path)
+    final prefs = await SharedPreferences.getInstance();
+    final isRestart = prefs.getBool('app_was_running') ?? false;
+
+    if (isRestart) {
+      debugPrint('🚀 Main: App restart detected, using optimized path');
+      // For restarts, skip some initialization
+      await _fastRestart();
+    } else {
+      debugPrint('🚀 Main: Cold start detected, full initialization');
+      await _coldStart();
+    }
+
+    // Mark app as running
+    await prefs.setBool('app_was_running', true);
+
+    final totalStartupTime = DateTime.now().difference(appStartTime);
+    debugPrint(
+        '🚀 Main: Total startup time: ${totalStartupTime.inMilliseconds}ms');
+
+    runApp(const MyApp());
+  }, (error, stack) {
+    // Zone error handler - catches all unhandled errors including PlatformException
+    if (error is PlatformException) {
+      if (error.code == '-34018' ||
+          error.message?.contains('34018') == true ||
+          error.message?.contains('entitlement') == true ||
+          error.message?.contains('required entitlement') == true ||
+          error.message?.contains('Unexpected security result code') == true) {
+        // Silently suppress -34018 keychain entitlement errors
+        debugPrint(
+            'Keychain entitlement error suppressed in zone: ${error.message}');
+        return;
+      }
+    }
+
+    // Check error string
+    final errorString = error.toString().toLowerCase();
+    if (errorString.contains('34018') ||
+        errorString.contains('entitlement') ||
+        errorString.contains('required entitlement') ||
+        errorString.contains('unexpected security result code') ||
+        errorString.contains('security result code')) {
+      // Silently suppress this error
+      debugPrint('Keychain entitlement error suppressed in zone: $errorString');
+      return;
+    }
+
+    // For other errors, log them but don't crash
+    debugPrint('Unhandled error in zone: $error');
+    debugPrint('Stack trace: $stack');
+  });
 }
 
 // Fast restart path for when app was recently running
@@ -503,6 +653,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             child: MaterialApp(
               title: 'ECL App',
               debugShowCheckedModeBanner: false,
+              // Suppress error displays for keychain entitlement errors
+              builder: (context, widget) {
+                // Wrap widget to catch and suppress errors
+                return widget ?? const SizedBox.shrink();
+              },
               themeMode:
                   themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
               theme: ThemeData(

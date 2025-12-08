@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'product_model.dart';
 import 'dart:io';
+import '../services/http_client_service.dart';
 
 class AuthService {
   static const String baseUrl = "https://eclcommerce.ernestchemists.com.gh/api";
@@ -25,8 +27,14 @@ class AuthService {
 
   List<Product> products = [];
   List<Product> filteredProducts = [];
-  static final FlutterSecureStorage _secureStorage =
-      const FlutterSecureStorage();
+  static final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+    ),
+    iOptions: IOSOptions(
+      accountName: 'eclapp',
+    ),
+  );
   static bool _isLoggedIn = false;
   static String? _authToken;
   static Timer? _tokenRefreshTimer;
@@ -35,10 +43,154 @@ class AuthService {
   static const Duration _tokenVerificationInterval = Duration(minutes: 15);
   static const Duration _tokenRefreshInterval = Duration(minutes: 30);
 
+  /// Safely read from secure storage, suppressing -34018 entitlement errors
+  /// Falls back to SharedPreferences if keychain fails
+  static Future<String?> _safeRead(String key) async {
+    try {
+      return await _secureStorage.read(key: key);
+    } on PlatformException catch (e) {
+      // Suppress -34018 keychain entitlement errors silently
+      if (e.code == '-34018' || e.message?.contains('34018') == true) {
+        debugPrint(
+            'Keychain access error suppressed: $key, falling back to SharedPreferences');
+        // Fallback to SharedPreferences
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          return prefs.getString('secure_$key');
+        } catch (e2) {
+          debugPrint('SharedPreferences fallback failed for $key: $e2');
+          return null;
+        }
+      }
+      rethrow;
+    } catch (e) {
+      debugPrint('Error reading secure storage key $key: $e');
+      // Fallback to SharedPreferences
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        return prefs.getString('secure_$key');
+      } catch (e2) {
+        debugPrint('SharedPreferences fallback failed for $key: $e2');
+        return null;
+      }
+    }
+  }
+
+  /// Safely write to secure storage, suppressing -34018 entitlement errors
+  /// Falls back to SharedPreferences if keychain fails
+  static Future<void> _safeWrite(String key, String value) async {
+    bool keychainFailed = false;
+    try {
+      await _secureStorage.write(key: key, value: value);
+      // If keychain write succeeds, also update SharedPreferences as backup
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('secure_$key', value);
+      } catch (e) {
+        // Ignore SharedPreferences errors if keychain worked
+      }
+    } on PlatformException catch (e) {
+      // Suppress -34018 keychain entitlement errors silently
+      if (e.code == '-34018' || e.message?.contains('34018') == true) {
+        debugPrint(
+            'Keychain access error suppressed: $key, falling back to SharedPreferences');
+        keychainFailed = true;
+      } else {
+        rethrow;
+      }
+    } catch (e) {
+      debugPrint('Error writing secure storage key $key: $e');
+      keychainFailed = true;
+    }
+
+    // Fallback to SharedPreferences if keychain failed
+    if (keychainFailed) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('secure_$key', value);
+        debugPrint('Successfully wrote $key to SharedPreferences fallback');
+      } catch (e) {
+        debugPrint('SharedPreferences fallback failed for $key: $e');
+      }
+    }
+  }
+
+  /// Safely delete from secure storage, suppressing -34018 entitlement errors
+  /// Also deletes from SharedPreferences fallback
+  static Future<void> _safeDelete(String key) async {
+    try {
+      await _secureStorage.delete(key: key);
+    } on PlatformException catch (e) {
+      // Suppress -34018 keychain entitlement errors silently
+      if (e.code == '-34018' || e.message?.contains('34018') == true) {
+        debugPrint('Keychain access error suppressed: $key');
+      } else {
+        rethrow;
+      }
+    } catch (e) {
+      debugPrint('Error deleting secure storage key $key: $e');
+    }
+
+    // Always try to delete from SharedPreferences fallback
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('secure_$key');
+    } catch (e) {
+      debugPrint('Error deleting SharedPreferences fallback for $key: $e');
+    }
+  }
+
+  /// Safely delete all from secure storage, suppressing -34018 entitlement errors
+  /// Also clears SharedPreferences fallback keys
+  static Future<void> _safeDeleteAll() async {
+    try {
+      await _secureStorage.deleteAll();
+    } on PlatformException catch (e) {
+      // Suppress -34018 keychain entitlement errors silently
+      if (e.code == '-34018' || e.message?.contains('34018') == true) {
+        debugPrint('Keychain access error suppressed: deleteAll');
+      } else {
+        rethrow;
+      }
+    } catch (e) {
+      debugPrint('Error deleting all secure storage: $e');
+    }
+
+    // Also clear SharedPreferences fallback keys
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+      for (final key in keys) {
+        if (key.startsWith('secure_')) {
+          await prefs.remove(key);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error clearing SharedPreferences fallback: $e');
+    }
+  }
+
+  /// Safely read all from secure storage, suppressing -34018 entitlement errors
+  static Future<Map<String, String>> _safeReadAll() async {
+    try {
+      return await _secureStorage.readAll();
+    } on PlatformException catch (e) {
+      // Suppress -34018 keychain entitlement errors silently
+      if (e.code == '-34018' || e.message?.contains('34018') == true) {
+        debugPrint('Keychain access error suppressed: readAll');
+        return {};
+      }
+      rethrow;
+    } catch (e) {
+      debugPrint('Error reading all secure storage: $e');
+      return {};
+    }
+  }
+
   static Future<void> init() async {
     try {
       // Start with a quick local check first
-      _authToken = await _secureStorage.read(key: authTokenKey);
+      _authToken = await _safeRead(authTokenKey);
       if (_authToken != null) {
         // Set logged in state optimistically, validate in background
         _isLoggedIn = true;
@@ -49,8 +201,61 @@ class AuthService {
       }
 
       // Migrate data in background without blocking
-      _migrateExistingData().catchError((e) {});
+      _migrateExistingData().catchError((e) {
+        // Suppress -34018 errors silently
+        if (e is PlatformException &&
+            (e.code == '-34018' || e.message?.contains('34018') == true)) {
+          return;
+        }
+      });
+    } on PlatformException catch (e) {
+      // Suppress -34018 keychain entitlement errors silently
+      if (e.code == '-34018' || e.message?.contains('34018') == true) {
+        debugPrint(
+            'Keychain entitlement error suppressed in AuthService.init, checking SharedPreferences fallback');
+        // Try SharedPreferences fallback
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          _authToken = prefs.getString('secure_$authTokenKey');
+          if (_authToken != null) {
+            _isLoggedIn = true;
+            _validateTokenInBackground();
+          } else {
+            _isLoggedIn = false;
+          }
+        } catch (e2) {
+          debugPrint('SharedPreferences fallback failed in init: $e2');
+          _isLoggedIn = false;
+          _authToken = null;
+        }
+        return;
+      }
+      rethrow;
     } catch (e) {
+      // Check if it's an entitlement error in the message
+      final errorString = e.toString().toLowerCase();
+      if (errorString.contains('34018') ||
+          errorString.contains('entitlement') ||
+          errorString.contains('required entitlement')) {
+        debugPrint(
+            'Keychain entitlement error suppressed in AuthService.init, checking SharedPreferences fallback');
+        // Try SharedPreferences fallback
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          _authToken = prefs.getString('secure_$authTokenKey');
+          if (_authToken != null) {
+            _isLoggedIn = true;
+            _validateTokenInBackground();
+          } else {
+            _isLoggedIn = false;
+          }
+        } catch (e2) {
+          debugPrint('SharedPreferences fallback failed in init: $e2');
+          _isLoggedIn = false;
+          _authToken = null;
+        }
+        return;
+      }
       _isLoggedIn = false;
       _authToken = null;
     }
@@ -59,7 +264,7 @@ class AuthService {
   static Future<void> _migrateExistingData() async {
     try {
       // Check if we already have the new consolidated user data
-      final existingUserData = await _secureStorage.read(key: userDataKey);
+      final existingUserData = await _safeRead(userDataKey);
       if (existingUserData != null) {
         // Data already migrated
         return;
@@ -69,11 +274,11 @@ class AuthService {
       final Map<String, dynamic> userData = {};
 
       // Migrate individual fields
-      final name = await _secureStorage.read(key: userNameKey);
-      final email = await _secureStorage.read(key: userEmailKey);
-      final phone = await _secureStorage.read(key: userPhoneNumberKey);
-      final id = await _secureStorage.read(key: userIdKey);
-      final hashedLink = await _secureStorage.read(key: hashedLinkKey);
+      final name = await _safeRead(userNameKey);
+      final email = await _safeRead(userEmailKey);
+      final phone = await _safeRead(userPhoneNumberKey);
+      final id = await _safeRead(userIdKey);
+      final hashedLink = await _safeRead(hashedLinkKey);
 
       // Only add non-null values
       if (name != null) userData['name'] = name;
@@ -84,8 +289,7 @@ class AuthService {
 
       // Save the consolidated data
       if (userData.isNotEmpty) {
-        await _secureStorage.write(
-            key: userDataKey, value: json.encode(userData));
+        await _safeWrite(userDataKey, json.encode(userData));
         _cachedUserData = userData;
       }
 
@@ -103,7 +307,7 @@ class AuthService {
 
   Future<List<Product>> fetchProducts() async {
     try {
-      final response = await http.get(
+      final response = await HttpClientService.get(
         Uri.parse(
             'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'),
       );
@@ -140,7 +344,7 @@ class AuthService {
 
   static Future<Product> fetchProductDetails(String urlName) async {
     try {
-      final response = await http.get(
+      final response = await HttpClientService.get(
         Uri.parse(
             'https://eclcommerce.ernestchemists.com.gh/api/product-details/$urlName'),
       );
@@ -183,13 +387,11 @@ class AuthService {
     };
 
     try {
-      final response = await http
-          .post(
-            url,
-            headers: {"Content-Type": "application/json"},
-            body: jsonEncode(payload),
-          )
-          .timeout(const Duration(seconds: 15));
+      final response = await HttpClientService.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 15));
 
       debugPrint(
           '🔍 AUTH SERVICE: Response status code: ${response.statusCode}');
@@ -220,7 +422,6 @@ class AuthService {
                 'This phone number is already registered. Please use a different number.');
           }
 
-         
           if (data['success'] == false) {
             throw Exception(data['message'] ??
                 'Please check your information and try again.');
@@ -275,6 +476,24 @@ class AuthService {
           }
           throw Exception('Please check your information and try again.');
         }
+      } else if (response.statusCode == 403) {
+        // Check if response is HTML (web filter/firewall blocking)
+        final contentType = response.headers['content-type'] ?? '';
+        final isHtml = contentType.contains('text/html') ||
+            response.body.trim().startsWith('<!DOCTYPE') ||
+            response.body.trim().startsWith('<html');
+
+        if (isHtml) {
+          // Web filter/firewall is blocking the request
+          throw Exception(
+              'Unable to connect to the server due to network issues. Please try again later or check your internet connection.');
+        } else {
+          // Regular 403 Forbidden
+          throw Exception(
+              'Unable to complete the request. Please try again later or contact support if the problem persists.');
+        }
+      } else if (response.statusCode == 401) {
+        throw Exception('Authentication required. Please log in again.');
       } else if (response.statusCode >= 500) {
         throw Exception(
             'Server is currently unavailable. Please try again later.');
@@ -287,6 +506,15 @@ class AuthService {
     } on SocketException {
       throw Exception(
           'Unable to connect to the server. Please check your internet connection.');
+    } on HandshakeException catch (e) {
+      // Handle SSL certificate errors
+      final errorMsg = e.toString().toLowerCase();
+      if (errorMsg.contains('certificate') || errorMsg.contains('handshake')) {
+        throw Exception(
+            'SSL certificate error. Please check your connection and try again. If the problem persists, contact support.');
+      }
+      throw Exception(
+          'Connection security error. Please check your internet connection and try again.');
     } catch (e) {
       rethrow;
     }
@@ -426,7 +654,7 @@ class AuthService {
       }
 
       // Otherwise, get fresh token
-      _authToken ??= await _secureStorage.read(key: authTokenKey);
+      _authToken ??= await _safeRead(authTokenKey);
       return _authToken != null ? 'Bearer $_authToken' : null;
     } catch (e) {
       return null;
@@ -435,7 +663,7 @@ class AuthService {
 
   static Future<void> clearToken() async {
     try {
-      await _secureStorage.delete(key: authTokenKey);
+      await _safeDelete(authTokenKey);
       _authToken = null;
       _isLoggedIn = false;
       _cachedUserData = null;
@@ -445,22 +673,25 @@ class AuthService {
   }
 
   static Future<void> saveToken(String token) async {
+    // Set in-memory state first, so it's correct even if storage fails
+    _authToken = token;
+    _isLoggedIn = true;
+    _lastTokenVerification = DateTime.now();
+
     try {
-      await _secureStorage.write(key: authTokenKey, value: token);
-      _authToken = token;
-      _isLoggedIn = true;
-      _lastTokenVerification = DateTime.now();
+      await _safeWrite(authTokenKey, token);
       _startTokenRefreshTimer();
     } catch (e) {
-      _isLoggedIn = false;
-      _authToken = null;
+      // Even if storage fails, keep in-memory state since we have the token
+      debugPrint(
+          'Warning: Failed to persist token to storage, but keeping in-memory state: $e');
     }
   }
 
   // Force update authentication state without validation
   static Future<void> forceUpdateAuthState() async {
     try {
-      final token = await _secureStorage.read(key: authTokenKey);
+      final token = await _safeRead(authTokenKey);
       if (token != null) {
         _authToken = token;
         _isLoggedIn = true;
@@ -518,20 +749,16 @@ class AuthService {
           await storeUserData(userData);
 
           if (userData['name'] != null) {
-            await _secureStorage.write(
-                key: userNameKey, value: userData['name']);
+            await _safeWrite(userNameKey, userData['name']);
           }
           if (userData['email'] != null) {
-            await _secureStorage.write(
-                key: userEmailKey, value: userData['email']);
+            await _safeWrite(userEmailKey, userData['email']);
           }
           if (userData['phone'] != null) {
-            await _secureStorage.write(
-                key: userPhoneNumberKey, value: userData['phone']);
+            await _safeWrite(userPhoneNumberKey, userData['phone']);
           }
           if (userData['id'] != null) {
-            await _secureStorage.write(
-                key: userIdKey, value: userData['id'].toString());
+            await _safeWrite(userIdKey, userData['id'].toString());
           }
         }
 
@@ -595,6 +822,14 @@ class AuthService {
     // First check memory state
     if (_isLoggedIn && _authToken != null) {
       // Only verify token if enough time has passed since last verification
+      // Skip verification if token was just set (within last minute)
+      if (_lastTokenVerification != null &&
+          DateTime.now().difference(_lastTokenVerification!) <=
+              const Duration(minutes: 1)) {
+        // Token was just set, trust it without verification
+        return true;
+      }
+
       if (_lastTokenVerification == null ||
           DateTime.now().difference(_lastTokenVerification!) >
               _tokenVerificationInterval) {
@@ -609,15 +844,26 @@ class AuthService {
 
     // If not in memory, check storage
     if (_authToken == null) {
-      final token = await _secureStorage.read(key: authTokenKey);
+      final token = await _safeRead(authTokenKey);
       if (token == null) {
         _isLoggedIn = false;
         return false;
       }
       _authToken = token;
+      _isLoggedIn = true;
+      // Set verification time to now to avoid immediate re-verification
+      _lastTokenVerification = DateTime.now();
     }
 
     // Verify token only if it's been long enough since last verification
+    // Skip verification if token was just loaded (within last minute)
+    if (_lastTokenVerification != null &&
+        DateTime.now().difference(_lastTokenVerification!) <=
+            const Duration(minutes: 1)) {
+      // Token was just loaded, trust it without verification
+      return true;
+    }
+
     if (_lastTokenVerification == null ||
         DateTime.now().difference(_lastTokenVerification!) >
             _tokenVerificationInterval) {
@@ -637,7 +883,7 @@ class AuthService {
     if (_authToken == null) return false;
 
     try {
-      final response = await http.get(
+      final response = await HttpClientService.get(
         Uri.parse('$baseUrl/verify-token'),
         headers: {
           'Authorization': 'Bearer $_authToken',
@@ -675,7 +921,7 @@ class AuthService {
     try {
       if (_authToken != null) {
         try {
-          await http.post(
+          await HttpClientService.post(
             Uri.parse('$baseUrl/logout'),
             headers: {'Authorization': 'Bearer $_authToken'},
           ).timeout(const Duration(seconds: 10));
@@ -692,7 +938,7 @@ class AuthService {
       _cachedUserData = null;
       _lastTokenVerification = null;
       _tokenRefreshTimer?.cancel();
-      await _secureStorage.deleteAll();
+      await _safeDeleteAll();
     }
   }
 
@@ -750,26 +996,23 @@ class AuthService {
       _cachedUserData = Map<String, dynamic>.from(user);
 
       // Save the consolidated user data
-      await _secureStorage.write(key: userDataKey, value: json.encode(user));
+      await _safeWrite(userDataKey, json.encode(user));
 
       // Also save individual fields for backward compatibility
       if (user['name'] != null) {
-        await _secureStorage.write(key: userNameKey, value: user['name']);
+        await _safeWrite(userNameKey, user['name']);
       }
       if (user['email'] != null) {
-        await _secureStorage.write(key: userEmailKey, value: user['email']);
+        await _safeWrite(userEmailKey, user['email']);
       }
       if (user['phone'] != null) {
-        await _secureStorage.write(
-            key: userPhoneNumberKey, value: user['phone']);
+        await _safeWrite(userPhoneNumberKey, user['phone']);
       }
       if (user['id'] != null) {
-        await _secureStorage.write(
-            key: userIdKey, value: user['id'].toString());
+        await _safeWrite(userIdKey, user['id'].toString());
       }
       if (user['hashed_link'] != null) {
-        await _secureStorage.write(
-            key: hashedLinkKey, value: user['hashed_link']);
+        await _safeWrite(hashedLinkKey, user['hashed_link']);
       }
     } catch (e) {
       rethrow;
@@ -784,18 +1027,18 @@ class AuthService {
       }
 
       // Try to get the consolidated user data first
-      final userData = await _secureStorage.read(key: userDataKey);
+      final userData = await _safeRead(userDataKey);
       if (userData != null) {
         _cachedUserData = json.decode(userData);
         return _cachedUserData;
       }
 
       // If consolidated data doesn't exist, try to get individual fields
-      final name = await _secureStorage.read(key: userNameKey);
-      final email = await _secureStorage.read(key: userEmailKey);
-      final phone = await _secureStorage.read(key: userPhoneNumberKey);
-      final id = await _secureStorage.read(key: userIdKey);
-      final hashedLink = await _secureStorage.read(key: hashedLinkKey);
+      final name = await _safeRead(userNameKey);
+      final email = await _safeRead(userEmailKey);
+      final phone = await _safeRead(userPhoneNumberKey);
+      final id = await _safeRead(userIdKey);
+      final hashedLink = await _safeRead(hashedLinkKey);
 
       if (email != null) {
         final Map<String, dynamic> userData = {
@@ -835,7 +1078,7 @@ class AuthService {
 
   static Future<String?> getUserName() async {
     try {
-      String? userName = await _secureStorage.read(key: userNameKey);
+      String? userName = await _safeRead(userNameKey);
       return userName?.isNotEmpty == true ? userName : "User";
     } catch (e) {
       return "User";
@@ -864,7 +1107,7 @@ class AuthService {
 
   static Future<bool> isUserSignedUp(String email) async {
     try {
-      String? usersData = await _secureStorage.read(key: usersKey);
+      String? usersData = await _safeRead(usersKey);
       if (usersData == null) return false;
 
       Map<String, dynamic> rawUsers = json.decode(usersData);
@@ -880,7 +1123,7 @@ class AuthService {
 
   static Future<String?> getUserEmail() async {
     try {
-      return await _secureStorage.read(key: userEmailKey);
+      return await _safeRead(userEmailKey);
     } catch (e) {
       return null;
     }
@@ -888,7 +1131,7 @@ class AuthService {
 
   static Future<String?> getUserPhoneNumber() async {
     try {
-      return await _secureStorage.read(key: userPhoneNumberKey);
+      return await _safeRead(userPhoneNumberKey);
     } catch (e) {
       return null;
     }
@@ -896,9 +1139,9 @@ class AuthService {
 
   static Future<bool> validateCurrentPassword(String password) async {
     try {
-      String? userEmail = await _secureStorage.read(key: loggedInUserKey);
+      String? userEmail = await _safeRead(loggedInUserKey);
       if (userEmail != null) {
-        String? storedUserJson = await _secureStorage.read(key: usersKey);
+        String? storedUserJson = await _safeRead(usersKey);
         if (storedUserJson != null) {
           Map<String, dynamic> users = jsonDecode(storedUserJson);
 
@@ -923,14 +1166,14 @@ class AuthService {
         return false;
       }
 
-      String? userEmail = await _secureStorage.read(key: loggedInUserKey);
+      String? userEmail = await _safeRead(loggedInUserKey);
       if (userEmail != null) {
-        String? storedUserJson = await _secureStorage.read(key: usersKey);
+        String? storedUserJson = await _safeRead(usersKey);
         if (storedUserJson != null) {
           Map<String, dynamic> users = jsonDecode(storedUserJson);
           users[userEmail]['password'] = hashPassword(newPassword);
 
-          await _secureStorage.write(key: usersKey, value: jsonEncode(users));
+          await _safeWrite(usersKey, jsonEncode(users));
           return true;
         }
       }
@@ -942,7 +1185,7 @@ class AuthService {
   }
 
   static Future<void> saveUserName(String username) async {
-    await _secureStorage.write(key: userNameKey, value: username);
+    await _safeWrite(userNameKey, username);
   }
 
   static Future<void> checkAuthAndRedirect(BuildContext context,
@@ -970,10 +1213,10 @@ class AuthService {
 
   static Future<bool> checkAuthStatus() async {
     try {
-      final token = await _secureStorage.read(key: authTokenKey);
+      final token = await _safeRead(authTokenKey);
       if (token == null) return false;
 
-      final response = await http.post(
+      final response = await HttpClientService.post(
         Uri.parse('$baseUrl/check-auth'),
         headers: {
           'Authorization': 'Bearer $token',
@@ -1012,7 +1255,7 @@ class AuthService {
       final token = await getToken();
       if (token == null) return {'authenticated': false};
 
-      final response = await http.post(
+      final response = await HttpClientService.post(
         Uri.parse('$baseUrl/check-auth'),
         headers: {
           'Authorization': 'Bearer $token',
@@ -1043,7 +1286,7 @@ class AuthService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await http.get(
+      final response = await HttpClientService.get(
         Uri.parse('$baseUrl/cart'),
         headers: {
           'Authorization': 'Bearer $token',
@@ -1076,7 +1319,7 @@ class AuthService {
   static Future<String?> getToken() async {
     final loggedIn = await isLoggedIn();
     if (loggedIn) {
-      return await _secureStorage.read(key: authTokenKey);
+      return await _safeRead(authTokenKey);
     }
     // Only retrieve a persistent guest id for non-logged-in users if it already exists
     final prefs = await SharedPreferences.getInstance();
@@ -1098,7 +1341,7 @@ class AuthService {
   static Future<String> generateGuestId() async {
     final prefs = await SharedPreferences.getInstance();
     try {
-      final response = await http.get(
+      final response = await HttpClientService.get(
         Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/guest-id'),
         headers: {'Accept': 'application/json'},
       ).timeout(const Duration(seconds: 10));
@@ -1159,7 +1402,7 @@ class AuthService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await http.post(
+      final response = await HttpClientService.post(
         Uri.parse('$baseUrl/cart/update'),
         headers: {
           'Authorization': 'Bearer $token',
@@ -1195,7 +1438,7 @@ class AuthService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await http.post(
+      final response = await HttpClientService.post(
         Uri.parse('$baseUrl/cart/merge'),
         headers: {
           'Authorization': token,
@@ -1221,7 +1464,7 @@ class AuthService {
     required int quantity,
     required String batchNo,
   }) async {
-    final token = await _secureStorage.read(key: authTokenKey);
+    final token = await _safeRead(authTokenKey);
     if (token == null) {
       return {'status': 'error', 'message': 'Not authenticated'};
     }
@@ -1232,7 +1475,7 @@ class AuthService {
       'batch_no': batchNo,
     };
     try {
-      final response = await http.post(
+      final response = await HttpClientService.post(
         Uri.parse('$baseUrl/check-auth'),
         headers: {
           'Authorization': 'Bearer $token',
@@ -1263,7 +1506,7 @@ class AuthService {
   }
 
   static Future<String?> getHashedLink() async {
-    return await _secureStorage.read(key: 'hashed_link');
+    return await _safeRead('hashed_link');
   }
 
   static Future<Map<String, dynamic>> getOrders() async {
@@ -1274,7 +1517,7 @@ class AuthService {
       }
 
       debugPrint('🔍 Fetching orders from API...');
-      final response = await http.get(
+      final response = await HttpClientService.get(
         Uri.parse('$baseUrl/orders'),
         headers: {
           'Authorization': 'Bearer $token',
@@ -1446,18 +1689,12 @@ class AuthService {
 
       // Store the grouped order
       final orderKey = 'local_grouped_order_$orderId';
-      await _secureStorage.write(
-        key: orderKey,
-        value: jsonEncode(groupedOrder),
-      );
+      await _safeWrite(orderKey, jsonEncode(groupedOrder));
 
       // Also store individual items for backward compatibility
       for (final orderItem in orderItems) {
         final itemKey = 'local_order_${orderId}_${orderItem['id']}';
-        await _secureStorage.write(
-          key: itemKey,
-          value: jsonEncode(orderItem),
-        );
+        await _safeWrite(itemKey, jsonEncode(orderItem));
       }
 
       return {
@@ -1487,7 +1724,7 @@ class AuthService {
         return [];
       }
 
-      final allKeys = await _secureStorage.readAll();
+      final allKeys = await _safeReadAll();
       final localOrders = <Map<String, dynamic>>[];
       final processedOrderIds = <String>{};
 
@@ -1569,7 +1806,7 @@ class AuthService {
   }
 
   static Future<void> printStoredToken() async {
-    final token = await _secureStorage.read(key: authTokenKey);
+    final token = await _safeRead(authTokenKey);
     debugPrint('AuthService.printStoredToken: '
         '${token != null && token.length > 20 ? '${token.substring(0, 20)}...' : token}');
   }

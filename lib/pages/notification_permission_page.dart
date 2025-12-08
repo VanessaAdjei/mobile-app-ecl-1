@@ -161,20 +161,20 @@ class _NotificationPermissionPageState extends State<NotificationPermissionPage>
         child: SlideTransition(
           position: _slideAnimation,
           child: SafeArea(
-            bottom: false, // Don't add bottom safe area here
+            bottom: true, // Add bottom safe area for buttons
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 children: [
                   // Compact header section
                   Container(
-                    padding: const EdgeInsets.only(top: 16, bottom: 20),
+                    padding: const EdgeInsets.only(top: 8, bottom: 16),
                     child: Column(
                       children: [
                         // Smaller Notification Icon
                         Container(
-                          width: 80,
-                          height: 80,
+                          width: 70,
+                          height: 70,
                           decoration: BoxDecoration(
                             color: Colors.blue[50],
                             shape: BoxShape.circle,
@@ -188,43 +188,43 @@ class _NotificationPermissionPageState extends State<NotificationPermissionPage>
                           ),
                           child: Icon(
                             Icons.notifications_outlined,
-                            size: 40,
+                            size: 36,
                             color: Colors.blue[600],
                           ),
                         ),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
 
                         // Compact Title
                         Text(
                           'Stay in the Loop!',
                           style: GoogleFonts.poppins(
-                            fontSize: 24,
+                            fontSize: 22,
                             fontWeight: FontWeight.bold,
                             color: Colors.black87,
                           ),
                           textAlign: TextAlign.center,
                         ),
 
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
 
                         // Compact Subtitle
                         Text(
                           'Get instant updates about your orders, deliveries, and special offers.',
                           style: GoogleFonts.poppins(
-                            fontSize: 14,
+                            fontSize: 13,
                             color: Colors.grey[600],
                             height: 1.3,
                           ),
                           textAlign: TextAlign.center,
                         ),
 
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
 
                         // User type info
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
+                              horizontal: 12, vertical: 5),
                           decoration: BoxDecoration(
                             color: Colors.blue[50],
                             borderRadius: BorderRadius.circular(20),
@@ -235,14 +235,14 @@ class _NotificationPermissionPageState extends State<NotificationPermissionPage>
                             children: [
                               Icon(
                                 Icons.person_outline,
-                                size: 16,
+                                size: 14,
                                 color: Colors.blue[600],
                               ),
                               const SizedBox(width: 6),
                               Text(
                                 'For signed up users only',
                                 style: GoogleFonts.poppins(
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   color: Colors.blue[700],
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -261,9 +261,9 @@ class _NotificationPermissionPageState extends State<NotificationPermissionPage>
                         // Benefits List - compact version
                         _buildCompactBenefitsList(),
 
-                        const Spacer(),
+                        const SizedBox(height: 24),
 
-                        // Action Buttons
+                        // Action Buttons - moved up
                         Column(
                           children: [
                             // Enable Notifications Button
@@ -342,91 +342,6 @@ class _NotificationPermissionPageState extends State<NotificationPermissionPage>
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildBenefitsList() {
-    final benefits = [
-      {
-        'icon': Icons.shopping_cart_outlined,
-        'title': 'Order Updates',
-        'description':
-            'Get notified when your order is confirmed, processed, and shipped.',
-      },
-      {
-        'icon': Icons.inventory_2_outlined,
-        'title': 'Stock Alerts',
-        'description':
-            'Be the first to know when your favorite items are back in stock.',
-      },
-      {
-        'icon': Icons.local_offer_outlined,
-        'title': 'Special Offers',
-        'description': 'Exclusive deals and promotions just for you.',
-      },
-    ];
-
-    return Column(
-      children: benefits.map((benefit) {
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey[200]!),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.green[50],
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  benefit['icon'] as IconData,
-                  color: Colors.green[600],
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      benefit['title'] as String,
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      benefit['description'] as String,
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
     );
   }
 

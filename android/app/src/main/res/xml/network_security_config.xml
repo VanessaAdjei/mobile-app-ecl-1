@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Trust certificates for ernestchemists.com.gh domain -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">ernestchemists.com.gh</domain>
+        <domain includeSubdomains="true">eclcommerce.ernestchemists.com.gh</domain>
+        <!-- Trust user certificates and system certificates -->
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </domain-config>
+    
+    <!-- Default configuration for all other domains -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
+

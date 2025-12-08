@@ -1,5 +1,6 @@
 // pages/upload_prescription.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'product_model.dart';
@@ -131,7 +132,21 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
     }
 
     try {
-      final token = await const FlutterSecureStorage().read(key: 'auth_token');
+      String? token;
+      try {
+        token = await const FlutterSecureStorage().read(key: 'auth_token');
+      } on PlatformException catch (e) {
+        // Suppress -34018 keychain entitlement errors silently
+        if (e.code == '-34018' || e.message?.contains('34018') == true) {
+          debugPrint('Keychain access error suppressed in upload_prescription');
+          token = null;
+        } else {
+          rethrow;
+        }
+      } catch (e) {
+        debugPrint('Error reading auth token: $e');
+        token = null;
+      }
       _cachedLoginStatus = token != null;
       debugPrint('🔍 Token check: ${_cachedLoginStatus! ? 'EXISTS' : 'NULL'}');
       if (_cachedLoginStatus!) {
@@ -171,7 +186,6 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                 );
                 debugPrint('🔍 Upload: SignInScreen closed');
 
-                
                 _clearLoginCache();
                 final isLoggedIn = await _checkLoginStatus();
                 debugPrint(

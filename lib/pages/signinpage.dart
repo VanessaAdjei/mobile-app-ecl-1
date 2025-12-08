@@ -88,7 +88,12 @@ class SignInScreenState extends State<SignInScreen> {
     debugPrint('SHOW ERROR CALLED: $message');
     if (!mounted) return;
 
-    // Use optimized SnackBar for faster appearance and disappearance
+    // Set error message state to show in UI banner
+    setState(() {
+      _errorMessage = _getUserFriendlyError(message);
+    });
+
+    // Also show SnackBar for additional visibility
     SnackBarUtils.showError(context, _getUserFriendlyError(message));
   }
 
