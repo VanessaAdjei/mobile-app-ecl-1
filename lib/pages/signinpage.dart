@@ -1,6 +1,6 @@
 // pages/signinpage.dart
 import 'package:flutter/material.dart';
-import 'package:eclapp/widgets/error_display.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:eclapp/pages/forgot_password.dart';
 import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/pages/createaccount.dart';
@@ -44,57 +44,131 @@ class SignInScreenState extends State<SignInScreen> {
   }
 
   String _getUserFriendlyError(String error) {
-    if (error.toLowerCase().contains('socketexception') ||
-        error.toLowerCase().contains('connection refused') ||
-        error.toLowerCase().contains('network is unreachable')) {
-      return 'Unable to connect to the server. Please check your internet connection and try again.';
+    final lowerError = error.toLowerCase();
+
+    if (lowerError.contains('socketexception') ||
+        lowerError.contains('connection refused') ||
+        lowerError.contains('network is unreachable')) {
+      return 'Oops! We couldn\'t reach our servers. Please check your internet connection and try again.';
     }
 
     // Timeout errors
-    if (error.toLowerCase().contains('timeout') ||
-        error.toLowerCase().contains('timed out')) {
-      return 'The request took too long to complete. Please try again.';
+    if (lowerError.contains('timeout') || lowerError.contains('timed out')) {
+      return 'This is taking longer than usual. Please check your connection and try again.';
     }
 
     // Authentication errors
-    if (error.toLowerCase().contains('invalid-credential') ||
-        error.toLowerCase().contains('invalid email or password')) {
-      return 'The email or password you entered is incorrect. Please try again.';
+    if (lowerError.contains('invalid-credential') ||
+        lowerError.contains('invalid email or password') ||
+        lowerError.contains('login information invalid')) {
+      return 'The email or password you entered doesn\'t match our records. Please double-check and try again.';
     }
 
     // User not found
-    if (error.toLowerCase().contains('user-not-found') ||
-        error.toLowerCase().contains('no user found')) {
-      return 'No account found with this email. Please check your email or sign up.';
+    if (lowerError.contains('user-not-found') ||
+        lowerError.contains('no user found')) {
+      return 'We couldn\'t find an account with this email. Please check your email address or create a new account.';
     }
 
     // Rate limiting
-    if (error.toLowerCase().contains('too-many-requests') ||
-        error.toLowerCase().contains('rate limit')) {
-      return 'Too many attempts. Please wait a few minutes before trying again.';
+    if (lowerError.contains('too-many-requests') ||
+        lowerError.contains('rate limit')) {
+      return 'You\'ve tried signing in too many times. Please wait a few minutes and try again.';
     }
 
     // Server errors
-    if (error.toLowerCase().contains('500') ||
-        error.toLowerCase().contains('internal server error')) {
-      return 'We\'re experiencing technical difficulties. Please try again later.';
+    if (lowerError.contains('500') ||
+        lowerError.contains('internal server error')) {
+      return 'We\'re experiencing some technical issues on our end. Please try again in a few moments.';
     }
 
     // Default error message
-    return 'Something went wrong. Please try again.';
+    return 'Something unexpected happened. Please try again, and if the problem persists, contact support.';
+  }
+
+  String _getErrorTitle(String message) {
+    final lowerMessage = message.toLowerCase();
+
+    if (lowerMessage.contains('email') ||
+        lowerMessage.contains('password') ||
+        lowerMessage.contains('credentials') ||
+        lowerMessage.contains('invalid')) {
+      return 'Couldn\'t Sign You In';
+    }
+
+    if (lowerMessage.contains('connection') ||
+        lowerMessage.contains('network') ||
+        lowerMessage.contains('internet')) {
+      return 'Connection Issue';
+    }
+
+    if (lowerMessage.contains('server') ||
+        lowerMessage.contains('unavailable')) {
+      return 'Service Temporarily Unavailable';
+    }
+
+    if (lowerMessage.contains('too many') ||
+        lowerMessage.contains('attempts')) {
+      return 'Too Many Attempts';
+    }
+
+    return 'Oops! Something Went Wrong';
+  }
+
+  String _enhanceErrorMessage(String message) {
+    final lowerMessage = message.toLowerCase();
+
+    // Enhance common API error messages with better wording
+    if (lowerMessage.contains('login information invalid') ||
+        lowerMessage.contains('invalid') && lowerMessage.contains('password')) {
+      return 'The email or password you entered doesn\'t match our records. Please double-check your credentials and try again.';
+    }
+
+    if (lowerMessage.contains('email') && lowerMessage.contains('not found')) {
+      return 'We couldn\'t find an account with this email address. Please verify your email or sign up for a new account.';
+    }
+
+    if (lowerMessage.contains('too many') ||
+        lowerMessage.contains('attempts')) {
+      return 'You\'ve made too many sign-in attempts. Please wait a few minutes before trying again to keep your account secure.';
+    }
+
+    if (lowerMessage.contains('server') ||
+        lowerMessage.contains('unavailable')) {
+      return 'Our servers are temporarily unavailable. Please try again in a few moments. We apologize for the inconvenience.';
+    }
+
+    if (lowerMessage.contains('connection') ||
+        lowerMessage.contains('network')) {
+      return 'We couldn\'t connect to our servers. Please check your internet connection and try again.';
+    }
+
+    // If it's already a friendly message, return as-is
+    if (message.length < 100 &&
+        !lowerMessage.contains('exception') &&
+        !lowerMessage.contains('error') &&
+        !lowerMessage.contains('failed')) {
+      return message;
+    }
+
+    // Otherwise, apply user-friendly conversion
+    return _getUserFriendlyError(message);
   }
 
   void _showError(String message) {
     debugPrint('SHOW ERROR CALLED: $message');
     if (!mounted) return;
 
+    // Clean up the message - remove "Exception: " prefix if present
+    String cleanMessage = message.replaceAll('Exception: ', '').trim();
+
+    // Enhance all error messages with better wording and user-friendly language
+    String displayMessage = _enhanceErrorMessage(cleanMessage);
+
     // Set error message state to show in UI banner
     setState(() {
-      _errorMessage = _getUserFriendlyError(message);
+      _errorMessage = displayMessage;
     });
-
-    // Also show SnackBar for additional visibility
-    SnackBarUtils.showError(context, _getUserFriendlyError(message));
   }
 
   Future<void> _signIn() async {
@@ -112,10 +186,16 @@ class SignInScreenState extends State<SignInScreen> {
       );
       debugPrint('=== SIGN IN API RESPONSE ===');
       debugPrint('Sign in result: $result');
+      debugPrint('Success: ${result['success']}');
+      debugPrint('Message: ${result['message']}');
       debugPrint('Token: ${result['token']}');
       debugPrint('User: ${result['user']}');
       debugPrint('============================');
-      if (result['token'] != null && result['user'] != null) {
+
+      // Check if login was successful
+      if (result['success'] == true &&
+          result['token'] != null &&
+          result['user'] != null) {
         // Add a delay to ensure token is properly saved
         await Future.delayed(const Duration(milliseconds: 100));
 
@@ -210,9 +290,15 @@ class SignInScreenState extends State<SignInScreen> {
           }
         }
       } else {
-        _showError('Login failed. Please check your credentials.');
+        // Extract the actual error message from the API response
+        final errorMessage =
+            result['message'] ?? 'Login failed. Please check your credentials.';
+        debugPrint('🔍 SignIn: Error message from API: $errorMessage');
+        _showError(errorMessage);
       }
     } catch (e) {
+      // Handle exceptions that might occur during the sign-in process
+      // The _showError method will enhance the message automatically
       _showError(e.toString());
     } finally {
       if (mounted) {
@@ -339,45 +425,127 @@ class SignInScreenState extends State<SignInScreen> {
                   if (_errorMessage != null)
                     Container(
                       margin: const EdgeInsets.only(bottom: 20),
-                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.red.shade200),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.red.shade50,
+                            Colors.orange.shade50,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.red.shade200.withValues(alpha: 0.6),
+                          width: 1.5,
+                        ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.red.shade100.withValues(alpha: 0.4),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+                            color: Colors.red.shade200.withValues(alpha: 0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 6),
+                            spreadRadius: 0,
+                          ),
+                          BoxShadow(
+                            color: Colors.red.shade50.withValues(alpha: 0.5),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                            spreadRadius: -2,
                           ),
                         ],
                       ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.red.shade100,
-                              borderRadius: BorderRadius.circular(8),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              _errorMessage = null;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(16),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Colors.red.shade400,
+                                        Colors.red.shade600,
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.red.shade300
+                                            .withValues(alpha: 0.4),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.error_outline_rounded,
+                                    color: Colors.white,
+                                    size: 22,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _getErrorTitle(_errorMessage!),
+                                        style: TextStyle(
+                                          color: Colors.red.shade800,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.2,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _errorMessage!,
+                                        style: TextStyle(
+                                          color: Colors.red.shade700,
+                                          fontSize: 13.5,
+                                          height: 1.5,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.close_rounded,
+                                  color: Colors.red.shade400,
+                                  size: 20,
+                                ),
+                              ],
                             ),
-                            child: Icon(Icons.error_outline,
-                                color: Colors.red.shade700, size: 20),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              _errorMessage!,
-                              style: TextStyle(
-                                color: Colors.red.shade700,
-                                fontSize: 14,
-                                height: 1.4,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
+                    )
+                        .animate()
+                        .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+                        .slideY(
+                          begin: -0.2,
+                          end: 0,
+                          duration: 400.ms,
+                          curve: Curves.easeOutCubic,
+                        )
+                        .scale(
+                          begin: const Offset(0.95, 0.95),
+                          end: const Offset(1.0, 1.0),
+                          duration: 300.ms,
+                          curve: Curves.easeOut,
+                        ),
 
                   // Form Card with simple, clean design
                   Container(

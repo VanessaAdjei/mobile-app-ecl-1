@@ -625,14 +625,14 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildModernHeader(orderNumber, status, orderDate),
-                      SizedBox(height: 16),
+                      SizedBox(height: 8),
                       _buildOrderItemsCard(
                           orderItems, totalQuantity, totalAmount),
-                      SizedBox(height: 16),
+                      SizedBox(height: 8),
                       _buildStatusTimelineCard(status),
-                      SizedBox(height: 16),
+                      SizedBox(height: 8),
                       _buildDeliveryDetailsCard(),
-                      SizedBox(height: 16),
+                      SizedBox(height: 20),
                     ],
                   ),
                 ),
@@ -683,8 +683,8 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   Widget _buildModernHeader(
       String orderNumber, String status, DateTime? orderDate) {
     return Container(
-      margin: EdgeInsets.all(12),
-      padding: EdgeInsets.all(16),
+      margin: EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -738,7 +738,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
               _buildStatusBadge(status),
             ],
           ),
-          SizedBox(height: 12),
+          SizedBox(height: 8),
           Container(
             padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
@@ -831,7 +831,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
 
   Widget _buildStatusTimelineCard(String currentStatus) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 12),
+      margin: EdgeInsets.symmetric(horizontal: 12, vertical: 0),
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -865,7 +865,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   Widget _buildOrderItemsCard(List<Map<String, dynamic>> orderItems,
       int totalQuantity, double totalAmount) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 12),
+      margin: EdgeInsets.symmetric(horizontal: 12, vertical: 0),
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1189,8 +1189,8 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
 
   Widget _buildDeliveryDetailsCard() {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 12),
-      padding: EdgeInsets.all(12),
+      margin: EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+      padding: EdgeInsets.fromLTRB(12, 12, 12, 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -1259,14 +1259,14 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
             _deliveryAddress ?? 'Address not available',
             Colors.red.shade600,
           ),
-          SizedBox(height: 6),
+          SizedBox(height: 8),
           _buildModernInfoRow(
             Icons.phone_rounded,
             'Contact Number',
             _contactNumber ?? 'Contact number not available',
             Colors.blue.shade600,
           ),
-          SizedBox(height: 6),
+          SizedBox(height: 8),
           _buildModernInfoRow(
             Icons.local_shipping_rounded,
             'Delivery Method',

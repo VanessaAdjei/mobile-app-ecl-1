@@ -772,23 +772,28 @@ class AuthService {
           'user': responseData['user'],
         };
       } else if (response.statusCode == 401) {
+        // Use the actual API error message if available, otherwise use default
         return {
           'success': false,
-          'message': 'Invalid email or password. Please try again.'
+          'message': responseData['message'] ??
+              'Invalid email or password. Please try again.'
         };
       } else if (response.statusCode == 429) {
         return {
           'success': false,
-          'message':
+          'message': responseData['message'] ??
               'Too many attempts. Please wait a few minutes before trying again.'
         };
       } else if (response.statusCode >= 500) {
+        // Use the actual API error message if available, otherwise use default
         return {
           'success': false,
-          'message': 'Server is currently unavailable. Please try again later.'
+          'message': responseData['message'] ??
+              'Server is currently unavailable. Please try again later.'
         };
       }
 
+      // For other error status codes, use the API message
       return {
         'success': false,
         'message':
