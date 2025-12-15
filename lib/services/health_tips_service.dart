@@ -10,19 +10,17 @@ class HealthTipsService {
   static const String _baseUrl =
       'https://health.gov/myhealthfinder/api/v4/topicsearch.json';
 
-  // Enhanced cache for health tips with time-based expiration
+  // cache health tips so we dont load them every time
   static List<HealthTip> _cachedTips = [];
   static bool _hasLoadedOnce = false;
   static DateTime? _lastFetchTime;
   static const Duration _cacheExpiration =
-      Duration(minutes: 30); // Cache for 30 minutes
+      Duration(minutes: 30); // cache for 30 minutes
 
- 
   static Timer? _backgroundTimer;
   static bool _isBackgroundServiceRunning = false;
   static const Duration _backgroundRefreshInterval = Duration(minutes: 10);
   static const Duration _initialLoadDelay = Duration(seconds: 5);
-
 
   static void startBackgroundService() {
     if (_isBackgroundServiceRunning) return;
@@ -95,7 +93,7 @@ class HealthTipsService {
           debugPrint(
               'HealthTipsService: Error parsing API response: $parseError');
 
-          // Try simpler parsing as fallback
+          // try simpler parsing as fallback
           final simpleTips = _parseSimpleResponse(data);
           debugPrint(
               'HealthTipsService: Fallback parsing returned ${simpleTips.length} tips');
@@ -121,7 +119,7 @@ class HealthTipsService {
   static bool get isCacheValid {
     if (!_hasLoadedOnce || _cachedTips.isEmpty) return false;
 
-    // Check if cache has expired
+    // check if cache has expired
     if (_lastFetchTime != null) {
       final timeSinceLastFetch = DateTime.now().difference(_lastFetchTime!);
       return timeSinceLastFetch < _cacheExpiration;
@@ -130,7 +128,7 @@ class HealthTipsService {
     return false;
   }
 
-  // Get current cached tips for instant access
+  // get current cached tips so we can show them right away
   static List<HealthTip> getCurrentTips({int limit = 6}) {
     if (isCacheValid) {
       return _cachedTips.take(limit).toList();
@@ -138,7 +136,7 @@ class HealthTipsService {
     return [];
   }
 
-  // Check if background service is running
+  // check if background service is running
   static bool get isBackgroundServiceRunning => _isBackgroundServiceRunning;
 
   static Future<List<HealthTip>> fetchHealthTips({
@@ -154,7 +152,7 @@ class HealthTipsService {
       startBackgroundService();
     }
 
-    // Check cache first for instant response
+    // check cache first so we can respond instantly
     if (isCacheValid) {
       debugPrint('HealthTipsService: Using cached data');
       final result = _cachedTips.take(limit).toList();
@@ -163,7 +161,7 @@ class HealthTipsService {
       return result;
     }
 
-    // If no cache, try to fetch immediately but with shorter timeout
+    // if no cache, try to fetch right away but with shorter timeout
     try {
       debugPrint('HealthTipsService: Attempting immediate fetch...');
       final tips = await _fetchTipsFromAPI().timeout(Duration(seconds: 10));
@@ -196,7 +194,7 @@ class HealthTipsService {
     final List<HealthTip> tips = [];
 
     try {
-      // Try different possible response structures
+      // try different possible response structures
       if (data.containsKey('Result')) {
         final result = data['Result'];
         if (result is Map<String, dynamic>) {
@@ -223,7 +221,7 @@ class HealthTipsService {
         }
       }
 
-      // If no tips found, try alternative structure
+      // if no tips found, try alternative structure
       if (tips.isEmpty && data.containsKey('Resource')) {
         final resourceList = data['Resource'];
         if (resourceList is List) {
@@ -356,7 +354,7 @@ class HealthTipsService {
       ),
     ];
 
-    // Shuffle the fallback tips for variety
+    // shuffle the fallback tips so theyre different each time
     final shuffledTips = List<HealthTip>.from(allFallbackTips);
     shuffledTips.shuffle(Random());
 

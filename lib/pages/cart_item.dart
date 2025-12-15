@@ -1,11 +1,13 @@
 // pages/cart_item.dart
+// this is what a cart item looks like
 import 'package:flutter/cupertino.dart';
 
 class CartItem {
   final String id;
   final String productId;
   final int? serverProductId;
-  final String? originalProductId; // Add field to preserve original product ID
+  final String?
+      originalProductId; // keep track of the original product id so we dont lose it
   final String name;
   final double price;
   final double? originalPrice;
@@ -21,7 +23,7 @@ class CartItem {
     required this.id,
     required this.productId,
     this.serverProductId,
-    this.originalProductId, // Add to constructor
+    this.originalProductId, // original product id goes here too
     required this.name,
     required this.price,
     this.originalPrice,
@@ -34,7 +36,7 @@ class CartItem {
     required this.totalPrice,
   }) : lastModified = lastModified ?? DateTime.now();
 
-  // Helper methods for parsing
+  // these help us convert stuff to the right type
   static double _parseDouble(dynamic value) {
     if (value is double) return value;
     if (value is int) return value.toDouble();
@@ -61,8 +63,6 @@ class CartItem {
   }
 
   Map<String, dynamic> toJson() {
-  
-    
     return {
       'id': id,
       'product_name': name,
@@ -80,21 +80,21 @@ class CartItem {
   factory CartItem.fromJson(Map<String, dynamic> json) {
     debugPrint('🛒 Creating CartItem from JSON: ${json['product_name']}');
     debugPrint('🛒 JSON data: $json');
-    
+
     final price = _parseDouble(json['price']);
     final quantity = _parseInt(json['qty'] ?? json['quantity']);
-    
+
     return CartItem(
       id: json['id']?.toString() ?? '',
       productId: json['product_id']?.toString() ?? '',
-      serverProductId: json['server_product_id'] != null 
-          ? int.tryParse(json['server_product_id'].toString()) 
+      serverProductId: json['server_product_id'] != null
+          ? int.tryParse(json['server_product_id'].toString())
           : null,
       originalProductId: json['original_product_id']?.toString(),
       name: json['product_name'] ?? json['name'] ?? '',
       price: price,
-      originalPrice: json['original_price'] != null 
-          ? _parseDouble(json['original_price']) 
+      originalPrice: json['original_price'] != null
+          ? _parseDouble(json['original_price'])
           : null,
       quantity: quantity,
       image: json['product_img'] ?? json['image'] ?? '',

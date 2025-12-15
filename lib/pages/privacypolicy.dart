@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'Cart.dart';
+import 'cart.dart';
 
 import 'app_back_button.dart';
 
@@ -16,7 +16,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
     return Scaffold(
       body: Column(
         children: [
-          // Enhanced header with better design (matching notifications)
+          // nice header that matches the notifications page
           Container(
             padding:
                 EdgeInsets.only(top: MediaQuery.of(context).padding.top * 0.5),
@@ -99,7 +99,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
             ),
           ),
 
-          // Privacy Policy content
+          // privacy policy content
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),

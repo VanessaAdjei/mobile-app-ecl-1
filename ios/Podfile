@@ -59,6 +59,28 @@ post_install do |installer|
       config.build_settings['CODE_SIGN_IDENTITY[sdk=iphonesimulator*]'] = '-'
       config.build_settings['CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]'] = 'NO'
       config.build_settings['CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]'] = 'NO'
+      # Fix for corrupted AST/module cache issues - disable explicit modules
+      config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULE'] = 'NO'
+      
+      # Fix for Flutter header search paths and module issues
+      config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+      config.build_settings['DEFINES_MODULE'] = 'YES'
+      
+      # Fix umbrella header warnings
+      config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
+    end
+    
+    # Fix for GoogleMaps bundle resources - ensure bundle exists
+    if target.name == 'GoogleMaps'
+      bundle_path = File.join(installer.sandbox.root, 'GoogleMaps/Maps/Resources/GoogleMapsResources/GoogleMaps.bundle')
+      cache_bundle = Dir.glob(File.join(Dir.home, 'Library/Caches/CocoaPods/Pods/Release/GoogleMaps/*/GoogleMaps/Maps/Resources/GoogleMapsResources/GoogleMaps.bundle')).first
+      
+      if !File.exist?(bundle_path) && cache_bundle && File.exist?(cache_bundle)
+        require 'fileutils'
+        FileUtils.mkdir_p(File.dirname(bundle_path))
+        FileUtils.cp_r(cache_bundle, bundle_path)
+        puts "✅ Restored GoogleMaps.bundle from cache"
+      end
     end
   end
 end

@@ -1,11 +1,15 @@
 // pages/bottomnav.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'cartprovider.dart';
 import 'homepage.dart' as home;
 import 'categories.dart';
 import 'cart.dart';
 import 'profile.dart';
+import 'pharmacists.dart';
+import 'storelocation.dart';
 import 'notification_provider.dart';
 import '../services/order_notification_service.dart';
 import 'notifications.dart';
@@ -42,8 +46,6 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
   @override
   void dispose() {
     _disposed = true;
-    // Don't access context during dispose - it can cause issues
-    // The snackbars will be cleared automatically when the widget is disposed
     super.dispose();
   }
 
@@ -54,7 +56,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
 
   bool _isOnHomePage() {
     try {
-      // Check route name first
+      // check route name first
       final currentRoute = ModalRoute.of(context);
       if (currentRoute != null) {
         final routeName = currentRoute.settings.name;
@@ -63,12 +65,12 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
         }
       }
 
-      // Check if we're in root context (can't pop back)
+      // check if we're at the root (cant go back)
       if (Navigator.of(context).canPop() == false) {
         return true;
       }
 
-      // Check current page by looking at the context
+      // check current page by looking at the context
       final currentPage =
           context.findAncestorWidgetOfExactType<home.HomePage>();
       if (currentPage != null) {
@@ -82,7 +84,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     }
   }
 
-  /// Check if we're currently on a specific page type
+  // check if we're currently on a specific page type
   bool _isOnPage<T extends Widget>() {
     try {
       final currentPage = context.findAncestorWidgetOfExactType<T>();
@@ -93,7 +95,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     }
   }
 
-  /// Get the name of the current page for debugging
+  // get the name of the current page (for debugging)
   String _getCurrentPageName() {
     try {
       if (_isOnHomePage()) return 'HomePage';
@@ -111,25 +113,30 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
       final unreadCount =
           await OrderNotificationService.getCurrentUnreadCount();
 
-      // Use NotificationProvider to check if snackbar was already shown globally
+      // use NotificationProvider to check if snackbar should be shown
       final notificationProvider =
           Provider.of<NotificationProvider>(context, listen: false);
 
-      // Only show snackbar if there are unread notifications AND it hasn't been shown recently
-      if (unreadCount > 0 &&
-          mounted &&
+      // only show snackbar if there are NEW unread notifications (count increased)
+      if (mounted &&
           !_disposed &&
-          !notificationProvider.hasShownSnackbar) {
-        // Clear any existing snackbars first
-        if (mounted && !_disposed) {
-          ScaffoldMessenger.of(context).clearSnackBars();
-        }
-
-        // Mark as shown globally
-        notificationProvider.markSnackbarAsShown();
+          notificationProvider.shouldShowSnackbar(unreadCount)) {
+        // mark as shown globally with the current unread count
+        notificationProvider.markSnackbarAsShown(unreadCount);
 
         if (mounted && !_disposed) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+          // Clear any existing snackbars first, then show new one
+          scaffoldMessenger.clearSnackBars();
+
+          // Small delay to ensure state is reset
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          if (!mounted || _disposed) return;
+
+          // Show the snackbar
+          scaffoldMessenger.showSnackBar(
             SnackBar(
               content: Row(
                 children: [
@@ -144,7 +151,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
                 ],
               ),
               backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
+              duration: const Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
@@ -152,12 +159,15 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
                 label: 'View',
                 textColor: Colors.white,
                 onPressed: () {
-                  // Check if widget is still mounted before navigating
-                  if (mounted) {
-                    // Reset the notification flag since user is viewing notifications
-                    notificationProvider.resetSnackbarFlag();
+                  // Hide snackbar immediately when View is pressed
+                  scaffoldMessenger.hideCurrentSnackBar();
 
-                    // Navigate directly to notifications page
+                  // check if widget is still mounted before navigating
+                  if (mounted) {
+                    // reset the notification tracking since they're viewing notifications
+                    notificationProvider.resetOnNotificationsRead();
+
+                    // go directly to notifications page
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -169,20 +179,443 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
               ),
             ),
           );
-        }
 
-        // Reset flag after a delay to allow future snackbars
-        Future.delayed(const Duration(seconds: 10), () {
-          if (mounted && !_disposed) {
-            notificationProvider.resetSnackbarFlag();
-          }
-        });
+          // Fallback: Ensure snackbar is cleared after duration + small buffer
+          Future.delayed(const Duration(seconds: 2, milliseconds: 500), () {
+            if (mounted && !_disposed) {
+              scaffoldMessenger.hideCurrentSnackBar();
+            }
+          });
+        }
       } else if (unreadCount == 0) {
-        // If there are no unread notifications, reset the flag immediately
-        notificationProvider.resetSnackbarFlag();
+        // if there are no unread notifications, reset everything
+        notificationProvider.resetOnNotificationsRead();
       }
     } catch (e) {
       debugPrint('Error checking for new notifications: $e');
+    }
+  }
+
+  void _showPlusMenu(BuildContext context) {
+    // Defer showing the bottom sheet until after the current frame
+    // to avoid Navigator lock issues
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!context.mounted) return;
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (BuildContext context) {
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Handle bar
+                  Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 4),
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildMenuOption(
+                          context,
+                          icon: Icons.medical_services_rounded,
+                          title: 'Meet your pharmacist',
+                          subtitle: 'Chat or schedule a consultation',
+                          color: Colors.green.shade600,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const PharmacistsPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        const Divider(height: 1),
+                        _buildMenuOption(
+                          context,
+                          icon: Icons.location_on_rounded,
+                          title: 'Locate a store',
+                          subtitle: 'See nearby branches on the map',
+                          color: Colors.blue.shade600,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const StoreSelectionPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        const Divider(height: 1),
+                        _buildMenuOption(
+                          context,
+                          icon: Icons.contact_support_rounded,
+                          title: 'Contact us',
+                          subtitle: 'Call or email customer care',
+                          color: Colors.orange.shade600,
+                          onTap: () {
+                            Navigator.pop(context);
+                            _showContactOptions(context);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    });
+  }
+
+  Widget _buildMenuOption(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  center: const Alignment(0, -0.4),
+                  radius: 1.1,
+                  colors: [
+                    color.withOpacity(0.18),
+                    color.withOpacity(0.05),
+                  ],
+                ),
+              ),
+              child: Container(
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  icon,
+                  color: color,
+                  size: 20,
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: Colors.grey.shade400,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showContactOptions(BuildContext context) {
+    const String phoneNumber = '+233508411184';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(16),
+              topRight: Radius.circular(16),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle bar
+                Container(
+                  margin: const EdgeInsets.only(top: 10, bottom: 4),
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildContactOption(
+                        context,
+                        icon: Icons.phone_rounded,
+                        title: 'Call Us',
+                        subtitle: 'Speak directly with our team',
+                        color: Colors.green.shade600,
+                        onTap: () {
+                          Navigator.pop(context);
+                          _launchPhoneDialer(phoneNumber);
+                        },
+                      ),
+                      const Divider(height: 1),
+                      _buildContactOption(
+                        context,
+                        icon: Icons.message_rounded,
+                        title: 'WhatsApp',
+                        subtitle: 'Chat with us instantly',
+                        color: const Color(0xFF25D366),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _launchWhatsApp(phoneNumber,
+                              "Hello! I need help with the ECL app. Can you assist me?");
+                        },
+                      ),
+                      const Divider(height: 1),
+                      _buildContactOption(
+                        context,
+                        icon: Icons.email_rounded,
+                        title: 'Email Us',
+                        subtitle: 'Send us a detailed message',
+                        color: Colors.blue.shade600,
+                        onTap: () {
+                          Navigator.pop(context);
+                          _launchEmail('support@ernestchemists.com',
+                              'ECL App Support & Inquiry');
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildContactOption(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  center: const Alignment(0, -0.4),
+                  radius: 1.1,
+                  colors: [
+                    color.withOpacity(0.18),
+                    color.withOpacity(0.05),
+                  ],
+                ),
+              ),
+              child: Container(
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  icon,
+                  color: color,
+                  size: 20,
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: Colors.grey.shade400,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launchPhoneDialer(String phoneNumber) async {
+    final permissionStatus = await Permission.phone.request();
+    if (permissionStatus.isGranted) {
+      final String formattedPhoneNumber = 'tel:$phoneNumber';
+      if (await canLaunchUrl(Uri.parse(formattedPhoneNumber))) {
+        await launchUrl(Uri.parse(formattedPhoneNumber));
+      }
+    }
+  }
+
+  Future<void> _launchWhatsApp(String phoneNumber, String message) async {
+    if (phoneNumber.isEmpty || message.isEmpty) {
+      return;
+    }
+
+    if (!phoneNumber.startsWith('+')) {
+      phoneNumber = '+$phoneNumber';
+    }
+
+    final String encodedMessage = Uri.encodeComponent(message);
+    final String whatsappUrl =
+        'https://wa.me/$phoneNumber?text=$encodedMessage';
+
+    try {
+      final Uri uri = Uri.parse(whatsappUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('WhatsApp is not installed on your device'),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error launching WhatsApp: $e');
+    }
+  }
+
+  Future<void> _launchEmail(String email, String subject) async {
+    try {
+      const String emailBody =
+          'Hello,\n\nI would like to contact Ernest Chemists Limited for support.\n\nBest regards,';
+      final Uri emailUri = Uri.parse(
+          'mailto:$email?subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(emailBody)}');
+      if (await canLaunchUrl(emailUri)) {
+        await launchUrl(emailUri);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No email app found on your device'),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error launching email: $e');
     }
   }
 
@@ -197,10 +630,16 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
       ScaffoldMessenger.of(context).clearSnackBars();
     }
 
-    // Prevent multiple rapid taps
+    // prevent multiple rapid taps
     if (_isNavigating) {
       debugPrint('🔍 ALREADY NAVIGATING - IGNORING TAP ===');
       return;
+    }
+
+    // Special handling for plus icon (index 2) - show menu and return
+    if (index == 2) {
+      _showPlusMenu(context);
+      return; // Don't proceed with navigation logic
     }
 
     // Check if we're already on the selected page
@@ -208,13 +647,13 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     // For other buttons, check if we're already on that page
     if (index == _selectedIndex) {
       if (index == 0) {
-        // Home button: check if we're already on home page
+        // home button: check if we're already on home page
         if (_isOnHomePage()) {
           debugPrint('🔍 ALREADY ON HOME PAGE - STAYING PUT ===');
           return;
         }
       } else {
-        // Other buttons: check if we're already on the target page
+        // other buttons: check if we're already on the target page
         switch (index) {
           case 1: // Cart
             if (_isOnPage<Cart>()) {
@@ -222,13 +661,16 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
               return;
             }
             break;
-          case 2: // Categories
+          case 2: // Plus icon - no page check needed
+            // Plus icon action will be handled in switch statement
+            break;
+          case 3: // Categories
             if (_isOnPage<CategoryPage>()) {
               debugPrint('🔍 ALREADY ON CATEGORIES PAGE - STAYING PUT ===');
               return;
             }
             break;
-          case 3: // Profile
+          case 4: // Profile
             if (_isOnPage<Profile>()) {
               debugPrint('🔍 ALREADY ON PROFILE PAGE - STAYING PUT ===');
               return;
@@ -238,7 +680,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
       }
     }
 
-    // Set navigating flag
+    // set navigating flag
     _isNavigating = true;
 
     // Update the selected index first
@@ -246,7 +688,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
       _selectedIndex = index;
     });
 
-    // Use a longer delay to ensure the widget tree is stable
+    // wait a bit longer to make sure the widget tree is stable
     await Future.delayed(Duration(milliseconds: 200));
 
     if (!mounted) {
@@ -287,6 +729,9 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
             );
             break;
           case 2:
+            // Plus icon - menu already shown in _onItemTapped, just return
+            break;
+          case 3:
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -294,7 +739,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
               ),
             );
             break;
-          case 3:
+          case 4:
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -306,7 +751,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
       } catch (e) {
         debugPrint('🔍 NAVIGATION ERROR: $e ===');
       } finally {
-        // Reset navigating flag after a delay
+        // reset navigating flag after a delay
         Future.delayed(Duration(milliseconds: 500), () {
           if (mounted && !_disposed) {
             setState(() {
@@ -324,14 +769,11 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    
-    final navHeight = screenHeight * 0.09; 
-    final iconSize = screenWidth * 0.05; 
-    final fontSize = screenWidth * 0.025; 
+    final navHeight = screenHeight * 0.09;
+    final iconSize = screenWidth * 0.05;
+    final fontSize = screenWidth * 0.025;
 
-    
-    final finalNavHeight = navHeight.clamp(95.0,
-        125.0); 
+    final finalNavHeight = navHeight.clamp(100.0, 130.0);
     final finalIconSize = iconSize.clamp(18.0, 24.0);
     final finalFontSize = fontSize.clamp(8.0, 12.0);
 
@@ -363,14 +805,14 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
           selectedFontSize: finalFontSize,
           unselectedFontSize: finalFontSize,
           iconSize: finalIconSize,
-          // Fix overflow by reducing text height
+          // fix overflow by reducing text height
           selectedLabelStyle: TextStyle(
             fontSize: finalFontSize,
-            height: 1.0, // Reduce line height to prevent overflow
+            height: 0.9, // Reduce line height to prevent overflow
           ),
           unselectedLabelStyle: TextStyle(
             fontSize: finalFontSize,
-            height: 1.0, // Reduce line height to prevent overflow
+            height: 0.9, // Reduce line height to prevent overflow
           ),
           items: [
             BottomNavigationBarItem(
@@ -411,6 +853,29 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
               ),
               label: 'Cart',
             ),
+            BottomNavigationBarItem(
+              icon: Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.apps,
+                  color: Colors.green,
+                  size: 26,
+                ),
+              ),
+              label: '',
+            ),
             const BottomNavigationBarItem(
               icon: Icon(Icons.grid_view),
               label: 'Categories',
@@ -429,7 +894,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
                           child: Container(
                             padding: const EdgeInsets.all(2),
                             decoration: BoxDecoration(
-                              // Blue dot for new orders, orange for other notifications
+                              // blue dot for new orders, orange for other notifications
                               color: notificationProvider.newOrderCount > 0
                                   ? Colors.blue
                                   : Colors.orange,

@@ -31,14 +31,14 @@ class WishlistService {
     }
   }
 
-  // Add product to wishlist
+  // add a product to the wishlist
   Future<bool> addToWishlist(Product product) async {
     try {
       final wishlistItems = await getWishlistItems();
 
-      // Check if product already exists in wishlist
+      // check if its already in the wishlist
       if (wishlistItems.any((item) => item.product.id == product.id)) {
-        return false; // Already in wishlist
+        return false; // already there
       }
 
       final newItem = WishlistItem(
@@ -56,7 +56,7 @@ class WishlistService {
     }
   }
 
-  // Remove product from wishlist
+  // remove a product from the wishlist
   Future<bool> removeFromWishlist(int productId) async {
     try {
       final wishlistItems = await getWishlistItems();
@@ -69,7 +69,7 @@ class WishlistService {
     }
   }
 
-  // Check if product is in wishlist
+  // check if a product is in the wishlist
   Future<bool> isInWishlist(int productId) async {
     try {
       final wishlistItems = await getWishlistItems();
@@ -80,7 +80,7 @@ class WishlistService {
     }
   }
 
-  // Clear entire wishlist
+  // delete everything from the wishlist
   Future<bool> clearWishlist() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -92,7 +92,7 @@ class WishlistService {
     }
   }
 
-  // Get wishlist count
+  // how many items are in the wishlist
   Future<int> getWishlistCount() async {
     try {
       final wishlistItems = await getWishlistItems();
@@ -103,7 +103,7 @@ class WishlistService {
     }
   }
 
-  // Save wishlist items to SharedPreferences
+  // save wishlist items to local storage
   Future<void> _saveWishlistItems(List<WishlistItem> items) async {
     final prefs = await SharedPreferences.getInstance();
     final String wishlistJson =
@@ -120,7 +120,7 @@ class WishlistService {
         orElse: () => throw Exception('Item not found in wishlist'),
       );
 
-      // Create CartItem from wishlist item
+      // turn the wishlist item into a cart item
       final cartItem = CartItem(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         productId: itemToMove.product.id.toString(),
@@ -133,11 +133,11 @@ class WishlistService {
         totalPrice: double.tryParse(itemToMove.product.price) ?? 0.0,
       );
 
-      // Get CartProvider instance and add to cart
+      // get the cart provider and add it to cart
       final cartProvider = CartProvider();
       await cartProvider.addToCart(cartItem);
 
-      // Remove from wishlist after successfully adding to cart
+      // remove it from wishlist after we add it to cart
       await removeFromWishlist(productId);
 
       debugPrint('Successfully moved ${itemToMove.product.name} to cart');

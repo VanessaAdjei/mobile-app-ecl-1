@@ -32,12 +32,12 @@ class DeliveryPageState extends State<DeliveryPage> {
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
 
-  // Location coordinates
+  // where on the map they picked
   double? _latitude;
   double? _longitude;
   bool _isGeocoding = false;
 
-  // API delivery time from save-billing-add response
+  // how long delivery will take (from the api)
   String? _apiDeliveryTime;
 
   bool _highlightPhoneField = false;
@@ -55,7 +55,7 @@ class DeliveryPageState extends State<DeliveryPage> {
   final GlobalKey citySectionKey = GlobalKey();
   final GlobalKey addressSectionKey = GlobalKey();
 
-  // API Data for pickup locations
+  // data for pickup locations (regions, cities, stores)
   List<Map<String, dynamic>> regions = [];
   List<Map<String, dynamic>> cities = [];
   List<Map<String, dynamic>> stores = [];
@@ -63,11 +63,11 @@ class DeliveryPageState extends State<DeliveryPage> {
   bool isLoadingCities = false;
   bool isLoadingStores = false;
 
-  // Caching for better performance
+  // cache this stuff so we dont have to load it every time
   final Map<int, List<Map<String, dynamic>>> _citiesCache = {};
   final Map<int, List<Map<String, dynamic>>> _storesCache = {};
 
-  // Selected values for pickup
+  // what they picked for pickup
   Map<String, dynamic>? selectedRegion;
   Map<String, dynamic>? selectedCity;
   Map<String, dynamic>? selectedPickupSite;
@@ -88,10 +88,10 @@ class DeliveryPageState extends State<DeliveryPage> {
   void initState() {
     super.initState();
     _loadUserData();
-    _loadRegions(); // Load regions when page initializes
+    _loadRegions(); // load regions when the page starts
   }
 
-  /// Get coordinates from address using geocoding
+  // turn an address into map coordinates
   Future<void> _getCoordinatesFromAddress(String address) async {
     if (address.trim().isEmpty) return;
 
@@ -111,7 +111,7 @@ class DeliveryPageState extends State<DeliveryPage> {
       cleanAddress = cleanAddress.replaceAll(RegExp(r',+'), ',');
       cleanAddress = cleanAddress.replaceAll(RegExp(r'^\s*,\s*|\s*,\s*$'), '');
 
-      // Combine address with city and region for better accuracy
+      // add city and region to the address so it works better
       final fullAddress =
           '${cleanAddress}, ${_cityController.text.trim()}, ${_regionController.text.trim()}, Ghana';
 
@@ -141,7 +141,7 @@ class DeliveryPageState extends State<DeliveryPage> {
         print('   📍 New Longitude: ${_longitude}');
         print('   📍 New coordinates: (${_latitude}, ${_longitude})');
 
-        // 🗺️ [MAP COORDINATES] Log the geocoding response details
+        // print the geocoding stuff so we can see what we got
         print('🗺️ [MAP COORDINATES] ===== GEOCODING RESPONSE DETAILS =====');
         print('🗺️ [MAP COORDINATES] Location object: $location');
         print('🗺️ [MAP COORDINATES] Latitude: ${location.latitude}');
@@ -164,7 +164,7 @@ class DeliveryPageState extends State<DeliveryPage> {
         print(
             '⚠️ [GEOCODING] No coordinates found for address: "$fullAddress"');
 
-        // Try with just the city and region if the specific address fails
+        // if the full address didnt work, try just city and region
         print('🔄 [GEOCODING] Trying fallback with just city and region...');
         try {
           final fallbackAddress =
@@ -192,7 +192,7 @@ class DeliveryPageState extends State<DeliveryPage> {
       print('❌ [GEOCODING] ERROR occurred: $e');
       print('❌ [GEOCODING] Error type: ${e.runtimeType}');
 
-      // Try fallback with just city and region
+      // try again with just city and region
       print('🔄 [GEOCODING] Trying fallback after error...');
       try {
         final fallbackAddress =
@@ -223,16 +223,16 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   Future<void> _loadUserData() async {
     try {
-      // First, immediately load basic user data for fast UI response
+      // load basic user data first so the ui shows up fast
       await _loadBasicUserData();
-      // Check if user is logged in
+      // check if theyre logged in
       final isLoggedIn = await AuthService.isLoggedIn();
       if (!isLoggedIn) {
         return;
       }
 
-      // User is logged in, try to load delivery info from API in background
-      // Use a shorter timeout and handle the API call asynchronously
+      // if theyre logged in, get their saved address from the api
+      // use a short timeout so it doesnt hang
       try {
         final deliveryResult = await DeliveryService.getLastDeliveryInfo()
             .timeout(const Duration(
@@ -243,30 +243,30 @@ class DeliveryPageState extends State<DeliveryPage> {
             mounted) {
           final deliveryData = deliveryResult['data'];
           setState(() {
-            // Pre-fill the form fields with delivery data
+            // fill in the form with their saved address
             _nameController.text = deliveryData['name'] ?? '';
             _emailController.text = deliveryData['email'] ?? '';
             _phoneController.text = deliveryData['phone'] ?? '';
 
-            // Set delivery option - use shipping_type as fallback
+            // set delivery or pickup - use shipping_type if we have it
             deliveryOption = (deliveryData['delivery_option'] ??
                     deliveryData['shipping_type'] ??
                     'delivery')
                 .toLowerCase();
 
-            // Fill delivery-specific fields
+            // fill in the delivery address fields
             if (deliveryOption == 'delivery') {
               _regionController.text = deliveryData['region'] ?? '';
               _cityController.text = deliveryData['city'] ?? '';
               _addressController.text = deliveryData['address'] ?? '';
               _updateDeliveryFee();
 
-              // Get coordinates for pre-filled address
+              // get map coordinates for the address we just filled in
               if (deliveryData['address'] != null &&
                   deliveryData['address'].toString().isNotEmpty) {
                 print(
                     '🔄 [PRE-FILL] Address pre-filled, getting coordinates...');
-                // Use a small delay to ensure all fields are set
+                // wait a tiny bit to make sure all fields are filled
                 Future.delayed(const Duration(milliseconds: 500), () {
                   if (mounted) {
                     _getCoordinatesFromAddress(deliveryData['address']);
@@ -281,17 +281,17 @@ class DeliveryPageState extends State<DeliveryPage> {
                   deliveryData['pickup_location'];
             }
 
-            // Fill notes
+            // fill in the notes field
             _notesController.text = deliveryData['notes'] ?? '';
           });
         } else {
           if (deliveryResult['message'] != null) {}
         }
       } catch (apiError) {
-        // API failed, but we already have basic user data loaded
+        // api failed but we already got the basic user data, so its ok
       }
     } catch (e) {
-      // Continue with empty fields if there's an error loading user data
+      // if loading failed, just start with empty fields
     }
   }
 
@@ -327,7 +327,7 @@ class DeliveryPageState extends State<DeliveryPage> {
     });
   }
 
-  // Enhanced scroll to error function
+  // scroll to where the error is so they can see it
   void _scrollToError(GlobalKey key, {String? errorType}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (key.currentContext != null && mounted) {
@@ -364,7 +364,7 @@ class DeliveryPageState extends State<DeliveryPage> {
         children: [
           Column(
             children: [
-              // Enhanced header with better design
+              // nice header at the top
               Animate(
                 effects: [
                   FadeEffect(duration: 400.ms),
@@ -396,7 +396,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                   ),
                   child: Column(
                     children: [
-                      // Header with back button and title
+                      // header with back button and title
                       Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 8),
@@ -427,7 +427,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                           ],
                         ),
                       ),
-                      // Enhanced progress indicator
+                      // progress bar showing how far they are
                       Container(
                         padding: const EdgeInsets.symmetric(
                             vertical: 16, horizontal: 8),
@@ -501,7 +501,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                               ),
                               const SizedBox(height: 20),
 
-                              // Only show delivery notes for delivery option
+                              // only show notes field if they chose delivery
                               if (deliveryOption == 'delivery') ...[
                                 Animate(
                                   effects: [
@@ -798,7 +798,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               ],
             ),
             const SizedBox(height: 16),
-            // Region Dropdown
+            // region dropdown
             _buildPickupDropdown(
               label: 'Select Region',
               value: selectedRegion,
@@ -826,7 +826,7 @@ class DeliveryPageState extends State<DeliveryPage> {
             ),
             if (selectedRegion != null) ...[
               const SizedBox(height: 16),
-              // City Dropdown
+              // city dropdown
               _buildPickupDropdown(
                 label: 'Select City',
                 value: selectedCity,
@@ -854,7 +854,7 @@ class DeliveryPageState extends State<DeliveryPage> {
             ],
             if (selectedCity != null) ...[
               const SizedBox(height: 16),
-              // Pickup Site Dropdown
+              // pickup site dropdown
               _buildPickupDropdown(
                 label: 'Select Pickup Site',
                 value: selectedPickupSite,
@@ -1022,7 +1022,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                 ? null
                 : (Map<String, dynamic>? newValue) {
                     onChanged(newValue);
-                    // Reset highlight when user makes a selection
+                    // stop highlighting when they pick something
                     if (_highlightPickupField) {
                       setState(() {
                         _highlightPickupField = false;
@@ -1088,7 +1088,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               ],
             ),
             const SizedBox(height: 16),
-            // Contact Fields Section
+            // name, phone, email fields
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -1113,7 +1113,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Name Field
+                  // name input field
                   _buildFormField(
                     key: nameSectionKey,
                     controller: _nameController,
@@ -2322,8 +2322,8 @@ class DeliveryPageState extends State<DeliveryPage> {
         print(
             '🗺️ [REVERSE GEOCODING RESPONSE] Sub-thoroughfare: ${placemark.subThoroughfare}');
 
-        final address =
-            '${placemark.street ?? ''}, ${placemark.subLocality ?? ''}, ${placemark.locality ?? ''}';
+        // Build a readable address prioritizing place name
+        final address = _buildReadableAddressFromPlacemark(placemark);
 
         print('✅ [REVERSE GEOCODING] Address found: $address');
         print(
@@ -2347,7 +2347,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                   '🗺️ [REVERSE GEOCODING] Updated city: ${placemark.locality}');
             }
 
-            // Update address field
+            // Update address field with the readable address
             _addressController.text = address.trim();
             print('🗺️ [REVERSE GEOCODING] Updated address: $address');
 
@@ -2367,6 +2367,47 @@ class DeliveryPageState extends State<DeliveryPage> {
       print(
           '🗺️ [REVERSE GEOCODING RESPONSE] ======================================');
     }
+  }
+
+  /// Build a readable address from placemark, prioritizing place name
+  /// Returns just the generic place name when available
+  String _buildReadableAddressFromPlacemark(Placemark placemark) {
+    // Priority 1: Use the place name if available (e.g., "Accra Mall", "Kumasi Central Market")
+    if (placemark.name != null &&
+        placemark.name!.isNotEmpty &&
+        placemark.name != placemark.street &&
+        placemark.name != placemark.thoroughfare) {
+      return placemark.name!;
+    }
+
+    // Priority 2: Use thoroughfare (main street/road name) if no place name
+    if (placemark.thoroughfare != null && placemark.thoroughfare!.isNotEmpty) {
+      return placemark.thoroughfare!;
+    }
+
+    // Priority 3: Use street if thoroughfare is not available
+    if (placemark.street != null && placemark.street!.isNotEmpty) {
+      return placemark.street!;
+    }
+
+    // Priority 4: Use sub-locality (neighborhood/area)
+    if (placemark.subLocality != null && placemark.subLocality!.isNotEmpty) {
+      return placemark.subLocality!;
+    }
+
+    // Priority 5: Use locality (city)
+    if (placemark.locality != null && placemark.locality!.isNotEmpty) {
+      return placemark.locality!;
+    }
+
+    // Priority 6: Use administrative area (region)
+    if (placemark.administrativeArea != null &&
+        placemark.administrativeArea!.isNotEmpty) {
+      return placemark.administrativeArea!;
+    }
+
+    // Fallback: Return unknown if nothing is available
+    return 'Unknown location';
   }
 
   /// Load regions from API
@@ -2405,9 +2446,38 @@ class DeliveryPageState extends State<DeliveryPage> {
               }
             }
 
-            regions = uniqueRegions.values.toList();
+            final allRegions = uniqueRegions.values.toList();
+
+            // Filter to only show Greater Accra, Ashanti, and Western regions
+            final allowedRegionNames = [
+              'greater accra',
+              'ashanti',
+              'western',
+              'accra', // Also allow "Accra" as it might be named differently
+            ];
+
+            final filteredRegions = allRegions.where((region) {
+              final regionName =
+                  (region['description'] ?? '').toString().toLowerCase().trim();
+              final isAllowed = allowedRegionNames
+                  .any((allowed) => regionName.contains(allowed));
+
+              if (!isAllowed) {
+                print(
+                    '❌ [REGIONS] Region filtered out: "$regionName" (original: "${region['description']}")');
+              } else {
+                print(
+                    '✅ [REGIONS] Region allowed: "$regionName" (original: "${region['description']}")');
+              }
+
+              return isAllowed;
+            }).toList();
+
+            regions = filteredRegions;
             print(
-                '✅ [REGIONS] Deduplicated to ${regions.length} unique regions');
+                '✅ [REGIONS] Filtered to ${regions.length} regions (from ${allRegions.length} total)');
+            print(
+                '📋 [REGIONS] Allowed regions: ${regions.map((r) => r['description']).toList()}');
             isLoadingRegions = false;
 
             // Validate pre-filled region value after regions are loaded

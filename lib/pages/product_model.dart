@@ -1,4 +1,5 @@
 // pages/product_model.dart
+// this is what a product looks like in our app
 class Product {
   final int id;
   final String name;
@@ -45,7 +46,7 @@ class Product {
   factory Product.fromJson(Map<String, dynamic> json) {
     final uomValue = json['uom'];
 
-    // Handle UOM properly - extract description if it's a Map
+    // uom can be a map or a string, so we gotta handle both
     String? finalUom;
     if (uomValue is Map<String, dynamic>) {
       finalUom = uomValue['description']?.toString();

@@ -1,4 +1,5 @@
 // main.dart
+// main.dart - this is where the app starts i think
 import 'package:eclapp/pages/auth_service.dart';
 import 'package:eclapp/pages/authprovider.dart';
 import 'package:eclapp/pages/profile.dart';
@@ -44,14 +45,14 @@ import 'services/notification_service.dart';
 import 'services/http_client_service.dart';
 
 void main() async {
-  // Run in a zone to catch all errors including unhandled exceptions
+  // wrap everything in a zone so we can catch errors that would normally crash the app
   runZonedGuarded(() async {
     final appStartTime = DateTime.now();
     debugPrint('🚀 Main: App starting at ${appStartTime.toIso8601String()}');
 
     WidgetsFlutterBinding.ensureInitialized();
 
-    // Suppress error widget displays for keychain entitlement errors
+    // hide those annoying keychain errors that keep showing up
     ErrorWidget.builder = (FlutterErrorDetails details) {
       final exception = details.exception;
       final errorString = exception.toString().toLowerCase();
@@ -61,7 +62,7 @@ void main() async {
         if (exception.code == '-34018' ||
             exception.message?.contains('34018') == true ||
             exception.message?.contains('entitlement') == true) {
-          // Return empty widget instead of error widget
+          // just return nothing instead of showing an error
           return const SizedBox.shrink();
         }
       }
@@ -74,12 +75,12 @@ void main() async {
         return const SizedBox.shrink();
       }
 
-      // For other errors, show default error widget
+      // for everything else, show the normal error thing
       return ErrorWidget(details.exception);
     };
 
-    // Global error handler to suppress -34018 keychain entitlement errors
-    // This must be set up BEFORE any FlutterSecureStorage calls
+    // catch keychain errors globally so they dont show up everywhere
+    // IMPORTANT: do this before we use FlutterSecureStorage or it wont work
     FlutterError.onError = (FlutterErrorDetails details) {
       // Suppress -34018 keychain entitlement errors silently
       final exception = details.exception;
@@ -97,12 +98,12 @@ void main() async {
             platformException.message
                     ?.contains('Unexpected security result code') ==
                 true) {
-          // Silently suppress this error - don't show it to users
-          return; // Don't show the error
+          // just ignore it, users dont need to see this
+          return; // skip showing the error
         }
       }
 
-      // Also check error string, context, and library for -34018 or entitlement messages
+      // also check if the error message itself has those keywords
       if (errorString.contains('34018') ||
           errorString.contains('entitlement') ||
           errorString.contains('required entitlement') ||
@@ -115,20 +116,20 @@ void main() async {
         return; // Don't show the error
       }
 
-      // For other errors, check if it's a keychain error in the stack trace
+      // if we still havent caught it, check the stack trace too
       final stackString = details.stack?.toString().toLowerCase() ?? '';
       if (stackString.contains('34018') ||
           stackString.contains('entitlement') ||
           stackString.contains('flutter_secure_storage')) {
-        // Suppress keychain-related errors even if not caught above
+        // catch it here if we missed it before
         return;
       }
 
-      // For other errors, use default behavior
+      // everything else just show normally
       FlutterError.presentError(details);
     };
 
-    // Handle uncaught errors in async code
+    // catch errors that happen in async functions
     PlatformDispatcher.instance.onError = (error, stack) {
       // Suppress -34018 keychain entitlement errors silently
       final errorString = error.toString().toLowerCase();
@@ -143,12 +144,12 @@ void main() async {
             platformException.message
                     ?.contains('Unexpected security result code') ==
                 true) {
-          // Silently suppress this error - don't show it to users
-          return true; // Error handled, don't show it
+          // hide it from users
+          return true; // we handled it, dont show anything
         }
       }
 
-      // Also check error string for -34018 or entitlement messages
+      // check the error message text too
       if (errorString.contains('34018') ||
           errorString.contains('entitlement') ||
           errorString.contains('required entitlement') ||
@@ -158,31 +159,31 @@ void main() async {
         return true; // Error handled, don't show it
       }
 
-      // For other errors, let them propagate
+      // let other errors through normally
       return false;
     };
 
-    // Initialize HTTP client service for certificate handling
+    // set up http client stuff for ssl certificates i think
     await HttpClientService.initialize();
 
-    // Configure image cache for better performance
+    // make images cache better so they load faster
     PaintingBinding.instance.imageCache.maximumSize = 1000;
     PaintingBinding.instance.imageCache.maximumSizeBytes = 100 << 20; // 100 MB
 
-    // Check if this is a restart (faster path)
+    // check if the app was just restarted (can skip some stuff)
     final prefs = await SharedPreferences.getInstance();
     final isRestart = prefs.getBool('app_was_running') ?? false;
 
     if (isRestart) {
       debugPrint('🚀 Main: App restart detected, using optimized path');
-      // For restarts, skip some initialization
+      // if its a restart we can skip some things to make it faster
       await _fastRestart();
     } else {
       debugPrint('🚀 Main: Cold start detected, full initialization');
       await _coldStart();
     }
 
-    // Mark app as running
+    // remember that the app is running now
     await prefs.setBool('app_was_running', true);
 
     final totalStartupTime = DateTime.now().difference(appStartTime);
@@ -191,14 +192,14 @@ void main() async {
 
     runApp(const MyApp());
   }, (error, stack) {
-    // Zone error handler - catches all unhandled errors including PlatformException
+    // catch any errors that slip through, including platform errors
     if (error is PlatformException) {
       if (error.code == '-34018' ||
           error.message?.contains('34018') == true ||
           error.message?.contains('entitlement') == true ||
           error.message?.contains('required entitlement') == true ||
           error.message?.contains('Unexpected security result code') == true) {
-        // Silently suppress -34018 keychain entitlement errors
+        // hide keychain errors again here
         debugPrint(
             'Keychain entitlement error suppressed in zone: ${error.message}');
         return;
@@ -217,37 +218,37 @@ void main() async {
       return;
     }
 
-    // For other errors, log them but don't crash
+    // other errors just log them, dont crash the whole app
     debugPrint('Unhandled error in zone: $error');
     debugPrint('Stack trace: $stack');
   });
 }
 
-// Fast restart path for when app was recently running
+// if the app was just running, we can do less stuff to start faster
 Future<void> _fastRestart() async {
   debugPrint('🚀 Main: Fast restart - minimal initialization');
 
-  // Only initialize essential services
+  // only do the important stuff, skip the rest
   await BannerCacheService().initialize();
 
-  // Start everything else in background
+  // do other stuff in the background so it doesnt slow us down
   unawaited(_initializeNonCriticalServices());
   unawaited(_startBackgroundServices());
 
   debugPrint('🚀 Main: Fast restart completed');
 }
 
-// Full cold start path for first launch - optimized for fast onboarding
+// when the app starts fresh, do everything but try to be fast about it
 Future<void> _coldStart() async {
   debugPrint('🚀 Main: Cold start - optimized for fast onboarding');
 
   await AuthService.clearAllGuestIds();
 
-  // Initialize critical services first (blocking)
+  // do the important stuff first and wait for it to finish
   debugPrint('🚀 Main: Starting critical service initialization...');
   final criticalStartTime = DateTime.now();
 
-  // Only initialize absolutely essential services for onboarding
+  // only do the bare minimum so onboarding shows up fast
   await Future.wait([
     BannerCacheService().initialize(),
   ]).timeout(
@@ -257,7 +258,7 @@ Future<void> _coldStart() async {
   debugPrint(
       '🚀 Main: Critical services initialized in ${criticalInitTime.inMilliseconds}ms');
 
-  // Start non-critical services in background (non-blocking)
+  // do other stuff in background, dont wait for it
   unawaited(_initializeNonCriticalServices());
 
   // Prefetch only essential data (blocking with very aggressive timeout for onboarding)
@@ -268,13 +269,12 @@ Future<void> _coldStart() async {
   try {
     await Future.wait([
       BannerCacheService().getBanners(),
-      // Removed blocking popular products fetch - moved to background
+      // dont fetch popular products here, do it later in background
     ]).timeout(
         const Duration(milliseconds: 300)); // Very fast timeout for onboarding
   } catch (e) {
     if (e is TimeoutException) {
-      debugPrint(
-          '⚠️ Main: Essential data prefetching timed out, continuing with app startup');
+      debugPrint('⚠️ Main: took too long, just continue anyway');
     } else {
       debugPrint('❌ Main: Error in essential data prefetching: $e');
     }
@@ -284,13 +284,13 @@ Future<void> _coldStart() async {
   debugPrint(
       '🚀 Main: Essential data prefetched in ${prefetchTime.inMilliseconds}ms');
 
-  // Start background services immediately (non-blocking)
+  // start background stuff right away, dont wait
   unawaited(_startBackgroundServices());
 
   debugPrint('🚀 Main: Cold start completed');
 }
 
-// Initialize non-critical services in background
+// set up services that arent super important in the background
 Future<void> _initializeNonCriticalServices() async {
   debugPrint('🚀 Main: Starting non-critical service initialization...');
   final startTime = DateTime.now();
@@ -307,25 +307,25 @@ Future<void> _initializeNonCriticalServices() async {
   debugPrint(
       '🚀 Main: Non-critical services initialized in ${initTime.inMilliseconds}ms');
 
-  // Start non-critical data prefetching
+  // get some data ready in the background
   unawaited(HomepageOptimizationService()
-      .getPopularProductsUltraFast()); // Using ultra-fast method for maximum performance
+      .getPopularProductsUltraFast()); // use the super fast method
   unawaited(HomepageOptimizationService().getCategorizedProducts());
   unawaited(OptimizedHomepageService().getProducts());
   unawaited(BackgroundPrefetchService().smartPrefetch());
 
-  // Initialize auth service
+  // set up auth stuff
   unawaited(AuthService.init().catchError((e) {
     debugPrint('Background auth initialization error: $e');
   }));
 }
 
-// Start background services
+// start all the background services
 Future<void> _startBackgroundServices() async {
   try {
     debugPrint('🚀 Main: Starting background services...');
 
-    // Start void-returning services first
+    // start the services that dont return anything first
     BackgroundOrderChecker.startPeriodicChecking();
     HealthTipsService.startBackgroundService();
     BackgroundCartSyncService.startBackgroundSync();
@@ -333,7 +333,7 @@ Future<void> _startBackgroundServices() async {
     BackgroundStoreDataService.startBackgroundPreloading();
     BackgroundInventoryMonitorService.startBackgroundMonitoring();
 
-    // Start async services in parallel
+    // start the async ones at the same time
     await Future.wait([
       OrderNotificationService.initializeNotifications(),
       NativeNotificationService.initialize(),
@@ -363,19 +363,19 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // Run initialization checks in parallel for faster startup
+    // do initialization stuff at the same time to make it faster
     _initializeAppState();
   }
 
-  // Initialize app state in parallel
+  // set up app state, do multiple things at once
   Future<void> _initializeAppState() async {
     debugPrint('🚀 Main: Starting app state initialization...');
     final startTime = DateTime.now();
 
-    // Run critical checks first (blocking)
+    // do the important checks first (wait for them)
     await _checkFirstLaunch();
 
-    // Run non-critical checks in parallel (non-blocking)
+    // do the less important checks at the same time (dont wait)
     unawaited(_checkAuthStatus());
     unawaited(_handleNotificationPayload());
 
@@ -387,26 +387,26 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Future<void> _checkFirstLaunch() async {
     final prefs = await SharedPreferences.getInstance();
 
-    // Check if this is a fresh install by looking for app installation date
+    // check if this is the first time opening the app
     final appInstallDate = prefs.getString('app_install_date');
     final currentDate = DateTime.now().toIso8601String();
 
     if (appInstallDate == null) {
-      // This is a fresh install - set the install date and show onboarding
+      // first time opening, set the date and show onboarding
       await prefs.setString('app_install_date', currentDate);
       setState(() {
         _isFirstLaunch = true;
       });
       debugPrint('🚀 Main: Fresh install detected - showing onboarding');
     } else {
-      // Check if the app was uninstalled and reinstalled
-      // If the install date is very old (more than 30 days), treat as fresh install
+      // check if they uninstalled and reinstalled the app
+      // if the install date is really old (over 30 days), treat it as a fresh install
       try {
         final installDate = DateTime.parse(appInstallDate);
         final daysSinceInstall = DateTime.now().difference(installDate).inDays;
 
         if (daysSinceInstall > 30) {
-          // App was likely uninstalled and reinstalled - show onboarding again
+          // probably uninstalled and reinstalled, show onboarding again
           await prefs.setString('app_install_date', currentDate);
           setState(() {
             _isFirstLaunch = true;
@@ -414,14 +414,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           debugPrint(
               '🚀 Main: App reinstall detected (${daysSinceInstall} days old) - showing onboarding');
         } else {
-          // Normal app launch - don't show onboarding
+          // normal launch, skip onboarding
           setState(() {
             _isFirstLaunch = false;
           });
           debugPrint('🚀 Main: Normal app launch - skipping onboarding');
         }
       } catch (e) {
-        // If there's an error parsing the date, treat as fresh install
+        // if we cant parse the date, just treat it as a fresh install
         await prefs.setString('app_install_date', currentDate);
         setState(() {
           _isFirstLaunch = true;
@@ -431,7 +431,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
-  /// Reset onboarding state for testing purposes
+  // reset onboarding state (for testing)
   Future<void> _resetOnboarding() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('app_install_date');
@@ -441,7 +441,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     debugPrint('🚀 Main: Onboarding reset manually for testing');
   }
 
-  /// Check if app was recently installed (within last 24 hours)
+  // check if the app was installed recently (within 24 hours)
   Future<bool> _isRecentlyInstalled() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -458,7 +458,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
-  /// Public method to reset onboarding for testing (can be called from UI)
+  // public method to reset onboarding (for testing, can call from ui)
   void resetOnboardingForTesting() {
     _resetOnboarding();
   }
@@ -470,7 +470,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     });
   }
 
-  /// Handle notification payload when app is opened from notification
+  // handle notification data when they open the app from a notification
   Future<void> _handleNotificationPayload() async {
     try {
       debugPrint('📱 Main: Checking for notification payload...');
@@ -497,7 +497,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         '🔍 Main: Checking for pending prescription: $hasPendingPrescription');
 
     if (hasPendingPrescription) {
-      // Get the stored prescription data
+      // get the prescription data we saved
       final productName = prefs.getString('pending_prescription_product') ?? '';
       final thumbnail = prefs.getString('pending_prescription_thumbnail') ?? '';
       final productId = prefs.getString('pending_prescription_id') ?? '';
@@ -510,7 +510,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       debugPrint('🔍 Main: Price: $price');
       debugPrint('🔍 Main: Batch No: $batchNo');
 
-      // Clear the pending prescription flag
+      // clear the flag so we dont do this again
       await prefs.setBool('has_pending_prescription', false);
 
       return {
@@ -529,7 +529,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     debugPrint('🔍 Main: No pending prescription found, returning empty data');
 
-    // Return empty data if no pending prescription
+    // if theres no pending prescription, return empty data
     return {
       'token': '',
       'item': {
@@ -565,9 +565,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // If still loading, show a minimal loading indicator or go straight to onboarding
+    // if we're still loading, show loading screen or go to onboarding
     if (_isFirstLaunch == null) {
-      // Show minimal loading or go straight to onboarding
+      // show a simple loading screen or just go straight to onboarding
       return MaterialApp(
         home: Scaffold(
           backgroundColor: Colors.white,
@@ -575,14 +575,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // ECL Logo
+                // show the app logo
                 Image(
                   image: AssetImage('assets/images/png.png'),
                   width: 120,
                   height: 120,
                 ),
                 SizedBox(height: 20),
-                // Simple loading indicator
+                // spinning loading circle
                 SizedBox(
                   width: 40,
                   height: 40,
@@ -609,7 +609,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
             OrderNotificationService.setBadgeUpdateCallback((count) {
               notificationProvider.updateBadgeCount(count);
-              // Also check if this is a new order notification
+              // also check if its a new order notification
               notificationProvider.notifyNewOrderNotification();
             });
 
@@ -653,7 +653,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             child: MaterialApp(
               title: 'ECL App',
               debugShowCheckedModeBanner: false,
-              // Suppress error displays for keychain entitlement errors
+              // hide keychain errors here too
               builder: (context, widget) {
                 // Wrap widget to catch and suppress errors
                 return widget ?? const SizedBox.shrink();
@@ -859,11 +859,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
-      // Check for notifications when app is resumed
+      // check for notifications when they come back to the app
       _handlePendingNotification();
       _checkForNotificationPayload();
     } else if (state == AppLifecycleState.detached) {
-      // App is being killed, clear the restart flag
+      // app is closing, clear the restart flag
       _clearRestartFlag();
     }
   }
@@ -879,18 +879,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (payload != null) {
       debugPrint('📱 Main: Handling pending notification payload');
 
-      // Use a post-frame callback to ensure the app is fully built
+      // wait for the app to finish building before handling it
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           debugPrint('📱 Main: Processing notification payload: $payload');
 
-          // Handle the notification payload
+          // handle the notification data
           NotificationHandlerService.handleNotificationPayload(
             context,
             payload,
           );
 
-          // Clear all pending payloads
+          // clear all the pending notification data
           _pendingNotificationPayload = null;
           NativeNotificationService.clearPendingNotificationPayload();
         }
@@ -904,7 +904,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       final permission = Permission.notification;
       final status = await permission.status;
 
-      // Only show if permission is not granted and not permanently denied
+      // only show if we dont have permission and they havent permanently denied it
       if (!status.isGranted && !status.isPermanentlyDenied) {
         final context =
             NativeNotificationService.globalNavigatorKey.currentContext;
@@ -947,7 +947,7 @@ class ProtectedRoute extends StatelessWidget {
   Widget build(BuildContext context) {
     final authState = AuthState.of(context);
 
-    // Try to get AuthProvider first
+    // try to get the auth provider first
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       if (authProvider.isInitialized) {
@@ -960,7 +960,7 @@ class ProtectedRoute extends StatelessWidget {
         }
       }
     } catch (e) {
-      // AuthProvider not available, fall back to AuthState
+      // auth provider not available, use auth state instead
     }
 
     if (authState == null) {

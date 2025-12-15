@@ -14,12 +14,12 @@ class WalletService {
   static const String _walletEndpoint = '/wallet';
   static const String _topUpEndpoint = '/wallet/top-up';
 
-  // Cache keys
+  // keys for caching stuff
   static const String _walletCacheKey = 'wallet_cache';
   static const String _transactionsCacheKey = 'transactions_cache';
   static const Duration _cacheDuration = Duration(minutes: 15);
 
-  // Get wallet information for the current user (MOCK ONLY - no API)
+  // get wallet info for the current user (using mock data for now, no api)
   static Future<Wallet?> getWallet() async {
     try {
       final userId = await AuthService.getCurrentUserID();
@@ -28,13 +28,13 @@ class WalletService {
         throw Exception('User not authenticated');
       }
 
-      // Check cache first
+      // check cache first
       final cachedWallet = await _getCachedWallet();
       if (cachedWallet != null) {
         return cachedWallet;
       }
 
-      // Create mock wallet since there's no API
+      // make a fake wallet since theres no api yet
       developer.log('Creating mock wallet for user: $userId',
           name: 'WalletService');
       final mockWallet = _createMockWallet(userId);
@@ -46,7 +46,7 @@ class WalletService {
     }
   }
 
-  // Create mock wallet (no API needed)
+  // make a fake wallet (no api needed)
   static Wallet _createMockWallet(String userId) {
     return Wallet(
       id: 'mock_wallet_$userId',
@@ -59,12 +59,12 @@ class WalletService {
     );
   }
 
-  // Create empty transactions list (no mock data)
+  // make an empty transactions list (no fake data)
   static List<WalletTransaction> _createEmptyTransactions(String userId) {
     return [];
   }
 
-  // Create a new wallet for the current user (MOCK ONLY - no API)
+  // make a new wallet for the user (using mock data for now)
   static Future<Wallet> createWallet() async {
     try {
       final userId = await AuthService.getCurrentUserID();
@@ -73,7 +73,7 @@ class WalletService {
         throw Exception('User not authenticated');
       }
 
-      // Create mock wallet since there's no API
+      // make a fake wallet since theres no api
       developer.log('Creating mock wallet for user: $userId',
           name: 'WalletService');
       final mockWallet = _createMockWallet(userId);
@@ -95,13 +95,13 @@ class WalletService {
         throw Exception('User not authenticated');
       }
 
-      // Check cache first
+      // check cache first
       final cachedTransactions = await _getCachedTransactions();
       if (cachedTransactions.isNotEmpty && page == 1) {
         return cachedTransactions;
       }
 
-      // Return empty transactions list since there's no API
+      // return empty list since theres no api
       developer.log('Returning empty transactions for user: $userId',
           name: 'WalletService');
       final emptyTransactions = _createEmptyTransactions(userId);
@@ -117,7 +117,7 @@ class WalletService {
     }
   }
 
-  // Top up wallet
+  // add money to the wallet
   static Future<Map<String, dynamic>> topUpWallet({
     required double amount,
     required String paymentMethod,
@@ -153,7 +153,7 @@ class WalletService {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         if (data['success'] == true) {
-          // Clear cache to force refresh
+          // clear cache so it reloads
           await _clearCache();
           return {
             'success': true,
@@ -173,7 +173,7 @@ class WalletService {
     }
   }
 
-  // Process refund to wallet
+  // add a refund to the wallet
   static Future<Map<String, dynamic>> processRefund({
     required double amount,
     required String orderId,
@@ -211,7 +211,7 @@ class WalletService {
 
       if (response.statusCode == 200) {
         if (data['success'] == true) {
-          // Clear cache to force refresh
+          // clear cache so it reloads
           await _clearCache();
           return {
             'success': true,
@@ -231,7 +231,7 @@ class WalletService {
     }
   }
 
-  // Process cashback to wallet
+  // add cashback to the wallet
   static Future<Map<String, dynamic>> processCashback({
     required double amount,
     required String orderId,
@@ -246,7 +246,7 @@ class WalletService {
         throw Exception('User not authenticated');
       }
 
-      // Check if order amount qualifies for cashback (must be over ₵500)
+      // check if the order is big enough for cashback (has to be over ₵500)
       if (amount < 500) {
         return {
           'success': false,
@@ -278,7 +278,7 @@ class WalletService {
 
       if (response.statusCode == 200) {
         if (data['success'] == true) {
-          // Clear cache to force refresh
+          // clear cache so it reloads
           await _clearCache();
           return {
             'success': true,
@@ -298,7 +298,7 @@ class WalletService {
     }
   }
 
-  // Auto-process cashback for qualifying orders (DISABLED - No Backend)
+  // automatically add cashback for big orders (turned off, no backend)
   static Future<Map<String, dynamic>> autoProcessCashback({
     required double orderAmount,
     required String orderId,
@@ -308,7 +308,7 @@ class WalletService {
           'Cashback processing disabled for order: $orderId, amount: ₵$orderAmount',
           name: 'WalletService');
 
-      // Return disabled message
+      // return a message saying its disabled
       return {
         'success': false,
         'message': 'Cashback feature is currently disabled',
@@ -328,7 +328,7 @@ class WalletService {
     }
   }
 
-  // Use wallet balance for payment
+  // use wallet money to pay for something
   static Future<Map<String, dynamic>> useWalletBalance({
     required double amount,
     required String orderId,
@@ -363,7 +363,7 @@ class WalletService {
 
       if (response.statusCode == 200) {
         if (data['success'] == true) {
-          // Clear cache to force refresh
+          // clear cache so it reloads
           await _clearCache();
           return {
             'success': true,
@@ -383,7 +383,7 @@ class WalletService {
     }
   }
 
-  // Cache management
+  // stuff for managing the cache
   static Future<void> _cacheWallet(Wallet wallet) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -460,7 +460,7 @@ class WalletService {
     }
   }
 
-  // Check if user has sufficient balance
+  // check if they have enough money in the wallet
   static Future<bool> hasSufficientBalance(double amount) async {
     try {
       final wallet = await getWallet();
@@ -470,9 +470,9 @@ class WalletService {
     }
   }
 
-  // Get formatted balance string
+  // format the balance to show nicely
   static String formatBalance(double balance) {
-    // iOS has better Unicode support, Android often doesn't support Ghana Cedi symbol
+    // ios handles unicode better, android sometimes cant show the ghana cedi symbol
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       return '₵${balance.toStringAsFixed(2)}'; // Use Ghana Cedi symbol on iOS
     } else {
@@ -480,7 +480,7 @@ class WalletService {
     }
   }
 
-  // Get transaction type display text
+  // get the text to show for a transaction type
   static String getTransactionTypeText(String type) {
     switch (type) {
       case 'credit':
@@ -500,7 +500,7 @@ class WalletService {
     }
   }
 
-  // Get transaction status color
+  // get the color for a transaction status
   static int getTransactionStatusColor(String status) {
     switch (status) {
       case 'completed':
@@ -514,7 +514,7 @@ class WalletService {
     }
   }
 
-  // Get transaction type color
+  // get the color for a transaction type
   static int getTransactionTypeColor(String type) {
     switch (type) {
       case 'refund':

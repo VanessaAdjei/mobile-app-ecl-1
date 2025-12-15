@@ -21,36 +21,36 @@ class StoreSelectionPage extends StatefulWidget {
 
 class StoreSelectionPageState extends State<StoreSelectionPage>
     with TickerProviderStateMixin {
-  // API Data
+  // data from the api
   List<dynamic> regions = [];
   List<dynamic> cities = [];
   List<dynamic> stores = [];
   List<dynamic> allStores = [];
 
-  // Selected values
+  // what they picked
   dynamic selectedRegion;
   dynamic selectedCity;
 
-  // Sorting and location
-  String sortBy = 'distance'; // Default to distance sorting
+  // sorting and location stuff
+  String sortBy = 'distance'; // sort by distance by default
   bool isLocationAvailable = false;
   Position? userLocation;
   bool isLoadingLocation = false;
 
-  // Manual location input
+  // if they want to type in their location manually
   bool showManualLocationInput = false;
   final TextEditingController _locationController = TextEditingController();
   double? manualLatitude;
   double? manualLongitude;
 
-  // Loading states
+  // are we loading stuff?
   bool isLoadingRegions = false;
   bool isLoadingCities = false;
   bool isLoadingStores = false;
   bool isLoadingAllStores = false;
   bool isLoading = false;
 
-  // Error states
+  // error messages
   String? regionsError;
   String? citiesError;
   String? storesError;
@@ -59,7 +59,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
   late AnimationController _fadeController;
   late AnimationController _slideController;
 
-  // Scroll control for hiding/showing filter sections
+  // hide/show filters when scrolling
   final ScrollController _scrollController = ScrollController();
   bool _showFilters = true;
   double _lastScrollOffset = 0.0;
@@ -76,10 +76,10 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       vsync: this,
     );
 
-    // Add scroll listener to hide/show filters
+    // listen for scrolling so we can hide/show filters
     _scrollController.addListener(_onScroll);
 
-    // Load initial data
+    // load the data when page starts
     _loadRegions();
     _loadAllStores();
     _initializeLocation();
@@ -107,7 +107,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
         });
       }
     } else if (currentOffset < _lastScrollOffset && currentOffset < 100) {
-      // Scrolling up and near top - show filters
+      // scrolling up near the top, show filters
       if (!_showFilters) {
         setState(() {
           _showFilters = true;
@@ -118,7 +118,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     _lastScrollOffset = currentOffset;
   }
 
-  // Initialize location services
+  // set up location stuff
   Future<void> _initializeLocation() async {
     setState(() {
       isLoadingLocation = true;
@@ -146,23 +146,23 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           }
         }
 
-        // Test distance calculations
+        // test that distance calculation works
         _testDistanceCalculation();
 
         // Refresh stores to apply distance sorting now that location is available
         if (allStores.isNotEmpty) {
           setState(() {
-            // Trigger rebuild to show stores sorted by distance
+            // update the ui to show stores sorted by distance
           });
         }
       } else {
         debugPrint('❌ Location services not available');
-        // Set default Ghana location if location services not available
+        // if we cant get their location, just use a default ghana location
         _setDefaultGhanaLocation();
       }
     } catch (e) {
       debugPrint('❌ Error initializing location: $e');
-      // Set default Ghana location on error
+      // if something went wrong, use default ghana location
       _setDefaultGhanaLocation();
     } finally {
       setState(() {
@@ -194,7 +194,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     }
   }
 
-  // Sort stores by distance from user location
+  // sort stores by how far they are from the user
   List<dynamic> _sortByDistance(List<dynamic> stores) {
     final locationService = LocationService();
 
@@ -209,7 +209,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       return stores; // Return unsorted if no location
     }
 
-    // Filter stores with valid coordinates from API
+    // only use stores that have valid coordinates
     final storesWithCoords = stores.where((store) {
       final lat = store['lat'];
       final lon = store['lng'];
@@ -247,7 +247,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
 
     return List<dynamic>.from(storesWithCoords)
       ..sort((a, b) {
-        // Extract coordinates directly from API response (we know they're valid from filtering)
+        // get the coordinates from the api (we already checked theyre valid)
         final aLat = double.parse(a['lat'].toString());
         final aLon = double.parse(a['lng'].toString());
         final bLat = double.parse(b['lat'].toString());
@@ -277,7 +277,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
         debugPrint(
             'Store B distance: ${locationService.formatDistance(bDistance)}');
 
-        // Add distance to store data for display
+        // add the distance to the store data so we can show it
         a['distance'] = aDistance;
         b['distance'] = bDistance;
 
@@ -303,7 +303,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     return lat >= 4.5 && lat <= 11.2 && lon >= -3.3 && lon <= 1.2;
   }
 
-  // Set default Ghana location (Accra)
+  // use accra as the default location
   void _setDefaultGhanaLocation() {
     setState(() {
       userLocation = Position(
@@ -325,10 +325,10 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     });
     debugPrint('📍 Default Ghana location set: Accra (5.6037, -0.1870)');
 
-    // Refresh stores to apply distance sorting with default location
+    // reload stores so we can sort by distance using default location
     if (allStores.isNotEmpty) {
       setState(() {
-        // Trigger rebuild to show stores sorted by distance
+        // update ui to show stores sorted by distance
       });
     }
   }
@@ -341,7 +341,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     final accraLat = 5.6037;
     final accraLon = -0.1870;
 
-    // Test distances from different locations
+    // test distances from a few different places
     final testLocations = [
       {'name': 'Circle Accra', 'lat': 5.5500, 'lon': -0.1833},
       {'name': 'Kumasi', 'lat': 6.6885, 'lon': -1.6244},
@@ -372,7 +372,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
 
     // More precise coordinates for major Ghanaian cities and regions
     if (regionName.contains('accra') || cityName.contains('accra')) {
-      // Accra region - more specific coordinates based on store names
+      // accra region - use more specific coordinates
       if (storeName.contains('circle')) {
         lat = 5.5500;
         lon = -0.1833;
@@ -564,11 +564,42 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
         debugPrint('Regions data received: ${regionsData.length} regions');
         debugPrint('Regions: $regionsData');
 
+        // Filter to only show Greater Accra, Ashanti, and Western regions
+        final allowedRegionNames = [
+          'greater accra',
+          'ashanti',
+          'western',
+          'accra', // Also allow "Accra" as it might be named differently
+        ];
+
+        final filteredRegions = regionsData.where((region) {
+          final regionName =
+              (region['description'] ?? '').toString().toLowerCase().trim();
+          final isAllowed =
+              allowedRegionNames.any((allowed) => regionName.contains(allowed));
+
+          if (!isAllowed) {
+            debugPrint(
+                '❌ Region filtered out: "$regionName" (original: "${region['description']}")');
+          } else {
+            debugPrint(
+                '✅ Region allowed: "$regionName" (original: "${region['description']}")');
+          }
+
+          return isAllowed;
+        }).toList();
+
+        debugPrint('📋 Total regions from API: ${regionsData.length}');
+        debugPrint('📋 Filtered regions count: ${filteredRegions.length}');
+        debugPrint(
+            '📋 Filtered region names: ${filteredRegions.map((r) => r['description']).toList()}');
+
         setState(() {
-          regions = regionsData;
+          regions = filteredRegions;
           isLoadingRegions = false;
         });
-        debugPrint('Regions loaded successfully: ${regions.length} regions');
+        debugPrint(
+            'Regions loaded successfully: ${regions.length} regions (filtered from ${regionsData.length})');
       } else {
         debugPrint('Regions API failed: ${result['message']}');
         setState(() {
@@ -681,11 +712,40 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       }
 
       final regionsData = regionsResult['data'] ?? [];
+
+      // Filter to only show Greater Accra, Ashanti, and Western regions
+      final allowedRegionNames = [
+        'greater accra',
+        'ashanti',
+        'western',
+        'accra', // Also allow "Accra" as it might be named differently
+      ];
+
+      final filteredRegions = regionsData.where((region) {
+        final regionName =
+            (region['description'] ?? '').toString().toLowerCase().trim();
+        final isAllowed =
+            allowedRegionNames.any((allowed) => regionName.contains(allowed));
+
+        if (!isAllowed) {
+          debugPrint(
+              '❌ Region filtered out in _loadAllStores: "$regionName" (original: "${region['description']}")');
+        }
+
+        return isAllowed;
+      }).toList();
+
+      debugPrint(
+          '🗺️ Filtered regions: ${filteredRegions.length} out of ${regionsData.length} total');
+      for (var region in filteredRegions) {
+        debugPrint('  ✅ Allowed region: ${region['description']}');
+      }
+
       List<dynamic> allStoresList = [];
 
-      // Load all cities for all regions in parallel
+      // Load all cities for filtered regions in parallel
       List<Future<Map<String, dynamic>>> cityFutures = [];
-      for (var region in regionsData) {
+      for (var region in filteredRegions) {
         final regionId = int.tryParse(region['id'].toString()) ?? 0;
         cityFutures.add(DeliveryService.getCitiesByRegion(regionId));
       }
@@ -700,7 +760,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       for (int i = 0; i < cityResults.length; i++) {
         if (cityResults[i]['success']) {
           final citiesData = cityResults[i]['data'] ?? [];
-          final region = regionsData[i];
+          final region = filteredRegions[i];
 
           for (var city in citiesData) {
             final cityId = int.tryParse(city['id'].toString()) ?? 0;
@@ -2289,13 +2349,30 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
   List<dynamic> _getFilteredAllStores() {
     debugPrint('📍 _getFilteredAllStores called - sortBy: $sortBy');
 
+    // Allowed regions: Greater Accra, Ashanti, and Western
+    final allowedRegionNames = [
+      'greater accra',
+      'ashanti',
+      'western',
+      'accra', // Also allow "Accra" as it might be named differently
+    ];
+
     final filteredStores = allStores.where((store) {
+      // First, filter by allowed regions only
+      final storeRegion =
+          (store['region_name']?.toString() ?? '').toLowerCase();
+      final isAllowedRegion =
+          allowedRegionNames.any((allowed) => storeRegion.contains(allowed));
+
+      if (!isAllowedRegion) {
+        return false; // Skip stores not in allowed regions
+      }
+
       // Filter by region if selected
       if (selectedRegion != null) {
-        final storeRegion = store['region_name']?.toString() ?? '';
         final selectedRegionName =
             selectedRegion['description']?.toString() ?? '';
-        if (storeRegion != selectedRegionName) {
+        if (storeRegion != selectedRegionName.toLowerCase()) {
           return false;
         }
       }

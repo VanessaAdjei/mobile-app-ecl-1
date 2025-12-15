@@ -16,15 +16,15 @@ class BackgroundCartChecker {
   bool _isRunning = false;
   CartProvider? _cartProvider;
 
-  // Configuration
+  // how often to check and sync
   static const Duration _checkInterval =
-      Duration(minutes: 2); // Check every 2 minutes
+      Duration(minutes: 2); // check every 2 minutes
   static const Duration _syncInterval =
-      Duration(minutes: 5); // Sync every 5 minutes
+      Duration(minutes: 5); // sync every 5 minutes
   static const Duration _initialDelay =
-      Duration(seconds: 30); // Start after 30 seconds
+      Duration(seconds: 30); // start after 30 seconds
 
-  /// Initialize the background cart checker
+  // set up the background cart checker
   Future<void> initialize(CartProvider cartProvider) async {
     if (_isRunning) return;
 
@@ -34,17 +34,17 @@ class BackgroundCartChecker {
     developer.log('🛒 BackgroundCartChecker: Initializing...',
         name: 'CartChecker');
 
-    // Start periodic cart checking
+    // start checking cart periodically
     _startCartChecking();
 
-    // Start periodic server sync
+    // start syncing with server periodically
     _startPeriodicSync();
 
     developer.log('🛒 BackgroundCartChecker: Initialized successfully',
         name: 'CartChecker');
   }
 
-  /// Start periodic cart checking
+  // start checking cart periodically
   void _startCartChecking() {
     _cartCheckTimer?.cancel();
 
@@ -59,15 +59,15 @@ class BackgroundCartChecker {
         name: 'CartChecker');
   }
 
-  /// Start periodic server sync
+  // start syncing with server periodically
   void _startPeriodicSync() {
     _periodicSyncTimer?.cancel();
 
-    // Initial delay before first sync
+    // wait a bit before first sync
     Timer(_initialDelay, () {
       _performPeriodicSync();
 
-      // Then sync every 5 minutes
+      // then sync every 5 minutes
       _periodicSyncTimer = Timer.periodic(_syncInterval, (timer) {
         if (_isRunning) {
           _performPeriodicSync();
@@ -80,27 +80,22 @@ class BackgroundCartChecker {
         name: 'CartChecker');
   }
 
-  /// Check for cart changes and handle them
+  // check for cart changes and handle them
   Future<void> _checkCartChanges() async {
     try {
       if (_cartProvider == null) return;
 
-
-
-      // Check if user is logged in
+      // check if theyre logged in
       final isLoggedIn = await AuthService.isLoggedIn();
       if (!isLoggedIn) {
-
         return;
       }
 
-      // Check for any pending cart operations
+      // check for any pending cart operations
       final cartItems = _cartProvider!.cartItems;
 
       await _cartProvider!.syncWithApi();
-    } catch (e) {
-
-    }
+    } catch (e) {}
   }
 
   /// Perform periodic server sync
@@ -120,26 +115,20 @@ class BackgroundCartChecker {
 
       // Sync with server
       await _cartProvider!.syncWithApi();
-
-
-    } catch (e) {
-     
-    }
+    } catch (e) {}
   }
 
-  /// Force a cart check immediately
+  // force a cart check right away
   Future<void> forceCartCheck() async {
-    
     await _checkCartChanges();
   }
 
-  /// Force a server sync immediately
+  // force a server sync right away
   Future<void> forceServerSync() async {
-
     await _performPeriodicSync();
   }
 
-  /// Stop the background cart checker
+  // stop the background cart checker
   void stop() {
     _isRunning = false;
     _cartCheckTimer?.cancel();
@@ -149,12 +138,12 @@ class BackgroundCartChecker {
     developer.log('🛒 BackgroundCartChecker: Stopped', name: 'CartChecker');
   }
 
-  /// Check if the background cart checker is running
+  // check if the background cart checker is running
   bool get isRunning => _isRunning;
 
   /// Get the current check interval
   Duration get checkInterval => _checkInterval;
 
-  /// Get the current sync interval
+  // get the current sync interval
   Duration get syncInterval => _syncInterval;
 }

@@ -71,7 +71,7 @@ class PromotionalEvent {
     return isActive && now.isAfter(startDate) && now.isBefore(endDate);
   }
 
-  // Get time remaining until event starts
+  // get time remaining until event starts
   Duration? get timeUntilStart {
     final now = DateTime.now();
     if (now.isBefore(startDate)) {
@@ -80,7 +80,7 @@ class PromotionalEvent {
     return null;
   }
 
-  // Get time remaining until event ends
+  // get time remaining until event ends
   Duration? get timeUntilEnd {
     final now = DateTime.now();
     if (now.isBefore(endDate)) {
@@ -89,7 +89,7 @@ class PromotionalEvent {
     return null;
   }
 
-  // Get formatted countdown string
+  // get formatted countdown string
   String get countdownString {
     final timeLeft = timeUntilEnd;
     if (timeLeft == null) return 'Event Ended';

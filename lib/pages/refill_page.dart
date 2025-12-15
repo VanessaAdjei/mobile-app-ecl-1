@@ -11,6 +11,8 @@ import 'bottomnav.dart';
 import '../models/refill_medicine.dart';
 import '../models/product.dart';
 import 'auth_service.dart';
+import 'package:provider/provider.dart';
+import 'cartprovider.dart';
 
 class RefillPage extends StatefulWidget {
   const RefillPage({super.key});
@@ -37,6 +39,57 @@ class RefillPageState extends State<RefillPage> {
     super.dispose();
   }
 
+  // make the date look nice (like "2 days ago" or "Recently")
+  String _formatLastPurchased(String? dateString) {
+    if (dateString == null || dateString.isEmpty) {
+      return 'Recently';
+    }
+
+    try {
+      final date = DateTime.parse(dateString);
+      final now = DateTime.now();
+      final difference = now.difference(date);
+
+      if (difference.inDays > 0) {
+        return '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'} ago';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ago';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ago';
+      } else {
+        return 'Recently';
+      }
+    } catch (e) {
+      debugPrint('Error parsing date: $dateString - $e');
+      return 'Recently';
+    }
+  }
+
+  // build the full url for a product image
+  String _getProductImageUrl(String? imagePath) {
+    if (imagePath == null || imagePath.isEmpty) {
+      return '';
+    }
+
+    // if its already a full url, just return it
+    if (imagePath.startsWith('http')) {
+      return imagePath;
+    }
+
+    // if it starts with /uploads/ or /storage/, add the base url
+    if (imagePath.startsWith('/uploads/')) {
+      return 'https://adm-ecommerce.ernestchemists.com.gh$imagePath';
+    }
+
+    if (imagePath.startsWith('/storage/')) {
+      return 'https://eclcommerce.ernestchemists.com.gh$imagePath';
+    }
+
+    // otherwise assume its just a filename and build the full url
+    // images are at: https://adm-ecommerce.ernestchemists.com.gh/uploads/product/{filename}
+    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$imagePath';
+  }
+
   Future<void> _loadRefillableMedicines() async {
     try {
       setState(() {
@@ -44,7 +97,7 @@ class RefillPageState extends State<RefillPage> {
         errorMessage = null;
       });
 
-      // Check if user is logged in
+      // make sure theyre logged in
       final token = await AuthService.getToken();
       if (token == null) {
         if (!mounted) return;
@@ -55,16 +108,64 @@ class RefillPageState extends State<RefillPage> {
         return;
       }
 
-      // Fetch prescriptions from API
-      final prescriptionResponse = await http.post(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/view-prescription'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 10));
+      // try the refill endpoint first, if that fails use the prescription one
+      http.Response prescriptionResponse;
+      bool useRefillEndpoint = false;
+
+      try {
+        final refillResponse = await http.get(
+          Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/refill'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ).timeout(const Duration(seconds: 10));
+
+        debugPrint('📡 REFILL ENDPOINT RESPONSE ===');
+        debugPrint('Status Code: ${refillResponse.statusCode}');
+        debugPrint('Response Body: ${refillResponse.body}');
+        debugPrint('=============================');
+
+        // if we got medicines back, use them
+        if (refillResponse.statusCode == 200) {
+          final refillData = json.decode(refillResponse.body);
+          // check if we got medicines back
+          // api returns: {"status":"success","refill":[...]}
+          if (refillData is List ||
+              (refillData is Map &&
+                  (refillData['data'] is List ||
+                      refillData['medicines'] is List ||
+                      refillData['refillable_medicines'] is List ||
+                      refillData['refill'] is List))) {
+            debugPrint('✅ Using /refill endpoint - contains medicine data');
+            prescriptionResponse = refillResponse;
+            useRefillEndpoint = true;
+          } else {
+            throw Exception('Refill endpoint does not contain medicine data');
+          }
+        } else {
+          throw Exception(
+              'Refill endpoint returned status ${refillResponse.statusCode}');
+        }
+      } catch (e) {
+        debugPrint('⚠️ /refill endpoint failed, trying /view-prescription: $e');
+        // get prescriptions from api if refill endpoint didnt work
+        prescriptionResponse = await http.post(
+          Uri.parse(
+              'https://eclcommerce.ernestchemists.com.gh/api/view-prescription'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        ).timeout(const Duration(seconds: 10));
+      }
+
+      debugPrint('📡 REFILL API RESPONSE ===');
+      debugPrint('Status Code: ${prescriptionResponse.statusCode}');
+      debugPrint('Response Headers: ${prescriptionResponse.headers}');
+      debugPrint('Response Body: ${prescriptionResponse.body}');
+      debugPrint('========================');
 
       if (prescriptionResponse.statusCode != 200) {
         if (prescriptionResponse.statusCode == 401) {
@@ -74,30 +175,164 @@ class RefillPageState extends State<RefillPage> {
             'Failed to load prescriptions (${prescriptionResponse.statusCode})');
       }
 
-      final prescriptionData = json.decode(prescriptionResponse.body);
+      final responseData = json.decode(prescriptionResponse.body);
+      debugPrint('📦 Parsed Response Data:');
+      debugPrint('  - Keys: ${responseData.keys}');
+      debugPrint('  - Data type: ${responseData.runtimeType}');
+
+      // check if we got medicines directly from the refill endpoint
+      List<dynamic> medicinesData = [];
+      if (useRefillEndpoint) {
+        if (responseData is List) {
+          medicinesData = responseData;
+        } else if (responseData is Map<String, dynamic>) {
+          // medicines come in the 'refill' key
+          medicinesData = responseData['refill'] ??
+              responseData['data'] ??
+              responseData['medicines'] ??
+              responseData['refillable_medicines'] ??
+              [];
+        }
+        debugPrint(
+            '✅ Found ${medicinesData.length} medicines from /refill endpoint');
+
+        // print each medicine so we can see what we got
+        for (int i = 0; i < medicinesData.length; i++) {
+          debugPrint('💊 Medicine ${i + 1}:');
+          debugPrint('  - ID: ${medicinesData[i]['id']}');
+          debugPrint('  - Product ID: ${medicinesData[i]['product_id']}');
+          debugPrint('  - Product Name: ${medicinesData[i]['product_name']}');
+          debugPrint('  - Price: ${medicinesData[i]['price']}');
+          debugPrint('  - Batch No: ${medicinesData[i]['batch_no']}');
+          debugPrint('  - Status: ${medicinesData[i]['status']}');
+          debugPrint('  - Refill: ${medicinesData[i]['refill']}');
+          debugPrint('  - Full data: ${jsonEncode(medicinesData[i])}');
+        }
+
+        // use the medicines we got, skip the prescription stuff
+        if (medicinesData.isNotEmpty) {
+          // turn the api data into RefillMedicine objects
+          List<RefillMedicine> medicines = [];
+          for (final medicineData in medicinesData) {
+            try {
+              final medicineMap = medicineData as Map<String, dynamic>;
+              debugPrint(
+                  '🔄 Converting medicine: ${medicineMap['product_name']}');
+
+              // convert the api data to our RefillMedicine format
+              // api has: product_id, product_name, product_img, price, batch_no, etc.
+              final productImg = medicineMap['product_img'] ??
+                  medicineMap['thumbnail'] ??
+                  medicineMap['image'];
+              final imageUrl = _getProductImageUrl(productImg);
+
+              debugPrint('🖼️ Image URL construction:');
+              debugPrint('  - Original product_img: $productImg');
+              debugPrint('  - Constructed URL: $imageUrl');
+
+              final medicine = RefillMedicine(
+                id: medicineMap['product_id'] ?? medicineMap['id'] ?? 0,
+                name: medicineMap['product_name'] ?? 'Unknown Medicine',
+                description: medicineMap['description'] ?? '',
+                dosage: medicineMap['dosage'] ?? medicineMap['route'] ?? '',
+                price: (medicineMap['price'] ?? 0).toString(),
+                thumbnail: imageUrl,
+                category: medicineMap['category'] ?? 'Prescribed',
+                lastPurchased: medicineMap['created_at'] != null
+                    ? _formatLastPurchased(medicineMap['created_at'])
+                    : 'Recently',
+                isRefillable:
+                    (medicineMap['refill'] ?? '').toString().toLowerCase() ==
+                        'yes',
+                batchNo: medicineMap['batch_no'],
+                route: medicineMap['route'],
+                otcpom: medicineMap['otcpom'],
+                drug: medicineMap['drug'],
+                wellness: medicineMap['wellness'],
+                selfcare: medicineMap['selfcare'],
+                accessories: medicineMap['accessories'],
+                quantityInStock: medicineMap['qty_in_stock'] ??
+                    medicineMap['quantity_in_stock'] ??
+                    medicineMap['qty'] ??
+                    0,
+              );
+
+              debugPrint(
+                  '✅ Successfully created RefillMedicine: ${medicine.name} (ID: ${medicine.id})');
+              medicines.add(medicine);
+            } catch (e, stackTrace) {
+              debugPrint('⚠️ Error parsing medicine: $e');
+              debugPrint('Stack trace: $stackTrace');
+            }
+          }
+
+          if (!mounted) return;
+          setState(() {
+            refillableMedicines = medicines;
+            isLoading = false;
+            errorMessage =
+                medicines.isEmpty ? 'No refillable medicines found' : null;
+          });
+          return; // Exit early since we got medicines directly
+        }
+      }
+
+      // process prescriptions from the view-prescription endpoint
+      final prescriptionData = responseData;
+      if (prescriptionData['data'] != null) {
+        debugPrint(
+            '  - Data length: ${(prescriptionData['data'] as List).length}');
+      }
+
       final prescriptions =
           List<Map<String, dynamic>>.from(prescriptionData['data'] ?? []);
+
+      // print each prescription so we can see what we got
+      for (int i = 0; i < prescriptions.length; i++) {
+        debugPrint('📋 Prescription ${i + 1} structure:');
+        debugPrint('  - Keys: ${prescriptions[i].keys}');
+        debugPrint('  - Full data: ${jsonEncode(prescriptions[i])}');
+      }
 
       debugPrint(
           '🔍 Fetched ${prescriptions.length} prescriptions for refill medicines');
 
-      // Filter only approved/processed prescriptions that contain medicines
+      // print all the statuses so we can see what the api is sending
+      for (int i = 0; i < prescriptions.length; i++) {
+        final prescription = prescriptions[i];
+        final status = prescription['status']?.toString() ?? 'null';
+        final statusLower = status.toLowerCase();
+        debugPrint(
+            '📋 Prescription ${i + 1}: status="$status" (lowercase="$statusLower")');
+      }
+
+      // only show prescriptions that are approved/processed and have medicines
+      // "Served" means they already got the medicine and can refill it
       final approvedPrescriptions = prescriptions.where((prescription) {
         final status = prescription['status']?.toString().toLowerCase() ?? '';
-        // Include approved, processed, or completed prescriptions
-        return status == 'approved' ||
+        // include these statuses: approved, processed, completed, active, or served
+        final isApproved = status == 'approved' ||
             status == 'processed' ||
             status == 'completed' ||
-            status == 'active';
+            status == 'active' ||
+            status ==
+                'served'; // Add "served" status for refillable prescriptions
+
+        if (!isApproved) {
+          debugPrint(
+              '❌ Prescription filtered out - status: "$status" (original: "${prescription['status']}")');
+        }
+
+        return isApproved;
       }).toList();
 
       debugPrint(
-          '🔍 Found ${approvedPrescriptions.length} approved prescriptions');
+          '🔍 Found ${approvedPrescriptions.length} approved prescriptions out of ${prescriptions.length} total');
 
       // Extract medicines from prescriptions
       List<RefillMedicine> medicines = [];
 
-      // Fetch all products to get images and details
+      // get all products so we can get images and stuff
       List<Product> allProducts = [];
       try {
         final productsResponse = await http
@@ -135,7 +370,7 @@ class RefillPageState extends State<RefillPage> {
         debugPrint('Error fetching products: $e');
       }
 
-      // Helper to find product by ID or name
+      // find a product by its id or name
       Product? findProduct(dynamic productId, String? productName) {
         if (allProducts.isEmpty) return null;
 
@@ -172,7 +407,21 @@ class RefillPageState extends State<RefillPage> {
 
       // Extract medicines from prescriptions
       for (final prescription in approvedPrescriptions) {
+        debugPrint('🔍 Processing prescription ID: ${prescription['id']}');
+        debugPrint(
+            '  - Has product field: ${prescription.containsKey('product') && prescription['product'] != null}');
+        debugPrint(
+            '  - Has product_id field: ${prescription.containsKey('product_id')}');
+        debugPrint(
+            '  - Has product_name field: ${prescription.containsKey('product_name')}');
+        debugPrint(
+            '  - Has medicines field: ${prescription.containsKey('medicines')}');
+        debugPrint('  - Has items field: ${prescription.containsKey('items')}');
+
         // Check if prescription has product/medicine data
+        // Note: The API response shows prescriptions only have id, file, refill, and status
+        // They don't include product/medicine data, so we need to handle this case
+        // For now, we'll skip prescriptions without product data and log a warning
         if (prescription.containsKey('product') &&
             prescription['product'] != null) {
           final productData = prescription['product'] is Map<String, dynamic>
@@ -254,8 +503,19 @@ class RefillPageState extends State<RefillPage> {
           if (!medicines.any((m) => m.id == medicine.id && m.id != 0)) {
             medicines.add(medicine);
           }
+        } else {
+          // Prescription doesn't have product data
+          debugPrint(
+              '⚠️ Prescription ID ${prescription['id']} has no product/medicine data');
+          debugPrint(
+              '  - This prescription may need to be processed first or use a different API endpoint');
+          debugPrint('  - Prescription file: ${prescription['file']}');
+          debugPrint('  - Prescription status: ${prescription['status']}');
         }
       }
+
+      debugPrint(
+          '💊 Extracted ${medicines.length} refillable medicines from ${approvedPrescriptions.length} prescriptions');
 
       if (!mounted) return;
 
@@ -307,30 +567,107 @@ class RefillPageState extends State<RefillPage> {
         ),
       );
 
-      // Simulate API call (no refill API yet)
-      await Future.delayed(Duration(seconds: 1));
+      // Try using the regular cart endpoint instead of refill-cart
+      // The refill-cart endpoint returns 404, so use check-auth like regular products
+      debugPrint(
+          '[RefillPage] Adding medicine ${medicine.id} (${medicine.name}) to cart');
+      debugPrint('  - Product ID: ${medicine.id}');
+      debugPrint('  - Batch No: ${medicine.batchNo}');
+      debugPrint('  - Quantity: 1 (default for refill)');
+
+      final token = await AuthService.getToken();
+      if (token == null) {
+        throw Exception('Please log in to add items to cart');
+      }
+
+      // Use the regular check-auth endpoint with productID (capital ID) like regular cart
+      final requestBody = {
+        'productID': medicine.id, // Use capital ID like regular cart
+        'quantity': 1, // Default quantity for refill
+        if (medicine.batchNo != null && medicine.batchNo!.isNotEmpty)
+          'batch_no': medicine.batchNo,
+      };
+
+      debugPrint('📦 Add to cart request body: ${jsonEncode(requestBody)}');
+
+      final response = await http
+          .post(
+            Uri.parse(
+                'https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(requestBody),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      debugPrint('📦 Add to cart response status: ${response.statusCode}');
+      debugPrint('📦 Add to cart response body: ${response.body}');
+
+      final success = response.statusCode == 200 || response.statusCode == 201;
 
       if (!mounted) return;
 
       // Close loading dialog
       Navigator.of(context).pop();
 
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${medicine.name} refill added to cart successfully!',
-            style: GoogleFonts.poppins(),
+      if (success) {
+        // Sync cart after successful add
+        try {
+          final cartProvider =
+              Provider.of<CartProvider>(context, listen: false);
+          await cartProvider.syncWithApi();
+        } catch (e) {
+          debugPrint('Error syncing cart: $e');
+        }
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${medicine.name} refill added to cart successfully!',
+              style: GoogleFonts.poppins(),
+            ),
+            backgroundColor: Colors.green.shade600,
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
-          backgroundColor: Colors.green.shade600,
-          duration: Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+        );
+      } else {
+        // Parse error message from response
+        String errorMessage =
+            'Failed to add ${medicine.name} to cart. Please try again.';
+        try {
+          final errorData = json.decode(response.body);
+          errorMessage = errorData['message'] ?? errorMessage;
+          debugPrint('❌ Add to cart error: $errorMessage');
+        } catch (e) {
+          // Use default message
+        }
+
+        // Show error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              errorMessage,
+              style: GoogleFonts.poppins(),
+            ),
+            backgroundColor: Colors.red.shade600,
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
-        ),
-      );
+        );
+      }
     } catch (e) {
+      debugPrint('❌ Error adding medicine to cart: $e');
       if (!mounted) return;
 
       // Close loading dialog if still open
@@ -342,7 +679,7 @@ class RefillPageState extends State<RefillPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Failed to refill ${medicine.name}: ${e.toString()}',
+            'Failed to refill ${medicine.name}: ${e.toString().replaceAll('Exception: ', '')}',
             style: GoogleFonts.poppins(),
           ),
           backgroundColor: Colors.red.shade600,
@@ -759,142 +1096,142 @@ class RefillPageState extends State<RefillPage> {
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _addToCart(medicine),
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Row(
+          children: [
+            // Product image with refill badge
+            Stack(
               children: [
-                // Product image with refill badge
-                Stack(
-                  children: [
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: Colors.grey.shade100,
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: medicine.thumbnail.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: medicine.thumbnail,
-                                width: 60,
-                                height: 60,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
-                                  color: Colors.grey.shade200,
-                                  child: Center(
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.green.shade400,
-                                    ),
-                                  ),
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.grey.shade100,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: medicine.thumbnail.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: medicine.thumbnail,
+                            width: 60,
+                            height: 60,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                              color: Colors.grey.shade200,
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.green.shade400,
                                 ),
-                                errorWidget: (context, url, error) => Container(
-                                  color: Colors.grey.shade200,
-                                  child: Icon(
-                                    Icons.medication,
-                                    color: Colors.grey.shade400,
-                                    size: 28,
-                                  ),
-                                ),
-                              )
-                            : Icon(
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              color: Colors.grey.shade200,
+                              child: Icon(
                                 Icons.medication,
                                 color: Colors.grey.shade400,
                                 size: 28,
                               ),
+                            ),
+                          )
+                        : Icon(
+                            Icons.medication,
+                            color: Colors.grey.shade400,
+                            size: 28,
+                          ),
+                  ),
+                ),
+                // Stock quantity badge
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade600,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: Text(
+                      '${medicine.quantityInStock}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
                       ),
                     ),
-                    // Stock quantity badge
-                    Positioned(
-                      top: -2,
-                      right: -2,
-                      child: Container(
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 12),
+
+            // Product info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    medicine.name,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade800,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    medicine.dosage,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Text(
+                        'GHS ${double.parse(medicine.price).toStringAsFixed(2)}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.green.shade600,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.orange.shade600,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white, width: 2),
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          '${medicine.quantityInStock}',
+                          'Last: ${medicine.lastPurchased}',
                           style: GoogleFonts.poppins(
                             fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: Colors.grey.shade600,
                           ),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 12),
-
-                // Product info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        medicine.name,
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade800,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        medicine.dosage,
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Text(
-                            'GHS ${double.parse(medicine.price).toStringAsFixed(2)}',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.green.shade600,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              'Last: ${medicine.lastPurchased}',
-                              style: GoogleFonts.poppins(
-                                fontSize: 10,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ),
-                        ],
                       ),
                     ],
                   ),
-                ),
+                ],
+              ),
+            ),
 
-                // Refill button
-                Container(
+            // Refill button (only clickable element)
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _addToCart(medicine),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -930,9 +1267,9 @@ class RefillPageState extends State<RefillPage> {
                     ],
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     )

@@ -37,10 +37,10 @@ class OptimizedQuantityButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         onTap: isEnabled && onPressed != null
             ? () async {
-                // Immediate haptic feedback
+                // haptic feedback right away
                 HapticFeedback.lightImpact();
-                
-                // Call the onPressed callback
+
+                // call the onPressed callback
                 onPressed!();
               }
             : null,
@@ -49,11 +49,9 @@ class OptimizedQuantityButton extends StatelessWidget {
           height: size,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            color: isEnabled 
-                ? Colors.grey.shade50 
-                : Colors.grey.shade100,
+            color: isEnabled ? Colors.grey.shade50 : Colors.grey.shade100,
             border: Border.all(
-              color: isEnabled 
+              color: isEnabled
                   ? defaultEnabledColor.withValues(alpha: 0.3)
                   : defaultDisabledColor.withValues(alpha: 0.2),
               width: 1,
@@ -65,20 +63,21 @@ class OptimizedQuantityButton extends StatelessWidget {
             color: isEnabled ? defaultEnabledColor : defaultDisabledColor,
           ),
         ),
-      ).animate()
-        .scale(
-          duration: 100.ms,
-          begin: const Offset(1, 1),
-          end: const Offset(0.95, 0.95),
-          curve: Curves.easeInOut,
-        )
-        .then()
-        .scale(
-          duration: 100.ms,
-          begin: const Offset(0.95, 0.95),
-          end: const Offset(1, 1),
-          curve: Curves.easeInOut,
-        ),
+      )
+          .animate()
+          .scale(
+            duration: 100.ms,
+            begin: const Offset(1, 1),
+            end: const Offset(0.95, 0.95),
+            curve: Curves.easeInOut,
+          )
+          .then()
+          .scale(
+            duration: 100.ms,
+            begin: const Offset(0.95, 0.95),
+            end: const Offset(1, 1),
+            curve: Curves.easeInOut,
+          ),
     );
   }
 }
@@ -168,4 +167,4 @@ class OptimizedDeleteButton extends StatelessWidget {
       tooltip: tooltip ?? 'Remove from cart',
     );
   }
-} 
+}

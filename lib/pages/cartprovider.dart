@@ -16,6 +16,8 @@ class CartProvider with ChangeNotifier {
   List<CartItem> _cartItems = [];
   List<CartItem> _purchasedItems = [];
   String? _currentUserId;
+  // Flag to prevent loading guest cart after logout - cart should stay empty until login
+  bool _shouldLoadGuestCart = true;
 
   String? _pendingOriginalProductId;
   String? _pendingItemName;
@@ -107,8 +109,10 @@ class CartProvider with ChangeNotifier {
   void _loadCurrentUserCart() {
     if (_currentUserId != null && _userCarts.containsKey(_currentUserId)) {
       _cartItems = _userCarts[_currentUserId]!;
-    } else if (_currentUserId == null && _userCarts.containsKey('guest_id')) {
-      // Load guest cart for non-logged-in users
+    } else if (_currentUserId == null &&
+        _shouldLoadGuestCart &&
+        _userCarts.containsKey('guest_id')) {
+      // Load guest cart for non-logged-in users (only if allowed)
       _cartItems = _userCarts['guest_id']!;
     } else {
       _cartItems = [];
@@ -345,6 +349,9 @@ class CartProvider with ChangeNotifier {
     // --- GUEST SESSION LOGIC ---
     final isLoggedIn = await AuthService.isLoggedIn();
     if (!isLoggedIn) {
+      // Re-enable guest cart loading when guest adds to cart
+      _shouldLoadGuestCart = true;
+
       // Check if guest_id exists
       final prefs = await SharedPreferences.getInstance();
       String? guestId = prefs.getString('guest_id');
@@ -541,6 +548,47 @@ class CartProvider with ChangeNotifier {
         debugPrint('Item Name: ${item.name}');
         debugPrint('=============================================');
 
+        // Extract server cart ID from response
+        try {
+          final responseData = jsonDecode(response.body);
+          final items = responseData['items'] as List? ?? [];
+
+          // Find the matching item in the response by product name and batch
+          for (final serverItem in items) {
+            final serverProductName =
+                serverItem['product_name']?.toString() ?? '';
+            final serverBatchNo = serverItem['batch_no']?.toString() ?? '';
+            final serverCartId = serverItem['id']?.toString();
+
+            if (_normalizeProductName(serverProductName) ==
+                    _normalizeProductName(item.name) &&
+                serverBatchNo == item.batchNo &&
+                serverCartId != null) {
+              // Update the local item's ID to the server cart ID
+              final localItemIndex = _cartItems.indexWhere((cartItem) =>
+                  _normalizeProductName(cartItem.name) ==
+                      _normalizeProductName(item.name) &&
+                  cartItem.batchNo == item.batchNo &&
+                  cartItem.id == item.id);
+
+              if (localItemIndex != -1) {
+                _cartItems[localItemIndex] =
+                    _cartItems[localItemIndex].copyWith(
+                  id: serverCartId,
+                  originalProductId: originalProductId,
+                );
+                await _saveUserCarts();
+                debugPrint(
+                    '✅ Updated local item ID to server cart ID: $serverCartId');
+                notifyListeners();
+              }
+              break;
+            }
+          }
+        } catch (e) {
+          debugPrint('⚠️ Error extracting server cart ID from response: $e');
+        }
+
         // Store this item's original product ID in a temporary variable for sync
         _pendingOriginalProductId = originalProductId;
         _pendingItemName = item.name;
@@ -595,7 +643,7 @@ class CartProvider with ChangeNotifier {
                 _cartItems[flexibleMatchIndex].copyWith(
               originalProductId: originalProductId,
             );
-            
+
             notifyListeners();
           } else {
             debugPrint('🔍 NO MATCHING ITEM FOUND FOR RESTORATION ===');
@@ -714,6 +762,121 @@ class CartProvider with ChangeNotifier {
     debugPrint(
         '✅ Found item to remove: ${itemToRemove.name} (ID: ${itemToRemove.id})');
 
+    // Get the server cart ID - if missing or temp ID, fetch from server
+    String? serverCartId = itemToRemove.id.isNotEmpty ? itemToRemove.id : null;
+
+    // Treat empty ID or timestamp-based local ID (13+ digits starting with 1) as needing lookup
+    final isLocalTimestampId = itemToRemove.id.length >= 13 &&
+        RegExp(r'^1\d{12,}$').hasMatch(itemToRemove.id);
+    final needsServerLookup = serverCartId == null || isLocalTimestampId;
+
+    if (needsServerLookup) {
+      // Need to get server cart ID from server
+      debugPrint(
+          '🔍 No server cart ID on item (id=${itemToRemove.id}), fetching server cart ID...');
+      try {
+        final isLoggedIn = await AuthService.isLoggedIn();
+        String? token = await AuthService.getToken();
+
+        if (token == null && !isLoggedIn) {
+          final prefs = await SharedPreferences.getInstance();
+          token = prefs.getString('guest_id');
+        }
+
+        if (token != null) {
+          final headers = <String, String>{
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          };
+
+          if (isLoggedIn) {
+            headers['Authorization'] = 'Bearer $token';
+          } else {
+            headers['Authorization'] = 'Guest $token';
+            headers['X-Guest-ID'] = token;
+          }
+
+          // Get current cart from server
+          final hashedLink = await AuthService.getHashedLink();
+
+          if (hashedLink != null) {
+            // For logged-in users, use check-out endpoint
+            final cartResponse = await http.get(
+              Uri.parse(
+                  'https://eclcommerce.ernestchemists.com.gh/api/check-out/$hashedLink'),
+              headers: headers,
+            );
+
+            if (cartResponse.statusCode == 200) {
+              final cartData = jsonDecode(cartResponse.body);
+              final cartItems = cartData['cart_items'] as List? ?? [];
+
+              // Find matching item by product name and batch
+              for (final serverItem in cartItems) {
+                final serverProductName =
+                    serverItem['product_name']?.toString() ?? '';
+                final serverBatchNo = serverItem['batch_no']?.toString() ?? '';
+                final serverItemId = serverItem['id']?.toString();
+
+                if (_normalizeProductName(serverProductName) ==
+                        _normalizeProductName(itemToRemove.name) &&
+                    serverBatchNo == itemToRemove.batchNo &&
+                    serverItemId != null) {
+                  serverCartId = serverItemId;
+                  debugPrint('✅ Found server cart ID: $serverCartId');
+                  break;
+                }
+              }
+            }
+          } else if (!isLoggedIn) {
+            // For guest users without hashed link, use check-auth endpoint
+            // Make a dummy request to get the current cart state
+            final cartResponse = await http.post(
+              Uri.parse(
+                  'https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
+              headers: headers,
+              body: jsonEncode(
+                  {'productID': 0, 'quantity': 0}), // Dummy request to get cart
+            );
+
+            if (cartResponse.statusCode == 200) {
+              final cartData = jsonDecode(cartResponse.body);
+              final cartItems = cartData['items'] as List? ?? [];
+
+              // Find matching item by product name and batch
+              for (final serverItem in cartItems) {
+                final serverProductName =
+                    serverItem['product_name']?.toString() ?? '';
+                final serverBatchNo = serverItem['batch_no']?.toString() ?? '';
+                final serverItemId = serverItem['id']?.toString();
+
+                if (_normalizeProductName(serverProductName) ==
+                        _normalizeProductName(itemToRemove.name) &&
+                    serverBatchNo == itemToRemove.batchNo &&
+                    serverItemId != null) {
+                  serverCartId = serverItemId;
+                  debugPrint(
+                      '✅ Found server cart ID from check-auth: $serverCartId');
+                  break;
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ Error fetching server cart ID: $e');
+        // Continue with local ID as fallback
+      }
+    } else {
+      debugPrint('✅ Using server cart ID: $serverCartId');
+    }
+
+    // If we still don't have a server cart ID, we cannot proceed
+    if (serverCartId == null || serverCartId.isEmpty) {
+      debugPrint('❌ Cannot remove from cart - no server cart ID available');
+      return;
+    }
+
     // Remove from local cart first (works for both logged-in and non-logged-in users)
     _cartItems.removeWhere((item) => item.id == cartId);
     await _saveUserCarts();
@@ -740,14 +903,14 @@ class CartProvider with ChangeNotifier {
             'Content-Type': 'application/json',
           },
           body: jsonEncode({
-            'cart_id': cartId,
+            'cart_id': serverCartId,
           }),
         );
 
         debugPrint('=== REMOVE FROM CART API RESPONSE (user) ===');
         debugPrint(
             'URL: https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart');
-        debugPrint('Request Body: ${jsonEncode({'cart_id': cartId})}');
+        debugPrint('Request Body: ${jsonEncode({'cart_id': serverCartId})}');
         debugPrint('Request Headers: Bearer $token');
         debugPrint('Response Status: ${response.statusCode}');
         debugPrint('Response Headers: ${response.headers}');
@@ -779,7 +942,7 @@ class CartProvider with ChangeNotifier {
             'Content-Type': 'application/json',
           },
           body: jsonEncode({
-            'cart_id': cartId,
+            'cart_id': serverCartId,
           }),
         );
         debugPrint('=== REMOVE FROM CART API RESPONSE (guest) ===');
@@ -798,41 +961,55 @@ class CartProvider with ChangeNotifier {
     }
   }
 
-  // Track ongoing quantity updates to prevent conflicts
-  final Map<String, bool> _ongoingUpdates = {};
+  // Track ongoing quantity updates - using Set for automatic cleanup
+  final Set<String> _updatingItemIds = {};
 
   // Method to check if an item is currently being updated
   bool isItemUpdating(String itemId) {
-    final item = _cartItems.firstWhere(
-      (item) => item.id == itemId,
-      orElse: () => CartItem(
-        id: '',
-        productId: '',
-        name: '',
-        price: 0.0,
-        image: '',
-        batchNo: '',
-        urlName: '',
-        totalPrice: 0.0,
-      ),
-    );
-
-    if (item.id.isEmpty) return false;
-
-    final updateKey = '${item.id}_${item.productId}';
-    return _ongoingUpdates[updateKey] == true;
+    return _updatingItemIds.contains(itemId);
   }
 
   // Method to check if any item is currently being updated
-  bool get isAnyItemUpdating =>
-      _ongoingUpdates.values.any((isUpdating) => isUpdating);
+  bool get isAnyItemUpdating => _updatingItemIds.isNotEmpty;
 
   // Method to get count of items being updated
-  int get updatingItemsCount =>
-      _ongoingUpdates.values.where((isUpdating) => isUpdating).length;
+  int get updatingItemsCount => _updatingItemIds.length;
+
+  // Helper method to manage loader lifecycle automatically
+  Future<T> _withLoader<T>(
+    String itemId,
+    Future<T> Function() operation,
+  ) async {
+    // Prevent duplicate operations
+    if (_updatingItemIds.contains(itemId)) {
+      debugPrint('⏳ Update already in progress for item $itemId - skipping...');
+      throw StateError('Update already in progress');
+    }
+
+    // Set loading state
+    _updatingItemIds.add(itemId);
+    notifyListeners();
+
+    try {
+      // Execute operation with timeout
+      final result = await operation().timeout(
+        const Duration(seconds: 8),
+        onTimeout: () {
+          throw TimeoutException('Operation timed out');
+        },
+      );
+      return result;
+    } finally {
+      // Always clear loader when operation completes (success or failure)
+      _updatingItemIds.remove(itemId);
+      notifyListeners();
+      debugPrint('✅ Loader cleared for item $itemId');
+    }
+  }
 
   // New method that uses item ID instead of index
   Future<void> updateQuantityById(String itemId, int newQuantity) async {
+    debugPrint('🔍🔍🔍 QUANTITY UPDATE REQUESTED 🔍🔍🔍');
     debugPrint('🔍 CartProvider: updateQuantityById called');
     debugPrint('🔍 CartProvider: Item ID: $itemId');
     debugPrint('🔍 CartProvider: New Quantity: $newQuantity');
@@ -846,19 +1023,11 @@ class CartProvider with ChangeNotifier {
 
     final item = _cartItems[itemIndex];
     final oldQuantity = item.quantity;
-    final updateKey = '${item.id}_${item.productId}';
 
     debugPrint('🔍 CartProvider: Item: ${item.name}');
     debugPrint('🔍 CartProvider: Old Quantity: $oldQuantity');
-    debugPrint('🔍 CartProvider: Update Key: $updateKey');
     debugPrint('🔍 CartProvider: Item ID: ${item.id}');
     debugPrint('🔍 CartProvider: Item Name: ${item.name}');
-
-    // Check if there's already an ongoing update for this item
-    if (_ongoingUpdates[updateKey] == true) {
-      debugPrint('⏳ Update already in progress for ${item.name} - skipping...');
-      return;
-    }
 
     debugPrint('=== SIMPLE QUANTITY UPDATE ===');
     debugPrint('Product Name: ${item.name}');
@@ -866,45 +1035,44 @@ class CartProvider with ChangeNotifier {
     debugPrint('New Quantity: $newQuantity');
     debugPrint('Cart Item ID: ${item.id}');
 
-    // Mark this item as being updated
-    _ongoingUpdates[updateKey] = true;
-
     // Update local state immediately for UI responsiveness
     _cartItems[itemIndex].updateQuantity(newQuantity);
     await _saveUserCarts();
     notifyListeners();
 
-    // Add fallback timer to clear update flag after maximum time
-    Timer(const Duration(seconds: 10), () {
-      if (_ongoingUpdates[updateKey] == true) {
-        debugPrint('⏰ Fallback timer: Clearing update flag for ${item.name}');
-        _ongoingUpdates[updateKey] = false;
-        notifyListeners();
-      }
-    });
-
     debugPrint('✅ Quantity updated locally - will sync with server');
 
-    if (await AuthService.isLoggedIn()) {
+    // Use _withLoader to automatically manage loader lifecycle
+    // Check if user is logged in OR has a guest_id
+    final isLoggedIn = await AuthService.isLoggedIn();
+    String? token = await AuthService.getToken();
+
+    if (!isLoggedIn && token == null) {
+      final prefs = await SharedPreferences.getInstance();
+      token = prefs.getString('guest_id');
+    }
+
+    if (token != null) {
+      // User has either auth token or guest_id - sync with server
+      debugPrint(
+          '✅ Token found (${isLoggedIn ? "logged in" : "guest"}), proceeding with API sync');
       try {
-        // Add timeout to prevent infinite loading
-        await _simpleQuantityUpdate(item, newQuantity)
-            .timeout(const Duration(seconds: 8), onTimeout: () {
-          debugPrint('⏰ Update timeout for ${item.name}');
-          throw TimeoutException('Update timed out');
+        await _withLoader(itemId, () async {
+          await _simpleQuantityUpdate(item, newQuantity);
         });
       } catch (e) {
         debugPrint('⚠️ Update error for ${item.name}: $e');
         // Show user-friendly error message
-        _showSyncError('Update timed out. Please try again.');
-      } finally {
-        // Always clear the ongoing update flag
-        _ongoingUpdates[updateKey] = false;
-        debugPrint('✅ Update completed for ${item.name}');
+        if (e is TimeoutException) {
+          _showSyncError('Update timed out. Please try again.');
+        } else if (e is! StateError) {
+          // Don't show error for "already in progress" state errors
+          _showSyncError('Quantity update failed. Please try again.');
+        }
       }
     } else {
-      // Clear the flag if not logged in
-      _ongoingUpdates[updateKey] = false;
+      debugPrint('⚠️ Cannot sync quantity - missing auth token and guest_id');
+      debugPrint('⚠️ Quantity updated locally only, no API call made');
     }
   }
 
@@ -920,28 +1088,17 @@ class CartProvider with ChangeNotifier {
 
     final item = _cartItems[index];
     final oldQuantity = item.quantity;
-    final updateKey = '${item.id}_${item.productId}';
 
     debugPrint('🔍 CartProvider: Item: ${item.name}');
     debugPrint('🔍 CartProvider: Old Quantity: $oldQuantity');
-    debugPrint('🔍 CartProvider: Update Key: $updateKey');
     debugPrint('🔍 CartProvider: Item ID: ${item.id}');
     debugPrint('🔍 CartProvider: Item Name: ${item.name}');
-
-    // Check if there's already an ongoing update for this item
-    if (_ongoingUpdates[updateKey] == true) {
-      debugPrint('⏳ Update already in progress for ${item.name} - skipping...');
-      return;
-    }
 
     debugPrint('=== SIMPLE QUANTITY UPDATE ===');
     debugPrint('Product Name: ${item.name}');
     debugPrint('Old Quantity: $oldQuantity');
     debugPrint('New Quantity: $newQuantity');
     debugPrint('Cart Item ID: ${item.id}');
-
-    // Mark this item as being updated
-    _ongoingUpdates[updateKey] = true;
 
     // Update local state immediately for UI responsiveness
     _cartItems[index].updateQuantity(newQuantity);
@@ -951,54 +1108,52 @@ class CartProvider with ChangeNotifier {
     // Trigger immediate real-time sync
     RealtimeCartSyncService().triggerImmediateSync();
 
-    // Add fallback timer to clear update flag after maximum time
-    Timer(const Duration(seconds: 10), () {
-      if (_ongoingUpdates[updateKey] == true) {
-        debugPrint('⏰ Fallback timer: Clearing update flag for ${item.name}');
-        _ongoingUpdates[updateKey] = false;
-        notifyListeners();
-      }
-    });
-
     debugPrint('✅ Quantity updated locally - will sync with server');
 
+    // Use _withLoader to automatically manage loader lifecycle
     if (await AuthService.isLoggedIn()) {
       try {
-        // Add timeout to prevent infinite loading
-        await _simpleQuantityUpdate(item, newQuantity)
-            .timeout(const Duration(seconds: 8), onTimeout: () {
-          debugPrint('⏰ Update timeout for ${item.name}');
-          throw TimeoutException('Update timed out');
+        await _withLoader(item.id, () async {
+          await _simpleQuantityUpdate(item, newQuantity);
         });
       } catch (e) {
         debugPrint('⚠️ Update error for ${item.name}: $e');
         // Show user-friendly error message
-        _showSyncError('Update timed out. Please try again.');
-      } finally {
-        // Always clear the ongoing update flag
-        _ongoingUpdates[updateKey] = false;
-        debugPrint('✅ Update completed for ${item.name}');
+        if (e is TimeoutException) {
+          _showSyncError('Update timed out. Please try again.');
+        } else if (e is! StateError) {
+          // Don't show error for "already in progress" state errors
+          _showSyncError('Quantity update failed. Please try again.');
+        }
       }
-    } else {
-      // Clear the flag if not logged in
-      _ongoingUpdates[updateKey] = false;
     }
+    // For non-logged-in users, no loader needed since no server sync
   }
 
   // Smart quantity update that prevents duplicates
   Future<void> _simpleQuantityUpdate(CartItem item, int newQuantity) async {
     try {
-      final token = await AuthService.getToken();
+      final isLoggedIn = await AuthService.isLoggedIn();
+      String? token = await AuthService.getToken();
+
+      if (token == null && !isLoggedIn) {
+        final prefs = await SharedPreferences.getInstance();
+        token = prefs.getString('guest_id');
+      }
+
       if (token == null) {
-        debugPrint('Cannot sync quantity - missing auth token');
+        debugPrint('Cannot sync quantity - missing auth token and guest_id');
         return;
       }
 
       debugPrint('🔄 SMART QUANTITY UPDATE: Preventing duplicates');
+      debugPrint('Item: ${item.name}');
+      debugPrint('New Quantity: $newQuantity');
+      debugPrint('Is Logged In: $isLoggedIn');
 
       // Step 1: Remove ALL instances of this product from cart first
       debugPrint('=== STEP 1: REMOVE ALL INSTANCES ===');
-      await _removeAllProductInstances(item, token);
+      await _removeAllProductInstances(item, token, isLoggedIn);
 
       // Step 2: Add single item with correct quantity
       debugPrint('=== STEP 2: ADD SINGLE ITEM ===');
@@ -1012,21 +1167,51 @@ class CartProvider with ChangeNotifier {
   }
 
   // Remove all instances of a product from cart
-  Future<void> _removeAllProductInstances(CartItem item, String token) async {
+  Future<void> _removeAllProductInstances(
+      CartItem item, String token, bool isLoggedIn) async {
     try {
+      final headers = <String, String>{
+        'Accept': 'application/json',
+      };
+
+      if (isLoggedIn) {
+        headers['Authorization'] = 'Bearer $token';
+      } else {
+        headers['Authorization'] = 'Guest $token';
+        headers['X-Guest-ID'] = token;
+      }
+
       // Get current cart from server to find all instances
-      final cartResponse = await http.get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/check-out/${await AuthService.getHashedLink()}'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      );
+      http.Response cartResponse;
+      if (isLoggedIn) {
+        final hashedLink = await AuthService.getHashedLink();
+        if (hashedLink == null) {
+          debugPrint('Cannot remove instances - missing hashed link');
+          return;
+        }
+        cartResponse = await http.get(
+          Uri.parse(
+              'https://eclcommerce.ernestchemists.com.gh/api/check-out/$hashedLink'),
+          headers: headers,
+        );
+      } else {
+        // For guest users, use check-auth endpoint to get cart
+        cartResponse = await http.post(
+          Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(
+              {'productID': 0, 'quantity': 0}), // Dummy request to get cart
+        );
+      }
 
       if (cartResponse.statusCode == 200) {
         final cartData = jsonDecode(cartResponse.body);
-        final cartItems = cartData['cart_items'] as List? ?? [];
+        final cartItems = isLoggedIn
+            ? (cartData['cart_items'] as List? ?? [])
+            : (cartData['items'] as List? ?? []);
 
         // Find all items with the same product name and batch
         final itemsToRemove = cartItems.where((serverItem) {
@@ -1043,17 +1228,37 @@ class CartProvider with ChangeNotifier {
         for (final serverItem in itemsToRemove) {
           final itemId = serverItem['id']?.toString();
           if (itemId != null) {
-            await http.post(
+            final removeHeaders = <String, String>{
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            };
+
+            if (isLoggedIn) {
+              removeHeaders['Authorization'] = 'Bearer $token';
+            } else {
+              removeHeaders['Authorization'] = 'Guest $token';
+              removeHeaders['X-Guest-ID'] = token;
+            }
+
+            final removeResponse = await http.post(
               Uri.parse(
                   'https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart'),
-              headers: {
-                'Authorization': 'Bearer $token',
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-              },
+              headers: removeHeaders,
               body: jsonEncode({'cart_id': itemId}),
             );
+
+            debugPrint(
+                '=== QUANTITY UPDATE - REMOVE INSTANCE API RESPONSE ===');
+            debugPrint(
+                'URL: https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart');
+            debugPrint('Request Body: ${jsonEncode({'cart_id': itemId})}');
+            debugPrint('Request Headers: $removeHeaders');
+            debugPrint('Response Status: ${removeResponse.statusCode}');
+            debugPrint('Response Headers: ${removeResponse.headers}');
+            debugPrint('Response Body: ${removeResponse.body}');
             debugPrint('Removed item ID: $itemId');
+            debugPrint(
+                '========================================================');
           }
         }
       }
@@ -1091,18 +1296,36 @@ class CartProvider with ChangeNotifier {
 
       debugPrint('Adding item: ${item.name} with quantity: $quantity');
 
+      final isLoggedIn = await AuthService.isLoggedIn();
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      };
+
+      if (isLoggedIn) {
+        headers['Authorization'] = 'Bearer $token';
+      } else {
+        headers['Authorization'] = 'Guest $token';
+        headers['X-Guest-ID'] = token;
+      }
+
       final addResponse = await http.post(
         Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
+        headers: headers,
         body: jsonEncode(addRequestBody),
       );
 
-      debugPrint('Add Response: ${addResponse.statusCode}');
-      debugPrint('Add Body: ${addResponse.body}');
+      debugPrint('=== QUANTITY UPDATE API RESPONSE ===');
+      debugPrint(
+          'URL: https://eclcommerce.ernestchemists.com.gh/api/check-auth');
+      debugPrint('Request Body: ${jsonEncode(addRequestBody)}');
+      debugPrint('Request Headers: $headers');
+      debugPrint('Response Status: ${addResponse.statusCode}');
+      debugPrint('Response Headers: ${addResponse.headers}');
+      debugPrint('Response Body: ${addResponse.body}');
+      debugPrint('=====================================');
+
+      // Loader is automatically managed by _withLoader, no manual clearing needed here
 
       if (addResponse.statusCode == 200 || addResponse.statusCode == 201) {
         debugPrint('✅ Single item added successfully');
@@ -1184,6 +1407,8 @@ class CartProvider with ChangeNotifier {
 
   Future<void> handleUserLogin(String userId) async {
     _currentUserId = userId;
+    // Re-enable guest cart loading after login (in case user logs out again)
+    _shouldLoadGuestCart = true;
 
     // Load this user's cart if it exists
     if (_userCarts.containsKey(userId)) {
@@ -1198,6 +1423,9 @@ class CartProvider with ChangeNotifier {
     // Don't sync immediately on login - let the protection mechanism handle it
     // The local cart is the source of truth
     notifyListeners();
+
+    debugPrint(
+        '🛒 CartProvider: User logged in - cart loaded for user: $userId');
   }
 
   Future<void> handleUserLogout() async {
@@ -1210,7 +1438,12 @@ class CartProvider with ChangeNotifier {
     _currentUserId = null;
     _cartItems = [];
     _purchasedItems = [];
+    // Prevent loading guest cart after logout - cart should stay empty until login
+    _shouldLoadGuestCart = false;
     notifyListeners();
+
+    debugPrint(
+        '🛒 CartProvider: User logged out - cart cleared and guest cart loading disabled');
   }
 
   Future<void> refreshLoginStatus() async {

@@ -1,5 +1,5 @@
 // widgets/wishlist_button.dart
-// widgets/wishlist_button.dart
+// button to add/remove items from wishlist
 import 'package:flutter/material.dart';
 import '../services/wishlist_service.dart';
 import '../models/product.dart';
@@ -105,8 +105,8 @@ class _WishlistButtonState extends State<WishlistButton> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: Colors.grey.withOpacity(0.3),
-            width: 1,
+            color: Colors.green.withOpacity(0.6),
+            width: 1.2,
           ),
           boxShadow: [
             BoxShadow(
@@ -119,16 +119,16 @@ class _WishlistButtonState extends State<WishlistButton> {
         ),
         child: _isLoading
             ? SizedBox(
-                width: widget.size ?? 16,
-                height: widget.size ?? 16,
+                width: widget.size ?? 18,
+                height: widget.size ?? 18,
                 child: const CircularProgressIndicator(strokeWidth: 1.5),
               )
             : Icon(
                 _isInWishlist ? Icons.favorite : Icons.favorite_border,
-                size: widget.size ?? 16,
+                size: widget.size ?? 18,
                 color: _isInWishlist
-                    ? (widget.activeColor ?? Colors.red)
-                    : Colors.grey[600],
+                    ? (widget.activeColor ?? Colors.green)
+                    : Colors.green[600]!,
               ),
       ),
     );

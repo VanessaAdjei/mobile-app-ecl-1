@@ -60,7 +60,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
 
   @override
   Widget build(BuildContext context) {
-    _performSearch(); // Ensure search is performed on build
+    _performSearch(); // make sure search happens when we build
 
     final isLoading = _filteredProducts == null;
     final isEmpty = _filteredProducts?.isEmpty ?? false;
@@ -202,7 +202,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                       left: 30.0), // Increased left padding
                   child: Column(
                     children: [
-                      // Animated search bar (bigger)
+                      // animated search bar (bigger)
                       AnimatedContainer(
                         duration: Duration(milliseconds: 350),
                         curve: Curves.easeInOut,
@@ -216,8 +216,8 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                               BorderRadius.circular(32), // More pill-like
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black
-                                  .withValues(alpha: 0.10), // More prominent shadow
+                              color: Colors.black.withValues(
+                                  alpha: 0.10), // More prominent shadow
                               blurRadius: 18,
                               offset: Offset(0, 4),
                             ),
@@ -263,8 +263,8 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                           ],
                         ),
                       ),
-                      // (Filter chips row removed)
-                      // Results grid
+                      // (filter chips row removed)
+                      // results grid
                       Expanded(
                         child: GridView.builder(
                           padding: EdgeInsets.zero,
@@ -306,7 +306,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                                       // Remove or minimize internal padding if supported
                                       padding: 0,
                                     ),
-                                    // Badge for prescribed
+                                    // badge showing if its prescribed
                                     if (product.otcpom?.toLowerCase() == 'pom')
                                       Positioned(
                                         left: 8,

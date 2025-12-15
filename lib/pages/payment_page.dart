@@ -190,7 +190,7 @@ class PaymentPageState extends State<PaymentPage> {
     }
   }
 
-  // Helper to get the correct Authorization header (Bearer or Guest)
+  // figure out which auth header to use (bearer or guest)
   Future<String?> getAuthHeader() async {
     final isLoggedIn = await AuthService.isLoggedIn();
     String? token = await AuthService.getToken();
@@ -220,7 +220,7 @@ class PaymentPageState extends State<PaymentPage> {
     });
 
     try {
-      // Validate cart
+      // make sure cart isnt empty
       if (cart.cartItems.isEmpty) {
         debugPrint('[DEBUG] Returning early: cart is empty');
         throw Exception(
@@ -228,7 +228,7 @@ class PaymentPageState extends State<PaymentPage> {
       }
       debugPrint('[DEBUG] Passed cart empty check');
 
-      // Calculate total
+      // add up the total price
       final subtotal = cart.calculateSubtotal();
       if (subtotal <= 0) {
         debugPrint('[DEBUG] Returning early: subtotal <= 0');
@@ -239,13 +239,13 @@ class PaymentPageState extends State<PaymentPage> {
       final deliveryFee = 0.00;
       final total = subtotal + deliveryFee - _discountAmount;
 
-      // Determine if user is guest
+      // check if theyre a guest or logged in
       final authHeader = await getAuthHeader();
       final isGuest = authHeader != null && authHeader.startsWith('Guest ');
       debugPrint('[DEBUG] Passed guest check');
       debugPrint('[DEBUG] isGuest: $isGuest, authHeader: $authHeader');
 
-      // Validate user data
+      // make sure we have their info
       if (!isGuest &&
           (_userEmail.isEmpty || _userEmail == "No email available")) {
         debugPrint(
@@ -261,7 +261,7 @@ class PaymentPageState extends State<PaymentPage> {
       }
       debugPrint('[DEBUG] Passed contact number check');
 
-      // Create order description
+      // make a description of what theyre ordering
       String orderDesc = cart.cartItems
           .map((item) => '${item.quantity}x ${item.name}')
           .join(', ');
@@ -269,7 +269,7 @@ class PaymentPageState extends State<PaymentPage> {
         orderDesc = '${orderDesc.substring(0, 97)}...';
       }
 
-      // Add promo code info to order description if applied
+      // add promo code info if they used one
       if (_appliedPromoCode != null) {
         orderDesc += ' (Promo: $_appliedPromoCode)';
       }
@@ -309,7 +309,7 @@ class PaymentPageState extends State<PaymentPage> {
             ? _userName.split(' ').first
             : 'Customer';
 
-        // Validate COD payment parameters
+        // make sure we have everything we need for cod payment
         final emailForValidation =
             isGuest ? (widget.guestEmail ?? '') : _userEmail;
         debugPrint(
@@ -328,7 +328,7 @@ class PaymentPageState extends State<PaymentPage> {
           throw Exception(errorMessage);
         }
 
-        // Get the correct auth header (Bearer or Guest)
+        // get the right auth header (bearer or guest)
         final authHeader = await getAuthHeader();
         if (authHeader == null) {
           setState(() {
@@ -337,7 +337,7 @@ class PaymentPageState extends State<PaymentPage> {
           });
           return;
         }
-        // Extract just the token string for CODPaymentService
+        // get just the token part for the cod payment
         String? tokenString;
         if (authHeader.startsWith('Bearer ')) {
           tokenString = authHeader.substring(7);
@@ -345,10 +345,10 @@ class PaymentPageState extends State<PaymentPage> {
           tokenString = authHeader.substring(6);
         }
 
-        // Debug print for email being sent to COD API
+        // print the email so we can see what we're sending
         debugPrint('[DEBUG] COD API call email: "$emailForValidation"');
 
-        // Process COD payment through the API
+        // send the cod payment to the api
         final codResult = await CODPaymentService.processCODPayment(
           firstName: firstName,
           email: emailForValidation,
@@ -363,7 +363,7 @@ class PaymentPageState extends State<PaymentPage> {
           throw Exception(codResult['message'] ?? 'COD payment failed');
         }
 
-        // Navigate to OrderConfirmationPage immediately
+        // go to the order confirmation page right away
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
@@ -382,15 +382,16 @@ class PaymentPageState extends State<PaymentPage> {
           (route) => false,
         );
 
-        Future.microtask(() async {
-          for (final item in List<CartItem>.from(cart.cartItems)) {
-            await cart.removeFromCart(item.id);
-          }
-          cart.clearCart();
-        });
+        // dont clear cart after cod payment (commented out)
+        // Future.microtask(() async {
+        //   for (final item in List<CartItem>.from(cart.cartItems)) {
+        //     await cart.removeFromCart(item.id);
+        //   }
+        //   cart.clearCart();
+        // });
 
         try {
-          // Convert cart items to the format expected by the API
+          // turn cart items into the format the api wants
           final orderItems = purchasedItems
               .map((item) => {
                     'productId': item.productId,
@@ -418,7 +419,7 @@ class PaymentPageState extends State<PaymentPage> {
                 orderAmount: total,
                 orderId: transactionId.toString(),
                 onCashbackSuccess: () {
-                  // Navigate to wallet page immediately
+                  // go to wallet page right away
                   if (mounted) {
                     Navigator.of(context).pushNamed('/wallet');
                   }
@@ -426,21 +427,21 @@ class PaymentPageState extends State<PaymentPage> {
               );
 
               if (cashbackResult['success']) {
-                // Simple notification that cashback was received
+                // just show a simple message that they got cashback
                 final cashbackAmount =
                     cashbackResult['cashback_amount'] as double;
                 NotificationService.showCashbackNotification(cashbackAmount);
               } else if (cashbackResult['auth_required'] == true) {
-                // No snackbar for now per request
+                // not showing snackbar right now (per request)
               }
             } catch (e) {
               debugPrint('Cashback processing failed: $e');
-              // Don't block the order if cashback fails
+              // if cashback fails, still let the order go through
             }
           }
 
           if (orderResult['status'] != 'success') {
-            // Show warning but still proceed with the order
+            // show a warning but keep going with the order
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Row(
@@ -464,8 +465,9 @@ class PaymentPageState extends State<PaymentPage> {
               ),
             );
           } else {
+            // Commented out: Don't clear cart after COD payment
             // Clear the cart after successful order creation
-            cart.clearCart();
+            // cart.clearCart();
 
             // Don't create notification here - it will be created in OrderConfirmationPage
             // after the order is properly confirmed
@@ -2224,10 +2226,11 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
       }
       _isLoading = false;
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final cartProvider = Provider.of<CartProvider>(context, listen: false);
-        cartProvider.clearCart();
-      });
+      // Commented out: Don't clear cart after COD payment
+      // WidgetsBinding.instance.addPostFrameCallback((_) {
+      //   final cartProvider = Provider.of<CartProvider>(context, listen: false);
+      //   cartProvider.clearCart();
+      // });
 
       // Create notification for COD orders immediately since they're confirmed
       _createPaymentSuccessNotification();

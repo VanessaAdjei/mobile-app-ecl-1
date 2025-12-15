@@ -140,7 +140,8 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
 
     try {
       final cartItem = CartItem(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        // Use server cart ID only; start with empty and update after server response
+        id: '',
         productId: product.id.toString(),
         name: product.name,
         price: double.tryParse(product.price) ?? 0.0,
@@ -162,7 +163,24 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
       _performanceService.trackError('add_to_cart_error',
           context: e.toString());
       if (mounted) {
-        _showErrorSnackBar('Error adding item to cart: $e');
+        final errorMessage = e.toString();
+        String displayMessage;
+
+        if (errorMessage.contains('out of stock') ||
+            errorMessage.contains('unavailable') ||
+            errorMessage.contains('only has') ||
+            errorMessage.contains('units available') ||
+            errorMessage.contains('Unable to verify stock')) {
+          // Clean up the error message for display
+          displayMessage = errorMessage
+              .replaceAll('Exception: ', '')
+              .replaceAll('Error: ', '')
+              .trim();
+        } else {
+          displayMessage = 'Error adding item to cart. Please try again.';
+        }
+
+        _showErrorSnackBar(displayMessage);
       }
     } finally {
       _performanceService.stopTimer('add_to_cart');
@@ -811,59 +829,90 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
         margin: EdgeInsets.all(16),
         child: Column(
           children: [
-            // Add to cart button
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed:
-                    _isAddingToCart ? null : () => _addToCart(context, product),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green.shade600,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
+            // Add to cart button - hide if item is already in cart
+            Consumer<CartProvider>(
+              builder: (context, cartProvider, child) {
+                // Check if product is already in cart
+                final cartItems = cartProvider.cartItems;
+                final existingItem = cartItems.firstWhere(
+                  (item) =>
+                      item.name.toLowerCase() == product.name.toLowerCase() &&
+                      item.batchNo == product.batch_no,
+                  orElse: () => CartItem(
+                    id: '',
+                    productId: '',
+                    name: '',
+                    price: 0.0,
+                    quantity: 0,
+                    image: '',
+                    batchNo: '',
+                    urlName: '',
+                    totalPrice: 0.0,
                   ),
-                  elevation: 2,
-                ),
-                child: _isAddingToCart
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Adding...',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.shopping_cart, size: 20),
-                          SizedBox(width: 8),
-                          Text(
-                            'Add to Cart',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                );
+
+                final isInCart = existingItem.id.isNotEmpty;
+
+                // Hide the button if item is already in cart
+                if (isInCart) {
+                  return SizedBox.shrink();
+                }
+
+                return SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: _isAddingToCart
+                        ? null
+                        : () => _addToCart(context, product),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade600,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
                       ),
-              ),
+                      elevation: 2,
+                    ),
+                    child: _isAddingToCart
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Adding...',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.shopping_cart, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Add to Cart',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                );
+              },
             ),
             SizedBox(height: 12),
 

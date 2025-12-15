@@ -12,15 +12,15 @@ class LocationService {
   factory LocationService() => _instance;
   LocationService._internal();
 
-  // Cache user location to avoid repeated requests
+  // cache user location so we dont ask for it every time
   Position? _cachedUserLocation;
   DateTime? _lastLocationUpdate;
   static const Duration _locationCacheDuration = Duration(minutes: 5);
 
-  /// Get user's current location with caching
+  // get user's current location (uses cache)
   Future<Position?> getCurrentLocation() async {
     try {
-      // Check if we have a cached location that's still valid
+      // check if we have a cached location that's still good
       if (_cachedUserLocation != null && _lastLocationUpdate != null) {
         final timeSinceUpdate = DateTime.now().difference(_lastLocationUpdate!);
         if (timeSinceUpdate < _locationCacheDuration) {
@@ -30,7 +30,7 @@ class LocationService {
         }
       }
 
-      // Check location permissions
+      // check location permissions
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -45,21 +45,21 @@ class LocationService {
         return null;
       }
 
-      // Check if location services are enabled
+      // check if location services are enabled
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         debugPrint('❌ Location services are disabled');
         return null;
       }
 
-      // Get current position with high accuracy
+      // get current position with high accuracy
       debugPrint('📍 Getting current location with high accuracy...');
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.best,
         timeLimit: const Duration(seconds: 15),
       );
 
-      // Cache the location
+      // save the location to cache
       _cachedUserLocation = position;
       _lastLocationUpdate = DateTime.now();
 
@@ -72,15 +72,16 @@ class LocationService {
     }
   }
 
-  /// Calculate distance between two coordinates in kilometers
+  // calculate distance between two coordinates in kilometers
   double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    // Use the most accurate distance calculation method
+    // use the most accurate distance calculation method
     final distanceInMeters = Geolocator.distanceBetween(lat1, lon1, lat2, lon2);
-    debugPrint('📍 Distance calculation: ($lat1, $lon1) to ($lat2, $lon2) = ${distanceInMeters}m');
+    debugPrint(
+        '📍 Distance calculation: ($lat1, $lon1) to ($lat2, $lon2) = ${distanceInMeters}m');
     return distanceInMeters / 1000;
   }
 
-  /// Calculate distance from user's location to a store
+  // calculate distance from user's location to a store
   Future<double?> calculateDistanceToStore(
       double storeLat, double storeLon) async {
     final userLocation = await getCurrentLocation();
@@ -96,7 +97,7 @@ class LocationService {
     );
   }
 
-  /// Format distance for display
+  // format distance to show nicely
   String formatDistance(double distanceInKm) {
     if (distanceInKm < 1) {
       return '${(distanceInKm * 1000).round()}m';
@@ -107,7 +108,7 @@ class LocationService {
     }
   }
 
-  /// Get address from coordinates
+  // get address from coordinates
   Future<String?> getAddressFromCoordinates(double lat, double lon) async {
     try {
       List<Placemark> placemarks = await placemarkFromCoordinates(lat, lon);
@@ -122,7 +123,7 @@ class LocationService {
     }
   }
 
-  /// Get coordinates from address (reverse geocoding)
+  // get coordinates from address (reverse geocoding)
   Future<Map<String, double>?> getCoordinatesFromAddress(String address) async {
     try {
       debugPrint('📍 Geocoding address: $address');
@@ -146,7 +147,7 @@ class LocationService {
     }
   }
 
-  /// Clear cached location
+  // clear cached location
   void clearCache() {
     _cachedUserLocation = null;
     _lastLocationUpdate = null;
@@ -163,11 +164,11 @@ class LocationService {
         return false;
       }
 
-      // Then check permissions
+      // then check permissions
       LocationPermission permission = await Geolocator.checkPermission();
       debugPrint('📍 Current location permission: $permission');
 
-      // If permission is denied, request it
+      // if permission is denied, ask for it
       if (permission == LocationPermission.denied) {
         debugPrint('📍 Requesting location permission...');
         permission = await Geolocator.requestPermission();

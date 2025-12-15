@@ -21,6 +21,7 @@ import 'package:provider/provider.dart';
 import 'auth_service.dart';
 import 'bottomnav.dart';
 import 'notifications.dart';
+import '../widgets/app_header_bar.dart';
 
 import 'app_back_button.dart';
 import 'cartprovider.dart';
@@ -51,7 +52,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
   void initState() {
     super.initState();
 
-    // Initialize animations
+    // set up the animations
     _headerAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1200),
       vsync: this,
@@ -111,28 +112,14 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
 
   Future<void> _loadUserData() async {
     try {
-      final secureStorage = FlutterSecureStorage();
-      String? name;
-      String? email;
-      try {
-        name = await secureStorage.read(key: 'userName');
-        email = await secureStorage.read(key: 'userEmail');
-      } on PlatformException catch (e) {
-        // Suppress -34018 keychain entitlement errors silently
-        if (e.code == '-34018' || e.message?.contains('34018') == true) {
-          debugPrint('Keychain access error suppressed in profile');
-          name = null;
-          email = null;
-        } else {
-          rethrow;
-        }
-      }
+      final userData = await AuthService.getCurrentUser();
       if (!mounted) return;
       setState(() {
-        _userName = name ?? "User";
-        _userEmail = email ?? "No email available";
+        _userName = userData?['name'] ?? "User";
+        _userEmail = userData?['email'] ?? "No email available";
       });
     } catch (e) {
+      debugPrint('Error loading user data in profile: $e');
       if (!mounted) return;
       setState(() {
         _userName = "User";
@@ -221,7 +208,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                 elevation: 2,
               ),
               onPressed: () async {
-                // Get providers before any await
+                // get the providers before we do async stuff
                 final authProvider =
                     Provider.of<AuthProvider>(context, listen: false);
                 final cartProvider =
@@ -239,7 +226,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     debugPrint('🔍 Profile: authProvider.logout() completed');
                   } catch (e) {
                     debugPrint('🔍 Profile: authProvider.logout() error: $e');
-                    // ignore: empty_catches
+                    // ignore this error, we dont care
                   }
                   await cartProvider.handleUserLogout();
                   debugPrint(
@@ -304,7 +291,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
     );
   }
 
-  // login navigation
+  // go to login page
   void _handleLogin() {
     Navigator.push(
       context,
@@ -448,96 +435,26 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          // Enhanced header with better design (matching notifications)
+          // Unified app header
           SliverToBoxAdapter(
-            child: Animate(
-              effects: [
-                FadeEffect(duration: 400.ms),
-                SlideEffect(
-                    duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
-              ],
-              child: Container(
-                padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top * 0.5),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.green.shade700,
-                      Colors.green.shade700,
-                      Colors.green.shade800,
-                    ],
-                    stops: [0.0, 0.5, 1.0],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0, vertical: 8.0),
-                    child: Row(
-                      children: [
-                        AppBackButton(
-                          backgroundColor: Colors.white.withValues(alpha: 0.2),
-                          onPressed: () {
-                            if (Navigator.canPop(context)) {
-                              Navigator.pop(context);
-                            } else {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (context) =>
-                                        const home.HomePage()),
-                              );
-                            }
-                          },
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Your Profile',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 1),
-                              Text(
-                                'Manage your account settings',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        CartIconButton(
-                          iconColor: Colors.white,
-                          iconSize: 22,
-                          backgroundColor: Colors.transparent,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+            child: AppHeaderBar(
+              title: 'Your Profile',
+              subtitle: 'Manage your account settings',
+              onBack: () {
+                if (Navigator.canPop(context)) {
+                  Navigator.pop(context);
+                } else {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const home.HomePage()),
+                  );
+                }
+              },
             ),
           ),
 
-          // Profile Content
+          // all the profile stuff
           SliverToBoxAdapter(
             child: AnimatedBuilder(
               animation: _contentAnimation,
@@ -553,88 +470,58 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Enhanced Profile Header
+                  // profile header with name and email - more fluid design
                   Container(
                     width: double.infinity,
-                    margin: const EdgeInsets.all(16),
+                    margin: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 24, horizontal: 20),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          primaryColor,
-                          primaryColor.withValues(alpha: 0.8),
-                          primaryColor.withValues(alpha: 0.6),
-                        ],
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: primaryColor.withValues(alpha: 0.1),
+                        width: 1,
                       ),
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: primaryColor.withAlpha((255 * 0.3).toInt()),
-                          blurRadius: 30,
-                          offset: const Offset(0, 15),
-                        ),
-                      ],
                     ),
                     child: Column(
                       children: [
-                        const SizedBox(height: 16),
-                        // Enhanced Profile Avatar
+                        // the profile picture circle - more minimal
                         Container(
-                          height: 100,
-                          width: 100,
+                          height: 80,
+                          width: 80,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 5),
-                            boxShadow: [
-                              BoxShadow(
-                                color:
-                                    Colors.black.withAlpha((255 * 0.3).toInt()),
-                                blurRadius: 20,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Colors.white,
-                                Colors.grey.shade100,
-                              ],
+                            color: primaryColor.withValues(alpha: 0.1),
+                            border: Border.all(
+                              color: primaryColor.withValues(alpha: 0.2),
+                              width: 2,
                             ),
                           ),
                           child: Icon(
                             Icons.person,
-                            size: 60,
-                            color: Colors.green.shade600,
+                            size: 48,
+                            color: primaryColor,
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
                         Text(
                           _userLoggedIn ? _userName : "Guest User",
                           style: GoogleFonts.poppins(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            color: textColor,
+                            letterSpacing: -0.3,
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 8),
                         _userLoggedIn
-                            ? Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: Colors.white
-                                      .withAlpha((255 * 0.2).toInt()),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Text(
-                                  _userEmail,
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 14,
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                            ? Text(
+                                _userEmail,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: subtextColor,
+                                  fontWeight: FontWeight.w400,
                                 ),
                               )
                             : GestureDetector(
@@ -648,71 +535,56 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                                 },
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 6),
+                                      horizontal: 14, vertical: 8),
                                   decoration: BoxDecoration(
-                                    color: Colors.white
-                                        .withAlpha((255 * 0.2).toInt()),
-                                    borderRadius: BorderRadius.circular(16),
+                                    color: primaryColor.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color:
+                                          primaryColor.withValues(alpha: 0.2),
+                                      width: 1,
+                                    ),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
-                                        "Please sign in to continue",
+                                        "Sign in to continue",
                                         style: GoogleFonts.poppins(
-                                          fontSize: 14,
-                                          color: Colors.white,
+                                          fontSize: 13,
+                                          color: primaryColor,
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
-                                      const SizedBox(width: 4),
+                                      const SizedBox(width: 6),
                                       Icon(
                                         Icons.arrow_forward_ios,
                                         size: 12,
-                                        color: Colors.white,
+                                        color: primaryColor,
                                       ),
                                     ],
                                   ),
                                 ),
                               ),
-                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
 
-                  // Account Section Header
+                  // "Account" section title - more fluid
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: primaryColor.withAlpha((255 * 0.1).toInt()),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            Icons.account_circle_outlined,
-                            color: Colors.indigo.shade600,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          "Your Account",
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
-                          ),
-                        ),
-                      ],
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                    child: Text(
+                      "Your Account",
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: subtextColor,
+                        letterSpacing: 0.2,
+                      ),
                     ),
                   ),
 
-                  const SizedBox(height: 20),
-
-                  // Enhanced Profile Options
+                  // all the profile menu options
                   _buildEnhancedProfileOption(
                     context,
                     Icons.person_outline,
@@ -722,10 +594,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         ? () => _navigateTo(ProfileScreen())
                         : () => _showSignInRequiredDialog(context,
                             feature: 'profile information'),
-                    Colors.green.shade700,
+                    primaryColor,
                     cardColor,
                     textColor,
                     subtextColor,
+                    primaryColor,
                     0,
                   ),
                   Selector<NotificationProvider, Map<String, int>>(
@@ -741,15 +614,16 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         "Manage your notifications",
                         _userLoggedIn
                             ? () {
-                                // Do NOT mark all as read here - let user read notifications manually
+                                // dont mark all as read, let them read notifications themselves
                                 _navigateTo(NotificationsScreen());
                               }
                             : () => _showSignInRequiredDialog(context,
                                 feature: 'notifications'),
-                        Colors.blue.shade700,
+                        Colors.orange.shade600,
                         cardColor,
                         textColor,
                         subtextColor,
+                        primaryColor,
                         1,
                         badgeCount: counts['unreadCount'],
                         badgeColor: counts['newOrderCount']! > 0
@@ -758,7 +632,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                       );
                     },
                   ),
-                  // Wishlist Option
+                  // wishlist menu option
                   FutureBuilder<int>(
                     future: WishlistService.instance.getWishlistCount(),
                     builder: (context, snapshot) {
@@ -769,13 +643,14 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         "My Wishlist",
                         "View your saved products",
                         () => _navigateTo(const WishlistPage()),
-                        Colors.pink.shade600,
+                        primaryColor,
                         cardColor,
                         textColor,
                         subtextColor,
+                        primaryColor,
                         1,
                         badgeCount: wishlistCount > 0 ? wishlistCount : null,
-                        badgeColor: Colors.pink,
+                        badgeColor: primaryColor,
                       );
                     },
                   ),
@@ -788,10 +663,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         ? () => _navigateTo(PrescriptionHistoryScreen())
                         : () => _showSignInRequiredDialog(context,
                             feature: 'uploaded prescriptions'),
-                    Colors.indigo.shade600,
+                    primaryColor,
                     cardColor,
                     textColor,
                     subtextColor,
+                    primaryColor,
                     2,
                   ),
                   _buildEnhancedProfileOption(
@@ -803,10 +679,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         ? () => _navigateToRefillPage()
                         : () => _showSignInRequiredDialog(context,
                             feature: 'refill medicines'),
-                    Colors.green.shade600,
+                    primaryColor,
                     cardColor,
                     textColor,
                     subtextColor,
+                    primaryColor,
                     3,
                   ),
                   _buildEnhancedProfileOption(
@@ -818,10 +695,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         ? () => _navigateTo(PurchaseScreen())
                         : () => _showSignInRequiredDialog(context,
                             feature: 'order tracking and purchases'),
-                    Colors.orange.shade600,
+                    primaryColor,
                     cardColor,
                     textColor,
                     subtextColor,
+                    primaryColor,
                     4,
                   ),
                   _buildEnhancedProfileOption(
@@ -833,17 +711,18 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         ? () => _navigateTo(const WalletPage())
                         : () => _showSignInRequiredDialog(context,
                             feature: 'wallet'),
-                    Colors.teal.shade600,
+                    primaryColor,
                     cardColor,
                     textColor,
                     subtextColor,
+                    primaryColor,
                     5,
                   ),
                   const SizedBox(height: 12),
-                  // Ernest Friday Option - COMMENTED OUT
+                  // ernest friday option - turned off for now
                   // Consumer<PromotionalEventProvider>(
                   //   builder: (context, promotionalProvider, child) {
-                  //     // Only show Ernest Friday on Fridays
+                  //     // only show this on fridays
                   //     if (promotionalProvider.isErnestFridayActive) {
                   //       return _buildEnhancedProfileOption(
                   //         context,
@@ -868,46 +747,29 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                       "Sign In",
                       "Access your account and manage orders",
                       _handleLogin,
-                      Colors.blue.shade800,
+                      primaryColor,
                       cardColor,
                       textColor,
                       subtextColor,
+                      primaryColor,
                       10,
                     ),
 
                   const SizedBox(height: 30),
 
-                  // Support Section Header
+                  // Support Section Header - more fluid
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: primaryColor.withAlpha((255 * 0.1).toInt()),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            Icons.support_outlined,
-                            color: Colors.amber.shade600,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          "Support & Information",
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
-                          ),
-                        ),
-                      ],
+                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+                    child: Text(
+                      "Support & Information",
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: subtextColor,
+                        letterSpacing: 0.2,
+                      ),
                     ),
                   ),
-
-                  const SizedBox(height: 20),
 
                   // Enhanced Support Options
 
@@ -917,10 +779,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     "About Us",
                     "Learn more about our company",
                     () => _navigateTo(AboutUsScreen()),
-                    Colors.cyan.shade600,
+                    primaryColor,
                     cardColor,
                     textColor,
                     subtextColor,
+                    primaryColor,
                     8,
                   ),
                   _buildEnhancedProfileOption(
@@ -929,10 +792,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     "Privacy Statement",
                     "Read our privacy statement",
                     () => _navigateTo(PrivacyPolicyScreen()),
-                    Colors.deepPurple.shade600,
+                    primaryColor,
                     cardColor,
                     textColor,
                     subtextColor,
+                    primaryColor,
                     8,
                   ),
                   _buildEnhancedProfileOption(
@@ -941,10 +805,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     "Terms and Conditions",
                     "Read our terms of service",
                     () => _navigateTo(TermsAndConditionsScreen()),
-                    Colors.brown.shade600,
+                    primaryColor,
                     cardColor,
                     textColor,
                     subtextColor,
+                    primaryColor,
                     9,
                   ),
 
@@ -960,6 +825,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                       cardColor,
                       textColor,
                       subtextColor,
+                      primaryColor,
                       11,
                     ),
                   ],
@@ -985,6 +851,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
     Color cardColor,
     Color textColor,
     Color subtextColor,
+    Color primaryColor,
     int index, {
     int? badgeCount,
     Color? badgeColor,
@@ -1005,50 +872,33 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
         );
       },
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 3),
         decoration: BoxDecoration(
           color: cardColor,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha((255 * 0.08).toInt()),
-              blurRadius: 15,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: primaryColor.withValues(alpha: 0.05),
+            width: 1,
+          ),
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             child: Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          iconColor.withAlpha((255 * 0.15).toInt()),
-                          iconColor.withAlpha((255 * 0.25).toInt()),
-                        ],
-                      ),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: iconColor.withAlpha((255 * 0.1).toInt()),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                      color: iconColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(icon, color: iconColor, size: 24),
+                    child: Icon(icon, color: iconColor, size: 20),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1056,17 +906,18 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         Text(
                           title,
                           style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
                             color: textColor,
+                            letterSpacing: -0.2,
                           ),
                         ),
                         if (subtitle.isNotEmpty) ...[
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 3),
                           Text(
                             subtitle,
                             style: GoogleFonts.poppins(
-                              fontSize: 13,
+                              fontSize: 12,
                               color: subtextColor,
                               height: 1.3,
                             ),
@@ -1079,41 +930,26 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     children: [
                       if (badgeCount != null && badgeCount > 0)
                         Container(
-                          margin: const EdgeInsets.only(right: 8),
+                          margin: const EdgeInsets.only(right: 10),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
+                              horizontal: 7, vertical: 3),
                           decoration: BoxDecoration(
                             color: badgeColor ?? Colors.red,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: (badgeColor ?? Colors.red)
-                                    .withValues(alpha: 0.3),
-                                blurRadius: 4,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
                             badgeCount.toString(),
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: subtextColor.withAlpha((255 * 0.1).toInt()),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.arrow_forward_ios,
-                          size: 14,
-                          color: subtextColor,
-                        ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 20,
+                        color: subtextColor.withValues(alpha: 0.5),
                       ),
                     ],
                   ),

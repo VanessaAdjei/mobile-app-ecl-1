@@ -54,7 +54,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       debugPrint('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        // Try to parse the response
+        // try to parse the response
         try {
           final responseData = jsonDecode(response.body);
           debugPrint('Response data: $responseData');
@@ -71,7 +71,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   'Password reset instructions sent! Check your email for further instructions.';
               _feedbackColor = Colors.green;
             });
-            // Navigate back to sign in page after a short delay
+            // go back to sign in page after a short delay
             debugPrint('Success! Navigating to sign in page in 2 seconds...');
             Future.delayed(const Duration(seconds: 2), () {
               debugPrint('Attempting navigation...');
@@ -93,7 +93,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
             });
           }
         } catch (parseError) {
-          // If JSON parsing fails, use the raw response
+          // if json parsing fails, use the raw response
           debugPrint(
               'JSON parsing failed, but status code is 200. Raw response: ${response.body}');
           setState(() {
@@ -361,7 +361,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           color: _feedbackColor, fontWeight: FontWeight.w600),
                       textAlign: TextAlign.center,
                     ),
-                    // Add manual navigation button for success case
+                    // add manual navigation button for success case
                     if (_feedbackColor == Colors.green) ...[
                       const SizedBox(height: 16),
                       SizedBox(

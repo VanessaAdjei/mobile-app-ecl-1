@@ -32,7 +32,7 @@ class _CartIconButtonState extends State<CartIconButton> {
   Future<void> _checkLoginStatus() async {
     if (mounted) {
       setState(() {
-        // User login status updated
+        // user login status updated
       });
     }
   }
@@ -51,13 +51,13 @@ class _CartIconButtonState extends State<CartIconButton> {
         icon: Stack(
           clipBehavior: Clip.none,
           children: [
-            // Always show the shopping cart icon
+            // always show the shopping cart icon
             Icon(
               Icons.shopping_cart,
               color: widget.iconColor ?? Colors.white,
               size: widget.iconSize,
             ),
-            // Show the counter if there are items in the cart (for all users)
+            // show the counter if there are items in the cart (for all users)
             if (cart.totalItems > 0)
               Positioned(
                 right: -6,

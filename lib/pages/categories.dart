@@ -10,6 +10,7 @@ import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/pages/product_model.dart';
 import 'package:eclapp/pages/app_back_button.dart';
 import 'package:eclapp/widgets/cart_icon_button.dart';
+import '../widgets/app_header_bar.dart';
 import 'package:eclapp/pages/bulk_purchase_page.dart';
 import 'package:eclapp/pages/bottomnav.dart';
 import '../services/category_optimization_service.dart';
@@ -17,7 +18,7 @@ import 'package:flutter/foundation.dart';
 import 'package:animations/animations.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
-// Cache for categories and products
+// cache categories and products so we dont have to load them every time
 class CategoryCache {
   static List<dynamic> _cachedCategories = [];
   static List<dynamic> _cachedAllProducts = [];
@@ -52,7 +53,7 @@ class CategoryCache {
   }
 }
 
-// Cache for search results to persist across navigation
+// cache search results so they stay when you navigate away
 class SearchResultCache {
   static dynamic _searchedProduct;
 
@@ -69,7 +70,7 @@ class SearchResultCache {
   }
 }
 
-// Image preloading service for categories
+// load category images ahead of time so they show up fast
 class CategoryImagePreloader {
   static final Map<String, bool> _preloadedImages = {};
 
@@ -146,7 +147,7 @@ class CategoryPageState extends State<CategoryPage> {
       }
     });
 
-    // Print performance summary after initialization
+    // print how long everything took
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _categoryService.printPerformanceSummary();
     });
@@ -155,7 +156,7 @@ class CategoryPageState extends State<CategoryPage> {
   Future<void> _initializeCategoryService() async {
     await _categoryService.initialize();
 
-    // Load cached data immediately if available
+    // load cached data right away if we have it
     if (_categoryService.hasCachedCategories &&
         _categoryService.isCategoriesCacheValid) {
       debugPrint(
@@ -163,12 +164,12 @@ class CategoryPageState extends State<CategoryPage> {
       setState(() {
         _categories = _categoryService.cachedCategories;
         _filteredCategories = _categoryService.cachedCategories;
-        // Keep loading state true for skeleton to show
+        // keep loading state true so skeleton shows
         _isLoading = true;
         _errorMessage = '';
       });
 
-      // Preload images in background
+      // load images in the background
       _categoryService.preloadCategoryImages(
           context, _categoryService.cachedCategories);
     }
@@ -188,13 +189,13 @@ class CategoryPageState extends State<CategoryPage> {
     // Always show skeleton for at least 800ms for better UX
     final skeletonStartTime = DateTime.now();
 
-    // Skip loading if we already have valid cached data from initialization
+    // skip loading if we already have good cached data
     if (_categoryService.hasCachedCategories &&
         _categoryService.isCategoriesCacheValid &&
         _categories.isNotEmpty) {
       debugPrint('Skipping category loading - using existing cached data');
 
-      // Ensure skeleton shows for at least 800ms
+      // make sure skeleton shows for at least 800ms
       final elapsed = DateTime.now().difference(skeletonStartTime);
       if (elapsed.inMilliseconds < 800) {
         await Future.delayed(
@@ -214,7 +215,7 @@ class CategoryPageState extends State<CategoryPage> {
       final categories = await _categoryService.getCategories();
       _processCategories(categories);
 
-      // Ensure skeleton shows for at least 800ms
+      // make sure skeleton shows for at least 800ms
       final elapsed = DateTime.now().difference(skeletonStartTime);
       if (elapsed.inMilliseconds < 800) {
         await Future.delayed(
@@ -228,12 +229,12 @@ class CategoryPageState extends State<CategoryPage> {
         });
       }
 
-      // Preload images in background
+      // load images in the background
       _categoryService.preloadCategoryImages(context, categories);
     } catch (e) {
       debugPrint('Category loading error: $e');
 
-      // Ensure skeleton shows for at least 800ms even on error
+      // make sure skeleton shows for at least 800ms even on error
       final elapsed = DateTime.now().difference(skeletonStartTime);
       if (elapsed.inMilliseconds < 800) {
         await Future.delayed(
@@ -249,7 +250,7 @@ class CategoryPageState extends State<CategoryPage> {
     }
   }
 
-  // Process categories and update state
+  // process categories and update the state
   void _processCategories(List<dynamic> categories) {
     if (!mounted) return;
 
@@ -260,7 +261,7 @@ class CategoryPageState extends State<CategoryPage> {
           'has_subcategories': c['has_subcategories']
         }).toList()}');
 
-    // Update the subcategory mapping based on actual API responses
+    // update subcategory mapping based on what the api actually sends
     _updateSubcategoryMapping(categories);
 
     setState(() {
@@ -272,14 +273,14 @@ class CategoryPageState extends State<CategoryPage> {
     debugPrint('Filtered categories: ${_filteredCategories.length} categories');
   }
 
-  // Update subcategory mapping based on actual API responses
+  // update subcategory mapping based on what the api sends
   void _updateSubcategoryMapping(List<dynamic> categories) {
     for (final category in categories) {
       final categoryId = category['id'];
       final categoryName = category['name'];
 
-      // Use the hardcoded mapping based on our debug logs
-      // This ensures consistent behavior regardless of cache state
+      // use the hardcoded mapping based on what we saw in debug logs
+      // this makes sure it works the same every time
       if ([1, 2, 3, 4, 6, 7, 8, 9, 11].contains(categoryId)) {
         _categoryHasSubcategories[categoryId] = true;
         debugPrint(
@@ -291,7 +292,7 @@ class CategoryPageState extends State<CategoryPage> {
     }
   }
 
-  // Preload category images for better performance
+  // load category images ahead of time so they show up fast
   void _preloadCategoryImages(List<dynamic> categories) {
     final imageUrls = categories
         .take(10) // Preload first 10 category images
@@ -381,7 +382,7 @@ class CategoryPageState extends State<CategoryPage> {
         final Map<String, dynamic> responseData = json.decode(response.body);
         final List<dynamic> dataList = responseData['data'];
 
-        // Filter products by query
+        // filter products by what they searched
         for (final item in dataList) {
           final productData = item['product'] as Map<String, dynamic>;
           final productName =
@@ -424,7 +425,7 @@ class CategoryPageState extends State<CategoryPage> {
 
         final searchQueryLower = productName.toLowerCase();
 
-        // Try exact match first (fastest)
+        // try exact match first (fastest)
         for (final product in CategoryCache.cachedAllProducts) {
           final productNameLower =
               product['name']?.toString().toLowerCase() ?? '';
@@ -480,7 +481,7 @@ class CategoryPageState extends State<CategoryPage> {
       debugPrint(
           '🔍🔍 Not in cache, doing EXTREME-SPEED parallel search through ALL categories...');
 
-      // Get all categories
+      // get all categories
       final categories = await _categoryService.getCategories();
       debugPrint(
           '🔍🔍 EXTREME-SPEED parallel searching through ALL ${categories.length} categories');
@@ -572,12 +573,12 @@ class CategoryPageState extends State<CategoryPage> {
                       }
                     }
                   } catch (e) {
-                    // Skip failed subcategories
+                    // skip subcategories that failed
                   }
                   return null;
                 });
 
-                // Add all subcategory futures to the main list
+                // add all subcategory futures to the main list
                 allFutures.addAll(subcategoryFutures);
               }
             }
@@ -585,7 +586,7 @@ class CategoryPageState extends State<CategoryPage> {
             debugPrint('🔍🔍 Error in category $categoryId: $e');
           }
         } else {
-          // Search directly in category with EXTREME SPEED
+          // search directly in category super fast
           final categoryFuture = (() async {
             try {
               final productsResponse = await http
@@ -634,11 +635,11 @@ class CategoryPageState extends State<CategoryPage> {
         }
       }
 
-      // Now wait for ANY result from ANY category/subcategory with EXTREME SPEED
+      // now wait for any result from any category/subcategory super fast
       debugPrint(
           '🔍🔍 Waiting for ANY result from ${allFutures.length} parallel searches...');
 
-      // Use Future.any for the fastest possible result with ULTRA-AGGRESSIVE timeout
+      // use Future.any to get the fastest result with a super short timeout
       try {
         final result = await Future.any(allFutures.where((f) => f != null))
             .timeout(
@@ -652,7 +653,7 @@ class CategoryPageState extends State<CategoryPage> {
             '🔍🔍 EXTREME SPEED: Future.any timeout, trying sequential fallback...');
       }
 
-      // ULTRA-AGGRESSIVE fallback: check each future with minimal wait
+      // if that didnt work, check each future with minimal wait
       for (final future in allFutures) {
         try {
           final result = await future
@@ -971,91 +972,77 @@ class CategoryPageState extends State<CategoryPage> {
         backgroundColor: Colors.grey[50],
         body: Column(
           children: [
-            // Enhanced header with better design (matching notifications)
+            AppHeaderBar(
+              title: 'Categories',
+              subtitle: 'Browse all product categories',
+              onBack: () {
+                if (widget.isBulkPurchase) {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const BulkPurchasePage(),
+                    ),
+                  );
+                } else if (Navigator.canPop(context)) {
+                  Navigator.pop(context);
+                } else {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => HomePage()),
+                  );
+                }
+              },
+            ),
+            // Floating search bar strip overlapping header
             Container(
-              padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top * 0.5),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.green.shade600,
-                    Colors.green.shade700,
-                    Colors.green.shade800,
+              color: Colors.transparent,
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
                   ],
-                  stops: [0.0, 0.5, 1.0],
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0, vertical: 8.0),
-                  child: Row(
-                    children: [
-                      AppBackButton(
-                        backgroundColor: Colors.white.withValues(alpha: 0.2),
-                        onPressed: () {
-                          if (widget.isBulkPurchase) {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const BulkPurchasePage(),
-                              ),
-                            );
-                          } else if (Navigator.canPop(context)) {
-                            Navigator.pop(context);
-                          } else {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => HomePage()),
-                            );
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        onChanged: _searchProduct,
+                        onTap: () {
+                          if (_searchController.text.isNotEmpty) {
+                            setState(() {
+                              _showSearchDropdown = true;
+                            });
                           }
                         },
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Categories',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineSmall
-                                  ?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                            const SizedBox(height: 1),
-                            Text(
-                              'Browse all product categories',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: Colors.white.withValues(alpha: 0.9),
-                                  ),
-                            ),
-                          ],
+                        decoration: InputDecoration(
+                          hintText: "Search products...",
+                          hintStyle: TextStyle(
+                            color: Colors.grey.shade400,
+                            fontSize: 13,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: Colors.green.shade700,
+                            size: 20,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 8),
                         ),
                       ),
-                      CartIconButton(
-                        iconColor: Colors.white,
-                        iconSize: 22,
-                        backgroundColor: Colors.transparent,
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1122,199 +1109,6 @@ class CategoryPageState extends State<CategoryPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Search Section
-          Container(
-            padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Search Bar with Dropdown
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        focusNode: _searchFocusNode,
-                        onChanged: _searchProduct,
-                        onTap: () {
-                          if (_searchController.text.isNotEmpty) {
-                            setState(() {
-                              _showSearchDropdown = true;
-                            });
-                          }
-                        },
-                        decoration: InputDecoration(
-                          hintText: "Search products...",
-                          hintStyle: TextStyle(
-                            color: Colors.grey.shade400,
-                            fontSize: 13,
-                          ),
-                          prefixIcon: Icon(
-                            Icons.search,
-                            color: Colors.green.shade700,
-                            size: 20,
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          errorBorder: InputBorder.none,
-                          disabledBorder: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(vertical: 8),
-                        ),
-                      ),
-                    ),
-                    // Search Dropdown
-                    if (_showSearchDropdown)
-                      Container(
-                        margin: EdgeInsets.only(top: 4),
-                        constraints: BoxConstraints(maxHeight: 300),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: Colors.green.shade300,
-                            width: 2,
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Debug header
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.green.shade50,
-                                borderRadius: BorderRadius.vertical(
-                                  top: Radius.circular(6),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.search,
-                                    size: 14,
-                                    color: Colors.green.shade700,
-                                  ),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'Search Results (${_searchResults.length})',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.green.shade700,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Results
-                            Flexible(
-                              child: _searchResults.isEmpty &&
-                                      _showSearchDropdown
-                                  ? Container(
-                                      padding: EdgeInsets.all(16),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              SizedBox(
-                                                width: 16,
-                                                height: 16,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  valueColor:
-                                                      AlwaysStoppedAnimation<
-                                                              Color>(
-                                                          Colors
-                                                              .green.shade700),
-                                                ),
-                                              ),
-                                              SizedBox(width: 12),
-                                              Text(
-                                                'Searching through all categories...',
-                                                style: TextStyle(
-                                                  fontSize: 14,
-                                                  color: Colors.grey.shade600,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    )
-                                  : _searchResults.isEmpty
-                                      ? Container(
-                                          padding: EdgeInsets.all(16),
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                Icons.search_off,
-                                                size: 32,
-                                                color: Colors.grey.shade400,
-                                              ),
-                                              SizedBox(height: 8),
-                                              Text(
-                                                'No products found',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey.shade600,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                                textAlign: TextAlign.center,
-                                              ),
-                                            ],
-                                          ),
-                                        )
-                                      : Scrollbar(
-                                          controller: _searchScrollController,
-                                          thumbVisibility: true,
-                                          child: ListView.builder(
-                                            controller: _searchScrollController,
-                                            primary: false,
-                                            shrinkWrap: true,
-                                            padding: EdgeInsets.zero,
-                                            itemCount: _searchResults.length,
-                                            itemBuilder: (context, index) {
-                                              final item =
-                                                  _searchResults[index];
-                                              return _buildSearchResultItem(
-                                                  item);
-                                            },
-                                            // Add physics to prevent overflow
-                                            physics:
-                                                const ClampingScrollPhysics(),
-                                          ),
-                                        ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Find products by name',
-                  style: TextStyle(color: Colors.green, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
           // Categories Title
           Padding(
             padding: EdgeInsets.fromLTRB(12, 0, 12, 8),

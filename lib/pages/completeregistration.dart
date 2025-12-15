@@ -1,5 +1,5 @@
 // pages/completeregistration.dart
-import 'package:eclapp/pages/Cart.dart';
+import 'package:eclapp/pages/cart.dart';
 import 'package:flutter/material.dart';
 
 class GetStartedScreen extends StatelessWidget {

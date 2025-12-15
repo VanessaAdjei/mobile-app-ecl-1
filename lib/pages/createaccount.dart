@@ -77,30 +77,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
         _showError("Signup failed. Please try again.");
       }
     } catch (e) {
-      // Debug: Print the actual error message
+      // print the actual error message
       debugPrint('🔍 SIGNUP ERROR: ${e.toString()}');
       debugPrint('🔍 ERROR TYPE: ${e.runtimeType}');
       debugPrint('🔍 ERROR MESSAGE: ${e.toString()}');
 
-      // Handle specific error messages from the API
+      // handle specific error messages from the api
       String errorMessage = "An error occurred. Please try again.";
 
-      // Get error message - try to extract the actual message if it's an Exception
+      // get error message, try to extract it if its an Exception
       String errorString = e.toString().toLowerCase();
       if (e is Exception) {
-        // For Exception objects, the message might be in the toString()
+        // for Exception objects, the message might be in toString()
         errorString = e.toString().toLowerCase();
       }
       debugPrint('🔍 PROCESSED ERROR STRING: $errorString');
 
-      // Check error type first for better detection
+      // check error type first to detect it better
       final errorTypeString = e.runtimeType.toString().toLowerCase();
       debugPrint('🔍 ERROR TYPE STRING: $errorTypeString');
 
       if (errorString.contains('email is already registered')) {
         errorMessage =
             "This email is already registered. Would you like to sign in instead?";
-        // Set email exists flag and highlight the email field
+        // set email exists flag and highlight the email field
         setState(() {
           _emailExists = true;
         });
@@ -110,7 +110,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       } else if (errorString.contains('phone number is already registered')) {
         errorMessage =
             "This phone number is already registered. Please use a different number.";
-        // Highlight the phone field
+        // highlight the phone field
         _highlightPhoneField();
       } else if (errorString.contains('server is currently unavailable')) {
         errorMessage =
@@ -152,7 +152,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         }
         return;
       } else if (errorString.contains('already registered')) {
-        // Generic "already registered" error
+        // generic "already registered" error
         errorMessage =
             "This account is already registered. Would you like to sign in instead?";
         _showError(errorMessage, showSignInAction: true);
@@ -170,7 +170,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         return;
       }
 
-      // Show the error message (either specific or generic)
+      // show the error message (either specific or generic)
       debugPrint('🔍 Showing error message: $errorMessage');
       debugPrint('🔍 Original error: ${e.toString()}');
       debugPrint('🔍 Widget mounted: $mounted');
@@ -218,7 +218,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Back Button
+                // back button
                 Container(
                   margin: const EdgeInsets.only(top: 8, bottom: 12),
                   decoration: BoxDecoration(
@@ -246,7 +246,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ),
 
-                // Header Section
+                // header section
                 Center(
                   child: Column(
                     children: [
@@ -286,7 +286,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                 const SizedBox(height: 32),
 
-                // Form Fields
+                // form input fields
                 _buildCard(
                   child: Column(
                     children: [
@@ -391,7 +391,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                 const SizedBox(height: 24),
 
-                // Terms and Conditions
+                // terms and conditions checkbox
                 _buildCard(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -446,7 +446,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                 const SizedBox(height: 32),
 
-                // Sign Up Button
+                // sign up button
                 Container(
                   width: double.infinity,
                   height: 56,
@@ -723,7 +723,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       debugPrint('✅ SnackBar shown successfully');
     } catch (e) {
       debugPrint('❌ Error showing SnackBar: $e');
-      // Fallback: try to show a simple dialog or print to console
+      // fallback: try to show a simple dialog or print to console
       debugPrint('ERROR MESSAGE: $message');
     }
   }
@@ -739,7 +739,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   void _highlightPhoneField() {
-    // Focus on phone field and trigger validation
+    // focus on phone field and trigger validation
     FocusScope.of(context).requestFocus(FocusNode());
     Future.delayed(Duration(milliseconds: 100), () {
       if (mounted) {

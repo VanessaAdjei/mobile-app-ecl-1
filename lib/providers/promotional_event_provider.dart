@@ -14,7 +14,7 @@ class PromotionalEventProvider extends ChangeNotifier {
   String? _error;
   bool _isInitialized = false;
 
-  // Getters
+  // getters to access the data
   PromotionalEvent? get activeEvent => _activeEvent;
   PromotionalEvent? get upcomingEvent => _upcomingEvent;
   List<PromotionalOffer> get availableOffers => _availableOffers;
@@ -22,19 +22,19 @@ class PromotionalEventProvider extends ChangeNotifier {
   String? get error => _error;
   bool get isInitialized => _isInitialized;
 
-  // Ernest Friday specific getters
+  // check if ernest friday is happening
   bool get isErnestFridayActive =>
       _activeEvent?.name.toLowerCase().contains('ernest friday') ?? false;
   bool get isErnestFridayComingSoon =>
       _upcomingEvent?.name.toLowerCase().contains('ernest friday') ?? false;
 
-  // Check if any promotional event is active
+  // check if theres an active promo event
   bool get hasActiveEvent => _activeEvent != null;
 
-  // Get active offers count
+  // how many offers are available
   int get activeOffersCount => _availableOffers.length;
 
-  // Get offers by type
+  // get offers by what type they are
   List<PromotionalOffer> get discountOffers =>
       _availableOffers.where((o) => o.type == 'discount').toList();
 
@@ -44,7 +44,7 @@ class PromotionalEventProvider extends ChangeNotifier {
   List<PromotionalOffer> get freeShippingOffers =>
       _availableOffers.where((o) => o.type == 'free_shipping').toList();
 
-  // Initialize the provider
+  // set up the provider
   Future<void> initialize() async {
     if (_isInitialized) return;
 
@@ -63,21 +63,21 @@ class PromotionalEventProvider extends ChangeNotifier {
     }
   }
 
-  // Load promotional events
+  // load promo events from the api
   Future<void> _loadPromotionalEvents() async {
     try {
-      // For demo purposes, use demo data
-      // In production, uncomment the API calls below
+      // using demo data for now
+      // when backend is ready, uncomment the api calls below
 
-      // Demo data
+      // demo data
       _activeEvent = DemoPromotionalData.activeEvent;
       _upcomingEvent = DemoPromotionalData.upcomingEvent;
 
-      // Production API calls (uncomment when backend is ready)
+      // real api calls (uncomment when backend is ready)
       // _activeEvent = await PromotionalEventService.getActiveEvent();
       // _upcomingEvent = await PromotionalEventService.getUpcomingEvent();
 
-      // Load available offers from active event
+      // get the offers from the active event
       if (_activeEvent != null) {
         _availableOffers =
             _activeEvent!.offers.where((o) => o.isCurrentlyValid).toList();
@@ -93,7 +93,7 @@ class PromotionalEventProvider extends ChangeNotifier {
     }
   }
 
-  // Refresh promotional events
+  // reload promo events from the api
   Future<void> refreshPromotionalEvents() async {
     _isLoading = true;
     _error = null;
@@ -109,7 +109,7 @@ class PromotionalEventProvider extends ChangeNotifier {
     }
   }
 
-  // Apply promotional offer
+  // use a promo code/offer
   Future<Map<String, dynamic>> applyPromotionalOffer({
     required String offerId,
     required String promoCode,
@@ -127,7 +127,7 @@ class PromotionalEventProvider extends ChangeNotifier {
       );
 
       if (result['success'] == true) {
-        // Refresh events to get updated offers
+        // reload events to get the latest offers
         await refreshPromotionalEvents();
       }
 
@@ -139,7 +139,7 @@ class PromotionalEventProvider extends ChangeNotifier {
     }
   }
 
-  // Validate promotional code
+  // check if a promo code is valid
   Future<Map<String, dynamic>> validatePromoCode({
     required String promoCode,
     required double cartTotal,
@@ -158,7 +158,7 @@ class PromotionalEventProvider extends ChangeNotifier {
     }
   }
 
-  // Get Ernest Friday specific event
+  // get the ernest friday event if theres one
   Future<PromotionalEvent?> getErnestFridayEvent() async {
     try {
       return await PromotionalEventService.getErnestFridayEvent();
@@ -169,7 +169,7 @@ class PromotionalEventProvider extends ChangeNotifier {
     }
   }
 
-  // Check if Ernest Friday is active (async version)
+  // check if ernest friday is active (async version)
   Future<bool> checkErnestFridayActive() async {
     try {
       return await PromotionalEventService.isErnestFridayActive();
@@ -178,7 +178,7 @@ class PromotionalEventProvider extends ChangeNotifier {
     }
   }
 
-  // Get Ernest Friday offers
+  // get all the ernest friday offers
   Future<List<PromotionalOffer>> getErnestFridayOffers() async {
     try {
       return await PromotionalEventService.getErnestFridayOffers();
@@ -189,7 +189,7 @@ class PromotionalEventProvider extends ChangeNotifier {
     }
   }
 
-  // Get offer by ID
+  // find an offer by its id
   PromotionalOffer? getOfferById(String offerId) {
     try {
       return _availableOffers.firstWhere((o) => o.id == offerId);
@@ -198,7 +198,7 @@ class PromotionalEventProvider extends ChangeNotifier {
     }
   }
 
-  // Get offers for specific category
+  // get offers for a specific category
   List<PromotionalOffer> getOffersForCategory(String category) {
     return _availableOffers
         .where((o) =>
@@ -207,14 +207,14 @@ class PromotionalEventProvider extends ChangeNotifier {
         .toList();
   }
 
-  // Get offers for specific product
+  // get offers for a specific product
   List<PromotionalOffer> getOffersForProduct(String productId) {
     return _availableOffers
         .where((o) => !o.excludedProducts.contains(productId))
         .toList();
   }
 
-  // Get best offer for cart
+  // find the best offer for their cart
   PromotionalOffer? getBestOfferForCart({
     required double cartTotal,
     required List<String> cartCategories,
@@ -237,13 +237,13 @@ class PromotionalEventProvider extends ChangeNotifier {
     return bestOffer;
   }
 
-  // Clear error
+  // clear the error message
   void clearError() {
     _error = null;
     notifyListeners();
   }
 
-  // Clear all data
+  // clear all the data
   void clear() {
     _activeEvent = null;
     _upcomingEvent = null;
@@ -253,7 +253,7 @@ class PromotionalEventProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Dispose
+  // clean up when done
   @override
   void dispose() {
     super.dispose();

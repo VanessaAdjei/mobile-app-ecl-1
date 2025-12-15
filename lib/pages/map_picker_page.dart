@@ -30,7 +30,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
   String _selectedAddress = 'Loading address...';
   bool _isLoadingAddress = true;
 
-  // Search functionality
+  // search box for finding places
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -62,7 +62,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
   }
 
   Future<void> _updateMarkers() async {
-    // Create custom animated marker icon
+    // make a custom marker icon that animates
     final customIcon = await CustomAnimatedMarker.createAnimatedMarker(
       text: '📍',
       backgroundColor: Colors.green,
@@ -104,26 +104,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
-        String address = '';
-
-        if (place.street != null && place.street!.isNotEmpty) {
-          address += place.street!;
-        }
-        if (place.subLocality != null && place.subLocality!.isNotEmpty) {
-          address += address.isNotEmpty
-              ? ', ${place.subLocality}'
-              : place.subLocality!;
-        }
-        if (place.locality != null && place.locality!.isNotEmpty) {
-          address +=
-              address.isNotEmpty ? ', ${place.locality}' : place.locality!;
-        }
-        if (place.administrativeArea != null &&
-            place.administrativeArea!.isNotEmpty) {
-          address += address.isNotEmpty
-              ? ', ${place.administrativeArea}'
-              : place.administrativeArea!;
-        }
+        String address = _buildReadableAddress(place);
 
         if (address.isNotEmpty) {
           setState(() {
@@ -151,7 +132,48 @@ class _MapPickerPageState extends State<MapPickerPage> {
     }
   }
 
-  /// Get real-time search suggestions from map/geocoding
+  /// Build a readable address from placemark, prioritizing place name
+  /// Returns just the generic place name when available
+  String _buildReadableAddress(Placemark place) {
+    // Priority 1: Use the place name if available (e.g., "Accra Mall", "Kumasi Central Market")
+    if (place.name != null &&
+        place.name!.isNotEmpty &&
+        place.name != place.street &&
+        place.name != place.thoroughfare) {
+      return place.name!;
+    }
+
+    // if no place name, use the street name
+    if (place.thoroughfare != null && place.thoroughfare!.isNotEmpty) {
+      return place.thoroughfare!;
+    }
+
+    // if no street name, use the street field
+    if (place.street != null && place.street!.isNotEmpty) {
+      return place.street!;
+    }
+
+    // if no street, use the neighborhood/area
+    if (place.subLocality != null && place.subLocality!.isNotEmpty) {
+      return place.subLocality!;
+    }
+
+    // if no neighborhood, use the city
+    if (place.locality != null && place.locality!.isNotEmpty) {
+      return place.locality!;
+    }
+
+    // if no city, use the region
+    if (place.administrativeArea != null &&
+        place.administrativeArea!.isNotEmpty) {
+      return place.administrativeArea!;
+    }
+
+    // if we got nothing, just say unknown
+    return 'Unknown location';
+  }
+
+  // get search suggestions as they type
   Future<List<String>> _getSearchSuggestions(String query) async {
     if (query.length < 2) return [];
 
@@ -178,7 +200,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
                 }
               }
             } catch (e) {
-              // If detailed address fails, use coordinates
+              // if we cant get an address, just use the coordinates
               String coordAddress =
                   '${location.latitude.toStringAsFixed(4)}, ${location.longitude.toStringAsFixed(4)}';
               if (!uniqueSuggestions.contains(coordAddress)) {
@@ -226,10 +248,10 @@ class _MapPickerPageState extends State<MapPickerPage> {
         }
       }
 
-      // Strategy 3: Try partial matches for better coverage
+      // try partial matches to get more results
       if (suggestions.length < 3 && query.length > 3) {
         try {
-          // Try with first few characters for partial matching
+          // try with just the first few letters for partial matching
           String partialQuery = query.substring(0, query.length - 1);
           List<Location> locations =
               await locationFromAddress('$partialQuery, Ghana');
@@ -249,7 +271,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
                   }
                 }
               } catch (e) {
-                // Skip coordinate fallback for partial matches
+                // dont use coordinates for partial matches
               }
             }
           }
@@ -258,7 +280,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
         }
       }
 
-      // Strategy 4: Add the original query as fallback
+      // add what they typed as a fallback option
       if (suggestions.isEmpty && query.isNotEmpty) {
         suggestions.add('$query, Ghana');
       }
@@ -270,36 +292,12 @@ class _MapPickerPageState extends State<MapPickerPage> {
     }
   }
 
-  /// Helper method to build readable address from placemark
-  String _buildReadableAddress(Placemark place) {
-    String address = '';
-
-    if (place.street != null && place.street!.isNotEmpty) {
-      address += place.street!;
-    }
-    if (place.subLocality != null && place.subLocality!.isNotEmpty) {
-      address +=
-          address.isNotEmpty ? ', ${place.subLocality}' : place.subLocality!;
-    }
-    if (place.locality != null && place.locality!.isNotEmpty) {
-      address += address.isNotEmpty ? ', ${place.locality}' : place.locality!;
-    }
-    if (place.administrativeArea != null &&
-        place.administrativeArea!.isNotEmpty) {
-      address += address.isNotEmpty
-          ? ', ${place.administrativeArea}'
-          : place.administrativeArea!;
-    }
-
-    return address;
-  }
-
-  /// Search for a location and move map to it
+  // search for a place and move the map to it
   Future<void> _searchLocation(String query) async {
     try {
       List<Location> locations = await locationFromAddress(query);
 
-      // Strategy 2: If no results, try with Ghana context
+      // if no results, try searching in ghana
       if (locations.isEmpty) {
         try {
           locations = await locationFromAddress('$query, Ghana');
@@ -308,7 +306,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
         }
       }
 
-      // Strategy 3: If still no results, try partial match
+      // if still nothing, try partial match
       if (locations.isEmpty && query.length > 3) {
         try {
           String partialQuery = query.substring(0, query.length - 1);
@@ -319,25 +317,25 @@ class _MapPickerPageState extends State<MapPickerPage> {
       }
 
       if (locations.isNotEmpty) {
-        // Use the first (most relevant) result
+        // use the first result (probably the most relevant)
         Location location = locations[0];
         LatLng newLocation = LatLng(location.latitude, location.longitude);
 
-        // Move map to the new location
+        // move the map to show the new location
         _mapController.animateCamera(
           CameraUpdate.newLatLngZoom(newLocation, 18.0),
         );
 
-        // Update selected location and markers
+        // update the selected location and markers
         setState(() {
           _selectedLocation = newLocation;
           _updateMarkers();
         });
 
-        // Get address for the new location
+        // get the address for the new location
         _getAddressFromCoordinates(location.latitude, location.longitude);
 
-        // Show success message
+        // show a message that it worked
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

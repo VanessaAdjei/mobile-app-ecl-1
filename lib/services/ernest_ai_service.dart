@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 
 class ErnestAIService {
-
   static const String _apiKey =
       'AIzaSyCFmnQt32wCfsjoLVFEfFq7JrIDd2CqHZk'; // Your Gemini API key
   static const String _modelName = 'gemini-1.5-pro';
@@ -30,18 +29,18 @@ Your role is to:
 Be friendly, professional, and always prioritize user safety.
 ''';
 
-  // Check if AI service is ready (always true with centralized setup)
+  // check if ai service is ready (always true with centralized setup)
   static Future<bool> isConfigured() async {
     return _apiKey.isNotEmpty;
   }
 
-  // Configure the AI service (not needed with centralized setup)
+  // configure the ai service (not needed with centralized setup)
   static Future<bool> configure(String apiKey) async {
-    // This method is kept for backward compatibility but not used
+    // this method is kept for backward compatibility but not used
     return true;
   }
 
-  // Test API connection and get available models
+  // test api connection and get available models
   static Future<Map<String, dynamic>> testConnection() async {
     try {
       debugPrint('🔍 Testing Ernest AI connection...');
@@ -49,7 +48,7 @@ Be friendly, professional, and always prioritize user safety.
       debugPrint('🤖 Model: $_modelName');
       debugPrint('🔍 API Key length: ${_apiKey.length} characters');
 
-      // Test 1: Basic model creation
+      // test 1: basic model creation
       debugPrint('🔍 Test 1: Creating GenerativeModel...');
       final model = GenerativeModel(
         model: _modelName,
@@ -57,7 +56,7 @@ Be friendly, professional, and always prioritize user safety.
       );
       debugPrint('✅ Test 1 passed: GenerativeModel created');
 
-      // Test 2: Simple content generation
+      // test 2: simple content generation
       debugPrint('🔍 Test 2: Testing content generation...');
       final testPrompt = 'Hi';
       final content = [Content.text(testPrompt)];
@@ -87,7 +86,7 @@ Be friendly, professional, and always prioritize user safety.
       debugPrint('🔍 Error type: ${e.runtimeType}');
       debugPrint('🔍 Error details: ${e.toString()}');
 
-      // Check for specific error types
+      // check for specific error types
       if (e.toString().contains('quota')) {
         debugPrint('🚨 QUOTA ERROR DETECTED');
         debugPrint('💡 This usually means:');
@@ -104,7 +103,7 @@ Be friendly, professional, and always prioritize user safety.
     }
   }
 
-  // Test with different model names
+  // test with different model names
   static Future<Map<String, dynamic>> testAlternativeModels() async {
     final models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
 
@@ -156,7 +155,7 @@ Be friendly, professional, and always prioritize user safety.
         apiKey: _apiKey,
       );
 
-      // Combine safety prompt with user question
+      // combine safety prompt with user question
       final fullPrompt = '''
 $_safetyPrompt
 
@@ -185,7 +184,7 @@ Please provide a helpful, safe response following all safety guidelines.
     } catch (e) {
       debugPrint('Error asking Ernest: $e');
 
-      // Handle specific model errors
+      // handle specific model errors
       if (e.toString().contains('model') ||
           e.toString().contains('not found')) {
         debugPrint('🔍 Model error detected. Trying to identify the issue...');
@@ -216,7 +215,7 @@ Please provide a helpful, safe response following all safety guidelines.
     );
   }
 
-  // Get wellness advice
+  // get wellness advice
   static Future<ErnestResponse> getWellnessAdvice() async {
     return await askQuestion(
       'What are some general wellness practices I can incorporate into my daily routine?',
@@ -230,7 +229,7 @@ Please provide a helpful, safe response following all safety guidelines.
   }
 }
 
-// Response model for Ernest AI
+// response model for ernest ai
 class ErnestResponse {
   final bool success;
   final String message;
@@ -243,7 +242,7 @@ class ErnestResponse {
   });
 }
 
-// Health question categories for quick access
+// health question categories for quick access
 class HealthCategories {
   static const List<String> categories = [
     'General Wellness',

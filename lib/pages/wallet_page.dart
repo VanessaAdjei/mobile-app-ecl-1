@@ -25,15 +25,15 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
 
   final TextEditingController _amountController = TextEditingController();
 
-  // User data for e-card
+  // user data for the e-card
   String _userName = 'ECL USER';
   String _userEmail = '';
   String _userPhone = '';
   int? _userId;
 
-  /// Get the appropriate currency symbol for the current platform
+  // get the right currency symbol for this platform
   String get _currencySymbol {
-    // iOS has better Unicode support, Android often doesn't support Ghana Cedi symbol
+    // ios handles unicode better, android sometimes cant show the ghana cedi symbol
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       return '₵'; // Use Ghana Cedi symbol on iOS
     } else {
@@ -87,7 +87,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
       await walletProvider.initialize();
     }
 
-    // Load user data for e-card
+    // load user data for the e-card
     await _loadUserData();
   }
 
@@ -127,7 +127,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
         }
 
         if (snapshot.data != true) {
-          // User not logged in - show login required screen
+          // not logged in, show login required screen
           return _buildLoginRequiredScreen(context);
         }
 
@@ -298,7 +298,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
             ),
           ),
 
-          // Wallet Content
+          // wallet content
           SliverToBoxAdapter(
             child: AnimatedBuilder(
               animation: _contentAnimation,
@@ -315,7 +315,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
                 children: [
                   const SizedBox(height: 20),
 
-                  // E-Card
+                  // e-card widget
                   _buildECard(themeProvider),
 
                   const SizedBox(height: 20),
@@ -325,7 +325,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
 
                   const SizedBox(height: 20),
 
-                  // Cashback Info Section
+                  // cashback info section
                   _buildCashbackInfoSection(primaryColor, cardColor, textColor),
 
                   const SizedBox(height: 20),
@@ -350,7 +350,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
           userEmail: _userEmail,
           userPhone: _userPhone,
           onTap: () {
-            // Add tap functionality if needed
+            // add tap functionality if we need it
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('ECL Digital Wallet Card'),
@@ -363,7 +363,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
 
         const SizedBox(height: 16),
 
-        // Quick Stats below the card
+        // quick stats below the card
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 16),
           padding: const EdgeInsets.all(20),
@@ -448,7 +448,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
       ),
       child: Column(
         children: [
-          // Header with gradient background
+          // header with gradient background
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(24),
@@ -508,7 +508,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
             ),
           ),
 
-          // Content section
+          // content section
           Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -564,7 +564,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
       ),
       child: Column(
         children: [
-          // Header with gradient background
+          // header with gradient background
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
@@ -625,7 +625,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
             ),
           ),
 
-          // Content section
+          // content section
           Padding(
             padding: const EdgeInsets.all(20),
             child: Column(

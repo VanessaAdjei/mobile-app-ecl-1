@@ -18,40 +18,36 @@ class RealtimeCartSyncService {
   bool _isRunning = false;
   CartProvider? _cartProvider;
 
-  // Configuration for immediate syncing
+  // how long to wait before syncing
   static const Duration _immediateSyncDelay =
-      Duration(milliseconds: 500); // 500ms delay
+      Duration(milliseconds: 500); // wait 500ms
   static const Duration _periodicSyncInterval =
-      Duration(minutes: 1); // Every 1 minute
+      Duration(minutes: 1); // sync every 1 minute
   static const Duration _syncTimeout = Duration(seconds: 10);
 
-  /// Initialize the real-time cart sync service
+  // set up the real-time cart sync service
   Future<void> initialize(CartProvider cartProvider) async {
     if (_isRunning) return;
 
     _cartProvider = cartProvider;
     _isRunning = true;
 
-  
-
     // Start immediate sync mechanism
     _startImmediateSync();
 
     // Start periodic sync as backup
     _startPeriodicSync();
-
-
   }
 
-  /// Start immediate sync mechanism
+  // start immediate sync
   void _startImmediateSync() {
     _immediateSyncTimer?.cancel();
 
-    // Sync immediately when service starts
+    // sync right away when service starts
     _performImmediateSync();
   }
 
-  /// Start periodic sync as backup
+  // start periodic sync as backup
   void _startPeriodicSync() {
     _periodicSyncTimer?.cancel();
 
@@ -66,8 +62,6 @@ class RealtimeCartSyncService {
   Future<void> triggerImmediateSync() async {
     if (!_isRunning) return;
 
-
-
     // Cancel any pending immediate sync
     _immediateSyncTimer?.cancel();
 
@@ -77,27 +71,20 @@ class RealtimeCartSyncService {
     });
   }
 
-  /// Perform immediate cart sync
+  // do immediate cart sync
   Future<void> _performImmediateSync() async {
     try {
       if (_cartProvider == null) return;
 
-      // Check if user is logged in
+      // check if theyre logged in
       final isLoggedIn = await AuthService.isLoggedIn();
       if (!isLoggedIn) {
-   
         return;
       }
 
-   
-
-      // Sync with server immediately
+      // sync with server right away
       await _cartProvider!.syncWithApi();
-
-
-    } catch (e) {
-    
-    }
+    } catch (e) {}
   }
 
   /// Perform periodic sync as backup
@@ -108,24 +95,16 @@ class RealtimeCartSyncService {
       // Check if user is logged in
       final isLoggedIn = await AuthService.isLoggedIn();
       if (!isLoggedIn) {
-       
         return;
       }
 
-
-
       // Sync with server
       await _cartProvider!.syncWithApi();
-
-   
-    } catch (e) {
-  
-    }
+    } catch (e) {}
   }
 
-  /// Force an immediate sync (for manual refresh)
+  // force an immediate sync (for manual refresh)
   Future<void> forceImmediateSync() async {
-  
     await _performImmediateSync();
   }
 
@@ -135,14 +114,12 @@ class RealtimeCartSyncService {
     _immediateSyncTimer?.cancel();
     _periodicSyncTimer?.cancel();
     _cartProvider = null;
-
-
   }
 
-  /// Check if the service is running
+  // check if the service is running
   bool get isRunning => _isRunning;
 
-  /// Get the current sync intervals
+  // get the current sync intervals
   Duration get immediateSyncDelay => _immediateSyncDelay;
   Duration get periodicSyncInterval => _periodicSyncInterval;
 }

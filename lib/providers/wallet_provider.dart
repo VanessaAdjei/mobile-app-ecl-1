@@ -10,7 +10,7 @@ class WalletProvider extends ChangeNotifier {
   String? _error;
   bool _isInitialized = false;
 
-  // Getters
+  // getters to access the wallet data
   Wallet? get wallet => _wallet;
   List<WalletTransaction> get transactions => _transactions;
   bool get isLoading => _isLoading;
@@ -20,7 +20,7 @@ class WalletProvider extends ChangeNotifier {
   String get formattedBalance => WalletService.formatBalance(balance);
   bool get hasWallet => _wallet != null;
 
-  // Initialize wallet provider
+  // set up the wallet provider
   Future<void> initialize() async {
     if (_isInitialized) return;
 
@@ -33,7 +33,7 @@ class WalletProvider extends ChangeNotifier {
     }
   }
 
-  // Refresh wallet data
+  // reload wallet data from the api
   Future<void> refreshWallet() async {
     if (_isLoading) return;
 
@@ -53,19 +53,19 @@ class WalletProvider extends ChangeNotifier {
     }
   }
 
-  // Load transactions
+  // load the transaction history
   Future<void> _loadTransactions() async {
     try {
       final transactions = await WalletService.getTransactions();
       _transactions = transactions;
       notifyListeners();
     } catch (e) {
-      // Don't set error for transactions, just log it
+      // dont show error for transactions, just print it
       debugPrint('Error loading transactions: $e');
     }
   }
 
-  // Load more transactions (pagination)
+  // load more transactions (for pagination)
   Future<void> loadMoreTransactions() async {
     if (_isLoading) return;
 
@@ -92,7 +92,7 @@ class WalletProvider extends ChangeNotifier {
       debugPrint(
           '🔄 WalletProvider: Cashback processing disabled for order $orderId (₵$orderAmount)');
 
-      // Return disabled message
+      // return a message saying its disabled
       return {
         'success': false,
         'message': 'Cashback feature is currently disabled',
@@ -112,7 +112,7 @@ class WalletProvider extends ChangeNotifier {
     }
   }
 
-  // Top up wallet
+  // add money to the wallet
   Future<Map<String, dynamic>> topUpWallet({
     required double amount,
     required String paymentMethod,
@@ -133,7 +133,7 @@ class WalletProvider extends ChangeNotifier {
       );
 
       if (result['success']) {
-        // Refresh wallet data
+        // reload wallet data
         await refreshWallet();
       }
 
@@ -147,7 +147,7 @@ class WalletProvider extends ChangeNotifier {
     }
   }
 
-  // Process refund to wallet
+  // add a refund to the wallet
   Future<Map<String, dynamic>> processRefund({
     required double amount,
     required String orderId,
@@ -170,7 +170,7 @@ class WalletProvider extends ChangeNotifier {
       );
 
       if (result['success']) {
-        // Refresh wallet data
+        // reload wallet data
         await refreshWallet();
       }
 
@@ -184,7 +184,7 @@ class WalletProvider extends ChangeNotifier {
     }
   }
 
-  // Process cashback to wallet
+  // add cashback to the wallet
   Future<Map<String, dynamic>> processCashback({
     required double amount,
     required String orderId,
@@ -207,7 +207,7 @@ class WalletProvider extends ChangeNotifier {
       );
 
       if (result['success']) {
-        // Refresh wallet data
+        // reload wallet data
         await refreshWallet();
       }
 
@@ -221,7 +221,7 @@ class WalletProvider extends ChangeNotifier {
     }
   }
 
-  // Use wallet balance for payment
+  // use wallet money to pay for something
   Future<Map<String, dynamic>> useWalletBalance({
     required double amount,
     required String orderId,
@@ -246,7 +246,7 @@ class WalletProvider extends ChangeNotifier {
       );
 
       if (result['success']) {
-        // Refresh wallet data
+        // reload wallet data
         await refreshWallet();
       }
 
@@ -260,7 +260,7 @@ class WalletProvider extends ChangeNotifier {
     }
   }
 
-  // Check if user has sufficient balance
+  // check if they have enough money in the wallet
   Future<bool> hasSufficientBalance(double amount) async {
     try {
       return await WalletService.hasSufficientBalance(amount);
@@ -269,7 +269,7 @@ class WalletProvider extends ChangeNotifier {
     }
   }
 
-  // Create wallet if it doesn't exist
+  // make a wallet if they dont have one yet
   Future<void> createWallet() async {
     if (_isLoading) return;
 
@@ -288,7 +288,7 @@ class WalletProvider extends ChangeNotifier {
     }
   }
 
-  // Clear wallet data (on logout)
+  // clear wallet data when they log out
   void clearWallet() {
     _wallet = null;
     _transactions.clear();
@@ -297,7 +297,7 @@ class WalletProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Private helper methods
+  // helper methods (private stuff)
   void _setLoading(bool loading) {
     _isLoading = loading;
     notifyListeners();
@@ -313,7 +313,7 @@ class WalletProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Get transaction by ID
+  // find a transaction by its id
   WalletTransaction? getTransactionById(String id) {
     try {
       return _transactions.firstWhere((t) => t.id == id);
@@ -322,52 +322,52 @@ class WalletProvider extends ChangeNotifier {
     }
   }
 
-  // Get recent transactions (last 5)
+  // get the last 5 transactions
   List<WalletTransaction> get recentTransactions {
     return _transactions.take(5).toList();
   }
 
-  // Get transactions by type
+  // get transactions of a specific type
   List<WalletTransaction> getTransactionsByType(String type) {
     return _transactions.where((t) => t.type == type).toList();
   }
 
-  // Get total debits
+  // add up all the money they spent
   double get totalDebits {
     return _transactions
         .where((t) => t.isDebit && t.isCompleted)
         .fold(0.0, (sum, t) => sum + t.amount);
   }
 
-  // Get total refunds
+  // add up all the refunds they got
   double get totalRefunds {
     return _transactions
         .where((t) => t.isRefund && t.isCompleted)
         .fold(0.0, (sum, t) => sum + t.amount);
   }
 
-  // Get total cashback
+  // add up all the cashback they earned
   double get totalCashback {
     return _transactions
         .where((t) => t.isCashback && t.isCompleted)
         .fold(0.0, (sum, t) => sum + t.amount);
   }
 
-  // Get total returns
+  // add up all the returns
   double get totalReturns {
     return _transactions
         .where((t) => t.isReturn && t.isCompleted)
         .fold(0.0, (sum, t) => sum + t.amount);
   }
 
-  // Get total bonuses
+  // add up all the bonuses
   double get totalBonuses {
     return _transactions
         .where((t) => t.isBonus && t.isCompleted)
         .fold(0.0, (sum, t) => sum + t.amount);
   }
 
-  // Get pending transactions
+  // get transactions that are still pending
   List<WalletTransaction> get pendingTransactions {
     return _transactions.where((t) => t.isPending).toList();
   }

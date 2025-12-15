@@ -1,4 +1,5 @@
 // services/delivery_service.dart
+// handles saving delivery addresses and stuff
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
@@ -9,7 +10,7 @@ import 'package:flutter/foundation.dart';
 class DeliveryService {
   static const String baseUrl = ApiConfig.baseUrl;
 
-  /// Save delivery information to the server
+  // save where they want stuff delivered
   static Future<Map<String, dynamic>> saveDeliveryInfo({
     required String name,
     required String email,
@@ -26,7 +27,7 @@ class DeliveryService {
     double? lng,
   }) async {
     try {
-      // Determine if user is logged in or guest
+      // check if theyre logged in or just a guest
       final isLoggedIn = await AuthService.isLoggedIn();
       String? token;
       String? guestId;
@@ -50,15 +51,15 @@ class DeliveryService {
         };
       }
 
-      // Use the existing save-order API endpoint with correct field mappings
+      // build the request body with all the info
       final requestBody = {
-        'fname': name, // Full name
-        'email': email, // User email
-        'phone': phone, // Phone number
-        'shipping_type': deliveryOption, // Delivery method (delivery or pickup)
+        'fname': name, // their name
+        'email': email, // email address
+        'phone': phone, // phone number
+        'shipping_type': deliveryOption, // either delivery or pickup
       };
 
-      // Add delivery option and notes if available
+      // add extra stuff if we have it
       if (deliveryOption.isNotEmpty) {
         requestBody['delivery_option'] = deliveryOption;
       }
@@ -66,24 +67,24 @@ class DeliveryService {
         requestBody['notes'] = notes;
       }
 
-      // Handle delivery-specific fields
+      // different fields depending on if its delivery or pickup
       if (deliveryOption == 'delivery') {
-        // For delivery orders, include address fields
+        // if they want it delivered, we need their address
         requestBody['addr_1'] = address ?? 'Not specified';
         requestBody['region'] = region ?? 'Not specified';
         requestBody['city'] = city ?? 'Not specified';
 
-        // Add coordinates if available
+        // add the map coordinates if we have them
         if (lat != null && lng != null) {
           requestBody['lat'] = lat.toString();
           requestBody['lng'] = lng.toString();
         }
       } else if (deliveryOption == 'pickup') {
-        // For pickup orders, include pickup fields and minimal address info
+        // if theyre picking it up, we need the store info
         requestBody['addr_1'] = 'Pickup order';
         requestBody['region'] = pickupRegion ?? 'Not specified';
         requestBody['city'] = pickupCity ?? 'Not specified';
-        // Add pickup_location field with the selected pickup site
+        // which store they want to pick up from
         requestBody['pickup_location'] = pickupSite ?? '';
       }
 
@@ -93,7 +94,7 @@ class DeliveryService {
       debugPrint('Is delivery: ${deliveryOption == 'delivery'}');
       debugPrint('Is pickup: ${deliveryOption == 'pickup'}');
 
-      // Set headers based on user type
+      // set the headers depending on if theyre logged in or not
       final headers = <String, String>{
         'Accept': 'application/json',
         'Content-Type': 'application/json',
@@ -121,7 +122,7 @@ class DeliveryService {
         debugPrint('Response message: ${data['message']}');
         debugPrint('Response status: ${data['status']}');
 
-        // Extract new API response data
+        // get the store info from the response
         final closestStore = data['closest_store'];
         final selectedStoreDescription = data['selected_store_description'];
 
@@ -147,7 +148,7 @@ class DeliveryService {
           'status': data['status'] ?? 'success',
           'closest_store': closestStore,
           'selected_store_description': selectedStoreDescription,
-          'data': data, // Keep original data for backward compatibility
+          'data': data, // keep the original data just in case we need it later
         };
       } else {
         final errorData = json.decode(response.body);
@@ -171,7 +172,7 @@ class DeliveryService {
     }
   }
 
-  /// Retrieve the last saved delivery information from the server
+  // get the last address they saved
   static Future<Map<String, dynamic>> getLastDeliveryInfo() async {
     try {
       final token = await AuthService.getToken();
@@ -186,7 +187,7 @@ class DeliveryService {
       debugPrint(
           'API URL: https://eclcommerce.ernestchemists.com.gh/api/get-billing-add');
 
-      // Use the correct endpoint for getting billing/delivery data
+      // call the api to get their saved address
       final response = await http.get(
         Uri.parse(
             'https://eclcommerce.ernestchemists.com.gh/api/get-billing-add'),

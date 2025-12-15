@@ -52,7 +52,7 @@ class _AnimatedMapPinState extends State<AnimatedMapPin>
       vsync: this,
     );
 
-    // Bounce animation for pin appearance
+    // bounce animation for pin appearance
     _bounceController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -88,7 +88,7 @@ class _AnimatedMapPinState extends State<AnimatedMapPin>
       curve: Curves.easeInOut,
     ));
 
-    // Start animations
+    // start animations
     _bounceController.forward();
 
     if (widget.isSelected) {
@@ -137,7 +137,7 @@ class _AnimatedMapPinState extends State<AnimatedMapPin>
         return Stack(
           alignment: Alignment.center,
           children: [
-            // Pulse effect for selected pins
+            // pulse effect for selected pins
             if (widget.isSelected)
               Transform.scale(
                 scale: 1.0 + (_pulseAnimation.value * 0.5),
@@ -154,7 +154,7 @@ class _AnimatedMapPinState extends State<AnimatedMapPin>
                 ),
               ),
 
-            // Main pin with bounce animation
+            // main pin with bounce animation
             Transform.scale(
               scale: _bounceAnimation.value * _scaleAnimation.value,
               child: GestureDetector(
@@ -189,7 +189,7 @@ class _AnimatedMapPinState extends State<AnimatedMapPin>
   }
 }
 
-// Custom marker widget for Google Maps
+// custom marker widget for google maps
 class CustomAnimatedMarker {
   static Future<BitmapDescriptor> createAnimatedMarker({
     required String text,
@@ -201,12 +201,12 @@ class CustomAnimatedMarker {
     final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
     final Canvas canvas = Canvas(pictureRecorder);
 
-    // Create a circular background
+    // make a circular background
     final Paint backgroundPaint = Paint()
       ..color = backgroundColor
       ..style = PaintingStyle.fill;
 
-    // Create a border
+    // make a border
     final Paint borderPaint = Paint()
       ..color = backgroundColor.withOpacity(0.8)
       ..style = PaintingStyle.stroke
@@ -219,7 +219,7 @@ class CustomAnimatedMarker {
       backgroundPaint,
     );
 
-    // Draw the border
+    // draw the border
     canvas.drawCircle(
       Offset(size / 2, size / 2),
       size / 2 - 2,
@@ -258,7 +258,7 @@ class CustomAnimatedMarker {
   }
 }
 
-// Animated marker manager for handling multiple pins
+// animated marker manager for handling multiple pins
 class AnimatedMarkerManager {
   static Set<Marker> createAnimatedMarkers({
     required List<Map<String, dynamic>> locations,
@@ -290,7 +290,7 @@ class AnimatedMarkerManager {
   }
 }
 
-// Pulse animation widget for map pins
+// pulse animation widget for map pins
 class PulseAnimation extends StatefulWidget {
   final Widget child;
   final Color pulseColor;
@@ -346,7 +346,7 @@ class _PulseAnimationState extends State<PulseAnimation>
         return Stack(
           alignment: Alignment.center,
           children: [
-            // Pulse effect
+            // pulse effect
             Transform.scale(
               scale: 1.0 + (_animation.value * (widget.maxScale - 1.0)),
               child: Opacity(
@@ -361,7 +361,7 @@ class _PulseAnimationState extends State<PulseAnimation>
                 ),
               ),
             ),
-            // Main widget
+            // main widget
             widget.child,
           ],
         );

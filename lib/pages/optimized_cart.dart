@@ -118,6 +118,39 @@ class OptimizedCartState extends State<OptimizedCart> {
     super.dispose();
   }
 
+  void _confirmDeleteItem(
+      BuildContext context, CartProvider cartProvider, CartItem item) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text('Remove Item'),
+          content: Text(
+              'Are you sure you want to remove "${item.name}" from your cart?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                cartProvider.removeFromCart(item.id);
+                _showTopSnackBar(context, 'Item removed from cart');
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: Text('Remove'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _showTopSnackBar(BuildContext context, String message,
       {Duration? duration}) {
     final overlay = Overlay.of(context);
@@ -377,14 +410,7 @@ class OptimizedCartState extends State<OptimizedCart> {
                       // Remove button
                       IconButton(
                         onPressed: () {
-                          _optimizationService.debounceOperation(
-                            'remove_item_${item.productId}',
-                            () {
-                              cartProvider.removeFromCart(item.id);
-                              _showTopSnackBar(
-                                  context, 'Item removed from cart');
-                            },
-                          );
+                          _confirmDeleteItem(context, cartProvider, item);
                         },
                         icon: const Icon(Icons.delete_outline),
                         iconSize: 20,

@@ -52,37 +52,37 @@ class SignInScreenState extends State<SignInScreen> {
       return 'Oops! We couldn\'t reach our servers. Please check your internet connection and try again.';
     }
 
-    // Timeout errors
+    // timeout errors
     if (lowerError.contains('timeout') || lowerError.contains('timed out')) {
       return 'This is taking longer than usual. Please check your connection and try again.';
     }
 
-    // Authentication errors
+    // wrong email/password errors
     if (lowerError.contains('invalid-credential') ||
         lowerError.contains('invalid email or password') ||
         lowerError.contains('login information invalid')) {
       return 'The email or password you entered doesn\'t match our records. Please double-check and try again.';
     }
 
-    // User not found
+    // user doesnt exist
     if (lowerError.contains('user-not-found') ||
         lowerError.contains('no user found')) {
       return 'We couldn\'t find an account with this email. Please check your email address or create a new account.';
     }
 
-    // Rate limiting
+    // too many login attempts
     if (lowerError.contains('too-many-requests') ||
         lowerError.contains('rate limit')) {
       return 'You\'ve tried signing in too many times. Please wait a few minutes and try again.';
     }
 
-    // Server errors
+    // server errors
     if (lowerError.contains('500') ||
         lowerError.contains('internal server error')) {
       return 'We\'re experiencing some technical issues on our end. Please try again in a few moments.';
     }
 
-    // Default error message
+    // default error message
     return 'Something unexpected happened. Please try again, and if the problem persists, contact support.';
   }
 
@@ -118,7 +118,7 @@ class SignInScreenState extends State<SignInScreen> {
   String _enhanceErrorMessage(String message) {
     final lowerMessage = message.toLowerCase();
 
-    // Enhance common API error messages with better wording
+    // make api error messages nicer and easier to understand
     if (lowerMessage.contains('login information invalid') ||
         lowerMessage.contains('invalid') && lowerMessage.contains('password')) {
       return 'The email or password you entered doesn\'t match our records. Please double-check your credentials and try again.';
@@ -143,7 +143,7 @@ class SignInScreenState extends State<SignInScreen> {
       return 'We couldn\'t connect to our servers. Please check your internet connection and try again.';
     }
 
-    // If it's already a friendly message, return as-is
+    // if its already a nice message, just return it
     if (message.length < 100 &&
         !lowerMessage.contains('exception') &&
         !lowerMessage.contains('error') &&
@@ -151,7 +151,7 @@ class SignInScreenState extends State<SignInScreen> {
       return message;
     }
 
-    // Otherwise, apply user-friendly conversion
+    // otherwise make it user-friendly
     return _getUserFriendlyError(message);
   }
 
@@ -159,13 +159,13 @@ class SignInScreenState extends State<SignInScreen> {
     debugPrint('SHOW ERROR CALLED: $message');
     if (!mounted) return;
 
-    // Clean up the message - remove "Exception: " prefix if present
+    // clean up the message, remove "Exception: " if its there
     String cleanMessage = message.replaceAll('Exception: ', '').trim();
 
-    // Enhance all error messages with better wording and user-friendly language
+    // make all error messages nicer and easier to understand
     String displayMessage = _enhanceErrorMessage(cleanMessage);
 
-    // Set error message state to show in UI banner
+    // set the error message so it shows in the ui
     setState(() {
       _errorMessage = displayMessage;
     });
@@ -209,13 +209,13 @@ class SignInScreenState extends State<SignInScreen> {
           await authProvider.refreshAuthState();
         } catch (e) {}
 
-        // Get the current AuthState using the of() pattern
+        // get the current auth state
         final authState = AuthState.of(context);
         if (authState != null) {
           await authState.refreshAuthState();
         } else {}
 
-        // Sync cart for logged-in user
+        // sync cart for the logged in user
         final userId = await AuthService.getCurrentUserID();
         if (userId != null) {
           await Provider.of<CartProvider>(context, listen: false)
@@ -233,7 +233,7 @@ class SignInScreenState extends State<SignInScreen> {
           _showError('Login failed. Please try again.');
           return;
         }
-        // Clear error message after successful login
+        // clear error message after login works
         if (mounted) {
           setState(() {
             _errorMessage = null;
@@ -248,7 +248,7 @@ class SignInScreenState extends State<SignInScreen> {
               '🔍 SignIn: onSuccess callback type: ${widget.onSuccess.runtimeType}');
           debugPrint('🔍 SignIn: returnTo value: ${widget.returnTo}');
 
-          // If onSuccess callback is provided, let it handle navigation
+          // if theres an onSuccess callback, let it handle navigation
           if (widget.onSuccess != null) {
             debugPrint('🔍 SignIn: Calling onSuccess callback');
             try {
@@ -257,14 +257,14 @@ class SignInScreenState extends State<SignInScreen> {
             } catch (e) {
               debugPrint('🔍 SignIn: Error executing onSuccess callback: $e');
             }
-            // Navigate back to the previous page after successful callback
+            // go back to the previous page after callback succeeds
             Navigator.pop(context);
             return;
           } else if (widget.returnTo != null) {
             debugPrint('🔍 SignIn: Navigating to returnTo: ${widget.returnTo}');
             Navigator.pushReplacementNamed(context, widget.returnTo!);
           } else {
-            // Check if there's pending prescription data
+            // check if theres prescription data waiting
             final prefs = await SharedPreferences.getInstance();
             final hasPendingPrescription =
                 prefs.getBool('has_pending_prescription') ?? false;
@@ -290,15 +290,15 @@ class SignInScreenState extends State<SignInScreen> {
           }
         }
       } else {
-        // Extract the actual error message from the API response
+        // get the actual error message from the api response
         final errorMessage =
             result['message'] ?? 'Login failed. Please check your credentials.';
         debugPrint('🔍 SignIn: Error message from API: $errorMessage');
         _showError(errorMessage);
       }
     } catch (e) {
-      // Handle exceptions that might occur during the sign-in process
-      // The _showError method will enhance the message automatically
+      // handle errors that might happen during login
+      // _showError will make the message nicer automatically
       _showError(e.toString());
     } finally {
       if (mounted) {

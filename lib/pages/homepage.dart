@@ -1,4 +1,5 @@
 // pages/homepage.dart
+
 import 'package:eclapp/pages/pharmacists.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:eclapp/pages/storelocation.dart';
@@ -40,41 +41,60 @@ import '../widgets/clearance_sale_banner.dart';
 import 'ernest_friday_page.dart';
 import 'wishlist_page.dart';
 import '../services/wishlist_service.dart';
+import '../services/category_optimization_service.dart';
+import 'categories.dart';
 
+// class to load images before we need them so they show up faster
 class ImagePreloader {
+  // keep track of which images we already loaded
   static final Map<String, bool> _preloadedImages = {};
 
+  // load one image ahead of time
   static void preloadImage(String imageUrl, BuildContext context) {
+    // dont do anything if the url is empty or we already loaded it
     if (imageUrl.isEmpty || _preloadedImages.containsKey(imageUrl)) return;
 
+    // mark it as loaded and actually load it
     _preloadedImages[imageUrl] = true;
     precacheImage(CachedNetworkImageProvider(imageUrl), context);
   }
 
+  // load a bunch of images at once
   static void preloadImages(List<String> imageUrls, BuildContext context) {
     for (final imageUrl in imageUrls) {
       preloadImage(imageUrl, context);
     }
   }
 
+  // clear the list of loaded images (probably dont need this but just in case)
   static void clearPreloadedImages() {
     _preloadedImages.clear();
   }
 
+  // check if we already loaded an image
   static bool isPreloaded(String imageUrl) {
     return _preloadedImages.containsKey(imageUrl);
   }
 }
 
+// cache products so we dont have to fetch them every time
 class ProductCache {
+  // store all products here
   static List<Product> _cachedProducts = [];
+  // store the popular ones separately
   static List<Product> _cachedPopularProducts = [];
+  // remember when we last cached stuff
   static DateTime? _lastCacheTime;
+  // remember when we last shuffled the popular products
   static DateTime? _lastShuffleTime;
 
+  // cache is good for 2 hours
   static const Duration _cacheValidDuration = Duration(hours: 2);
+  // we can use old data for up to 6 hours while refreshing
   static const Duration _staleWhileRevalidateDuration = Duration(hours: 6);
+  // shuffle popular products every 24 hours
   static const Duration _shuffleInterval = Duration(hours: 24);
+  // keys for saving to storage
   static const String _popularProductsKey = 'cached_popular_products';
   static const String _lastCacheTimeKey = 'last_cache_time';
   static const String _lastShuffleTimeKey = 'last_shuffle_time';
@@ -152,7 +172,7 @@ class ProductCache {
         _lastCacheTime = DateTime.parse(lastCacheTimeString);
         debugPrint('📱 ProductCache: Loaded cache timestamp: $_lastCacheTime');
 
-        // Check if cache is still valid
+        // check if cache is still good
         if (isCacheValid) {
           final productsJson = prefs.getString(_popularProductsKey);
           if (productsJson != null) {
@@ -162,7 +182,7 @@ class ProductCache {
             debugPrint(
                 '📱 ProductCache: Loaded ${_cachedPopularProducts.length} popular products from storage');
 
-            // Load shuffle timestamp
+            // load when we last shuffled
             if (lastShuffleTimeString != null) {
               _lastShuffleTime = DateTime.parse(lastShuffleTimeString);
               debugPrint(
@@ -187,7 +207,7 @@ class ProductCache {
     }
   }
 
-  // Save cache to persistent storage
+  // save cache to local storage
   static Future<void> _saveToStorage() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -197,7 +217,7 @@ class ProductCache {
       await prefs.setString(
           _lastCacheTimeKey, _lastCacheTime!.toIso8601String());
 
-      // Save shuffle timestamp
+      // save when we shuffled
       if (_lastShuffleTime != null) {
         await prefs.setString(
             _lastShuffleTimeKey, _lastShuffleTime!.toIso8601String());
@@ -209,7 +229,7 @@ class ProductCache {
     }
   }
 
-  // Clear cache from persistent storage
+  // delete cache from local storage
   static Future<void> _clearFromStorage() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -222,7 +242,7 @@ class ProductCache {
     }
   }
 
-  // Shuffle popular products and update shuffle timestamp
+  // shuffle popular products and remember when we did it
   static void _shufflePopularProducts() {
     if (_cachedPopularProducts.isNotEmpty) {
       final shuffled = List<Product>.from(_cachedPopularProducts);
@@ -474,6 +494,13 @@ class HomePageState extends State<HomePage>
 
   final Map<String, bool> _preloadedImages = {};
 
+  // Category scroll state
+  List<dynamic> _categories = [];
+  bool _isLoadingCategories = false;
+  bool _hasTriedLoadingCategories = false;
+  final CategoryOptimizationService _categoryService =
+      CategoryOptimizationService();
+
   final HomepageOptimizationService _optimizationService =
       HomepageOptimizationService();
 
@@ -481,16 +508,16 @@ class HomePageState extends State<HomePage>
   Timer? _popularScrollTimer;
   int _highlightedPopularIndex = 0;
 
-  // Add these fields to the _HomePageState class:
+  // add these fields to the homepage state:
   int _popularBaseIndex = 0;
   int _popularCurrentIndex = 0;
   final int _popularRepeatCount = 1000;
 
-  // Track when product sections were last shuffled
+  // remember when we last shuffled product sections
   DateTime? _lastSectionShuffleTime;
   static const Duration _sectionShuffleInterval = Duration(hours: 24);
 
-  // Track if the page has already been loaded to prevent unnecessary reloads
+  // remember if we already loaded the page so we dont reload it
   bool _hasBeenLoaded = false;
 
   @override
@@ -547,7 +574,7 @@ class HomePageState extends State<HomePage>
     debugPrint('HomePage: _loadAllContent called');
     if (!mounted || _isLoadingContent) return;
 
-    // Check if content has already been loaded to prevent unnecessary reloads
+    // check if we already loaded everything so we dont do it again
     if (_hasBeenLoaded) {
       debugPrint('HomePage: Content already loaded, skipping reload');
       return;
@@ -556,7 +583,7 @@ class HomePageState extends State<HomePage>
     _isLoadingContent = true;
 
     try {
-      // Check if we already have cached popular products (stale-while-revalidate approach)
+      // check if we have cached popular products (use old data while refreshing)
       if (ProductCache.cachedPopularProducts.isNotEmpty) {
         debugPrint(
             'HomePage: Using cached popular products, showing immediately');
@@ -571,35 +598,35 @@ class HomePageState extends State<HomePage>
           _isLoadingPopular = false;
         });
 
-        // Start auto-scroll for cached popular products
+        // start auto-scrolling the popular products
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && popularProducts.isNotEmpty) {
             _startPopularProductsAutoScroll();
           }
         });
 
-        // If cache is stale, refresh in background (non-blocking)
+        // if cache is old, refresh in the background (dont wait for it)
         if (!ProductCache.isCacheValid && ProductCache.canUseStaleData) {
           debugPrint(
               '🔄 HomePage: Cache is stale, refreshing in background...');
           unawaited(_fetchPopularProducts());
         }
       } else {
-        // Load popular products only if cache is completely empty
+        // only load popular products if we have no cache at all
         debugPrint(
             'HomePage: No cached popular products, fetching from API...');
         await _fetchPopularProducts();
       }
 
-      // Load products first
+      // load products first
       debugPrint('HomePage: Loading products');
       await loadProducts();
 
-      // Load health tips
+      // load health tips
       debugPrint('HomePage: Loading health tips');
       await _fetchHealthTips();
 
-      // Mark as loaded to prevent future reloads
+      // remember that we loaded everything so we dont do it again
       _hasBeenLoaded = true;
       debugPrint('HomePage: Content loaded successfully, marked as loaded');
     } catch (e) {
@@ -616,7 +643,7 @@ class HomePageState extends State<HomePage>
           _isLoading = false;
         });
         debugPrint('HomePage: _loadAllContent completed');
-        // Preload all product images for best UX
+        // load all product images ahead of time so they show up fast
         HomepageOptimizationService().preloadAllProductImages(context);
       }
       if (_refreshController.isRefresh) {
@@ -628,19 +655,19 @@ class HomePageState extends State<HomePage>
   Future<void> loadProducts() async {
     if (!mounted) return;
 
-    // Always show skeleton for at least 800ms for better UX
+    // always show the skeleton for at least 800ms so it looks smooth
     final skeletonStartTime = DateTime.now();
 
-    // Check if we have valid cached data
+    // check if we have cached data that's still good
     if (ProductCache.isCacheValid && ProductCache.cachedProducts.isNotEmpty) {
-      // Use cached data but still show skeleton briefly
+      // use cached data but still show skeleton for a bit
       final cachedProducts = ProductCache.cachedProducts;
       _processProducts(cachedProducts);
 
-      // Preload images in background
+      // load images in the background
       _preloadImages(cachedProducts);
 
-      // Ensure skeleton shows for at least 800ms
+      // make sure skeleton shows for at least 800ms
       final elapsed = DateTime.now().difference(skeletonStartTime);
       if (elapsed.inMilliseconds < 800) {
         await Future.delayed(
@@ -890,12 +917,12 @@ class HomePageState extends State<HomePage>
 
     if (shouldShuffleSections) {
       debugPrint('🎲 HomePage: Shuffling product sections after 24 hours');
-      // Shuffle section products
+      // shuffle the products in each section
       otcDrugProducts.shuffle();
       wellnessList.shuffle();
       selfcareList.shuffle();
       accessoriesList.shuffle();
-      // Update shuffle timestamp and save to storage
+      // remember when we shuffled and save it
       _lastSectionShuffleTime = DateTime.now();
       _saveSectionShuffleTime();
     } else {
@@ -903,7 +930,7 @@ class HomePageState extends State<HomePage>
           '🎲 HomePage: Using existing section product order (within 24 hours)');
     }
 
-    // Debug: Log product counts to confirm consistency
+    // print product counts so we can see if everything is consistent
     debugPrint('🔍 PRODUCT SECTIONS - Consistent Order:');
     debugPrint('  Drugs: ${otcDrugProducts.length} products');
     debugPrint('  Wellness: ${wellnessList.length} products');
@@ -967,7 +994,7 @@ class HomePageState extends State<HomePage>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Handle bar
+                // the drag handle bar
                 Container(
                   width: 40,
                   height: 4,
@@ -978,7 +1005,7 @@ class HomePageState extends State<HomePage>
                 ),
                 const SizedBox(height: 16),
 
-                // Header with gradient
+                // header with gradient background
                 Container(
                   padding: EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -1041,7 +1068,7 @@ class HomePageState extends State<HomePage>
                 ),
                 const SizedBox(height: 16),
 
-                // Contact options
+                // buttons to contact them
                 _buildModernContactOption(
                   icon: Icons.phone_rounded,
                   title: 'Call Us',
@@ -1352,7 +1379,7 @@ class HomePageState extends State<HomePage>
     }
   }
 
-  // Check if search bar should be highlighted and focus it
+  // check if we should highlight the search bar and focus it
 
   @override
   void initState() {
@@ -1361,7 +1388,7 @@ class HomePageState extends State<HomePage>
 
     WidgetsBinding.instance.addObserver(this);
 
-    // Load cached data immediately if available (non-blocking)
+    // load cached data right away if we have it (dont wait for it)
     _loadCachedDataImmediately();
 
     // Initialize services in background (non-blocking)
@@ -1373,6 +1400,14 @@ class HomePageState extends State<HomePage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _loadAllContent();
+      }
+    });
+
+    // Load categories separately to ensure it runs
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        debugPrint('🚀 HomePage: Calling _loadCategories from initState');
+        _loadCategories();
       }
     });
 
@@ -1886,57 +1921,323 @@ class HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildActionCards({bool isTablet = false}) {
+  Future<void> _loadCategories() async {
+    debugPrint(
+        '🔄 HomePage: _loadCategories called - isLoading: $_isLoadingCategories, mounted: $mounted');
+
+    if (_isLoadingCategories) {
+      debugPrint('⚠️ HomePage: Already loading categories, skipping');
+      return;
+    }
+
+    if (!mounted) {
+      debugPrint('⚠️ HomePage: Widget not mounted, skipping category load');
+      return;
+    }
+
+    debugPrint('🔄 HomePage: Starting to load categories...');
+    setState(() {
+      _isLoadingCategories = true;
+    });
+
+    try {
+      debugPrint('🔄 HomePage: Initializing category service...');
+      await _categoryService.initialize();
+      debugPrint('🔄 HomePage: Getting categories from service...');
+      final categories = await _categoryService.getCategories();
+
+      debugPrint('✅ HomePage: Loaded ${categories.length} categories');
+      debugPrint(
+          '📋 HomePage: Category names: ${categories.take(5).map((c) => c['name']).toList()}');
+
+      if (mounted) {
+        setState(() {
+          _categories = categories;
+          _isLoadingCategories = false;
+        });
+        debugPrint('✅ HomePage: Categories state updated');
+      } else {
+        debugPrint('⚠️ HomePage: Widget unmounted before setting categories');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('❌ HomePage: Error loading categories: $e');
+      debugPrint('❌ HomePage: Stack trace: $stackTrace');
+      if (mounted) {
+        setState(() {
+          _isLoadingCategories = false;
+        });
+      }
+    }
+  }
+
+  IconData _getCategoryIcon(String categoryName) {
+    final name = categoryName.toLowerCase();
+
+    if (name.contains('drug') ||
+        name.contains('medicine') ||
+        name.contains('medication')) {
+      return Icons.medication;
+    } else if (name.contains('otc') || name.contains('over the counter')) {
+      return Icons.local_pharmacy;
+    } else if (name.contains('prescription') || name.contains('pom')) {
+      return Icons.medical_services;
+    } else if (name.contains('health') || name.contains('wellness')) {
+      return Icons.health_and_safety;
+    } else if (name.contains('vitamin') || name.contains('supplement')) {
+      return Icons.medication;
+    } else if (name.contains('nutrition') || name.contains('diet')) {
+      return Icons.restaurant;
+    } else if (name.contains('personal') || name.contains('care')) {
+      return Icons.person;
+    } else if (name.contains('sports')) {
+      return Icons.sports;
+    } else if (name.contains('food') || name.contains('drink')) {
+      return Icons.restaurant;
+    } else if (name.contains('sexual')) {
+      return Icons.favorite;
+    } else if (name.contains('home')) {
+      return Icons.home;
+    } else {
+      return Icons.category;
+    }
+  }
+
+  Widget _buildCategoryScroll({bool isTablet = false}) {
+    debugPrint(
+        '🔍 HomePage: _buildCategoryScroll called - isLoading: $_isLoadingCategories, categories: ${_categories.length}, hasTried: $_hasTriedLoadingCategories');
+
+    // Trigger category loading on first build if not already loading/loaded
+    if (!_hasTriedLoadingCategories &&
+        !_isLoadingCategories &&
+        _categories.isEmpty) {
+      debugPrint('🚀 HomePage: Triggering category load from build method');
+      _hasTriedLoadingCategories = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _loadCategories();
+        }
+      });
+    }
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Action Cards Row
+        // Heading with "See all"
         Padding(
           padding: EdgeInsets.symmetric(
-              horizontal: isTablet ? 24.0 : 16.0,
-              vertical: isTablet ? 8.0 : 4.0),
-          child: Row(
+            horizontal: isTablet ? 24.0 : 18.0,
+            vertical: 16.0,
+          ),
+          child: Column(
             children: [
-              Expanded(
-                child: _buildActionCard(
-                  icon: Icons.people,
-                  title: "Meet Your Pharmacists",
-                  color: Colors.blue[600]!,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => PharmacistsPage()),
-                    );
-                  },
+              // Main heading with gradient
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 4,
+                  horizontal: 10,
                 ),
-              ),
-              SizedBox(width: 8),
-              Expanded(
-                child: _buildActionCard(
-                  icon: Icons.location_on,
-                  title: "Locate A Store Near You",
-                  color: Colors.green[600]!,
-                  onTap: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => StoreSelectionPage()),
-                    );
-                  },
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.green[600]!,
+                      Colors.green[700]!,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green.withValues(alpha: 0.3),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
                 ),
-              ),
-              SizedBox(width: 8),
-              Expanded(
-                child: _buildActionCard(
-                  icon: Icons.contact_support_rounded,
-                  title: "Contact Us",
-                  color: Colors.orange[600]!,
-                  onTap: () => _showContactOptions("+233508411184"),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 8),
+                    // Text content
+                    Expanded(
+                      child: Text(
+                        'Categories',
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.1,
+                        ),
+                      ),
+                    ),
+                    // See all button
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const CategoryPage(),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'See all',
+                                style: GoogleFonts.poppins(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 10,
+                                color: Colors.white,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
+        // Category scroll
+        if (_isLoadingCategories)
+          Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: isTablet ? 24.0 : 18.0,
+            ),
+            child: SizedBox(
+              height: 38,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: 5,
+                itemBuilder: (context, index) {
+                  return Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    child: Shimmer.fromColors(
+                      baseColor: Colors.grey[300]!,
+                      highlightColor: Colors.grey[100]!,
+                      child: Container(
+                        width: 90,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(19),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          )
+        else if (_categories.isEmpty)
+          const SizedBox.shrink()
+        else
+          SizedBox(
+            height: 38,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.symmetric(
+                horizontal: isTablet ? 24.0 : 18.0,
+              ),
+              physics: const BouncingScrollPhysics(),
+              itemCount: _categories.length,
+              itemBuilder: (context, index) {
+                final category = _categories[index];
+                final categoryName = category['name'] ?? '';
+                final hasSubcategories = category['has_subcategories'] ?? false;
+
+                return Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        if (hasSubcategories) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SubcategoryPage(
+                                categoryName: categoryName,
+                                categoryId: category['id'],
+                              ),
+                            ),
+                          );
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ProductListPage(
+                                categoryName: categoryName,
+                                categoryId: category['id'],
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(19),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.green.shade50,
+                              Colors.green.shade50.withOpacity(0.5),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(19),
+                          border: Border.all(
+                            color: Colors.green.shade200.withOpacity(0.5),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.green.shade100.withOpacity(0.3),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            categoryName,
+                            style: GoogleFonts.poppins(
+                              fontSize: isTablet ? 12 : 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green.shade800,
+                              letterSpacing: 0.1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
       ],
     );
   }
@@ -1947,45 +2248,56 @@ class HomePageState extends State<HomePage>
     required Color color,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        constraints: BoxConstraints(
-          minWidth: 90,
-          maxWidth: 100,
-          minHeight: 100,
-        ),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.2),
-                shape: BoxShape.circle,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          constraints: BoxConstraints(
+            minWidth: 90,
+            minHeight: 100,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icon with flowing gradient background
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.topLeft,
+                    radius: 1.2,
+                    colors: [
+                      color.withValues(alpha: 0.2),
+                      color.withValues(alpha: 0.08),
+                      Colors.transparent,
+                    ],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 22),
               ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey[800],
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+              const SizedBox(height: 10),
+              Flexible(
+                child: Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    color: Colors.grey[800],
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    height: 1.2,
+                    letterSpacing: -0.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.visible,
+                ),
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -2249,7 +2561,7 @@ class HomePageState extends State<HomePage>
                       child: buildOrderMedicineCard(),
                     ),
                     SliverToBoxAdapter(
-                      child: _buildActionCards(isTablet: isTablet),
+                      child: _buildCategoryScroll(isTablet: isTablet),
                     ),
 
                     SliverToBoxAdapter(
@@ -2941,7 +3253,7 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
   List<BannerModel> banners = [];
   bool _isLoadingBanners = false;
   Timer? _timer;
-  late final PageController _pageController;
+  late final ScrollController _scrollController;
   final BannerCacheService _bannerCacheService = BannerCacheService();
 
   void showTopSnackBar(BuildContext context, String message,
@@ -2993,17 +3305,42 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 1.0);
+    _scrollController = ScrollController();
     _initializeBannerCache();
-    _timer = Timer.periodic(Duration(seconds: 10), (timer) {
-      if (_pageController.hasClients && banners.isNotEmpty) {
-        int nextPage = (_pageController.page?.round() ?? 0) + 1;
-        if (nextPage >= banners.length) nextPage = 0;
-        _pageController.animateToPage(
-          nextPage,
-          duration: Duration(milliseconds: 500),
+    _startAutoScroll();
+  }
+
+  void _startAutoScroll() {
+    _timer = Timer.periodic(const Duration(seconds: 4), (timer) {
+      if (!mounted || banners.isEmpty || !_scrollController.hasClients) return;
+
+      try {
+        final currentOffset = _scrollController.offset;
+        final maxScroll = _scrollController.position.maxScrollExtent;
+
+        if (maxScroll <= 0) return;
+
+        // Get screen width from the scroll controller's viewport dimension
+        final viewportWidth = _scrollController.position.viewportDimension;
+        final bannerWidth = viewportWidth * 0.85;
+        final spacing = viewportWidth > 600 ? 16.0 : 12.0;
+        final itemWidth = bannerWidth + spacing;
+
+        // Calculate next position
+        double nextOffset = currentOffset + itemWidth;
+
+        // If we've reached or passed the end, loop back to the start
+        if (nextOffset >= maxScroll - 5) {
+          nextOffset = 0;
+        }
+
+        _scrollController.animateTo(
+          nextOffset,
+          duration: const Duration(milliseconds: 500),
           curve: Curves.easeInOut,
         );
+      } catch (e) {
+        debugPrint('Banner auto-scroll error: $e');
       }
     });
   }
@@ -3016,7 +3353,7 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
   @override
   void dispose() {
     _timer?.cancel();
-    _pageController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -3039,102 +3376,143 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
         ),
       );
     }
-    return SizedBox(
-      width: double.infinity,
-      height: MediaQuery.of(context).size.width > 600
-          ? 300
-          : 190, // Optimized height for tablets
-      child: PageView.builder(
-        controller: _pageController,
-        itemCount: banners.length,
-        itemBuilder: (context, index) {
-          final banner = banners[index];
-          final imageUrl = banner.img.startsWith('http')
-              ? banner.img
-              : 'https://eclcommerce.ernestchemists.com.gh/storage/banners/${Uri.encodeComponent(banner.img)}';
-          return GestureDetector(
-            onTap: () {
-              if (banner.urlName != null && banner.urlName!.isNotEmpty) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ItemPage(urlName: banner.urlName!),
-                  ),
-                );
-              }
-            },
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: MediaQuery.of(context).size.width > 600 ? 12 : 16,
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(
-                    MediaQuery.of(context).size.width > 600 ? 16 : 12,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius:
-                          MediaQuery.of(context).size.width > 600 ? 8 : 6,
-                      offset: Offset(
-                        0,
-                        MediaQuery.of(context).size.width > 600 ? 4 : 3,
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
+    final bannerHeight = isTablet ? 300.0 : 190.0;
+    final bannerWidth =
+        screenWidth * 0.85; // 85% of screen width for each banner
+
+    final double dotSpacing = isTablet ? 16.0 : 12.0;
+    final double itemWidth = bannerWidth + dotSpacing;
+    final double currentOffset =
+        _scrollController.hasClients ? _scrollController.offset : 0.0;
+    final int activeIndex = (itemWidth > 0 && banners.isNotEmpty)
+        ? (currentOffset / itemWidth)
+            .round()
+            .clamp(0, banners.length - 1)
+        : 0;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: bannerHeight,
+          child: ListView.builder(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(
+              horizontal: isTablet ? 12 : 16,
+              vertical: 8,
+            ),
+            itemCount: banners.length,
+            itemBuilder: (context, index) {
+              final banner = banners[index];
+              final imageUrl = banner.img.startsWith('http')
+                  ? banner.img
+                  : 'https://eclcommerce.ernestchemists.com.gh/storage/banners/${Uri.encodeComponent(banner.img)}';
+              return GestureDetector(
+                onTap: () {
+                  if (banner.urlName != null && banner.urlName!.isNotEmpty) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            ItemPage(urlName: banner.urlName!),
                       ),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(
-                    MediaQuery.of(context).size.width > 600 ? 16 : 12,
+                    );
+                  }
+                },
+                child: Container(
+                  width: bannerWidth,
+                  margin: EdgeInsets.only(
+                    right: isTablet ? 16 : 12,
                   ),
-                  child: CachedNetworkImage(
-                    imageUrl: imageUrl,
-                    fit: BoxFit.cover,
-                    fadeInDuration: const Duration(milliseconds: 300),
-                    fadeOutDuration: const Duration(milliseconds: 200),
-                    memCacheWidth:
-                        MediaQuery.of(context).size.width > 600 ? 800 : 400,
-                    memCacheHeight:
-                        MediaQuery.of(context).size.width > 600 ? 600 : 300,
-                    placeholder: (context, url) => Container(
-                      color: Colors.grey[200],
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.green),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(
+                      isTablet ? 16 : 12,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: isTablet ? 8 : 6,
+                        offset: Offset(
+                          0,
+                          isTablet ? 4 : 3,
+                        ),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(
+                      isTablet ? 16 : 12,
+                    ),
+                    child: CachedNetworkImage(
+                      imageUrl: imageUrl,
+                      fit: BoxFit.cover,
+                      fadeInDuration: const Duration(milliseconds: 300),
+                      fadeOutDuration: const Duration(milliseconds: 200),
+                      memCacheWidth: isTablet ? 800 : 400,
+                      memCacheHeight: isTablet ? 600 : 300,
+                      placeholder: (context, url) => Container(
+                        color: Colors.grey[200],
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.green),
+                          ),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        color: Colors.grey[200],
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.broken_image,
+                              size: 40,
+                              color: Colors.grey[400],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Image unavailable',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    errorWidget: (context, url, error) => Container(
-                      color: Colors.grey[200],
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.broken_image,
-                            size: 40,
-                            color: Colors.grey[400],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Image unavailable',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        if (banners.length > 1)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+                     children: List.generate(
+                banners.length,
+                (index) => Container(
+                  width: index == activeIndex ? 8 : 6,
+                  height: index == activeIndex ? 8 : 6,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: index == activeIndex
+                        ? Colors.green
+                        : Colors.green.withOpacity(0.3),
                   ),
                 ),
               ),
             ),
-          );
-        },
-      ),
+          ),
+      ],
     );
   }
 

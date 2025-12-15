@@ -123,7 +123,7 @@ class _WishlistPageState extends State<WishlistPage> {
       appBar: null,
       body: Column(
         children: [
-          // Enhanced header with better design (matching purchases page)
+          // nice header that matches the purchases page
           Container(
             padding:
                 EdgeInsets.only(top: MediaQuery.of(context).padding.top * 0.5),
@@ -441,7 +441,7 @@ class _WishlistPageState extends State<WishlistPage> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Product Image
+              // product image
               Container(
                 width: 60,
                 height: 60,
@@ -474,7 +474,7 @@ class _WishlistPageState extends State<WishlistPage> {
                 ),
               ),
               const SizedBox(width: 12),
-              // Product Details
+              // product name and price
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -533,7 +533,7 @@ class _WishlistPageState extends State<WishlistPage> {
                   ],
                 ),
               ),
-              // Action Buttons
+              // buttons to add to cart or remove
               Row(
                 children: [
                   Container(

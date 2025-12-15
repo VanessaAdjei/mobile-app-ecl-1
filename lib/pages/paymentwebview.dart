@@ -34,7 +34,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
     try {
       final token = await AuthService.getToken();
       if (token == null) {
-        // If no token, show error and return to payment page
+        // if no token, show error and go back to payment page
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -49,18 +49,18 @@ class PaymentWebViewState extends State<PaymentWebView> {
   }
 
   void _navigateToConfirmation(bool success) async {
-    // Check auth state before navigation
+    // check auth state before navigating
     await _checkAndRefreshAuth();
 
     if (!mounted) return;
 
-    // Don't create notification here - wait for actual payment verification
-    // The notification will be created in OrderConfirmationPage after verification
+    // dont create notification here, wait for actual payment verification
+    // notification will be created in OrderConfirmationPage after verification
 
-    // First pop the WebView
+    // first close the webview
     Navigator.pop(context);
 
-    // Then push the confirmation page
+    // then go to the confirmation page
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -78,7 +78,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
     );
   }
 
-  /// Show WebView error dialog
+  // show webview error dialog
   void _showWebViewError(String message) {
     if (!mounted) return;
 
@@ -111,12 +111,12 @@ class PaymentWebViewState extends State<PaymentWebView> {
 
   @override
   void dispose() {
-    // Clean up WebView resources to prevent memory leaks
+    // clean up webview resources so we dont leak memory
     _controller.clearCache();
     super.dispose();
   }
 
-  /// Initialize WebView with crash prevention
+  // set up webview with crash prevention
   void _initializeWebView() {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -127,12 +127,12 @@ class PaymentWebViewState extends State<PaymentWebView> {
           },
           onPageFinished: (String url) async {
             setState(() => _isLoading = false);
-            // Check auth state after page loads
+            // check auth state after page loads
             await _checkAndRefreshAuth();
 
             if (!mounted) return;
 
-            // Check for completion URLs
+            // check for completion urls
             if (url.contains('payment-success') || url.contains('complete')) {
               widget.onPaymentComplete?.call(true, null);
               _navigateToConfirmation(true);
@@ -142,12 +142,12 @@ class PaymentWebViewState extends State<PaymentWebView> {
             }
           },
           onNavigationRequest: (NavigationRequest request) async {
-            // Check auth state before navigation
+            // check auth state before navigating
             await _checkAndRefreshAuth();
 
             if (!mounted) return NavigationDecision.prevent;
 
-            // Check if the URL indicates payment completion
+            // check if the url means payment is done
             if (request.url.contains('payment-success') ||
                 request.url.contains('complete')) {
               widget.onPaymentComplete?.call(true, null);
@@ -164,16 +164,16 @@ class PaymentWebViewState extends State<PaymentWebView> {
             debugPrint('WebView Error: ${error.description}');
             debugPrint('WebView Error Code: ${error.errorCode}');
 
-            // Handle specific error codes
+            // handle specific error codes
             if (error.errorCode == -6) {
               // Network error - show user-friendly message
               _showWebViewError(
                   'Network connection error. Please check your internet connection and try again.');
             } else if (error.errorCode == -8) {
-              // Timeout error
+              // timeout error
               _showWebViewError('Connection timeout. Please try again.');
             } else {
-              // Generic error
+              // generic error
               _showWebViewError(
                   'Payment page loading error. Please try again.');
             }
@@ -196,25 +196,25 @@ class PaymentWebViewState extends State<PaymentWebView> {
 
         debugPrint('🔍 PopScope triggered - didPop: $didPop');
 
-        // Only show cancel dialog if user is actually trying to exit
-        // If didPop is true, it means the system handled the pop automatically
-        // We only want to show dialog when user manually tries to exit
+        // only show cancel dialog if theyre actually trying to exit
+        // if didPop is true, the system handled it automatically
+        // we only want to show dialog when they manually try to exit
         if (didPop) {
           debugPrint('🔍 PopScope handled automatically - not showing dialog');
           return;
         }
 
-        // Use a flag to prevent multiple dialogs
+        // use a flag so we dont show multiple dialogs
         if (_isShowingDialog) return;
         _isShowingDialog = true;
 
         try {
-          // Add a small delay to prevent navigation conflicts
+          // wait a tiny bit to prevent navigation conflicts
           await Future.delayed(const Duration(milliseconds: 100));
 
           debugPrint('🔍 Showing cancel payment dialog from PopScope');
 
-          // Show confirmation dialog with error handling
+          // show confirmation dialog with error handling
           final shouldPop = await showDialog<bool>(
             context: context,
             barrierDismissible: false,
@@ -304,7 +304,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
           );
 
           if (shouldPop == true && mounted) {
-            // Add a small delay to prevent navigation conflicts
+            // wait a tiny bit to prevent navigation conflicts
             await Future.delayed(const Duration(milliseconds: 100));
 
             if (mounted) {
@@ -316,7 +316,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
                 }
               } catch (e) {
                 debugPrint('Error popping from dialog: $e');
-                // Final fallback
+                // last fallback
                 try {
                   Navigator.of(context).maybePop(false);
                 } catch (finalError) {
@@ -327,7 +327,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
           }
         } catch (e) {
           debugPrint('Error showing cancel dialog: $e');
-          // If dialog fails, just pop back with safety checks
+          // if dialog fails, just go back with safety checks
           if (mounted) {
             try {
               if (Navigator.canPop(context)) {
@@ -337,7 +337,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
               }
             } catch (e) {
               debugPrint('Error popping after dialog error: $e');
-              // Final fallback - just try to go back
+              // last fallback, just try to go back
               try {
                 Navigator.of(context).maybePop(false);
               } catch (finalError) {
@@ -355,7 +355,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
           children: [
             Column(
               children: [
-                // Enhanced header with better design
+                // nice header
                 Builder(
                   builder: (context) {
                     final topPadding = MediaQuery.of(context).padding.top;
@@ -382,7 +382,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
                       ),
                       child: Column(
                         children: [
-                          // Header with back button and title
+                          // header with back button and title
                           Padding(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 16, vertical: 4),
@@ -508,7 +508,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
                                       ),
                                     );
                                     if (shouldPop == true && mounted) {
-                                      // Add a small delay to prevent navigation conflicts
+                                      // wait a tiny bit to prevent navigation conflicts
                                       await Future.delayed(
                                           const Duration(milliseconds: 100));
 

@@ -39,12 +39,12 @@ class RefillMedicine {
   });
 
   factory RefillMedicine.fromJson(Map<String, dynamic> json) {
-    // Handle nested product data (like regular products API)
+    // handle nested product data (like regular products api)
     Map<String, dynamic> productData = json;
     if (json.containsKey('product') &&
         json['product'] is Map<String, dynamic>) {
       productData = json['product'] as Map<String, dynamic>;
-      // Merge with root level data for fields like price, batch_no, etc.
+      // merge with root level data for fields like price, batch_no, etc.
       productData = {...productData, ...json};
     }
 

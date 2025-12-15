@@ -14,21 +14,21 @@ class ClearanceSaleProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
-  // Getters
+  // getters to access the data
   bool get isActive => _isActive;
   ClearanceSaleData? get clearanceData => _clearanceData;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  // Get clearance discount percentage
+  // how much discount they get (like 50%)
   double get discountPercentage {
     return _clearanceData?.discountPercentage ?? 50.0;
   }
 
-  // Get clearance sale name
+  // name of the clearance sale
   String get saleName => _clearanceData?.name ?? 'Clearance Sale';
 
-  // Get clearance sale description
+  // description of the sale
   String get saleDescription => _clearanceData?.description ?? '';
 
   // Initialize the provider
@@ -40,7 +40,7 @@ class ClearanceSaleProvider extends ChangeNotifier {
       await _checkClearanceSaleFromApi();
     } catch (e) {
       _error = e.toString();
-      // Fallback to local storage if API fails
+      // if api fails, use what we saved locally
       await _loadClearanceStateFromLocal();
     } finally {
       _isLoading = false;
@@ -48,7 +48,7 @@ class ClearanceSaleProvider extends ChangeNotifier {
     }
   }
 
-  // Check clearance sale status from API
+  // check if theres a clearance sale active from the api
   Future<void> _checkClearanceSaleFromApi() async {
     try {
       final response = await ClearanceSaleApiService.checkActiveClearanceSale();
@@ -58,7 +58,7 @@ class ClearanceSaleProvider extends ChangeNotifier {
           ? _convertApiDataToLocalData(response.saleData!)
           : null;
 
-      // Cache the result locally for offline use
+      // save it locally so we can use it offline
       await _saveClearanceStateToLocal();
 
       notifyListeners();
@@ -88,7 +88,7 @@ class ClearanceSaleProvider extends ChangeNotifier {
     }
   }
 
-  // Save clearance state to local storage
+  // save clearance sale info to local storage
   Future<void> _saveClearanceStateToLocal() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -105,12 +105,12 @@ class ClearanceSaleProvider extends ChangeNotifier {
     }
   }
 
-  // Convert API data to local data format
+  // convert api data to our local format
   ClearanceSaleData _convertApiDataToLocalData(ClearanceSaleData apiData) {
     return apiData; // Use the API data directly since they're the same structure
   }
 
-  // Activate clearance sale
+  // turn on the clearance sale
   Future<void> activateClearanceSale({
     required String name,
     required String description,
@@ -124,7 +124,7 @@ class ClearanceSaleProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Call API to activate clearance sale
+      // tell the api to activate the sale
       final response = await ClearanceSaleApiService.activateClearanceSale(
         name: name,
         description: description,
@@ -138,7 +138,7 @@ class ClearanceSaleProvider extends ChangeNotifier {
         _isActive = true;
         _clearanceData = _convertApiDataToLocalData(response.saleData!);
 
-        // Save to local storage for offline use
+        // save it locally so it works offline
         await _saveClearanceStateToLocal();
 
         notifyListeners();
@@ -154,21 +154,21 @@ class ClearanceSaleProvider extends ChangeNotifier {
     }
   }
 
-  // Deactivate clearance sale
+  // turn off the clearance sale
   Future<void> deactivateClearanceSale() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      // Call API to deactivate clearance sale
+      // tell the api to turn off the sale
       final response = await ClearanceSaleApiService.deactivateClearanceSale();
 
       if (response.success) {
         _isActive = false;
         _clearanceData = null;
 
-        // Remove from local storage
+        // remove it from local storage
         await _saveClearanceStateToLocal();
 
         notifyListeners();
@@ -191,7 +191,7 @@ class ClearanceSaleProvider extends ChangeNotifier {
     // Check if product is excluded
     if (_clearanceData!.excludedProducts.contains(productId)) return false;
 
-    // Check if category is applicable (if specified)
+    // check if the category is allowed (if we specified one)
     if (_clearanceData!.applicableCategories.isNotEmpty) {
       return _clearanceData!.applicableCategories.contains(category);
     }
@@ -199,7 +199,7 @@ class ClearanceSaleProvider extends ChangeNotifier {
     return true;
   }
 
-  // Calculate clearance price
+  // figure out the clearance price
   double calculateClearancePrice(double originalPrice) {
     if (!_isActive || _clearanceData == null) return originalPrice;
 
@@ -207,27 +207,27 @@ class ClearanceSaleProvider extends ChangeNotifier {
     return originalPrice - discount;
   }
 
-  // Get formatted discount text
+  // get the discount text formatted nicely
   String getFormattedDiscount() {
     if (!_isActive || _clearanceData == null) return '';
     return '${_clearanceData!.discountPercentage.toInt()}% OFF';
   }
 
-  // Check if clearance sale has ended
+  // check if the sale is over
   bool get hasEnded {
     if (!_isActive || _clearanceData == null) return false;
     if (_clearanceData!.endDate == null) return false;
     return DateTime.now().isAfter(_clearanceData!.endDate!);
   }
 
-  // Auto-deactivate if sale has ended
+  // automatically turn off the sale if its over
   Future<void> checkAndDeactivateIfEnded() async {
     if (hasEnded) {
       await deactivateClearanceSale();
     }
   }
 
-  // Refresh clearance sale status from API
+  // reload clearance sale status from the api
   Future<void> refreshClearanceSaleStatus() async {
     _isLoading = true;
     _error = null;
@@ -237,20 +237,20 @@ class ClearanceSaleProvider extends ChangeNotifier {
       await _checkClearanceSaleFromApi();
     } catch (e) {
       _error = e.toString();
-      // Don't rethrow here, just show error
+      // dont crash, just show the error
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  // Clear error
+  // clear the error message
   void clearError() {
     _error = null;
     notifyListeners();
   }
 
-  // Dispose
+  // clean up when done
   @override
   void dispose() {
     super.dispose();

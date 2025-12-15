@@ -100,20 +100,20 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         }
       }
 
-      // If we don't have delivery info from notification, try to fetch from API
+      // if we dont have delivery info from notification, try getting it from the api
       if (notificationAddress == null || notificationAddress.isEmpty) {
         if (isLoggedIn) {
           debugPrint(
               '🔍 No delivery address in notification, trying to fetch from API...');
 
-          // Check if we have a delivery_id that might be useful
+          // check if we have a delivery_id we can use
           final deliveryId = orderDetails['delivery_id']?.toString();
           if (deliveryId != null && deliveryId.isNotEmpty) {
             debugPrint(
                 '🔍 Found delivery_id: $deliveryId - this might contain delivery info');
           }
 
-          // First try to get delivery info from the user's saved delivery data
+          // first try to get delivery info from their saved address
           debugPrint('🔍 Trying to fetch user\'s saved delivery info...');
           final deliveryResult = await DeliveryService.getLastDeliveryInfo();
 
@@ -121,7 +121,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
             final deliveryData = deliveryResult['data'];
             debugPrint('🔍 Successfully fetched delivery info: $deliveryData');
 
-            // Extract delivery information from the saved delivery data
+            // get delivery info from the saved data
             final savedAddress = deliveryData['address']?.toString() ??
                 deliveryData['addr_1']?.toString();
             final savedRegion = deliveryData['region']?.toString();
@@ -147,14 +147,14 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
               }
             }
 
-            // Extract contact information
+            // get contact info
             final savedContact = deliveryData['phone']?.toString();
             if (savedContact != null && savedContact.isNotEmpty) {
               notificationContact = savedContact;
               debugPrint('🔍 Found saved contact number: $notificationContact');
             }
 
-            // Extract delivery option
+            // get delivery option
             final savedDeliveryOption =
                 deliveryData['delivery_option']?.toString() ??
                     deliveryData['shipping_type']?.toString();
@@ -174,7 +174,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         }
       }
 
-      // Fall back to SharedPreferences if still no delivery info
+      // if we still dont have delivery info, try shared preferences
       final prefs = await SharedPreferences.getInstance();
 
       setState(() {
@@ -205,7 +205,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     }
   }
 
-  // Try to fetch order details from API to get delivery information
+  // try to get order details from api to find delivery info
   Future<void> _fetchOrderDetailsFromAPI() async {
     try {
       final orderId = widget.orderDetails['id']?.toString();
@@ -219,7 +219,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       debugPrint(
           '🔍 Fetching order details from API for order: $orderId / $orderNumber');
 
-      // Get auth token using the proper AuthService
+      // get auth token using auth service
       final token = await AuthService.getToken();
 
       if (token == null) {
@@ -231,7 +231,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       debugPrint(
           '🔍 Auth token retrieved successfully: ${token.substring(0, 20)}...');
 
-      // Try to get all orders and find the specific one we need
+      // get all orders and find the one we need
       try {
         debugPrint('🔍 Trying to get all orders to find delivery info...');
         final ordersResponse = await http.get(
@@ -248,18 +248,18 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
               '🔍 Orders API response received, looking for order $orderId');
           debugPrint('🔍 Complete API response: $ordersData');
 
-          // Check if API response indicates success
+          // check if api says it worked
           final apiStatus = ordersData['status']?.toString();
           if (apiStatus != 'success') {
             debugPrint('🔍 API response status is not success: $apiStatus');
             return;
           }
 
-          // Use 'data' field instead of 'orders' based on actual API response structure
+          // use 'data' field instead of 'orders' (thats how the api actually works)
           final orders = ordersData['data'] ?? [];
           debugPrint('🔍 Total orders received: ${orders.length}');
 
-          // Check if orders are in a different field (fallback)
+          // check if orders are in a different field (fallback)
           if (orders.isEmpty) {
             debugPrint(
                 '🔍 No orders in "data" field, checking other possible fields...');
@@ -275,14 +275,14 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
             }
           }
 
-          // Debug: Show what we're looking for
+          // print what we're looking for
           debugPrint('🔍 Looking for order with:');
           debugPrint('🔍   - orderId: $orderId');
           debugPrint('🔍   - orderNumber: $orderNumber');
           debugPrint(
               '🔍   - notification delivery_id: ${widget.orderDetails['delivery_id']}');
 
-          // Debug: Show first few orders to understand structure
+          // print first few orders so we can see the structure
           if (orders.isNotEmpty) {
             debugPrint('🔍 Sample orders from API:');
             for (int i = 0; i < orders.length && i < 5; i++) {
@@ -292,10 +292,10 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
             }
           }
 
-          // Try multiple matching strategies
+          // try different ways to find the order
           Map<String, dynamic>? targetOrder;
 
-          // Strategy 1: Try to match by delivery_id (most reliable for notifications)
+          // first try matching by delivery_id (most reliable for notifications)
           final notificationDeliveryId =
               widget.orderDetails['delivery_id']?.toString();
           if (notificationDeliveryId != null &&
@@ -312,7 +312,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
             }
           }
 
-          // Strategy 2: Try to match by order number (if different from delivery_id)
+          // if that didnt work, try matching by order number
           if (targetOrder == null &&
               orderNumber != null &&
               orderNumber != notificationDeliveryId) {
@@ -327,7 +327,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
             }
           }
 
-          // Strategy 3: Try to match by numeric ID (extract from ORDER_ prefix) - less reliable
+          // if that didnt work, try matching by numeric id (extract from ORDER_ prefix) - less reliable
           if (targetOrder == null &&
               orderId != null &&
               orderId.startsWith('ORDER_')) {
@@ -350,7 +350,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
             }
           }
 
-          // Strategy 4: Try to match by order ID as string (fallback)
+          // last try: match by order id as string (fallback)
           if (targetOrder == null && orderId != null) {
             debugPrint('🔍 Trying to match by order ID string: $orderId');
             targetOrder = orders.firstWhere(
@@ -371,9 +371,9 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
               debugPrint('🔍   $key: $value');
             });
 
-            // Extract delivery information from the found order
-            // Note: The API response doesn't seem to have delivery address fields
-            // We'll use what's available and show a message about missing delivery info
+            // get delivery info from the order we found
+            // note: the api response doesnt seem to have delivery address fields
+            // we'll use what we have and show a message if info is missing
             final address = targetOrder['delivery_address']?.toString() ??
                 targetOrder['shipping_address']?.toString() ??
                 targetOrder['address']?.toString() ??
@@ -413,7 +413,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
               });
             }
 
-            // If we still don't have delivery info, show a message
+            // if we still dont have delivery info, show a message
             if (_deliveryAddress == 'Address not available' &&
                 _contactNumber == 'Contact not available') {
               debugPrint(
@@ -468,7 +468,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       }).toList();
     }
 
-    // Single item order - create a single item map
+    // single item order, just make one item map
     return [
       {
         'product_name': orderDetails['product_name'] ?? 'Unknown Product',
@@ -480,13 +480,13 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     ];
   }
 
-  // Calculate total quantity across all items
+  // add up the total quantity of all items
   int getTotalQuantity() {
     return getOrderItems()
         .fold(0, (sum, item) => sum + (item['qty'] ?? 1) as int);
   }
 
-  // Calculate total amount across all items
+  // add up the total price of all items
   double getTotalAmount() {
     return getOrderItems().fold(0.0, (sum, item) {
       final price = (item['price'] ?? 0.0).toDouble();

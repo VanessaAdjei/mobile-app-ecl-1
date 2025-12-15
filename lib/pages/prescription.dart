@@ -1,4 +1,5 @@
 // pages/prescription.dart
+// page where users upload their prescription images
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -10,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eclapp/widgets/error_display.dart';
+import '../config/api_config.dart';
 
 class PrescriptionUploadPage extends StatefulWidget {
   final Map<String, dynamic>? item;
@@ -31,35 +33,38 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
   bool _isSubmitting = false;
   final ImagePicker _picker = ImagePicker();
 
-  // Helper method to validate file type
+  // check if the file is a valid image type
   bool _isValidImageFile(String filePath) {
     final extension = filePath.split('.').last.toLowerCase();
     return ['jpg', 'jpeg', 'png'].contains(extension);
   }
 
+  // pick image from phone gallery
   void _chooseFromGallery() async {
     setState(() => _isLoading = true);
     try {
       debugPrint('🔍 Selecting image from gallery...');
       final XFile? pickedFile = await _picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1920, // Optimize image size
+        maxWidth: 1920, // make image smaller so it uploads faster
         maxHeight: 1080,
-        imageQuality: 85, // Reduce quality slightly for better performance
+        imageQuality: 85, // reduce quality a bit so file is smaller
       );
       if (pickedFile != null) {
         final File imageFile = File(pickedFile.path);
 
-        // Validate file type
+        // make sure its a valid image file
         if (!_isValidImageFile(pickedFile.path)) {
           _showFileTypeError();
           return;
         }
 
+        // check the file size
         final int fileSize = imageFile.lengthSync();
         debugPrint(
             '🔍 Selected image size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB');
 
+        // only accept files under 10MB
         if (fileSize <= 10 * 1024 * 1024) {
           setState(() {
             _selectedImage = imageFile;
@@ -79,29 +84,32 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
     }
   }
 
+  // take a photo with the camera
   void _chooseFromCamera() async {
     setState(() => _isLoading = true);
     try {
       debugPrint('🔍 Capturing image from camera...');
       final XFile? pickedFile = await _picker.pickImage(
         source: ImageSource.camera,
-        maxWidth: 1920, // Optimize image size
+        maxWidth: 1920, // resize image so its not huge
         maxHeight: 1080,
-        imageQuality: 85, // Reduce quality slightly for better performance
+        imageQuality: 85, // lower quality = smaller file
       );
       if (pickedFile != null) {
         final File imageFile = File(pickedFile.path);
 
-        // Validate file type
+        // check if its a valid image
         if (!_isValidImageFile(pickedFile.path)) {
           _showFileTypeError();
           return;
         }
 
+        // check file size
         final int fileSize = imageFile.lengthSync();
         debugPrint(
             '🔍 Captured image size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB');
 
+        // only accept files under 10MB
         if (fileSize <= 10 * 1024 * 1024) {
           setState(() {
             _selectedImage = imageFile;
@@ -237,6 +245,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
     );
   }
 
+  // show the product details if we have an item
   Widget _buildItemDetails() {
     if (widget.item == null) {
       return const SizedBox.shrink();
@@ -332,6 +341,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
     );
   }
 
+  // upload the prescription image to the server
   void _submitPrescription() async {
     if (_selectedImage != null) {
       setState(() {
@@ -340,22 +350,22 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
 
       try {
         debugPrint('🔍 Starting prescription upload...');
-        // Verify token is valid
+        // make sure theyre logged in
         if (widget.token.isEmpty) {
           throw Exception('Please log in to upload a prescription');
         }
 
+        // create the multipart request
         var request = http.MultipartRequest(
           'POST',
-          Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/create-precription'),
+          Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.createPrescription)),
         );
 
-        // Add headers
+        // add auth headers
         request.headers['Authorization'] = 'Bearer ${widget.token}';
         request.headers['Accept'] = 'application/json';
 
-        // Add file to request
+        // add the image file
         request.files.add(
           await http.MultipartFile.fromPath(
             'file',
@@ -363,12 +373,12 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
           ),
         );
 
-        // Add batch number if available
+        // add batch number if we have it
         if (widget.item != null && widget.item!['batch_no'] != null) {
           request.fields['batch_no'] = widget.item!['batch_no'];
         }
 
-        // Add product ID if available
+        // add product id if we have it
         if (widget.item != null &&
             widget.item!['product'] != null &&
             widget.item!['product']['id'] != null) {
@@ -376,7 +386,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
               widget.item!['product']['id'].toString();
         }
 
-        // Send request with timeout
+        // send it with a timeout
         debugPrint('🔍 Uploading prescription ...');
         final streamedResponse = await request.send().timeout(
           const Duration(seconds: 30),
@@ -423,6 +433,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
     }
   }
 
+  // remove the selected image
   void _deleteImage() {
     setState(() {
       _selectedImage = null;
@@ -574,77 +585,13 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
               ),
             ),
           ),
-          if (_isLoading)
-            Container(
-              color: Colors.black.withValues(alpha: 0.3),
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade50,
-                          shape: BoxShape.circle,
-                        ),
-                        child: CircularProgressIndicator(
-                          color: Colors.green.shade700,
-                          strokeWidth: 3,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        'Processing Image',
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade800,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Please wait while we upload your prescription...',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          color: Colors.grey.shade600,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
       backgroundColor: theme.scaffoldBackgroundColor ?? Colors.green.shade50,
     );
   }
 
+  // the area where you tap to upload
   Widget _buildUploadArea(ThemeData theme) {
     return GestureDetector(
       onTap: _isLoading ? null : _showUploadOptions,
@@ -730,6 +677,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
     );
   }
 
+  // show a preview of the selected image
   Widget _buildImagePreview() {
     if (_selectedImage == null) return const SizedBox.shrink();
 
@@ -775,7 +723,9 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
     );
   }
 
+  // the submit button
   Widget _buildSubmitButton() {
+    // only enable if we have an image and arent loading
     final isEnabled = _selectedImage != null && !_isLoading && !_isSubmitting;
     final gradient = isEnabled
         ? LinearGradient(

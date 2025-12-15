@@ -100,7 +100,7 @@ class ProductCardSkeleton extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Image skeleton
+          // image skeleton
           Expanded(
             flex: 3,
             child: Container(
@@ -120,7 +120,7 @@ class ProductCardSkeleton extends StatelessWidget {
               ),
             ),
           ),
-          // Content skeleton
+          // content skeleton
           Expanded(
             flex: 2,
             child: Padding(
@@ -209,7 +209,7 @@ class SearchResultsSkeleton extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 16),
           child: Row(
             children: [
-              // Image skeleton
+              // image skeleton
               Container(
                 width: 80,
                 height: 80,
@@ -226,7 +226,7 @@ class SearchResultsSkeleton extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 16),
-              // Content skeleton
+              // content skeleton
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

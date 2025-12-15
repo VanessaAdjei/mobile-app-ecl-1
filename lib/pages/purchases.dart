@@ -27,12 +27,12 @@ class PurchaseScreenState extends State<PurchaseScreen> {
   List<dynamic> _orders = [];
   final ScrollController _scrollController = ScrollController();
 
-  // Pagination
+  // pagination stuff
   bool _hasMoreData = true;
   bool _isLoadingMore = false;
   static const int _pageSize = 20;
 
-  // Cache for orders data
+  // cache orders so we dont have to load them every time
   static List<dynamic>? _cachedOrders;
   static DateTime? _lastFetchTime;
   static const Duration _cacheValidDuration = Duration(minutes: 10);
@@ -59,7 +59,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
 
   Future<void> _loadOrders() async {
     debugPrint('🔍 Loading orders...');
-    // Check if we have valid cached data
+    // check if we have cached data that's still good
     if (_cachedOrders != null && _lastFetchTime != null) {
       final timeSinceLastFetch = DateTime.now().difference(_lastFetchTime!);
       final isCacheValid = timeSinceLastFetch < _cacheValidDuration;
@@ -95,18 +95,18 @@ class PurchaseScreenState extends State<PurchaseScreen> {
           final rawOrders = result['data'] as List;
           final processedOrders = await _processOrders(rawOrders);
 
-          // Cache the data
+          // save the data to cache
           _cachedOrders = processedOrders;
           _lastFetchTime = DateTime.now();
 
           setState(() {
             _orders = processedOrders;
             _isLoading = false;
-            // Refresh completed
+            // refresh done
             _hasMoreData = processedOrders.length >= _pageSize;
           });
 
-          // Track order status changes for notifications
+          // track order status changes for notifications
           // try {
           //   await OrderNotificationService.trackOrderStatusChanges(
           //       processedOrders.cast<Map<String, dynamic>>());
@@ -135,7 +135,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
       _isLoadingMore = true;
     });
 
-    // Simulate pagination - in real app, you'd pass page number to API
+    // simulate pagination (in real app you'd pass page number to api)
     await Future.delayed(const Duration(milliseconds: 500));
 
     setState(() {
@@ -146,7 +146,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
 
   Future<void> _refreshOrders() async {
     setState(() {
-      // Refresh started
+      // refresh started
     });
 
     // Clear cache to force fresh data
@@ -158,7 +158,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
 
   Future<List<dynamic>> _processOrders(List<dynamic> rawOrders) async {
     debugPrint('🔍 Processing ${rawOrders.length} orders...');
-    // Process orders in a separate isolate for better performance
+    // process orders in a separate isolate to make it faster
     return await _processOrdersInBackground(rawOrders);
   }
 
@@ -167,7 +167,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
     debugPrint('🔍 Starting background order processing...');
     final Map<String, List<dynamic>> groupedOrders = {};
 
-    // Group orders by transaction ID
+    // group orders by transaction id
     for (final order in rawOrders) {
       if (!_isValidOrder(order)) continue;
 
@@ -191,7 +191,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
       }
     }).toList();
 
-    // Remove duplicates and sort
+    // remove duplicates and sort them
     debugPrint('🔍 Removing duplicates and sorting orders...');
     final uniqueOrders = _removeDuplicates(combinedOrders);
     uniqueOrders.sort((a, b) {
@@ -981,7 +981,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                // Content skeleton
+                // content skeleton
                 Row(
                   children: [
                     Container(
@@ -1197,7 +1197,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
             ),
           ),
 
-          // Orders content
+          // orders list content
           Expanded(
             child: _isLoading
                 ? _buildLoadingSkeleton()

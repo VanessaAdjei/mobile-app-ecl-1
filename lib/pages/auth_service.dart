@@ -1,4 +1,5 @@
 // pages/auth_service.dart
+// handles login, logout, tokens, and all that auth stuff
 import 'dart:async';
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
@@ -43,17 +44,17 @@ class AuthService {
   static const Duration _tokenVerificationInterval = Duration(minutes: 15);
   static const Duration _tokenRefreshInterval = Duration(minutes: 30);
 
-  /// Safely read from secure storage, suppressing -34018 entitlement errors
-  /// Falls back to SharedPreferences if keychain fails
+  // read from secure storage but if it fails use regular storage instead
+  // this handles those annoying keychain errors
   static Future<String?> _safeRead(String key) async {
     try {
       return await _secureStorage.read(key: key);
     } on PlatformException catch (e) {
-      // Suppress -34018 keychain entitlement errors silently
+      // if we get that keychain error, just use regular storage
       if (e.code == '-34018' || e.message?.contains('34018') == true) {
         debugPrint(
             'Keychain access error suppressed: $key, falling back to SharedPreferences');
-        // Fallback to SharedPreferences
+        // try regular storage instead
         try {
           final prefs = await SharedPreferences.getInstance();
           return prefs.getString('secure_$key');
@@ -65,7 +66,7 @@ class AuthService {
       rethrow;
     } catch (e) {
       debugPrint('Error reading secure storage key $key: $e');
-      // Fallback to SharedPreferences
+      // try regular storage if secure storage fails
       try {
         final prefs = await SharedPreferences.getInstance();
         return prefs.getString('secure_$key');
@@ -76,21 +77,20 @@ class AuthService {
     }
   }
 
-  /// Safely write to secure storage, suppressing -34018 entitlement errors
-  /// Falls back to SharedPreferences if keychain fails
+  // write to secure storage but use regular storage if it fails
   static Future<void> _safeWrite(String key, String value) async {
     bool keychainFailed = false;
     try {
       await _secureStorage.write(key: key, value: value);
-      // If keychain write succeeds, also update SharedPreferences as backup
+      // if secure storage worked, also save to regular storage as backup
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('secure_$key', value);
       } catch (e) {
-        // Ignore SharedPreferences errors if keychain worked
+        // dont care if this fails since secure storage worked
       }
     } on PlatformException catch (e) {
-      // Suppress -34018 keychain entitlement errors silently
+      // handle keychain errors
       if (e.code == '-34018' || e.message?.contains('34018') == true) {
         debugPrint(
             'Keychain access error suppressed: $key, falling back to SharedPreferences');
@@ -103,7 +103,7 @@ class AuthService {
       keychainFailed = true;
     }
 
-    // Fallback to SharedPreferences if keychain failed
+    // if keychain failed, just use regular storage instead
     if (keychainFailed) {
       try {
         final prefs = await SharedPreferences.getInstance();
@@ -115,13 +115,13 @@ class AuthService {
     }
   }
 
-  /// Safely delete from secure storage, suppressing -34018 entitlement errors
-  /// Also deletes from SharedPreferences fallback
+  // delete from secure storage, but handle those keychain errors
+  // also delete from regular storage backup
   static Future<void> _safeDelete(String key) async {
     try {
       await _secureStorage.delete(key: key);
     } on PlatformException catch (e) {
-      // Suppress -34018 keychain entitlement errors silently
+      // ignore those annoying keychain errors
       if (e.code == '-34018' || e.message?.contains('34018') == true) {
         debugPrint('Keychain access error suppressed: $key');
       } else {
@@ -131,7 +131,7 @@ class AuthService {
       debugPrint('Error deleting secure storage key $key: $e');
     }
 
-    // Always try to delete from SharedPreferences fallback
+    // also delete from regular storage backup
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('secure_$key');
@@ -140,13 +140,13 @@ class AuthService {
     }
   }
 
-  /// Safely delete all from secure storage, suppressing -34018 entitlement errors
-  /// Also clears SharedPreferences fallback keys
+  // delete everything from secure storage, handle keychain errors
+  // also clear the regular storage backup
   static Future<void> _safeDeleteAll() async {
     try {
       await _secureStorage.deleteAll();
     } on PlatformException catch (e) {
-      // Suppress -34018 keychain entitlement errors silently
+      // ignore keychain errors
       if (e.code == '-34018' || e.message?.contains('34018') == true) {
         debugPrint('Keychain access error suppressed: deleteAll');
       } else {
@@ -156,7 +156,7 @@ class AuthService {
       debugPrint('Error deleting all secure storage: $e');
     }
 
-    // Also clear SharedPreferences fallback keys
+    // also clear the regular storage backup
     try {
       final prefs = await SharedPreferences.getInstance();
       final keys = prefs.getKeys();
@@ -170,12 +170,12 @@ class AuthService {
     }
   }
 
-  /// Safely read all from secure storage, suppressing -34018 entitlement errors
+  // read everything from secure storage, handle keychain errors
   static Future<Map<String, String>> _safeReadAll() async {
     try {
       return await _secureStorage.readAll();
     } on PlatformException catch (e) {
-      // Suppress -34018 keychain entitlement errors silently
+      // ignore keychain errors
       if (e.code == '-34018' || e.message?.contains('34018') == true) {
         debugPrint('Keychain access error suppressed: readAll');
         return {};
@@ -189,31 +189,31 @@ class AuthService {
 
   static Future<void> init() async {
     try {
-      // Start with a quick local check first
+      // check locally first
       _authToken = await _safeRead(authTokenKey);
       if (_authToken != null) {
-        // Set logged in state optimistically, validate in background
+        // assume theyre logged in, check with server later
         _isLoggedIn = true;
-        // Validate token in background without blocking
+        // check if token is still valid in the background
         _validateTokenInBackground();
       } else {
         _isLoggedIn = false;
       }
 
-      // Migrate data in background without blocking
+      // move old data to new format in the background
       _migrateExistingData().catchError((e) {
-        // Suppress -34018 errors silently
+        // ignore keychain errors
         if (e is PlatformException &&
             (e.code == '-34018' || e.message?.contains('34018') == true)) {
           return;
         }
       });
     } on PlatformException catch (e) {
-      // Suppress -34018 keychain entitlement errors silently
+      // ignore keychain errors
       if (e.code == '-34018' || e.message?.contains('34018') == true) {
         debugPrint(
             'Keychain entitlement error suppressed in AuthService.init, checking SharedPreferences fallback');
-        // Try SharedPreferences fallback
+        // try regular storage instead
         try {
           final prefs = await SharedPreferences.getInstance();
           _authToken = prefs.getString('secure_$authTokenKey');
@@ -232,14 +232,14 @@ class AuthService {
       }
       rethrow;
     } catch (e) {
-      // Check if it's an entitlement error in the message
+      // check if its one of those keychain errors
       final errorString = e.toString().toLowerCase();
       if (errorString.contains('34018') ||
           errorString.contains('entitlement') ||
           errorString.contains('required entitlement')) {
         debugPrint(
             'Keychain entitlement error suppressed in AuthService.init, checking SharedPreferences fallback');
-        // Try SharedPreferences fallback
+        // try regular storage instead
         try {
           final prefs = await SharedPreferences.getInstance();
           _authToken = prefs.getString('secure_$authTokenKey');
@@ -270,34 +270,34 @@ class AuthService {
         return;
       }
 
-      // Collect all existing user data
+      // get all the old user data
       final Map<String, dynamic> userData = {};
 
-      // Migrate individual fields
+      // move each field over
       final name = await _safeRead(userNameKey);
       final email = await _safeRead(userEmailKey);
       final phone = await _safeRead(userPhoneNumberKey);
       final id = await _safeRead(userIdKey);
       final hashedLink = await _safeRead(hashedLinkKey);
 
-      // Only add non-null values
+      // only add it if it has a value
       if (name != null) userData['name'] = name;
       if (email != null) userData['email'] = email;
       if (phone != null) userData['phone'] = phone;
       if (id != null) userData['id'] = id;
       if (hashedLink != null) userData['hashed_link'] = hashedLink;
 
-      // Save the consolidated data
+      // save the new combined data
       if (userData.isNotEmpty) {
         await _safeWrite(userDataKey, json.encode(userData));
         _cachedUserData = userData;
       }
 
-      // Keep the old data for backward compatibility
-      // It will be automatically cleaned up in a future update
+      // keep the old data just in case we need it
+      // we'll clean it up later
     } catch (e) {
       debugPrint("Error during data migration: $e");
-      // Continue with the app initialization even if migration fails
+      // keep going even if moving data failed
     }
   }
 
@@ -374,7 +374,7 @@ class AuthService {
     }
   }
 
-  // Sign up  user
+  // sign up a new user
   static Future<bool> signUp(
       String name, String email, String password, String phoneNumber) async {
     final url = Uri.parse('$baseUrl/register');
@@ -400,7 +400,7 @@ class AuthService {
       if (response.statusCode == 201) {
         return true;
       } else if (response.statusCode == 200) {
-        // Handle 200 status with errors (some APIs return 200 with error details)
+        // sometimes the api returns 200 but with an error message, gotta check for that
         try {
           final data = json.decode(response.body);
           final errors = data['errors'] ?? {};
@@ -427,7 +427,7 @@ class AuthService {
                 'Please check your information and try again.');
           }
 
-          // If we reach here, it might be a successful response with errors
+          // if we get here, it might be a successful response with errors
           return true;
         } catch (e) {
           if (e.toString().contains('email is already registered')) {
@@ -449,19 +449,19 @@ class AuthService {
         }
         throw Exception('Please check your information and try again.');
       } else if (response.statusCode == 400) {
-        // Handle 400 Bad Request - might contain email already exists error
+        // 400 usually means something went wrong, maybe email already exists
         try {
           final data = json.decode(response.body);
           debugPrint('🔍 AUTH SERVICE: 400 response data: $data');
 
-          // Check for email error in message
+          // check if the error says email already exists
           final message = data['message']?.toString().toLowerCase() ?? '';
           if (message.contains('email') && message.contains('already')) {
             throw Exception(
                 'This email is already registered. Please use a different email or sign in.');
           }
 
-          // Check for email error in errors object
+          // also check in the errors object
           final errors = data['errors'] ?? {};
           if (errors['email'] != null) {
             throw Exception(
@@ -477,18 +477,18 @@ class AuthService {
           throw Exception('Please check your information and try again.');
         }
       } else if (response.statusCode == 403) {
-        // Check if response is HTML (web filter/firewall blocking)
+        // check if we got html back instead of json (probably blocked by firewall)
         final contentType = response.headers['content-type'] ?? '';
         final isHtml = contentType.contains('text/html') ||
             response.body.trim().startsWith('<!DOCTYPE') ||
             response.body.trim().startsWith('<html');
 
         if (isHtml) {
-          // Web filter/firewall is blocking the request
+          // looks like a firewall is blocking us
           throw Exception(
               'Unable to connect to the server due to network issues. Please try again later or check your internet connection.');
         } else {
-          // Regular 403 Forbidden
+          // just a regular 403 error
           throw Exception(
               'Unable to complete the request. Please try again later or contact support if the problem persists.');
         }
@@ -507,7 +507,7 @@ class AuthService {
       throw Exception(
           'Unable to connect to the server. Please check your internet connection.');
     } on HandshakeException catch (e) {
-      // Handle SSL certificate errors
+      // handle ssl certificate problems
       final errorMsg = e.toString().toLowerCase();
       if (errorMsg.contains('certificate') || errorMsg.contains('handshake')) {
         throw Exception(
@@ -1650,7 +1650,7 @@ class AuthService {
       final now = DateTime.now();
       final timestamp = now.toIso8601String();
 
-      // Create individual order items for each product (similar to server structure)
+      // Create individual order items for each product 
       final orderItems = items
           .map((item) => {
                 'id':
@@ -1943,7 +1943,7 @@ class CODPaymentService {
           '[DEBUG] COD Payment API HTTP Status: \\${response.statusCode}');
       debugPrint('[DEBUG] COD Payment API HTTP Body: \\${response.body}');
 
-      // Handle different response status codes
+      // check what status code we got back
       if (response.statusCode == 200 || response.statusCode == 201) {
         try {
           final responseData = json.decode(response.body);
@@ -1954,7 +1954,7 @@ class CODPaymentService {
                 responseData['message'] ?? 'COD payment processed successfully',
           };
         } catch (e) {
-          // Handle case where response is not JSON
+          // if we didnt get json back, something went wrong
           return {
             'success': true,
             'data': {'raw_response': response.body},

@@ -57,10 +57,10 @@ class NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _onScroll() {
-    // Implement lazy loading if needed
+    // lazy loading if we need it
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
-      // Load more notifications if needed
+      // load more notifications if we need them
     }
   }
 
@@ -80,7 +80,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
 
     _performanceService.startTimer('notifications_loading');
 
-    // Force refresh unread count when loading notifications
+    // force refresh unread count when loading notifications
     try {
       final notificationProvider =
           Provider.of<NotificationProvider>(context, listen: false);
@@ -101,7 +101,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
       }
 
       setState(() {
-        // Refresh started
+        // refresh started
       });
 
       // Get notifications from the new service with timeout
@@ -113,7 +113,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
 
       if (_isDisposed) return;
 
-      // Clear existing data
+      // clear existing data
       groupedNotifications.clear();
 
       // Group notifications by date with optimized processing
@@ -131,7 +131,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
         }
       }
 
-      // Sort notifications within each group by timestamp (newest first)
+      // sort notifications in each group by timestamp (newest first)
       for (final key in tempGroups.keys) {
         tempGroups[key]!.sort((a, b) {
           try {
@@ -144,7 +144,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
         });
       }
 
-      // Update the main grouped notifications
+      // update the main grouped notifications
       groupedNotifications.addAll(tempGroups);
       _lastRefreshTimes['notifications'] = DateTime.now();
 
@@ -167,7 +167,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  // Helper method to convert string values to boolean
+  // convert string values to boolean
   bool _convertToBoolean(dynamic value) {
     if (value is bool) {
       return value;
@@ -181,7 +181,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     try {
       SharedPreferences prefs = await SharedPreferences.getInstance();
 
-      // Clear existing notification keys to prevent duplicates
+      // clear existing notification keys so we dont get duplicates
       Set<String> keys = prefs.getKeys();
       for (var key in keys) {
         if (key.startsWith('notification_')) {
@@ -198,7 +198,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
         await prefs.setStringList('notification_$date', notificationStrings);
       });
     } catch (e) {
-      // Silently handle saving errors
+      // handle saving errors quietly
     }
   }
 
@@ -213,7 +213,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
         children: [
           Column(
             children: [
-              // Enhanced header with better design
+              // nice header
               Animate(
                 effects: [
                   FadeEffect(duration: 400.ms),
@@ -369,7 +369,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Date header
+          // date header
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
             child: Text(
@@ -418,7 +418,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     final iconData = _getNotificationIcon(notification);
     final iconColor = _getNotificationColor(notification);
 
-    // Format timestamp
+    // format the timestamp
     String timeText = '';
     try {
       final timestamp = DateTime.parse(notification['timestamp']);
@@ -542,7 +542,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                   ),
                   const SizedBox(width: 16),
 
-                  // Notification content
+                  // notification content
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -653,7 +653,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
       return;
     }
 
-    // Create order details map for tracking page
+    // make order details map for the tracking page
     final items = notification['items'] ?? [];
     final mappedItems = items
         .map((item) => {
@@ -701,7 +701,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     debugPrint('🔍 shipping_method: ${notification['shipping_method']}');
     debugPrint('🔍 delivery_method: ${notification['delivery_method']}');
 
-    // Navigate to order tracking page with proper navigation stack
+    // go to order tracking page with proper navigation
     try {
       debugPrint('About to navigate to OrderTrackingPage');
       debugPrint('Context mounted: ${mounted}');
@@ -761,7 +761,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     final notificationId = notification['id'].toString();
 
     try {
-      // Use the proper service method to mark as read
+      // use the right service method to mark as read
       await OrderNotificationService.markAsRead(notificationId);
 
       // Update local state

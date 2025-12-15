@@ -37,7 +37,7 @@ class HomeProductCard extends StatelessWidget {
     this.showWishlistButton = false,
   });
 
-  // Truncate product names to keep them short
+  // shorten product names so they dont get too long
   String _truncateProductName(String name) {
     if (name.length <= 18) return name;
     return '${name.substring(0, 20)}...';
@@ -166,8 +166,8 @@ class HomeProductCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                    // Stock indicator - Only show for out of stock or low stock items
-                    // Debug logging to diagnose stock tag issues
+                    // stock indicator - only show for out of stock or low stock items
+                    // print stuff to help diagnose stock tag issues
                     Builder(
                       builder: (context) {
                         final isOutOfStock =
@@ -239,7 +239,7 @@ class HomeProductCard extends StatelessWidget {
                           ),
                           size: 14,
                           color: Colors.white,
-                          activeColor: Colors.red,
+                          activeColor: Colors.green,
                         ),
                       ),
                   ],
@@ -273,7 +273,7 @@ class HomeProductCard extends StatelessWidget {
                         color: Colors.green[700],
                       ),
                     ),
-                    // Removed the old "In Stock" badge from bottom to avoid conflicts
+                    // removed the old "In Stock" badge from bottom to avoid conflicts
                     SizedBox(height: 15), // Minimal margin after price
                   ],
                 ],
@@ -319,7 +319,7 @@ class GenericProductCard extends StatelessWidget {
     final defaultFontSize =
         fontSize ?? (screenWidth < 400 ? 11 : (screenWidth < 600 ? 13 : 15));
 
-    // Extract product data based on the format
+    // get product data based on the format
     final String productName = _getProductName();
     final String productImage = _getProductImage();
     final String productPrice = _getProductPrice();
@@ -483,7 +483,7 @@ String getProductImageUrl(String? url) {
     return url;
   }
 
-  // Use the correct path 'product' (singular) instead of 'products'
+  // use the correct path 'product' (singular) instead of 'products'
   final finalUrl =
       'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
   return finalUrl;
@@ -582,7 +582,7 @@ class ProductCard extends StatelessWidget {
                           Icon(Icons.image, size: 48, color: Colors.grey[300]),
                     ),
                   ),
-                  // Prescribed medicine badge
+                  // prescribed medicine badge
                   if (_isPrescribed())
                     Positioned(
                       top: 8,
@@ -658,7 +658,7 @@ class ProductCard extends StatelessWidget {
                         ),
                   size: 16,
                   color: Colors.white,
-                  activeColor: Colors.red,
+                  activeColor: Colors.green,
                 ),
               ),
           ],

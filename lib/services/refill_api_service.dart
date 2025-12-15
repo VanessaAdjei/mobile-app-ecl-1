@@ -1,5 +1,6 @@
 // services/refill_api_service.dart
 
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -11,12 +12,12 @@ class RefillApiService {
   static const String baseUrl = 'https://eclcommerce.ernestchemists.com.gh/api';
   static const Duration requestTimeout = Duration(seconds: 30);
 
-  // Get refillable medicines
+  // get medicines that can be refilled
   static Future<List<RefillMedicine>> getRefillableMedicines() async {
     try {
       debugPrint('[RefillAPI] Fetching refillable medicines...');
 
-      // Get auth token
+      // get the auth token
       final token = await _getAuthToken();
       if (token == null || token.isEmpty) {
         throw ApiException('Authentication Required',
@@ -31,7 +32,7 @@ class RefillApiService {
         'User-Agent': 'ECL-Pharmacy-App/1.0',
       };
 
-      // Make API request
+      // call the api
       final response = await http
           .get(
             Uri.parse('$baseUrl/refill'),
@@ -45,7 +46,7 @@ class RefillApiService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
 
-        // Handle different response structures
+        // the api might return data in different formats, handle all of them
         List<dynamic> medicinesData = [];
 
         if (data is List) {
@@ -62,7 +63,7 @@ class RefillApiService {
           }
         }
 
-        // Convert to RefillMedicine objects
+        // turn the api data into RefillMedicine objects
         final medicines = medicinesData
             .map((medicineData) => RefillMedicine.fromJson(medicineData))
             .toList();
@@ -71,8 +72,10 @@ class RefillApiService {
             '[RefillAPI] Successfully fetched ${medicines.length} refillable medicines');
         return medicines;
       } else {
+        // _handleErrorResponse throws an exception, so this return never happens
+        // but we keep it here anyway
         _handleErrorResponse(response);
-        return [];
+        return []; // this line never runs
       }
     } on http.ClientException catch (e) {
       debugPrint('[RefillAPI] Client exception: $e');
@@ -89,7 +92,7 @@ class RefillApiService {
     }
   }
 
-  // Add medicine to cart for refill using the refill-cart endpoint
+  // add a medicine to cart for refill (using the refill-cart endpoint)
   static Future<bool> addToCartForRefill(int productId) async {
     try {
       debugPrint('[RefillAPI] Adding product $productId to cart for refill...');
@@ -140,8 +143,10 @@ class RefillApiService {
               data['message'] ?? 'Failed to add product to cart.');
         }
       } else {
+        // _handleErrorResponse throws an exception, so this return is unreachable
+        // but we keep it for clarity
         _handleErrorResponse(response);
-        return false;
+        return false; // This line will never execute
       }
     } on http.ClientException catch (e) {
       debugPrint('[RefillAPI] Client exception: $e');
@@ -169,7 +174,7 @@ class RefillApiService {
     }
   }
 
-  // Handle error responses
+  // handle errors from the api
   static void _handleErrorResponse(http.Response response) {
     String message = 'An error occurred';
     String details = 'Please try again later.';
@@ -179,7 +184,7 @@ class RefillApiService {
       message = errorData['message'] ?? message;
       details = errorData['details'] ?? details;
     } catch (e) {
-      // Use default message if JSON parsing fails
+      // if we cant parse the json, just use a default message
     }
 
     switch (response.statusCode) {
@@ -212,13 +217,4 @@ class RefillApiService {
             'An unexpected error occurred. Please try again.');
     }
   }
-}
-
-// Timeout exception
-class TimeoutException implements Exception {
-  final String message;
-  TimeoutException(this.message);
-
-  @override
-  String toString() => message;
 }

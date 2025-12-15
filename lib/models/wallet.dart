@@ -1,6 +1,5 @@
 // models/wallet.dart
-// models/wallet.dart
-// models/wallet.dart
+// wallet model for storing wallet info
 class Wallet {
   final String id;
   final String userId;
@@ -139,7 +138,7 @@ class WalletTransaction {
   bool get isPending => status == 'pending';
   bool get isFailed => status == 'failed';
 
-  // Specific transaction type getters
+  // getters for specific transaction types
   bool get isRefund => type == 'refund';
   bool get isCashback => type == 'cashback';
   bool get isReturn => type == 'return';

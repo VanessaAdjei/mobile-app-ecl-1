@@ -166,6 +166,43 @@ class CartState extends State<Cart> {
     return false;
   }
 
+  Future<bool> _confirmRemove(BuildContext context, String itemName) async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: true,
+          builder: (ctx) => AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text(
+              'Remove item? ',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            content: Text(
+              'Are you sure you want to remove "$itemName" from your cart?',
+              style: const TextStyle(fontSize: 14.5),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Keep it'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Remove'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
@@ -1152,10 +1189,14 @@ class CartState extends State<Cart> {
                                     size: 32.0,
                                   )
                                 : OptimizedDeleteButton(
-                                    onPressed: () {
+                                    onPressed: () async {
                                       debugPrint(
                                           '🔍 Cart: Delete button pressed for ${item.name}');
-                                      cart.removeFromCart(item.id);
+                                      final confirmed = await _confirmRemove(
+                                          context, item.name);
+                                      if (confirmed) {
+                                        cart.removeFromCart(item.id);
+                                      }
                                     },
                                     isEnabled: true,
                                     size: 32.0,
@@ -1206,8 +1247,12 @@ class CartState extends State<Cart> {
                       IconButton(
                         icon: Icon(Icons.delete, color: Colors.red.shade400),
                         tooltip: 'Remove from cart',
-                        onPressed: () {
-                          cart.removeFromCart(item.id);
+                        onPressed: () async {
+                          final confirmed =
+                              await _confirmRemove(context, item.name);
+                          if (confirmed) {
+                            cart.removeFromCart(item.id);
+                          }
                         },
                       ),
                     ],

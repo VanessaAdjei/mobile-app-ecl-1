@@ -17,32 +17,32 @@ class HealthTip {
   });
 
   factory HealthTip.fromJson(Map<String, dynamic> json) {
-    // Extract content from the title and create a summary
+    // get content from the title and make a summary
     String content = json['Title'] ?? 'Health Tip';
     String category = json['Categories'] ?? 'Health';
     String url = json['AccessibleVersion'] ?? '';
     String? imageUrl = json['ImageUrl'];
 
-    // Create a shorter title and a more detailed summary
+    // make a shorter title and a more detailed summary
     String title = content;
     String summary = content;
 
-    // If the content is long, create a shorter title and keep the full content as summary
+    // if the content is long, make a shorter title and keep the full content as summary
     if (content.length > 50) {
-      // Try to find a natural break point for the title
+      // try to find a natural break point for the title
       int breakPoint = content.indexOf('.');
       if (breakPoint > 20 && breakPoint < 60) {
         title = content.substring(0, breakPoint).trim();
         summary = content;
       } else {
-        // If no good break point, truncate title and keep full content as summary
+        // if no good break point, shorten title and keep full content as summary
         title = content.length > 40
             ? '${content.substring(0, 40).trim()}...'
             : content;
         summary = content;
       }
     } else {
-      // For short content, use it as title and create a more descriptive summary
+      // for short content, use it as title and make a more descriptive summary
       title = content;
       summary = _createDescriptiveSummary(content, category);
     }
@@ -57,11 +57,11 @@ class HealthTip {
     );
   }
 
-  // Helper method to create descriptive summaries
+  // make descriptive summaries
   static String _createDescriptiveSummary(String content, String category) {
-    // Create more descriptive summaries based on the content and category
+    // make more descriptive summaries based on the content and category
     String lowerContent = content.toLowerCase();
-    // String lowerCategory = category.toLowerCase(); // Unused variable
+    // String lowerCategory = category.toLowerCase(); // unused variable
 
     if (lowerContent.contains('exercise') ||
         lowerContent.contains('physical activity')) {
@@ -89,12 +89,12 @@ class HealthTip {
         lowerContent.contains('digital')) {
       return 'Regular breaks from digital devices help reduce eye strain, improve posture, and maintain mental well-being.';
     } else {
-      // Generic descriptive summary
+      // generic descriptive summary
       return 'This health tip provides valuable guidance for maintaining and improving your overall well-being and quality of life.';
     }
   }
 
-  // Create a fallback health tip
+  // make a fallback health tip
   factory HealthTip.fallback() {
     return HealthTip(
       title: 'Stay Healthy',

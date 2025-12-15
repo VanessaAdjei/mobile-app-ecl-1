@@ -1,6 +1,6 @@
 // pages/aboutus.dart
 import 'package:flutter/material.dart';
-import 'Cart.dart';
+import 'cart.dart';
 import 'app_back_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -11,7 +11,7 @@ class AboutUsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
         body: Column(children: [
-      // Enhanced header with better design (matching notifications)
+      // nice header that matches the notifications page
       Container(
         padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top * 0.5),
         decoration: BoxDecoration(
@@ -92,7 +92,7 @@ class AboutUsScreen extends StatelessWidget {
         ),
       ),
 
-      // About Us content
+      // about us content
       Expanded(
         child: Container(
           color: Colors.grey.shade50,
@@ -102,7 +102,7 @@ class AboutUsScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Simple Header
+                  // simple header
                   Center(
                     child: Column(
                       children: [
@@ -177,21 +177,21 @@ class AboutUsScreen extends StatelessWidget {
                         'We have deep insight, knowledge and experience in the pharmaceutical industry and this enables us to continue to provide **quality and affordable pharmaceutical products** to meet the health needs for everyone in the society. We have been able to consolidate our position as the **biggest distributor** of pharmaceutical products with a **wide distribution network** across Ghana and beyond.',
                   ),
 
-                  // Services
+                  // services section
                   _buildSimpleCard(
                     title: 'Our Services',
                     content:
                         'Aside the manufacturing of **quality and affordable medicine**, we also have the **biggest Agency representation** for **Multinational Pharmaceutical** and consumer brands which enables us to offer the **widest range** of pharmaceutical and consumer products in Ghana.',
                   ),
 
-                  // Vision & Mission
+                  // vision and mission section
                   _buildSimpleCard(
                     title: 'Vision & Mission',
                     content:
                         '**Our Vision:** To be a **leader** in the offering of **top quality pharmaceutical and healthcare products** in Africa.\n\n**Our Mission:** To provide a full range of **quality pharmaceutical products** at **affordable prices** with the view of **exceeding the expectations** of our valued customers and shareholders through a **highly motivated and efficient workforce** driven by **cutting edge technology**.',
                   ),
 
-                  // Values
+                  // values section
                   _buildValuesCard(
                     title: 'Our Values',
                     values: [
@@ -250,13 +250,13 @@ class AboutUsScreen extends StatelessWidget {
   }
 
   Widget _buildFormattedText(String text) {
-    // Split text by ** markers for bold formatting
+    // split text by ** markers to make some parts bold
     final parts = text.split('**');
     final widgets = <Widget>[];
 
     for (int i = 0; i < parts.length; i++) {
       if (i % 2 == 0) {
-        // Regular text
+        // regular text
         if (parts[i].isNotEmpty) {
           widgets.add(
             Text(
@@ -270,7 +270,7 @@ class AboutUsScreen extends StatelessWidget {
           );
         }
       } else {
-        // Bold text with color
+        // bold text with color
         if (parts[i].isNotEmpty) {
           widgets.add(
             Text(

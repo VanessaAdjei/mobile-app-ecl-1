@@ -1,5 +1,5 @@
 // pages/app_back_button.dart
-// pages/app_back_button.dart
+// custom back button widget
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'homepage.dart';
@@ -145,9 +145,9 @@ class AppBackButton extends StatelessWidget {
   }
 }
 
-// Utility class for creating different types of back buttons
+// utility class for making different types of back buttons
 class BackButtonUtils {
-  // Standard back button with confirmation
+  // standard back button with confirmation
   static AppBackButton withConfirmation({
     Color? backgroundColor,
     Color? iconColor,
@@ -165,7 +165,7 @@ class BackButtonUtils {
     );
   }
 
-  // Simple back button without confirmation
+  // simple back button without confirmation
   static AppBackButton simple({
     Color? backgroundColor,
     Color? iconColor,
@@ -179,7 +179,7 @@ class BackButtonUtils {
     );
   }
 
-  // Custom back button with specific onPressed
+  // custom back button with specific onPressed
   static AppBackButton custom({
     required VoidCallback onPressed,
     Color? backgroundColor,

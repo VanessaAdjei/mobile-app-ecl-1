@@ -61,7 +61,7 @@ class ErrorDisplay extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            // Error Title
+            // error title
             Text(
               title,
               style: theme.textTheme.headlineSmall?.copyWith(
@@ -73,7 +73,7 @@ class ErrorDisplay extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            // Error Message
+            // error message
             Text(
               message,
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -85,7 +85,7 @@ class ErrorDisplay extends StatelessWidget {
 
             const SizedBox(height: 32),
 
-            // Action Buttons
+            // action buttons
             if (showRetry || onAction != null)
               Column(
                 children: [
@@ -132,7 +132,7 @@ class ErrorDisplay extends StatelessWidget {
   }
 }
 
-// Network Error Widget
+// network error widget
 class NetworkErrorDisplay extends StatelessWidget {
   final VoidCallback? onRetry;
   final bool isFullScreen;
@@ -182,7 +182,7 @@ class ServerErrorDisplay extends StatelessWidget {
   }
 }
 
-// Empty State Widget
+// empty state widget
 class EmptyStateDisplay extends StatelessWidget {
   final String title;
   final String message;
@@ -228,7 +228,7 @@ class EmptyStateDisplay extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            // Title
+            // title
             Text(
               title,
               style: theme.textTheme.headlineSmall?.copyWith(
@@ -240,7 +240,7 @@ class EmptyStateDisplay extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            // Message
+            // message
             Text(
               message,
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -253,7 +253,7 @@ class EmptyStateDisplay extends StatelessWidget {
             if (onAction != null) ...[
               const SizedBox(height: 32),
 
-              // Action Button
+              // action button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -283,7 +283,7 @@ class EmptyStateDisplay extends StatelessWidget {
   }
 }
 
-// Loading Error Widget
+// loading error widget
 class LoadingErrorDisplay extends StatelessWidget {
   final String message;
   final VoidCallback? onRetry;
@@ -336,7 +336,7 @@ class PermissionErrorDisplay extends StatelessWidget {
   }
 }
 
-// Optimized SnackBar utilities for faster appearance and disappearance
+// snackbar utilities that show up and disappear fast
 class SnackBarUtils {
   // Success SnackBar - appears quickly and disappears after 1.5 seconds
   static void showSuccess(BuildContext context, String message) {
@@ -373,7 +373,7 @@ class SnackBarUtils {
     );
   }
 
-  // Error SnackBar - appears quickly and disappears after 2 seconds
+  // error snackbar - shows up fast and disappears after 2 seconds
   static void showError(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -443,7 +443,7 @@ class SnackBarUtils {
     );
   }
 
-  // Warning SnackBar - appears quickly and disappears after 2 seconds
+  // warning snackbar - shows up fast and disappears after 2 seconds
   static void showWarning(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -485,27 +485,27 @@ class SnackBarAnimation extends Animation<double> {
 
   @override
   void addListener(VoidCallback listener) {
-    // No-op implementation
+    // no-op implementation
   }
 
   @override
   void addStatusListener(AnimationStatusListener listener) {
-    // No-op implementation
+    // no-op implementation
   }
 
   @override
   void removeListener(VoidCallback listener) {
-    // No-op implementation
+    // no-op implementation
   }
 
   @override
   void removeStatusListener(AnimationStatusListener listener) {
-    // No-op implementation
+    // no-op implementation
   }
 
   @override
   void dispose() {
-    // No-op implementation
+    // no-op implementation
   }
 
   @override

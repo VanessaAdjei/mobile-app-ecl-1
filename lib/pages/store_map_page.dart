@@ -64,7 +64,7 @@ class _StoreMapPageState extends State<StoreMapPage> {
 
     print('🗺️ Creating markers for ${widget.stores.length} stores');
 
-    // Add some test stores if no stores are available
+    // if we dont have any stores, add some test ones
     List<dynamic> storesToProcess = widget.stores;
     if (storesToProcess.isEmpty) {
       print('🗺️ No stores available, adding test stores');
@@ -93,17 +93,46 @@ class _StoreMapPageState extends State<StoreMapPage> {
 
       print('🗺️ Processing store: $storeName');
       print('🗺️ Store data keys: ${store.keys.toList()}');
-      print('🗺️ Latitude: ${store['latitude']}');
-      print('🗺️ Longitude: ${store['longitude']}');
+      print('🗺️ Latitude (latitude): ${store['latitude']}');
+      print('🗺️ Longitude (longitude): ${store['longitude']}');
+      print('🗺️ Latitude (lat): ${store['lat']}');
+      print('🗺️ Longitude (lng): ${store['lng']}');
 
-      // Get coordinates
-      double lat, lng;
+      // Get coordinates - check both field name variations
+      double? lat, lng;
+
+      // Try latitude/longitude first
       if (store['latitude'] != null && store['longitude'] != null) {
-        lat = double.parse(store['latitude'].toString());
-        lng = double.parse(store['longitude'].toString());
-        print('🗺️ Using API coordinates: $lat, $lng');
-      } else {
-        // Use estimated coordinates
+        final latValue = double.tryParse(store['latitude'].toString());
+        final lngValue = double.tryParse(store['longitude'].toString());
+        if (latValue != null &&
+            lngValue != null &&
+            latValue != 0.0 &&
+            lngValue != 0.0) {
+          lat = latValue;
+          lng = lngValue;
+          print('🗺️ Using API coordinates (latitude/longitude): $lat, $lng');
+        }
+      }
+
+      // if that didnt work, try lat/lng
+      if (lat == null || lng == null) {
+        if (store['lat'] != null && store['lng'] != null) {
+          final latValue = double.tryParse(store['lat'].toString());
+          final lngValue = double.tryParse(store['lng'].toString());
+          if (latValue != null &&
+              lngValue != null &&
+              latValue != 0.0 &&
+              lngValue != 0.0) {
+            lat = latValue;
+            lng = lngValue;
+            print('🗺️ Using API coordinates (lat/lng): $lat, $lng');
+          }
+        }
+      }
+
+      // if we still dont have coordinates, just guess based on the city
+      if (lat == null || lng == null) {
         final coords = _getEstimatedCoordinates(store);
         lat = coords['lat']!;
         lng = coords['lng']!;
@@ -112,7 +141,7 @@ class _StoreMapPageState extends State<StoreMapPage> {
 
       final isSelected = storeId == _selectedMarkerId;
 
-      // Create custom marker icon
+      // make a custom marker icon
       final customIcon = await CustomAnimatedMarker.createAnimatedMarker(
         text: '🏪',
         backgroundColor: isSelected ? Colors.blue : Colors.green,
@@ -135,7 +164,7 @@ class _StoreMapPageState extends State<StoreMapPage> {
       );
     }
 
-    // Add user location marker if available
+    // add a marker for where the user is (if we know)
     if (_userLocation != null) {
       final userIcon = await CustomAnimatedMarker.createAnimatedMarker(
         text: '📍',
@@ -170,10 +199,10 @@ class _StoreMapPageState extends State<StoreMapPage> {
       _selectedMarkerId = markerId;
     });
 
-    // Recreate markers with updated selection
+    // remake markers with the new selection
     _createMarkers();
 
-    // Find the tapped store and show info
+    // find which store they tapped and show its info
     final store = widget.stores.firstWhere(
       (store) => store['id']?.toString() == markerId,
       orElse: () => null,
@@ -197,7 +226,7 @@ class _StoreMapPageState extends State<StoreMapPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Handle bar
+            // the drag handle bar
             Center(
               child: Container(
                 width: 40,
@@ -210,7 +239,7 @@ class _StoreMapPageState extends State<StoreMapPage> {
             ),
             const SizedBox(height: 20),
 
-            // Store info
+            // store name and address
             Row(
               children: [
                 Container(
@@ -253,7 +282,7 @@ class _StoreMapPageState extends State<StoreMapPage> {
 
             const SizedBox(height: 20),
 
-            // Action buttons
+            // buttons to call or get directions
             Row(
               children: [
                 Expanded(
@@ -321,10 +350,6 @@ class _StoreMapPageState extends State<StoreMapPage> {
       print('🗺️ No markers to fit in view');
       return;
     }
-    if (_mapController == null) {
-      print('🗺️ Map controller is null');
-      return;
-    }
 
     double minLat = double.infinity;
     double maxLat = -double.infinity;
@@ -356,7 +381,7 @@ class _StoreMapPageState extends State<StoreMapPage> {
   }
 
   Map<String, double> _getEstimatedCoordinates(dynamic store) {
-    // Default coordinates for Ghana (center of the country)
+    // default to center of ghana if we dont know where it is
     double lat = 7.9465;
     double lng = -1.0232;
 
@@ -364,33 +389,153 @@ class _StoreMapPageState extends State<StoreMapPage> {
     final cityName = store['city_name']?.toString().toLowerCase() ?? '';
     final storeName = store['description']?.toString().toLowerCase() ?? '';
 
+    print('🗺️ ESTIMATING COORDS for: $regionName, $cityName, $storeName');
+
     // More precise coordinates for major Ghanaian cities and regions
     if (regionName.contains('accra') || cityName.contains('accra')) {
+      // accra region - use more specific coordinates
       if (storeName.contains('circle')) {
         lat = 5.5500;
         lng = -0.1833;
+        print('🗺️ Using Circle Accra coordinates: $lat, $lng');
       } else if (storeName.contains('nester') || storeName.contains('square')) {
         lat = 5.6037;
         lng = -0.1870;
+        print('🗺️ Using Nester Square coordinates: $lat, $lng');
       } else if (storeName.contains('volta') || storeName.contains('place')) {
         lat = 5.6037;
         lng = -0.1870;
+        print('🗺️ Using Volta Place coordinates: $lat, $lng');
       } else {
+        // General Accra coordinates
         lat = 5.6037;
         lng = -0.1870;
+        print('🗺️ Using general Accra coordinates: $lat, $lng');
       }
     } else if (regionName.contains('kumasi') || cityName.contains('kumasi')) {
       lat = 6.6885;
       lng = -1.6244;
+      print('🗺️ Using Kumasi coordinates: $lat, $lng');
     } else if (regionName.contains('tamale') || cityName.contains('tamale')) {
       lat = 9.4035;
       lng = -0.8423;
+      print('🗺️ Using Tamale coordinates: $lat, $lng');
     } else if (regionName.contains('sekondi') ||
         cityName.contains('sekondi') ||
         regionName.contains('takoradi') ||
         cityName.contains('takoradi')) {
       lat = 4.9340;
       lng = -1.7300;
+      print('🗺️ Using Sekondi-Takoradi coordinates: $lat, $lng');
+    } else if (regionName.contains('sunyani') || cityName.contains('sunyani')) {
+      lat = 7.3399;
+      lng = -2.3268;
+      print('🗺️ Using Sunyani coordinates: $lat, $lng');
+    } else if (regionName.contains('ho') || cityName.contains('ho')) {
+      lat = 6.6000;
+      lng = 0.4700;
+      print('🗺️ Using Ho coordinates: $lat, $lng');
+    } else if (regionName.contains('koforidua') ||
+        cityName.contains('koforidua')) {
+      lat = 6.0833;
+      lng = -0.2500;
+      print('🗺️ Using Koforidua coordinates: $lat, $lng');
+    } else if (regionName.contains('cape coast') ||
+        cityName.contains('cape coast')) {
+      lat = 5.1053;
+      lng = -1.2466;
+      print('🗺️ Using Cape Coast coordinates: $lat, $lng');
+    } else if (regionName.contains('tema') || cityName.contains('tema')) {
+      lat = 5.6795;
+      lng = -0.0167;
+      print('🗺️ Using Tema coordinates: $lat, $lng');
+    } else if (regionName.contains('ashaiman') ||
+        cityName.contains('ashaiman')) {
+      lat = 5.6167;
+      lng = -0.0667;
+      print('🗺️ Using Ashaiman coordinates: $lat, $lng');
+    } else if (regionName.contains('madina') || cityName.contains('madina')) {
+      lat = 5.6833;
+      lng = -0.1667;
+      print('🗺️ Using Madina coordinates: $lat, $lng');
+    } else if (regionName.contains('adenta') || cityName.contains('adenta')) {
+      lat = 5.7000;
+      lng = -0.1667;
+      print('🗺️ Using Adenta coordinates: $lat, $lng');
+    } else if (regionName.contains('spintex') || cityName.contains('spintex')) {
+      lat = 5.6167;
+      lng = -0.1833;
+      print('🗺️ Using Spintex coordinates: $lat, $lng');
+    } else if (regionName.contains('east legon') ||
+        cityName.contains('east legon')) {
+      lat = 5.6500;
+      lng = -0.1833;
+      print('🗺️ Using East Legon coordinates: $lat, $lng');
+    } else if (regionName.contains('west legon') ||
+        cityName.contains('west legon')) {
+      lat = 5.6500;
+      lng = -0.2000;
+      print('🗺️ Using West Legon coordinates: $lat, $lng');
+    } else if (regionName.contains('airport') || cityName.contains('airport')) {
+      lat = 5.6053;
+      lng = -0.1674;
+      print('🗺️ Using Airport coordinates: $lat, $lng');
+    } else if (regionName.contains('oshie') || cityName.contains('oshie')) {
+      lat = 5.6167;
+      lng = -0.1833;
+      print('🗺️ Using Oshie coordinates: $lat, $lng');
+    } else if (regionName.contains('dansoman') ||
+        cityName.contains('dansoman')) {
+      lat = 5.5500;
+      lng = -0.2333;
+      print('🗺️ Using Dansoman coordinates: $lat, $lng');
+    } else if (regionName.contains('kanda') || cityName.contains('kanda')) {
+      lat = 5.6167;
+      lng = -0.1833;
+      print('🗺️ Using Kanda coordinates: $lat, $lng');
+    } else if (regionName.contains('nima') || cityName.contains('nima')) {
+      lat = 5.6167;
+      lng = -0.1833;
+      print('🗺️ Using Nima coordinates: $lat, $lng');
+    } else if (regionName.contains('mamprobi') ||
+        cityName.contains('mamprobi')) {
+      lat = 5.5500;
+      lng = -0.2333;
+      print('🗺️ Using Mamprobi coordinates: $lat, $lng');
+    } else if (regionName.contains('korle bu') ||
+        cityName.contains('korle bu')) {
+      lat = 5.5500;
+      lng = -0.2333;
+      print('🗺️ Using Korle Bu coordinates: $lat, $lng');
+    } else if (regionName.contains('jamestown') ||
+        cityName.contains('jamestown')) {
+      lat = 5.5500;
+      lng = -0.2333;
+      print('🗺️ Using Jamestown coordinates: $lat, $lng');
+    } else if (regionName.contains('osu') || cityName.contains('osu')) {
+      lat = 5.5500;
+      lng = -0.1833;
+      print('🗺️ Using Osu coordinates: $lat, $lng');
+    } else if (regionName.contains('cantonments') ||
+        cityName.contains('cantonments')) {
+      lat = 5.6167;
+      lng = -0.1833;
+      print('🗺️ Using Cantonments coordinates: $lat, $lng');
+    } else if (regionName.contains('labone') || cityName.contains('labone')) {
+      lat = 5.6167;
+      lng = -0.1833;
+      print('🗺️ Using Labone coordinates: $lat, $lng');
+    } else if (regionName.contains('ring road') ||
+        cityName.contains('ring road')) {
+      lat = 5.6167;
+      lng = -0.1833;
+      print('🗺️ Using Ring Road coordinates: $lat, $lng');
+    } else if (regionName.contains('circle') || cityName.contains('circle')) {
+      lat = 5.5500;
+      lng = -0.1833;
+      print('🗺️ Using Circle coordinates: $lat, $lng');
+    } else {
+      print('🗺️ Using default Ghana coordinates: $lat, $lng');
     }
 
     return {'lat': lat, 'lng': lng};
@@ -433,7 +578,7 @@ class _StoreMapPageState extends State<StoreMapPage> {
             onMapCreated: (GoogleMapController controller) {
               _mapController = controller;
               print('🗺️ Map controller created');
-              // Fit all markers in view after map is created
+              // make sure all markers are visible on the map
               Future.delayed(const Duration(milliseconds: 1000), () {
                 print('🗺️ Attempting to fit markers in view');
                 _fitMarkersInView();
@@ -455,7 +600,7 @@ class _StoreMapPageState extends State<StoreMapPage> {
             minMaxZoomPreference: const MinMaxZoomPreference(6.0, 20.0),
           ),
 
-          // Store count indicator
+          // show how many stores there are
           Positioned(
             top: 16,
             left: 16,

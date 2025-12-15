@@ -46,7 +46,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
 
   bool isLoading = false;
   String otp = '';
-  // Resend OTP functionality commented out
+  // resend otp stuff is turned off for now
   // bool canResend = false;
   // int resendCountdown = 60;
   // Timer? resendTimer;
@@ -62,22 +62,22 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
   @override
   void codeUpdated() {
     setState(() {
-      // This method is called when SMS is received and code is detected
-      // The code will be automatically filled in the fields
+      // this gets called when we get an sms with the code
+      // the code will automatically fill in the fields
     });
   }
 
-  // Initialize SMS listener for auto-fill
+  // set up sms listener so it auto-fills the code
   Future<void> _initSmsListener() async {
     try {
-      // Get app signature for SMS detection
+      // get app signature so we can detect sms
       _appSignature = await SmsAutoFill().getAppSignature;
       debugPrint('App signature: $_appSignature');
 
-      // Listen for SMS with OTP
+      // listen for sms with the otp code
       await SmsAutoFill().listenForCode();
 
-      // Set up listener for when code is received
+      // listen for when we get the code
       SmsAutoFill().code.listen((code) {
         if (code.length == 5) {
           _autoFillOtp(code);
@@ -88,7 +88,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
     }
   }
 
-  // Auto-fill OTP when SMS is received
+  // automatically fill in the otp when we get the sms
   void _autoFillOtp(String code) {
     if (code.length == 5) {
       for (int i = 0; i < 5; i++) {
@@ -98,7 +98,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
         otp = code;
       });
 
-      // Auto-verify after filling
+      // automatically verify after filling it in
       _verifyOtp();
     }
   }
@@ -111,9 +111,9 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
     for (var node in focusNodes) {
       node.dispose();
     }
-    // resendTimer?.cancel(); // Resend functionality commented out
+    // resendTimer?.cancel(); // resend stuff is turned off
 
-    // Clean up SMS listener
+    // stop listening for sms
     SmsAutoFill().unregisterListener();
 
     super.dispose();
@@ -147,7 +147,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
       focusNodes[index - 1].requestFocus();
     }
 
-    // Auto-verify when all 5 characters are entered
+    // automatically verify when all 5 digits are entered
     if (otp.length == 5) {
       _verifyOtp();
     }
@@ -167,7 +167,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
       if (isVerified) {
         _showSuccess("OTP verified successfully!");
 
-        // Auto-login if credentials are provided (for signup flow)
+        // automatically log them in if we have their credentials (for signup)
         if (widget.password != null && widget.name != null) {
           try {
             debugPrint('🔄 Starting auto-login process for: ${widget.email}');

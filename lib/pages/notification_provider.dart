@@ -6,10 +6,19 @@ class NotificationProvider extends ChangeNotifier {
   int _unreadCount = 0;
   bool _hasShownSnackbar = false;
   int _newOrderCount = 0;
+  int _lastShownUnreadCount = 0; // Track the unread count that was last shown
 
   int get unreadCount => _unreadCount;
   bool get hasShownSnackbar => _hasShownSnackbar;
   int get newOrderCount => _newOrderCount;
+
+  // Check if we should show snackbar (only if count increased)
+  bool shouldShowSnackbar(int currentUnreadCount) {
+    // Only show if:
+    // 1. There are unread notifications
+    // 2. The count has increased since last shown (new notifications)
+    return currentUnreadCount > 0 && currentUnreadCount > _lastShownUnreadCount;
+  }
 
   Future<void> initialize() async {
     debugPrint('📱 NotificationProvider: Initializing...');
@@ -58,6 +67,12 @@ class NotificationProvider extends ChangeNotifier {
     await OrderNotificationService.markAsRead(notificationId);
     await _loadUnreadCount();
     await _loadNewOrderCount(); // Also refresh new order count
+
+    // If all notifications are read, reset tracking
+    if (_unreadCount == 0) {
+      resetOnNotificationsRead();
+    }
+
     notifyListeners();
   }
 
@@ -66,6 +81,10 @@ class NotificationProvider extends ChangeNotifier {
     await OrderNotificationService.markAllAsRead();
     await _loadUnreadCount();
     await _loadNewOrderCount();
+
+    // Reset tracking since all notifications are read
+    resetOnNotificationsRead();
+
     notifyListeners();
   }
 
@@ -73,6 +92,10 @@ class NotificationProvider extends ChangeNotifier {
     await OrderNotificationService.markAllAsRead();
     await _loadUnreadCount();
     await _loadNewOrderCount();
+
+    // Reset tracking since notifications are viewed
+    resetOnNotificationsRead();
+
     notifyListeners();
   }
 
@@ -110,21 +133,29 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
-
   Future<void> forceRefresh() async {
     await _loadUnreadCount();
-    await _loadNewOrderCount(); 
+    await _loadNewOrderCount();
   }
 
-  /// Mark snackbar as shown globally
-  void markSnackbarAsShown() {
+  /// Mark snackbar as shown globally with the current unread count
+  void markSnackbarAsShown(int unreadCount) {
     _hasShownSnackbar = true;
+    _lastShownUnreadCount = unreadCount; // Remember the count that was shown
     notifyListeners();
   }
 
-  /// Reset snackbar flag
+  /// Reset snackbar flag (but keep the last shown count to prevent re-showing same notifications)
   void resetSnackbarFlag() {
     _hasShownSnackbar = false;
+    // Don't reset _lastShownUnreadCount - we want to remember what was shown
+    notifyListeners();
+  }
+
+  /// Reset everything when notifications are read
+  void resetOnNotificationsRead() {
+    _hasShownSnackbar = false;
+    _lastShownUnreadCount = 0;
     notifyListeners();
   }
 }

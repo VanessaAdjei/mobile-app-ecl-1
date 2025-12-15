@@ -178,7 +178,8 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
 
     try {
       final cartItem = CartItem(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        // Use server cart ID only; start with empty and update after server response
+        id: '',
         productId: product.id.toString(),
         originalProductId: product.id.toString(),
         name: product.name,
@@ -218,14 +219,23 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
     } catch (e) {
       if (mounted) {
         final errorMessage = e.toString();
+        String displayMessage;
+
         if (errorMessage.contains('out of stock') ||
+            errorMessage.contains('unavailable') ||
             errorMessage.contains('only has') ||
-            errorMessage.contains('units available')) {
-          _showErrorSnackBar(
-              context, errorMessage.replaceAll('Exception: ', ''));
+            errorMessage.contains('units available') ||
+            errorMessage.contains('Unable to verify stock')) {
+          // Clean up the error message for display
+          displayMessage = errorMessage
+              .replaceAll('Exception: ', '')
+              .replaceAll('Error: ', '')
+              .trim();
         } else {
-          _showErrorSnackBar(context, 'Error adding item to cart: $e');
+          displayMessage = 'Error adding item to cart. Please try again.';
         }
+
+        _showErrorSnackBar(context, displayMessage);
       }
     }
   }

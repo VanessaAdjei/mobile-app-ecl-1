@@ -6,10 +6,10 @@ class CategorySearchDelegate extends SearchDelegate {
   final List<dynamic> categories;
   final Map<int, List<dynamic>> subcategoriesMap;
 
-  // Cache for search results
+  // cache search results so we dont search the same thing twice
   final Map<String, List<dynamic>> _searchCache = {};
 
-  // Search history
+  // remember what they searched before
   final List<String> _searchHistory = [];
 
   CategorySearchDelegate(this.categories, this.subcategoriesMap);
@@ -75,7 +75,7 @@ class CategorySearchDelegate extends SearchDelegate {
                 TextButton(
                   onPressed: () {
                     _searchHistory.clear();
-                    // In a real app, you'd save this to persistent storage
+                    // in a real app you'd save this to storage
                   },
                   child: Text(
                     'Clear',
@@ -167,13 +167,13 @@ class CategorySearchDelegate extends SearchDelegate {
       return _buildResultsList(_searchCache[query]!);
     }
 
-    // Perform search
+    // do the search
     final filteredCategories = _performSearch();
 
     // Cache the result
     _searchCache[query] = filteredCategories;
 
-    // Add to search history
+    // add to search history
     if (!_searchHistory.contains(query)) {
       _searchHistory.insert(0, query);
       if (_searchHistory.length > 10) {
@@ -194,11 +194,11 @@ class CategorySearchDelegate extends SearchDelegate {
       final categoryDescription =
           (category['description'] ?? '').toString().toLowerCase();
 
-      // Check if all query words are found in category name or description
+      // check if all the search words are in the category name or description
       bool matchesCategory = queryWords.every((word) =>
           categoryName.contains(word) || categoryDescription.contains(word));
 
-      // Check subcategories
+      // also check subcategories
       final subcategories = subcategoriesMap[category['id']] ?? [];
       final hasMatchingSubcategory = subcategories.any((subcategory) {
         final subcategoryName = subcategory['name'].toString().toLowerCase();
@@ -263,10 +263,8 @@ class CategorySearchDelegate extends SearchDelegate {
             if (index > 0) const Divider(height: 1),
             _buildCategoryTile(context, category, matchingSubcategories),
             if (matchingSubcategories.isNotEmpty)
-              ...matchingSubcategories
-                  .map((subcategory) =>
-                      _buildSubcategoryTile(context, subcategory))
-                  ,
+              ...matchingSubcategories.map(
+                  (subcategory) => _buildSubcategoryTile(context, subcategory)),
           ],
         );
       },
