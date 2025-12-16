@@ -41,8 +41,8 @@ class SplashScreenState extends State<SplashScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Colors.green.shade700,
-              Colors.green.shade500,
+              const Color(0xFF20AF67),
+              const Color(0xFF20AF67).withOpacity(0.8),
               Colors.white,
             ],
             stops: const [0.0, 0.7, 1.0],

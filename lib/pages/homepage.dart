@@ -524,7 +524,12 @@ class HomePageState extends State<HomePage>
   bool get wantKeepAlive => true;
 
   _launchPhoneDialer(String phoneNumber) async {
+    if (!mounted) return;
+
     final permissionStatus = await Permission.phone.request();
+
+    if (!mounted) return;
+
     if (permissionStatus.isGranted) {
       final String formattedPhoneNumber = 'tel:$phoneNumber';
       if (await canLaunchUrl(Uri.parse(formattedPhoneNumber))) {
@@ -2199,22 +2204,15 @@ class HomePageState extends State<HomePage>
                           vertical: 8,
                         ),
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.green.shade50,
-                              Colors.green.shade50.withOpacity(0.5),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(19),
                           border: Border.all(
-                            color: Colors.green.shade200.withOpacity(0.5),
+                            color: Colors.green.shade700,
                             width: 1.5,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.green.shade100.withOpacity(0.3),
+                              color: Colors.black.withOpacity(0.05),
                               blurRadius: 6,
                               offset: const Offset(0, 2),
                             ),
@@ -3387,9 +3385,7 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
     final double currentOffset =
         _scrollController.hasClients ? _scrollController.offset : 0.0;
     final int activeIndex = (itemWidth > 0 && banners.isNotEmpty)
-        ? (currentOffset / itemWidth)
-            .round()
-            .clamp(0, banners.length - 1)
+        ? (currentOffset / itemWidth).round().clamp(0, banners.length - 1)
         : 0;
 
     return Column(
@@ -3496,7 +3492,7 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
             padding: const EdgeInsets.only(top: 8.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
-                     children: List.generate(
+              children: List.generate(
                 banners.length,
                 (index) => Container(
                   width: index == activeIndex ? 8 : 6,

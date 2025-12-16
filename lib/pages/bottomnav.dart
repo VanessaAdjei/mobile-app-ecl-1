@@ -1,5 +1,6 @@
 // pages/bottomnav.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -39,7 +40,9 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
 
     // Check for new notifications when the app becomes active
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkForNewNotifications();
+      if (mounted && !_disposed) {
+        _checkForNewNotifications();
+      }
     });
   }
 
@@ -109,9 +112,13 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
   }
 
   Future<void> _checkForNewNotifications() async {
+    if (!mounted || _disposed) return;
+
     try {
       final unreadCount =
           await OrderNotificationService.getCurrentUnreadCount();
+
+      if (!mounted || _disposed) return;
 
       // use NotificationProvider to check if snackbar should be shown
       final notificationProvider =
@@ -124,16 +131,14 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
         // mark as shown globally with the current unread count
         notificationProvider.markSnackbarAsShown(unreadCount);
 
-        if (mounted && !_disposed) {
+        // Use post frame callback to show snackbar safely
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || _disposed || !context.mounted) return;
+
           final scaffoldMessenger = ScaffoldMessenger.of(context);
 
           // Clear any existing snackbars first, then show new one
           scaffoldMessenger.clearSnackBars();
-
-          // Small delay to ensure state is reset
-          await Future.delayed(const Duration(milliseconds: 100));
-
-          if (!mounted || _disposed) return;
 
           // Show the snackbar
           scaffoldMessenger.showSnackBar(
@@ -163,7 +168,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
                   scaffoldMessenger.hideCurrentSnackBar();
 
                   // check if widget is still mounted before navigating
-                  if (mounted) {
+                  if (mounted && !_disposed && context.mounted) {
                     // reset the notification tracking since they're viewing notifications
                     notificationProvider.resetOnNotificationsRead();
 
@@ -179,14 +184,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
               ),
             ),
           );
-
-          // Fallback: Ensure snackbar is cleared after duration + small buffer
-          Future.delayed(const Duration(seconds: 2, milliseconds: 500), () {
-            if (mounted && !_disposed) {
-              scaffoldMessenger.hideCurrentSnackBar();
-            }
-          });
-        }
+        });
       } else if (unreadCount == 0) {
         // if there are no unread notifications, reset everything
         notificationProvider.resetOnNotificationsRead();
@@ -200,7 +198,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     // Defer showing the bottom sheet until after the current frame
     // to avoid Navigator lock issues
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!context.mounted) return;
+      if (!mounted || _disposed || !context.mounted) return;
       showModalBottomSheet(
         context: context,
         backgroundColor: Colors.transparent,
@@ -557,7 +555,12 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
   }
 
   Future<void> _launchPhoneDialer(String phoneNumber) async {
+    if (!mounted || _disposed) return;
+
     final permissionStatus = await Permission.phone.request();
+
+    if (!mounted || _disposed) return;
+
     if (permissionStatus.isGranted) {
       final String formattedPhoneNumber = 'tel:$phoneNumber';
       if (await canLaunchUrl(Uri.parse(formattedPhoneNumber))) {
@@ -619,7 +622,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     }
   }
 
-  void _onItemTapped(int index) async {
+  void _onItemTapped(int index) {
     debugPrint('🔍 BOTTOM NAV TAPPED ===');
     debugPrint('Index: $index');
     debugPrint('Current Index: $_selectedIndex');
@@ -683,22 +686,15 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     // set navigating flag
     _isNavigating = true;
 
-    // Update the selected index first
+    // Update state immediately (synchronously) - safe in tap handler
     setState(() {
       _selectedIndex = index;
     });
 
-    // wait a bit longer to make sure the widget tree is stable
-    await Future.delayed(Duration(milliseconds: 200));
-
-    if (!mounted) {
-      _isNavigating = false;
-      return;
-    }
-
-    // Use WidgetsBinding.instance.addPostFrameCallback to ensure navigation happens after the frame
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
+    // Use Future.microtask instead of addPostFrameCallback to avoid frame conflicts
+    // This defers navigation to the next event loop iteration, after the current frame
+    Future.microtask(() {
+      if (!mounted || _disposed || !context.mounted) {
         _isNavigating = false;
         return;
       }
@@ -729,7 +725,6 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
             );
             break;
           case 2:
-            // Plus icon - menu already shown in _onItemTapped, just return
             break;
           case 3:
             Navigator.pushReplacement(
@@ -751,14 +746,10 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
       } catch (e) {
         debugPrint('🔍 NAVIGATION ERROR: $e ===');
       } finally {
-        // reset navigating flag after a delay
-        Future.delayed(Duration(milliseconds: 500), () {
-          if (mounted && !_disposed) {
-            setState(() {
-              _isNavigating = false;
-            });
-          }
-        });
+        // Reset navigating flag
+        if (mounted && !_disposed) {
+          _isNavigating = false;
+        }
       }
     });
   }
@@ -769,161 +760,293 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    final navHeight = screenHeight * 0.09;
     final iconSize = screenWidth * 0.05;
     final fontSize = screenWidth * 0.025;
 
-    final finalNavHeight = navHeight.clamp(100.0, 130.0);
-    final finalIconSize = iconSize.clamp(18.0, 24.0);
-    final finalFontSize = fontSize.clamp(8.0, 12.0);
+    final finalIconSize = iconSize.clamp(16.0, 20.0);
+    final finalFontSize = fontSize.clamp(7.0, 10.0);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.green.shade700,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(5),
-          topRight: Radius.circular(5),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            spreadRadius: 2,
-            blurRadius: 10,
-          ),
-        ],
-      ),
-      child: SizedBox(
-        height: finalNavHeight,
-        child: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.transparent,
-          selectedItemColor: Colors.white,
-          unselectedItemColor: Colors.white70,
-          elevation: 0,
-          currentIndex: _selectedIndex,
-          onTap: _onItemTapped,
-          selectedFontSize: finalFontSize,
-          unselectedFontSize: finalFontSize,
-          iconSize: finalIconSize,
-          // fix overflow by reducing text height
-          selectedLabelStyle: TextStyle(
-            fontSize: finalFontSize,
-            height: 0.9, // Reduce line height to prevent overflow
-          ),
-          unselectedLabelStyle: TextStyle(
-            fontSize: finalFontSize,
-            height: 0.9, // Reduce line height to prevent overflow
-          ),
-          items: [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home),
-              label: 'Home',
+    return SafeArea(
+      top: false,
+      bottom: false,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Main navigation bar with curved notch
+          Container(
+            constraints: BoxConstraints(
+              minHeight: 68.0,
+              maxHeight: 88.0,
             ),
-            BottomNavigationBarItem(
-              icon: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const Icon(Icons.shopping_cart),
-                  if (cart.totalItems > 0)
-                    Positioned(
-                      right: -6,
-                      top: -3,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
-                        ),
-                        child: Text(
-                          '${cart.totalItems}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                ],
+            decoration: BoxDecoration(
+              color: Colors.green.shade700,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
               ),
-              label: 'Cart',
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, -4),
+                  spreadRadius: 0,
+                ),
+              ],
             ),
-            BottomNavigationBarItem(
-              icon: Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+            child: ClipPath(
+              clipper: _NotchedBottomNavClipper(),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.only(bottom: 4),
+                child: BottomNavigationBar(
+                  type: BottomNavigationBarType.fixed,
+                  backgroundColor: Colors.transparent,
+                  selectedItemColor: Colors.white,
+                  unselectedItemColor: Colors.white.withOpacity(0.7),
+                  elevation: 0,
+                  currentIndex: _selectedIndex,
+                  onTap: _onItemTapped,
+                  selectedFontSize: finalFontSize,
+                  unselectedFontSize: finalFontSize,
+                  iconSize: finalIconSize,
+                  showSelectedLabels: true,
+                  showUnselectedLabels: true,
+                  selectedLabelStyle: TextStyle(
+                    fontSize: finalFontSize,
+                    height: 0.5,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  unselectedLabelStyle: TextStyle(
+                    fontSize: finalFontSize,
+                    height: 0.5,
+                    color: Colors.white.withOpacity(0.7),
+                    fontWeight: FontWeight.w400,
+                  ),
+                  items: [
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.home_rounded),
+                      label: 'Home',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          const Icon(Icons.shopping_cart_rounded),
+                          if (cart.totalItems > 0)
+                            Positioned(
+                              right: -6,
+                              top: -4,
+                              child: Container(
+                                padding: const EdgeInsets.all(3),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.red.withOpacity(0.5),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 18,
+                                  minHeight: 18,
+                                ),
+                                child: Text(
+                                  '${cart.totalItems}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      label: 'Cart',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: SizedBox.shrink(),
+                      label: '',
+                    ),
+                    const BottomNavigationBarItem(
+                      icon: Icon(Icons.grid_view_rounded),
+                      label: 'Categories',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Consumer<NotificationProvider>(
+                        builder: (context, notificationProvider, child) {
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              const Icon(Icons.person_rounded),
+                              if (notificationProvider.unreadCount > 0)
+                                Positioned(
+                                  right: -6,
+                                  top: -4,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(3),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          notificationProvider.newOrderCount > 0
+                                              ? Colors.blue
+                                              : Colors.orange,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: (notificationProvider
+                                                          .newOrderCount >
+                                                      0
+                                                  ? Colors.blue
+                                                  : Colors.orange)
+                                              .withOpacity(0.5),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 18,
+                                      minHeight: 18,
+                                    ),
+                                    child: Text(
+                                      '${notificationProvider.unreadCount}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                      label: 'Profile',
                     ),
                   ],
                 ),
-                child: const Icon(
-                  Icons.apps,
-                  color: Colors.green,
-                  size: 26,
+              ),
+            ),
+          ),
+          // Floating center button with fluid design
+          Positioned(
+            left: 0,
+            right: 0,
+            top: -28,
+            child: Center(
+              child: GestureDetector(
+                onTap: () => _onItemTapped(2),
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white,
+                        Colors.white.withOpacity(0.98),
+                      ],
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF20AF67).withValues(alpha: 0.3),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                        spreadRadius: 0,
+                      ),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 20,
+                        offset: const Offset(0, 4),
+                        spreadRadius: -4,
+                      ),
+                    ],
+                  ),
+                  child: Container(
+                    margin: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          const Color(0xFF20AF67).withOpacity(0.1),
+                          const Color(0xFF20AF67).withOpacity(0.05),
+                        ],
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.apps_rounded,
+                      color: Color(0xFF20AF67),
+                      size: 28,
+                    ),
+                  ),
                 ),
               ),
-              label: '',
             ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.grid_view),
-              label: 'Categories',
-            ),
-            BottomNavigationBarItem(
-              icon: Consumer<NotificationProvider>(
-                builder: (context, notificationProvider, child) {
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const Icon(Icons.person),
-                      if (notificationProvider.unreadCount > 0)
-                        Positioned(
-                          right: -6,
-                          top: -3,
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              // blue dot for new orders, orange for other notifications
-                              color: notificationProvider.newOrderCount > 0
-                                  ? Colors.blue
-                                  : Colors.orange,
-                              shape: BoxShape.circle,
-                            ),
-                            constraints: const BoxConstraints(
-                              minWidth: 16,
-                              minHeight: 16,
-                            ),
-                            child: Text(
-                              '${notificationProvider.unreadCount}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-              label: 'Profile',
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+}
+
+// Custom clipper for curved notch in bottom nav
+class _NotchedBottomNavClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    final centerX = size.width / 2;
+    final notchRadius = 35.0;
+    final notchHeight = 20.0;
+
+    // Start from top left
+    path.moveTo(0, 0);
+
+    // Line to start of left curve
+    path.lineTo(centerX - notchRadius - 15, 0);
+
+    // Left curve going down
+    path.quadraticBezierTo(
+      centerX - notchRadius - 5,
+      0,
+      centerX - notchRadius,
+      notchHeight * 0.3,
+    );
+
+    // Bottom curve of notch
+    path.arcToPoint(
+      Offset(centerX + notchRadius, notchHeight * 0.3),
+      radius: Radius.circular(notchRadius),
+      clockwise: false,
+    );
+
+    // Right curve going up
+    path.quadraticBezierTo(
+      centerX + notchRadius + 5,
+      0,
+      centerX + notchRadius + 15,
+      0,
+    );
+
+    // Complete the rectangle
+    path.lineTo(size.width, 0);
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
+    path.close();
+
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

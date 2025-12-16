@@ -92,7 +92,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       'title': 'Welcome to Enerst Chemists',
       'desc': 'Your trusted pharmacy for health, wellness, and convenience.',
       'button': 'Continue',
-      'iconColor': null,
+      'iconColor': const Color(0xFF20AF67), // Base green
     },
     {
       'icon': Icons.delivery_dining,
@@ -100,7 +100,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       'desc':
           'Get your medicines and essentials delivered to your door, fast and reliably.',
       'button': 'Next',
-      'iconColor': Colors.green,
+      'iconColor': const Color(0xFF1A8F55), // Darker green
     },
     {
       'icon': Icons.shopping_cart,
@@ -108,7 +108,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       'desc':
           'Order prescriptions, wellness products, and more—all in one place.',
       'button': 'Next',
-      'iconColor': Colors.orange,
+      'iconColor': const Color(0xFF4BCF8F), // Lighter green
     },
     {
       'icon': Icons.support_agent,
@@ -116,21 +116,21 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       'desc':
           'Chat with a licensed pharmacist about your health concerns, anytime.',
       'button': 'Next',
-      'iconColor': Colors.teal,
+      'iconColor': const Color(0xFF159A5F), // Dark green
     },
     {
       'icon': Icons.warning_amber,
       'title': 'Important Safety Information',
       'desc': 'Please read carefully before using our services.',
       'button': 'Next',
-      'iconColor': Colors.orange,
+      'iconColor': Colors.amber.shade700,
     },
     {
       'icon': Icons.verified_user,
       'title': 'Why Sign Up?',
       'desc': '',
       'button': 'Get Started',
-      'iconColor': Colors.green,
+      'iconColor': const Color(0xFF20AF67),
     },
   ];
 
@@ -278,8 +278,9 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                                   height: 8,
                                   decoration: BoxDecoration(
                                     color: _currentPage == dotIndex
-                                        ? Colors.teal[700] // improved contrast
-                                        : Colors.teal[100],
+                                        ? const Color(0xFF20AF67)
+                                        : const Color(0xFF20AF67)
+                                            .withOpacity(0.3),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                 ),
@@ -309,7 +310,8 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                                           height: 52,
                                           child: ElevatedButton(
                                             style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.teal[700],
+                                              backgroundColor:
+                                                  const Color(0xFF20AF67),
                                               shape: RoundedRectangleBorder(
                                                 borderRadius:
                                                     BorderRadius.circular(28),
@@ -349,7 +351,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                                   "Let's get started on your health journey!",
                                   style: const TextStyle(
                                     fontSize: 16,
-                                    color: Colors.teal,
+                                    color: Color(0xFF20AF67),
                                     fontWeight: FontWeight.w600,
                                   ),
                                   textAlign: TextAlign.center,
@@ -372,7 +374,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                           child: const Text(
                             'Skip',
                             style: TextStyle(
-                              color: Colors.teal,
+                              color: const Color(0xFF20AF67),
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                             ),
@@ -477,14 +479,14 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
             Container(
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.orange.shade50,
+                color: Colors.amber.shade50,
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.orange.shade200, width: 2),
+                border: Border.all(color: Colors.amber.shade200, width: 2),
               ),
               child: Icon(
                 Icons.warning_amber_rounded,
                 size: 60,
-                color: Colors.orange.shade700,
+                color: Colors.amber.shade700,
               ),
             ),
             const SizedBox(height: 20),
@@ -494,10 +496,10 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.shade200),
+                border: Border.all(color: Colors.amber.shade200),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.orange.shade100,
+                    color: Colors.amber.shade100,
                     blurRadius: 8,
                     offset: Offset(0, 2),
                   ),
@@ -552,17 +554,17 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
             // Headline on top for 'Why Sign Up?'
             SizedBox(
               width: double.infinity,
-              child: Text(
-                'Why Sign Up?',
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-                textAlign: TextAlign.center,
-                softWrap: true,
-                overflow: TextOverflow.visible,
-              ),
+              // child: Text(
+              //   'Why Sign Up?',
+              //   style: const TextStyle(
+              //     fontSize: 28,
+              //     fontWeight: FontWeight.bold,
+              //     color: Colors.black,
+              //   ),
+              //   textAlign: TextAlign.center,
+              //   softWrap: true,
+              //   overflow: TextOverflow.visible,
+              // ),
             ),
             const SizedBox(height: 8),
             SvgPicture.asset(
@@ -576,13 +578,21 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
               children: [
                 _benefitRow(
                     Icons.medical_services, 'Order prescriptions easily',
-                    center: true, iconColor: Colors.blue, dense: true),
+                    center: true,
+                    iconColor: const Color(0xFF20AF67), // Green
+                    dense: true),
                 _benefitRow(Icons.local_shipping, 'Track your orders',
-                    center: true, iconColor: Colors.green, dense: true),
+                    center: true,
+                    iconColor: Colors.amber.shade700, // Amber
+                    dense: true),
                 _benefitRow(Icons.flash_on, 'Faster checkout',
-                    center: true, iconColor: Colors.amber, dense: true),
+                    center: true,
+                    iconColor: const Color(0xFF20AF67), // Green
+                    dense: true),
                 _benefitRow(Icons.card_giftcard, 'Exclusive offers & rewards',
-                    center: true, iconColor: Colors.orange, dense: true),
+                    center: true,
+                    iconColor: Colors.red.shade600, // Red
+                    dense: true),
               ],
             ),
             const SizedBox(height: 10),
@@ -605,7 +615,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(icon, color: iconColor ?? Colors.green[700], size: 28),
+            Icon(icon, color: iconColor ?? const Color(0xFF20AF67), size: 28),
             SizedBox(height: dense ? 3 : 6),
             Text(
               text,
@@ -624,7 +634,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            Icon(icon, color: iconColor ?? Colors.green[700], size: 22),
+            Icon(icon, color: iconColor ?? const Color(0xFF20AF67), size: 22),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -648,18 +658,14 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: EdgeInsets.all(8),
+          margin: const EdgeInsets.only(top: 6, right: 12),
+          width: 8,
+          height: 8,
           decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            icon,
-            color: iconColor,
-            size: 20,
+            color: const Color(0xFF20AF67),
+            shape: BoxShape.circle,
           ),
         ),
-        SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
