@@ -1,10 +1,14 @@
 // pages/map_picker_page.dart
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
+import 'package:http/http.dart' as http;
 import '../widgets/animated_map_pin.dart';
+import '../config/api_config.dart';
 
 class MapPickerPage extends StatefulWidget {
   final double initialLatitude;
@@ -77,24 +81,18 @@ class _MapPickerPageState extends State<MapPickerPage> {
         position: _selectedLocation,
         infoWindow: const InfoWindow(
           title: 'Selected Location',
-          snippet: 'Tap to confirm this location',
+          snippet: 'Use search or current location to select',
         ),
-        draggable: true,
+        draggable:
+            false, // Disabled - users can only select via search or current location
         icon: customIcon,
-        onDragEnd: (newPosition) {
-          setState(() {
-            _selectedLocation = newPosition;
-            _updateMarkers();
-          });
-          _getAddressFromCoordinates(
-              newPosition.latitude, newPosition.longitude);
-        },
       ),
     };
   }
 
   Future<void> _getAddressFromCoordinates(double lat, double lng) async {
     try {
+      if (!mounted) return;
       setState(() {
         _isLoadingAddress = true;
         _selectedAddress = 'Getting address...';
@@ -102,9 +100,13 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
       List<Placemark> placemarks = await placemarkFromCoordinates(lat, lng);
 
+      if (!mounted) return;
+
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
         String address = _buildReadableAddress(place);
+
+        if (!mounted) return;
 
         if (address.isNotEmpty) {
           setState(() {
@@ -118,6 +120,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
           });
         }
       } else {
+        if (!mounted) return;
         setState(() {
           _selectedAddress = 'Address not found';
           _isLoadingAddress = false;
@@ -125,6 +128,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
       }
     } catch (e) {
       print('🗺️ [MAP] Error getting address: $e');
+      if (!mounted) return;
       setState(() {
         _selectedAddress = 'Error loading address';
         _isLoadingAddress = false;
@@ -132,12 +136,36 @@ class _MapPickerPageState extends State<MapPickerPage> {
     }
   }
 
+  /// Check if a name looks like a real place name (not a Plus Code or just numbers)
+  bool _isValidPlaceName(String? name) {
+    if (name == null || name.isEmpty) return false;
+
+    final trimmed = name.trim();
+
+    // Reject Plus Codes (e.g., "HRXF+F4X") - they have + and are short alphanumeric
+    if (trimmed.contains('+') &&
+        trimmed.length <= 15 &&
+        RegExp(r'^[A-Z0-9]+\+[A-Z0-9]+$').hasMatch(trimmed)) {
+      return false;
+    }
+
+    // Reject if it's just numbers (but allow numbers with letters like "3rd Street")
+    if (RegExp(r'^\d+$').hasMatch(trimmed)) return false;
+
+    // Reject very short names (but allow 3+ characters)
+    if (trimmed.length < 3) return false;
+
+    // Must contain at least one letter to be a real place name
+    if (!RegExp(r'[a-zA-Z]').hasMatch(trimmed)) return false;
+
+    return true;
+  }
+
   /// Build a readable address from placemark, prioritizing place name
   /// Returns just the generic place name when available
   String _buildReadableAddress(Placemark place) {
-    // Priority 1: Use the place name if available (e.g., "Accra Mall", "Kumasi Central Market")
-    if (place.name != null &&
-        place.name!.isNotEmpty &&
+    // Priority 1: Use the place name if available and valid (e.g., "Accra Mall", "Kumasi Central Market")
+    if (_isValidPlaceName(place.name) &&
         place.name != place.street &&
         place.name != place.thoroughfare) {
       return place.name!;
@@ -292,115 +320,92 @@ class _MapPickerPageState extends State<MapPickerPage> {
     }
   }
 
-  // search for a place and move the map to it
+  // search for a place and move the map to it (using Google Geocoding API)
   Future<void> _searchLocation(String query) async {
-    try {
-      List<Location> locations = await locationFromAddress(query);
+    if (query.trim().isEmpty) return;
 
-      // if no results, try searching in ghana
-      if (locations.isEmpty) {
-        try {
-          locations = await locationFromAddress('$query, Ghana');
-        } catch (e) {
-          print('🗺️ [MAP] Ghana context search failed: $e');
-        }
-      }
+    // Try multiple search strategies
+    final searchQueries = [
+      query, // Try without context first (global search)
+      '$query, Ghana', // Try with Ghana context as fallback
+      if (query.length > 3)
+        query.substring(0, query.length - 1), // Partial match
+    ];
 
-      // if still nothing, try partial match
-      if (locations.isEmpty && query.length > 3) {
-        try {
-          String partialQuery = query.substring(0, query.length - 1);
-          locations = await locationFromAddress(partialQuery);
-        } catch (e) {
-          print('🗺️ [MAP] Partial match search failed: $e');
-        }
-      }
-
-      if (locations.isNotEmpty) {
-        // use the first result (probably the most relevant)
-        Location location = locations[0];
-        LatLng newLocation = LatLng(location.latitude, location.longitude);
-
-        // move the map to show the new location
-        _mapController.animateCamera(
-          CameraUpdate.newLatLngZoom(newLocation, 18.0),
+    for (final searchQuery in searchQueries) {
+      try {
+        final uri = Uri.parse(ApiConfig.googleMapsGeocodingUrl).replace(
+          queryParameters: {
+            'address': searchQuery,
+            'key': ApiConfig.googleMapsApiKey,
+          },
         );
 
-        // update the selected location and markers
-        setState(() {
-          _selectedLocation = newLocation;
-          _updateMarkers();
-        });
+        print('🗺️ [MAP] Calling Google Geocoding API: $uri');
 
-        // get the address for the new location
-        _getAddressFromCoordinates(location.latitude, location.longitude);
+        final response =
+            await http.get(uri).timeout(const Duration(seconds: 10));
 
-        // show a message that it worked
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Location found: $query'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
+        if (response.statusCode != 200) {
+          print(
+              '🗺️ [MAP] Google geocode HTTP error: ${response.statusCode} ${response.body}');
+          continue; // Try next search query
         }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Location not found: $query'),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 2),
-            ),
+
+        final data = json.decode(response.body);
+        final status = data['status'];
+        print('🗺️ [MAP] Google geocode status: $status');
+
+        if (status == 'OK' &&
+            data['results'] != null &&
+            data['results'].isNotEmpty) {
+          final result = data['results'][0];
+          final location = result['geometry']['location'];
+          final double lat = (location['lat'] as num).toDouble();
+          final double lng = (location['lng'] as num).toDouble();
+
+          LatLng newLocation = LatLng(lat, lng);
+
+          // move the map to show the new location
+          _mapController.animateCamera(
+            CameraUpdate.newLatLngZoom(newLocation, 18.0),
           );
+
+          // update the selected location and markers
+          setState(() {
+            _selectedLocation = newLocation;
+            _updateMarkers();
+          });
+
+          // get the address for the new location
+          _getAddressFromCoordinates(lat, lng);
+
+          // show a message that it worked
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Location found: $query'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+          return; // Success, exit early
         }
-      }
-    } catch (e) {
-      print('🗺️ [MAP] Search error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error searching for location: $query'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+      } catch (e) {
+        print('🗺️ [MAP] Search error for "$searchQuery": $e');
+        continue; // Try next search query
       }
     }
-  }
 
-  /// Restrict map movement to Ghana boundaries
-  void _restrictMapToGhana(LatLng target) {
-    // Ghana boundaries (approximate)
-    const double minLat = 4.5; // Southern boundary
-    const double maxLat = 11.2; // Northern boundary
-    const double minLng = -3.3; // Western boundary
-    const double maxLng = 1.3; // Eastern boundary
-
-    double restrictedLat = target.latitude;
-    double restrictedLng = target.longitude;
-
-    // Restrict latitude to Ghana boundaries
-    if (target.latitude < minLat) {
-      restrictedLat = minLat;
-    } else if (target.latitude > maxLat) {
-      restrictedLat = maxLat;
-    }
-
-    // Restrict longitude to Ghana boundaries
-    if (target.longitude < minLng) {
-      restrictedLng = minLng;
-    } else if (target.longitude > maxLng) {
-      restrictedLng = maxLng;
-    }
-
-    // If position was restricted, move camera back to valid area
-    if (restrictedLat != target.latitude || restrictedLng != target.longitude) {
-      print(
-          '🗺️ [MAP] Position restricted to Ghana boundaries: ($restrictedLat, $restrictedLng)');
-      _mapController.animateCamera(
-        CameraUpdate.newLatLng(LatLng(restrictedLat, restrictedLng)),
+    // If we get here, all searches failed
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Location not found: $query'),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 2),
+        ),
       );
     }
   }
@@ -431,19 +436,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
               zoom: 18.0, // Higher zoom for better accuracy
             ),
             markers: _markers,
-            onTap: (LatLng position) async {
-              setState(() {
-                _selectedLocation = position;
-              });
-              await _updateMarkers();
-              _getAddressFromCoordinates(position.latitude, position.longitude);
-              print(
-                  '🗺️ [MAP] Map tapped at: (${position.latitude}, ${position.longitude})');
-            },
-            onCameraMove: (CameraPosition position) {
-              // Restrict map movement to Ghana boundaries
-              _restrictMapToGhana(position.target);
-            },
+            // onTap disabled - users can only select location via search or current location button
             myLocationEnabled: true,
             myLocationButtonEnabled: true,
             zoomControlsEnabled: true,
@@ -822,6 +815,8 @@ class _MapPickerPageState extends State<MapPickerPage> {
             right: 20,
             child: FloatingActionButton(
               onPressed: () async {
+                if (!mounted) return;
+                
                 try {
                   // Check location permissions first
                   LocationPermission permission =
@@ -834,11 +829,15 @@ class _MapPickerPageState extends State<MapPickerPage> {
                     }
                   }
 
+                  if (!mounted) return;
+
                   // Get current device location with high accuracy
                   Position position = await Geolocator.getCurrentPosition(
                     desiredAccuracy: LocationAccuracy.best,
                     timeLimit: const Duration(seconds: 15),
                   );
+
+                  if (!mounted) return;
 
                   LatLng currentLocation =
                       LatLng(position.latitude, position.longitude);

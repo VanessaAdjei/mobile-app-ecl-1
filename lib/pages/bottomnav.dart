@@ -98,6 +98,28 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     }
   }
 
+  // Build icon with subtle active indicator when selected
+  Widget _buildIconWithGlow({
+    required IconData icon,
+    required bool isSelected,
+    Widget? child,
+  }) {
+    // Simple color intensity change - brighter white when selected
+    // The BottomNavigationBar handles the base color, we just enhance visibility
+    if (child != null) {
+      // For icons with custom children (badges), apply opacity animation
+      return AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: isSelected ? 1.0 : 0.7,
+        child: child,
+      );
+    }
+
+    // For simple icons, the BottomNavigationBar's selectedItemColor handles it
+    // We just return the icon - the color is controlled by the nav bar
+    return Icon(icon);
+  }
+
   // get the name of the current page (for debugging)
   String _getCurrentPageName() {
     try {
@@ -757,7 +779,6 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
   @override
   Widget build(BuildContext context) {
     final cart = Provider.of<CartProvider>(context);
-    final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
 
     final iconSize = screenWidth * 0.05;
@@ -825,47 +846,54 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
                   ),
                   items: [
                     BottomNavigationBarItem(
-                      icon: Icon(Icons.home_rounded),
+                      icon: _buildIconWithGlow(
+                        icon: Icons.home_rounded,
+                        isSelected: _selectedIndex == 0,
+                      ),
                       label: 'Home',
                     ),
                     BottomNavigationBarItem(
-                      icon: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          const Icon(Icons.shopping_cart_rounded),
-                          if (cart.totalItems > 0)
-                            Positioned(
-                              right: -6,
-                              top: -4,
-                              child: Container(
-                                padding: const EdgeInsets.all(3),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.red.withOpacity(0.5),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                constraints: const BoxConstraints(
-                                  minWidth: 18,
-                                  minHeight: 18,
-                                ),
-                                child: Text(
-                                  '${cart.totalItems}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
+                      icon: _buildIconWithGlow(
+                        icon: Icons.shopping_cart_rounded,
+                        isSelected: _selectedIndex == 1,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Icon(Icons.shopping_cart_rounded),
+                            if (cart.totalItems > 0)
+                              Positioned(
+                                right: -6,
+                                top: -4,
+                                child: Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.red.withOpacity(0.5),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
                                   ),
-                                  textAlign: TextAlign.center,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 18,
+                                    minHeight: 18,
+                                  ),
+                                  child: Text(
+                                    '${cart.totalItems}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
                                 ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                       label: 'Cart',
                     ),
@@ -873,58 +901,66 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
                       icon: SizedBox.shrink(),
                       label: '',
                     ),
-                    const BottomNavigationBarItem(
-                      icon: Icon(Icons.grid_view_rounded),
+                    BottomNavigationBarItem(
+                      icon: _buildIconWithGlow(
+                        icon: Icons.grid_view_rounded,
+                        isSelected: _selectedIndex == 3,
+                      ),
                       label: 'Categories',
                     ),
                     BottomNavigationBarItem(
                       icon: Consumer<NotificationProvider>(
                         builder: (context, notificationProvider, child) {
-                          return Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              const Icon(Icons.person_rounded),
-                              if (notificationProvider.unreadCount > 0)
-                                Positioned(
-                                  right: -6,
-                                  top: -4,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(3),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          notificationProvider.newOrderCount > 0
-                                              ? Colors.blue
-                                              : Colors.orange,
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: (notificationProvider
-                                                          .newOrderCount >
-                                                      0
-                                                  ? Colors.blue
-                                                  : Colors.orange)
-                                              .withOpacity(0.5),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    constraints: const BoxConstraints(
-                                      minWidth: 18,
-                                      minHeight: 18,
-                                    ),
-                                    child: Text(
-                                      '${notificationProvider.unreadCount}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
+                          return _buildIconWithGlow(
+                            icon: Icons.person_rounded,
+                            isSelected: _selectedIndex == 4,
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Icon(Icons.person_rounded),
+                                if (notificationProvider.unreadCount > 0)
+                                  Positioned(
+                                    right: -6,
+                                    top: -4,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(3),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            notificationProvider.newOrderCount >
+                                                    0
+                                                ? Colors.blue
+                                                : Colors.orange,
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: (notificationProvider
+                                                            .newOrderCount >
+                                                        0
+                                                    ? Colors.blue
+                                                    : Colors.orange)
+                                                .withOpacity(0.5),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
                                       ),
-                                      textAlign: TextAlign.center,
+                                      constraints: const BoxConstraints(
+                                        minWidth: 18,
+                                        minHeight: 18,
+                                      ),
+                                      child: Text(
+                                        '${notificationProvider.unreadCount}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
                                     ),
                                   ),
-                                ),
-                            ],
+                              ],
+                            ),
                           );
                         },
                       ),

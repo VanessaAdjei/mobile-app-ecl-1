@@ -2063,6 +2063,12 @@ class HomePageState extends State<HomePage>
                 child: Row(
                   children: [
                     const SizedBox(width: 8),
+                    Icon(
+                      Icons.grid_view_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
                     // Text content
                     Expanded(
                       child: Text(

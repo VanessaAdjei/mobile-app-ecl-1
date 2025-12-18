@@ -837,7 +837,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
           ),
         ],
       ),
-      bottomNavigationBar: CustomBottomNav(initialIndex: 3),
+      bottomNavigationBar: CustomBottomNav(initialIndex: 4),
     );
   }
 

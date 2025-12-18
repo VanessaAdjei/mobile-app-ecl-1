@@ -1,6 +1,8 @@
 // services/delivery_service.dart
 // handles saving delivery addresses and stuff
 import 'dart:convert';
+import 'dart:io';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import 'package:eclapp/pages/auth_service.dart';
@@ -9,6 +11,14 @@ import 'package:flutter/foundation.dart';
 
 class DeliveryService {
   static const String baseUrl = ApiConfig.baseUrl;
+
+  // Delivery pricing constants
+  // Base fee = 20
+  // Base distance = 3 km
+  // Extra distance rate (X) per km
+  static const double baseDeliveryFee = 20.0;
+  static const double baseDeliveryDistanceKm = 3.0;
+  static const double defaultRatePerKm = 3.0; // X: change this if needed
 
   // save where they want stuff delivered
   static Future<Map<String, dynamic>> saveDeliveryInfo({
@@ -316,6 +326,35 @@ class DeliveryService {
     }
   }
 
+  /// Calculate delivery fee based purely on distance in km.
+  ///
+  /// Formula:
+  ///   Delivery Fee = 20 + max(0, Distance − 3) × X
+  ///
+  /// Where:
+  ///   - 20 is [baseDeliveryFee]
+  ///   - 3 is [baseDeliveryDistanceKm]
+  ///   - X is [defaultRatePerKm] (or an override passed in)
+  static double calculateDeliveryFeeByDistance(
+    double distanceKm, {
+    double? ratePerKm,
+  }) {
+    final double rate = ratePerKm ?? defaultRatePerKm;
+    final double extraDistance =
+        (distanceKm - baseDeliveryDistanceKm).clamp(0.0, double.infinity);
+    final double fee = baseDeliveryFee + extraDistance * rate;
+
+    debugPrint(
+      '📦 Delivery fee by distance → '
+      'distance: ${distanceKm.toStringAsFixed(2)} km, '
+      'extra: ${extraDistance.toStringAsFixed(2)} km, '
+      'rate: $rate, '
+      'fee: ${fee.toStringAsFixed(2)}',
+    );
+
+    return fee;
+  }
+
   /// Fetch all regions from API
   static Future<Map<String, dynamic>> getRegions() async {
     try {
@@ -343,12 +382,34 @@ class DeliveryService {
           'message': errorData['message'] ?? 'Failed to fetch regions',
         };
       }
-    } catch (e) {
-      debugPrint('Error getting regions: $e');
-      debugPrint('Error type: ${e.runtimeType}');
+    } on TimeoutException catch (e) {
+      // Timeout error - catch this first
+      debugPrint('🔍 DeliveryService: Timeout getting regions: $e');
+      return {
+        'success': false,
+        'message': 'Request timed out. Please try again.',
+      };
+    } on SocketException catch (e) {
+      // DNS/Network error - handle gracefully
+      debugPrint(
+          '🔍 DeliveryService: Network error getting regions (DNS/hostname issue): ${e.message}');
+      return {
+        'success': false,
+        'message': 'Unable to connect. Please check your internet connection.',
+      };
+    } on http.ClientException catch (e) {
+      // Client/network error (this often wraps SocketException)
+      debugPrint('🔍 DeliveryService: Client error getting regions: $e');
       return {
         'success': false,
         'message': 'Network error. Please check your connection and try again.',
+      };
+    } catch (e) {
+      // Other errors
+      debugPrint('🔍 DeliveryService: Error getting regions: $e');
+      return {
+        'success': false,
+        'message': 'Unable to load regions. Please try again later.',
       };
     }
   }

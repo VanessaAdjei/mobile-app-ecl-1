@@ -3145,7 +3145,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               border: Border.all(
                 color: Colors.grey.shade200,
                 width: 1,
-              ),
+                ),
             ),
             child: Row(
               children: [

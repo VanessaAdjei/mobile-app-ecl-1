@@ -48,6 +48,8 @@ class PaymentPage extends StatefulWidget {
   final double? lat;
   final double? lng;
   final String? estimatedDeliveryTime;
+  final double? distanceKm;
+  final double? deliveryFee;
 
   const PaymentPage({
     super.key,
@@ -58,6 +60,8 @@ class PaymentPage extends StatefulWidget {
     this.lat,
     this.lng,
     this.estimatedDeliveryTime,
+    this.distanceKm,
+    this.deliveryFee,
   });
 
   @override
@@ -83,18 +87,9 @@ class PaymentPageState extends State<PaymentPage> {
   bool _isApplyingPromo = false;
   String? _promoError;
 
-  final List<Map<String, dynamic>> paymentMethods = const [
-    {
-      'name': 'Online Payment',
-      'icon': Icons.phone_android,
-      'description': 'Pay with Momo or Card',
-    },
-    {
-      'name': 'Cash on Delivery',
-      'icon': Icons.money,
-      'description': 'Pay when you receive your order',
-    },
-  ];
+  // Slide to pay variables
+  double _slidePosition = 0.0;
+  bool _isSliding = false;
 
   @override
   void initState() {
@@ -217,6 +212,8 @@ class PaymentPageState extends State<PaymentPage> {
     setState(() {
       _paymentError = null;
       _isProcessingPayment = true;
+      _slidePosition = 0.0;
+      _isSliding = false;
     });
 
     try {
@@ -236,7 +233,7 @@ class PaymentPageState extends State<PaymentPage> {
       }
       debugPrint('[DEBUG] Passed subtotal check');
 
-      final deliveryFee = 0.00;
+      final deliveryFee = widget.deliveryFee ?? 0.00;
       final total = subtotal + deliveryFee - _discountAmount;
 
       // check if theyre a guest or logged in
@@ -301,183 +298,6 @@ class PaymentPageState extends State<PaymentPage> {
       final purchasedItems = List<CartItem>.from(cart.cartItems);
       final transactionId = params['order_id'];
 
-      if (selectedPaymentMethod == 'Cash on Delivery') {
-        if (!mounted) return;
-
-        // Extract first name from user name
-        final firstName = _userName.split(' ').first.isNotEmpty
-            ? _userName.split(' ').first
-            : 'Customer';
-
-        // make sure we have everything we need for cod payment
-        final emailForValidation =
-            isGuest ? (widget.guestEmail ?? '') : _userEmail;
-        debugPrint(
-            '[DEBUG] Email used for COD validation: "$emailForValidation"');
-        final validation = CODPaymentService.validateParameters(
-          firstName: firstName,
-          email: emailForValidation,
-          phone: widget.contactNumber ?? _phoneNumber,
-          amount: total,
-        );
-        debugPrint('[DEBUG] COD validation result: $validation');
-
-        if (!validation['isValid']) {
-          final errors = validation['errors'] as Map<String, String>;
-          final errorMessage = errors.values.first;
-          throw Exception(errorMessage);
-        }
-
-        // get the right auth header (bearer or guest)
-        final authHeader = await getAuthHeader();
-        if (authHeader == null) {
-          setState(() {
-            _paymentError =
-                'You must be logged in or have a guest session to use Cash on Delivery.';
-          });
-          return;
-        }
-        // get just the token part for the cod payment
-        String? tokenString;
-        if (authHeader.startsWith('Bearer ')) {
-          tokenString = authHeader.substring(7);
-        } else if (authHeader.startsWith('Guest ')) {
-          tokenString = authHeader.substring(6);
-        }
-
-        // print the email so we can see what we're sending
-        debugPrint('[DEBUG] COD API call email: "$emailForValidation"');
-
-        // send the cod payment to the api
-        final codResult = await CODPaymentService.processCODPayment(
-          firstName: firstName,
-          email: emailForValidation,
-          phone: widget.contactNumber ?? _phoneNumber,
-          amount: total,
-          authToken: tokenString,
-        );
-
-        debugPrint('[DEBUG] COD Payment API Response: ${codResult.toString()}');
-
-        if (!codResult['success']) {
-          throw Exception(codResult['message'] ?? 'COD payment failed');
-        }
-
-        // go to the order confirmation page right away
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OrderConfirmationPage(
-              paymentParams: params,
-              purchasedItems: purchasedItems,
-              initialStatus: 'pending',
-              initialTransactionId: transactionId.toString(),
-              paymentSuccess: true,
-              paymentVerified: true,
-              paymentToken: null,
-              paymentMethod: selectedPaymentMethod,
-              estimatedDeliveryTime: widget.estimatedDeliveryTime,
-            ),
-          ),
-          (route) => false,
-        );
-
-        // dont clear cart after cod payment (commented out)
-        // Future.microtask(() async {
-        //   for (final item in List<CartItem>.from(cart.cartItems)) {
-        //     await cart.removeFromCart(item.id);
-        //   }
-        //   cart.clearCart();
-        // });
-
-        try {
-          // turn cart items into the format the api wants
-          final orderItems = purchasedItems
-              .map((item) => {
-                    'productId': item.productId,
-                    'name': item.name,
-                    'imageUrl': item.image,
-                    'quantity': item.quantity,
-                    'price': item.price,
-                    'batchNo': item.batchNo,
-                  })
-              .toList();
-
-          final orderResult = await AuthService.createCashOnDeliveryOrder(
-            items: orderItems,
-            totalAmount: total,
-            orderId: transactionId.toString(),
-            paymentMethod: selectedPaymentMethod,
-            promoCode: _appliedPromoCode,
-          );
-
-          if (total >= 500.0) {
-            try {
-              final walletProvider =
-                  Provider.of<WalletProvider>(context, listen: false);
-              final cashbackResult = await walletProvider.processOrderCashback(
-                orderAmount: total,
-                orderId: transactionId.toString(),
-                onCashbackSuccess: () {
-                  // go to wallet page right away
-                  if (mounted) {
-                    Navigator.of(context).pushNamed('/wallet');
-                  }
-                },
-              );
-
-              if (cashbackResult['success']) {
-                // just show a simple message that they got cashback
-                final cashbackAmount =
-                    cashbackResult['cashback_amount'] as double;
-                NotificationService.showCashbackNotification(cashbackAmount);
-              } else if (cashbackResult['auth_required'] == true) {
-                // not showing snackbar right now (per request)
-              }
-            } catch (e) {
-              debugPrint('Cashback processing failed: $e');
-              // if cashback fails, still let the order go through
-            }
-          }
-
-          if (orderResult['status'] != 'success') {
-            // show a warning but keep going with the order
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    Icon(Icons.warning_amber_rounded, color: Colors.white),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Warning: ${orderResult['message'] ?? 'Could not save order to server, but proceeding with order'}',
-                      ),
-                    ),
-                  ],
-                ),
-                backgroundColor: Colors.orange[600],
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                margin: EdgeInsets.all(16),
-                duration: Duration(seconds: 3),
-              ),
-            );
-          } else {
-            // Commented out: Don't clear cart after COD payment
-            // Clear the cart after successful order creation
-            // cart.clearCart();
-
-            // Don't create notification here - it will be created in OrderConfirmationPage
-            // after the order is properly confirmed
-          }
-        } catch (e) {
-          // Ignore order creation errors for now
-        }
-        return;
-      }
-
       // Online Payment Flow
       final isLoggedIn = await AuthService.isLoggedIn();
       final token = await AuthService.getToken();
@@ -498,7 +318,7 @@ class PaymentPageState extends State<PaymentPage> {
       } else {
         setState(() {
           _paymentError =
-              'You must be logged in or have a guest session to use online payment. Please choose Cash on Delivery or log in.';
+              'You must be logged in or have a guest session to use online payment. Please log in.';
         });
         debugPrint('[DEBUG] Returning early: no valid token for payment');
         return;
@@ -593,6 +413,8 @@ class PaymentPageState extends State<PaymentPage> {
       if (mounted) {
         setState(() {
           _isProcessingPayment = false;
+          _slidePosition = 0.0;
+          _isSliding = false;
         });
       }
     }
@@ -707,7 +529,7 @@ class PaymentPageState extends State<PaymentPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Order Items Section (First)
+                          // Order Items Section (First) - Item details
                           Animate(
                             effects: [
                               FadeEffect(duration: 400.ms),
@@ -720,7 +542,7 @@ class PaymentPageState extends State<PaymentPage> {
                           ),
                           const SizedBox(height: 8),
 
-                          // Delivery Information Section (Second)
+                          // Delivery Information Section (Second) - if delivery
                           if (widget.deliveryOption == 'delivery') ...[
                             Animate(
                               effects: [
@@ -735,7 +557,7 @@ class PaymentPageState extends State<PaymentPage> {
                             const SizedBox(height: 8),
                           ],
 
-                          // Order Summary Section (Third)
+                          // Order Summary Section (Third) - Price breakdown
                           Animate(
                             effects: [
                               FadeEffect(duration: 400.ms),
@@ -831,6 +653,7 @@ class PaymentPageState extends State<PaymentPage> {
               ),
               // Fixed Payment Methods and Button at Bottom
               Container(
+                width: double.infinity,
                 decoration: BoxDecoration(
                   color: Colors.white,
                   boxShadow: [
@@ -846,19 +669,7 @@ class PaymentPageState extends State<PaymentPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Payment Methods Section
-                      Animate(
-                        effects: [
-                          FadeEffect(duration: 400.ms),
-                          SlideEffect(
-                              duration: 400.ms,
-                              begin: Offset(0, 0.1),
-                              end: Offset(0, 0))
-                        ],
-                        child: _buildPaymentMethods(),
-                      ),
-
-                      // Payment Button
+                      // Slide to Pay Button
                       Animate(
                         effects: [
                           FadeEffect(duration: 400.ms),
@@ -868,98 +679,11 @@ class PaymentPageState extends State<PaymentPage> {
                               end: Offset(0, 0))
                         ],
                         child: Container(
+                          width: double.infinity,
                           padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                           child: Consumer<CartProvider>(
                             builder: (context, cart, child) {
-                              return Container(
-                                width: double.infinity,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      Colors.green.shade600,
-                                      Colors.green.shade700,
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(10),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color:
-                                          Colors.green.withValues(alpha: 0.3),
-                                      blurRadius: 6,
-                                      offset: Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(10),
-                                    onTap: _isProcessingPayment
-                                        ? null
-                                        : () => processPayment(cart),
-                                    child: Center(
-                                      child: _isProcessingPayment
-                                          ? Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                SizedBox(
-                                                  height: 16,
-                                                  width: 16,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                    color: Colors.white,
-                                                    strokeWidth: 2,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Text(
-                                                  selectedPaymentMethod ==
-                                                          'Cash on Delivery'
-                                                      ? 'Processing COD Order...'
-                                                      : 'Processing...',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 14,
-                                                  ),
-                                                ),
-                                              ],
-                                            )
-                                          : Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                Icon(
-                                                  selectedPaymentMethod ==
-                                                          'Cash on Delivery'
-                                                      ? Icons.money
-                                                      : Icons.payment,
-                                                  color: Colors.white,
-                                                  size: 16,
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  selectedPaymentMethod ==
-                                                          'Cash on Delivery'
-                                                      ? 'PLACE ORDER (COD)'
-                                                      : 'CONTINUE TO PAYMENT',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.w600,
-                                                    letterSpacing: 0.2,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                    ),
-                                  ),
-                                ),
-                              );
+                              return _buildSlideToPay(cart);
                             },
                           ),
                         ),
@@ -1054,179 +778,152 @@ class PaymentPageState extends State<PaymentPage> {
     return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
   }
 
-  Widget _buildPaymentMethods() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Section Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(6),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 3,
-                  offset: Offset(0, 1),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: Icon(
-                    Icons.payment,
-                    color: Colors.green[700],
-                    size: 14,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'PAYMENT METHOD',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                    color: Colors.grey[800],
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
+  Widget _buildSlideToPay(CartProvider cart) {
+    final double containerWidth =
+        MediaQuery.of(context).size.width - 24; // Account for padding (12*2)
+    final double maxSlideDistance =
+        containerWidth - 48 - 4; // Account for handle width and margins
+    final double threshold = maxSlideDistance * 0.85; // 85% to trigger payment
+    final bool isCompleted = _slidePosition >= threshold;
+    final bool wasCompleted =
+        _slidePosition >= threshold - 10; // For haptic feedback
+
+    return GestureDetector(
+      onHorizontalDragStart: (_) {
+        if (!_isProcessingPayment) {
+          setState(() {
+            _isSliding = true;
+          });
+        }
+      },
+      onHorizontalDragUpdate: (details) {
+        if (!_isProcessingPayment && _isSliding) {
+          final newPosition =
+              (_slidePosition + details.delta.dx).clamp(0.0, maxSlideDistance);
+          setState(() {
+            _slidePosition = newPosition;
+          });
+
+          // Haptic feedback when reaching threshold
+          if (newPosition >= threshold && !wasCompleted) {
+            HapticFeedback.mediumImpact();
+          }
+        }
+      },
+      onHorizontalDragEnd: (_) {
+        if (!_isProcessingPayment) {
+          if (_slidePosition >= threshold) {
+            // Trigger payment
+            HapticFeedback.heavyImpact();
+            processPayment(cart);
+          } else {
+            // Reset position with animation
+            setState(() {
+              _slidePosition = 0.0;
+              _isSliding = false;
+            });
+          }
+        }
+      },
+      child: Container(
+        height: 56,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: isCompleted ? Colors.green.shade300 : Colors.grey.shade300,
+            width: 2,
           ),
-          const SizedBox(height: 6),
-          // Payment Method Cards
-          ...paymentMethods.map((method) {
-            final isSelected = selectedPaymentMethod == method['name'];
-            return Container(
-              margin: const EdgeInsets.only(bottom: 4),
-              child: AnimatedContainer(
-                duration: Duration(milliseconds: 200),
-                decoration: BoxDecoration(
-                  color: isSelected ? Colors.green.shade50 : Colors.white,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: isSelected
-                        ? Colors.green.shade300
-                        : Colors.grey.shade300,
-                    width: isSelected ? 2 : 1,
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: Colors.green.withValues(alpha: 0.1),
-                            blurRadius: 3,
-                            offset: Offset(0, 1),
-                          ),
-                        ]
-                      : [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 2,
-                            offset: Offset(0, 1),
-                          ),
-                        ],
+        ),
+        child: Stack(
+          children: [
+            // Background gradient that fills as user slides
+            AnimatedContainer(
+              duration: Duration(milliseconds: 100),
+              width: _slidePosition,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    Colors.green.shade500,
+                    Colors.green.shade600,
+                  ],
                 ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(6),
-                    onTap: () {
-                      setState(() {
-                        selectedPaymentMethod = method['name'];
-                        _paymentError = null;
-                      });
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Row(
-                        children: [
-                          // Radio Button
-                          Container(
-                            width: 14,
-                            height: 14,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: isSelected
-                                    ? Colors.green.shade600
-                                    : Colors.grey.shade400,
-                                width: 2,
-                              ),
-                              color: isSelected
-                                  ? Colors.green.shade600
-                                  : Colors.transparent,
-                            ),
-                            child: isSelected
-                                ? Icon(
-                                    Icons.check,
-                                    size: 7,
-                                    color: Colors.white,
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(width: 8),
-                          // Method Icon
-                          Container(
-                            padding: const EdgeInsets.all(3),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? Colors.green.shade100
-                                  : Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                            child: Icon(
-                              method['icon'],
-                              color: isSelected
-                                  ? Colors.green.shade700
-                                  : Colors.grey.shade600,
-                              size: 14,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          // Method Details
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  method['name'],
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12,
-                                    color: isSelected
-                                        ? Colors.green.shade700
-                                        : Colors.grey.shade800,
-                                  ),
-                                ),
-                                Text(
-                                  method['description'],
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: isSelected
-                                        ? Colors.green.shade600
-                                        : Colors.grey.shade600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                borderRadius: BorderRadius.circular(26),
+              ),
+            ),
+            // Slider handle
+            AnimatedPositioned(
+              duration: Duration(milliseconds: 100),
+              curve: Curves.easeOut,
+              left: _slidePosition.clamp(4.0, maxSlideDistance + 4),
+              top: 4,
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isCompleted ? Colors.green.shade700 : Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black
+                          .withValues(alpha: isCompleted ? 0.3 : 0.2),
+                      blurRadius: isCompleted ? 12 : 8,
+                      offset: Offset(0, 2),
                     ),
-                  ),
+                  ],
+                ),
+                child: Center(
+                  child: _isProcessingPayment
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Icon(
+                          isCompleted ? Icons.check : Icons.arrow_forward_ios,
+                          color:
+                              isCompleted ? Colors.white : Colors.grey.shade700,
+                          size: 20,
+                        ),
                 ),
               ),
-            );
-          }),
-        ],
+            ),
+            // Text overlay
+            Positioned.fill(
+              child: Center(
+                child: _isProcessingPayment
+                    ? Text(
+                        'Processing Payment...',
+                        style: TextStyle(
+                          color: Colors.green.shade700,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      )
+                    : Text(
+                        _slidePosition < 10
+                            ? 'Slide to Pay'
+                            : isCompleted
+                                ? 'Release to Pay'
+                                : 'Keep Sliding...',
+                        style: TextStyle(
+                          color: _slidePosition > maxSlideDistance * 0.5
+                              ? Colors.white
+                              : Colors.grey.shade700,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1459,7 +1156,7 @@ class PaymentPageState extends State<PaymentPage> {
 
   Widget _buildOrderSummary(CartProvider cart) {
     final subtotal = cart.calculateSubtotal();
-    final deliveryFee = 0.00;
+    final deliveryFee = widget.deliveryFee ?? 0.00;
     final total = subtotal + deliveryFee - _discountAmount;
 
     return Container(
@@ -1497,7 +1194,7 @@ class PaymentPageState extends State<PaymentPage> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'TOTAL',
+                  'BILL',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
@@ -2211,38 +1908,13 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
   @override
   void initState() {
     super.initState();
-    // For cash on delivery, always show success
-    if (widget.paymentMethod.toLowerCase() == 'cash on delivery') {
-      _status = "success";
-      _paymentSuccess = true;
-      // Check if it's pickup or delivery
-      final shippingType =
-          widget.paymentParams['shipping_type']?.toString().toLowerCase();
-      if (shippingType == 'pickup') {
-        _statusMessage =
-            "Order successfully placed! You will pay when you pick up.";
-      } else {
-        _statusMessage = "Order successfully placed! You will pay on delivery.";
-      }
-      _isLoading = false;
+    // For online payments, show loading and check status
+    _status = "pending";
+    _statusMessage = "Please wait while we process your payment...";
+    _isLoading = true;
 
-      // Commented out: Don't clear cart after COD payment
-      // WidgetsBinding.instance.addPostFrameCallback((_) {
-      //   final cartProvider = Provider.of<CartProvider>(context, listen: false);
-      //   cartProvider.clearCart();
-      // });
-
-      // Create notification for COD orders immediately since they're confirmed
-      _createPaymentSuccessNotification();
-    } else {
-      // For online payments, show loading and check status
-      _status = "pending";
-      _statusMessage = "Please wait while we process your payment...";
-      _isLoading = true;
-
-      // Start periodic status checking
-      _startStatusChecking();
-    }
+    // Start periodic status checking
+    _startStatusChecking();
     _transactionId = widget.initialTransactionId;
   }
 
@@ -2617,12 +2289,46 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                 ),
                                 textAlign: TextAlign.center,
                               ),
-                              if (widget.paymentMethod !=
-                                  'Cash on Delivery') ...[
-                                const SizedBox(height: 12),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black
+                                              .withValues(alpha: 0.05),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.payment,
+                                          size: 18,
+                                          color: _getStatusColor(_status),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          widget.paymentMethod,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w500,
+                                            color: _getStatusColor(_status),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (_showCheckStatusButton) ...[
+                                    SizedBox(width: 12),
                                     Container(
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 12, vertical: 6),
@@ -2638,93 +2344,53 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                           ),
                                         ],
                                       ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.payment,
-                                            size: 18,
-                                            color: _getStatusColor(_status),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            widget.paymentMethod,
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w500,
-                                              color: _getStatusColor(_status),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    if (_showCheckStatusButton) ...[
-                                      SizedBox(width: 12),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black
-                                                  .withValues(alpha: 0.05),
-                                              blurRadius: 4,
-                                              offset: const Offset(0, 2),
+                                      child: InkWell(
+                                        onTap: () {
+                                          debugPrint(
+                                              '[DEBUG] Check Status button pressed');
+                                          _checkPaymentStatus();
+                                        },
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            _isLoading
+                                                ? SizedBox(
+                                                    width: 18,
+                                                    height: 18,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      valueColor:
+                                                          AlwaysStoppedAnimation<
+                                                                  Color>(
+                                                              _getStatusColor(
+                                                                  _status)),
+                                                    ),
+                                                  )
+                                                : Icon(
+                                                    Icons.refresh,
+                                                    size: 18,
+                                                    color: _getStatusColor(
+                                                        _status),
+                                                  ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              'Check Status',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w500,
+                                                color: _getStatusColor(_status),
+                                              ),
                                             ),
                                           ],
                                         ),
-                                        child: InkWell(
-                                          onTap: () {
-                                            debugPrint(
-                                                '[DEBUG] Check Status button pressed');
-                                            _checkPaymentStatus();
-                                          },
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              _isLoading
-                                                  ? SizedBox(
-                                                      width: 18,
-                                                      height: 18,
-                                                      child:
-                                                          CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        valueColor:
-                                                            AlwaysStoppedAnimation<
-                                                                    Color>(
-                                                                _getStatusColor(
-                                                                    _status)),
-                                                      ),
-                                                    )
-                                                  : Icon(
-                                                      Icons.refresh,
-                                                      size: 18,
-                                                      color: _getStatusColor(
-                                                          _status),
-                                                    ),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                'Check Status',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w500,
-                                                  color:
-                                                      _getStatusColor(_status),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
                                       ),
-                                    ],
+                                    ),
                                   ],
-                                ),
-                              ],
+                                ],
+                              ),
                             ],
                           ),
                         ),
-
                         Padding(
                           padding: const EdgeInsets.all(12),
                           child: Column(
@@ -3123,8 +2789,7 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
   Color _getStatusColor(String? status) {
     if (status?.toLowerCase() == 'loading') {
       return Colors.blue;
-    } else if (status?.toLowerCase() == 'success' ||
-        widget.paymentMethod.toLowerCase() == 'cash on delivery') {
+    } else if (status?.toLowerCase() == 'success') {
       return Colors.green;
     } else if (status?.toLowerCase() == 'failed') {
       return Colors.red;
@@ -3135,8 +2800,7 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
   String _getStatusLabel(String? status) {
     if (status?.toLowerCase() == 'loading') {
       return 'Processing Payment';
-    } else if (status?.toLowerCase() == 'success' ||
-        widget.paymentMethod.toLowerCase() == 'cash on delivery') {
+    } else if (status?.toLowerCase() == 'success') {
       return 'Order Successfully Placed';
     } else if (status?.toLowerCase() == 'failed') {
       return 'Payment Failed';
@@ -3147,15 +2811,6 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
   String _getStatusMessage(String? status) {
     if (status?.toLowerCase() == 'loading') {
       return 'Please wait while we process your payment...';
-    } else if (widget.paymentMethod.toLowerCase() == 'cash on delivery') {
-      // Check if it's pickup or delivery
-      final shippingType =
-          widget.paymentParams['shipping_type']?.toString().toLowerCase();
-      if (shippingType == 'pickup') {
-        return 'Your order has been placed successfully. You will pay when you pick up your items.';
-      } else {
-        return 'Your order has been placed successfully. You will pay when the items are delivered.';
-      }
     } else if (status?.toLowerCase() == 'success') {
       return 'Your payment was successful and your order has been placed.';
     } else if (status?.toLowerCase() == 'failed') {

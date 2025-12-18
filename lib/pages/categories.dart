@@ -129,6 +129,7 @@ class CategoryPageState extends State<CategoryPage> {
   final ScrollController _searchScrollController = ScrollController();
   final CategoryOptimizationService _categoryService =
       CategoryOptimizationService();
+  final GlobalKey _searchBarKey = GlobalKey();
 
   @override
   void initState() {
@@ -333,7 +334,15 @@ class CategoryPageState extends State<CategoryPage> {
       return;
     }
 
-    _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () async {
+    // Show dropdown immediately when typing
+    if (!_showSearchDropdown) {
+      setState(() {
+        _showSearchDropdown = true;
+      });
+    }
+
+    // Reduced debounce for faster response
+    _searchDebounceTimer = Timer(const Duration(milliseconds: 150), () async {
       await _performSearch(query);
     });
   }
@@ -367,20 +376,66 @@ class CategoryPageState extends State<CategoryPage> {
   }
 
   Future<List<dynamic>> _searchAllCategories(String query) async {
-    List<dynamic> allResults = [];
-    final searchQuery = query.toLowerCase();
+    if (query.isEmpty) return [];
 
+    final searchQuery = query.toLowerCase().trim();
+    final stopwatch = Stopwatch()..start();
+    List<dynamic> allResults = [];
+
+    // First, try to use cached products (instant search)
+    // But only if they have category info (from our search cache)
+    final cachedProducts = CategoryCache.cachedAllProducts;
+    if (cachedProducts.isNotEmpty) {
+      // Check if cache has category info (flattened format)
+      final hasCategoryInfo = cachedProducts[0]['category_id'] != null;
+
+      if (hasCategoryInfo) {
+        debugPrint(
+            '🔍 Using cached products with category info for instant search: ${cachedProducts.length} products');
+
+        // Optimized search: use early termination for better performance
+        for (final product in cachedProducts) {
+          final productName = product['name']?.toString().toLowerCase() ?? '';
+          if (productName.contains(searchQuery)) {
+            allResults.add(product);
+            if (allResults.length >= 30) break; // Early termination
+          }
+        }
+
+        stopwatch.stop();
+        if (allResults.isNotEmpty) {
+          debugPrint(
+              '🔍 Instant search from cache: Found ${allResults.length} products in ${stopwatch.elapsedMilliseconds}ms');
+          return allResults;
+        } else {
+          debugPrint(
+              '🔍 No matches found in cache for: "$query" (searched ${cachedProducts.length} products in ${stopwatch.elapsedMilliseconds}ms)');
+        }
+      } else {
+        debugPrint(
+            '🔍 Cache exists but missing category info - will fetch from API');
+      }
+    } else {
+      debugPrint('🔍 Cache is empty - will fetch from API');
+    }
+
+    // If cache is empty or no results, fetch from API
     try {
-      debugPrint('🔍 Fast search using get-all-products API for: "$query"');
+      debugPrint('🔍 Cache miss - fetching from API for: "$query"');
+      stopwatch.reset();
+      stopwatch.start();
 
       final response = await http
           .get(Uri.parse(
               'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'))
-          .timeout(Duration(seconds: 10));
+          .timeout(Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
         final List<dynamic> dataList = responseData['data'];
+
+        // Cache the raw data for future searches
+        final productsToCache = <dynamic>[];
 
         // filter products by what they searched
         for (final item in dataList) {
@@ -396,21 +451,65 @@ class CategoryPageState extends State<CategoryPage> {
                   productData['thumbnail'] ?? productData['image'] ?? '',
               'price': item['price'] ?? 0,
               'description': productData['description'] ?? '',
+              // Include category/subcategory info for instant navigation
+              'category_id': item['category_id'],
+              'category_name': item['category_name'],
+              'subcategory_id': item['subcategory_id'],
+              'subcategory_name': item['subcategory_name'],
             };
             allResults.add(product);
+
+            // Also add to cache format
+            productsToCache.add({
+              'id': productData['id'],
+              'name': productData['name'],
+              'thumbnail':
+                  productData['thumbnail'] ?? productData['image'] ?? '',
+              'price': item['price'] ?? 0,
+              'description': productData['description'] ?? '',
+              'category_id': item['category_id'],
+              'category_name': item['category_name'],
+              'subcategory_id': item['subcategory_id'],
+              'subcategory_name': item['subcategory_name'],
+            });
 
             if (allResults.length >= 30) break;
           }
         }
 
+        // Cache all products (not just search results) for future instant searches
+        if (productsToCache.length < dataList.length) {
+          // Cache all products from API for future searches
+          final allProductsForCache = dataList.map<dynamic>((item) {
+            final productData = item['product'] as Map<String, dynamic>;
+            return {
+              'id': productData['id'],
+              'name': productData['name'],
+              'thumbnail':
+                  productData['thumbnail'] ?? productData['image'] ?? '',
+              'price': item['price'] ?? 0,
+              'description': productData['description'] ?? '',
+              'category_id': item['category_id'],
+              'category_name': item['category_name'],
+              'subcategory_id': item['subcategory_id'],
+              'subcategory_name': item['subcategory_name'],
+            };
+          }).toList();
+
+          CategoryCache.cacheAllProducts(allProductsForCache);
+          debugPrint(
+              '🔍 Cached ${allProductsForCache.length} products for future searches');
+        }
+
+        stopwatch.stop();
         debugPrint(
-            '🔍 Fast search completed: Found ${allResults.length} products');
+            '🔍 API search completed: Found ${allResults.length} products in ${stopwatch.elapsedMilliseconds}ms');
         return allResults;
       } else {
         throw Exception('Failed to load products from API');
       }
     } catch (e) {
-      debugPrint('🔍 Error in fast search: $e');
+      debugPrint('🔍 Error in API search: $e');
       return [];
     }
   }
@@ -970,91 +1069,311 @@ class CategoryPageState extends State<CategoryPage> {
       child: Scaffold(
         appBar: null,
         backgroundColor: Colors.grey[50],
-        body: Column(
+        body: Stack(
+          clipBehavior: Clip.none,
           children: [
-            AppHeaderBar(
-              title: 'Categories',
-              subtitle: 'Browse all product categories',
-              onBack: () {
-                if (widget.isBulkPurchase) {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const BulkPurchasePage(),
-                    ),
-                  );
-                } else if (Navigator.canPop(context)) {
-                  Navigator.pop(context);
-                } else {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => HomePage()),
-                  );
-                }
-              },
-            ),
-            // Floating search bar strip overlapping header
-            Container(
-              color: Colors.transparent,
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+            // Main content column
+            Column(
+              children: [
+                AppHeaderBar(
+                  title: 'Categories',
+                  subtitle: 'Browse all product categories',
+                  onBack: () {
+                    if (widget.isBulkPurchase) {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const BulkPurchasePage(),
+                        ),
+                      );
+                    } else if (Navigator.canPop(context)) {
+                      Navigator.pop(context);
+                    } else {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (context) => HomePage()),
+                      );
+                    }
+                  },
                 ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        focusNode: _searchFocusNode,
-                        onChanged: _searchProduct,
-                        onTap: () {
-                          if (_searchController.text.isNotEmpty) {
-                            setState(() {
-                              _showSearchDropdown = true;
-                            });
-                          }
-                        },
-                        decoration: InputDecoration(
-                          hintText: "Search products...",
-                          hintStyle: TextStyle(
-                            color: Colors.grey.shade400,
-                            fontSize: 13,
+                // Modern search bar
+                Container(
+                  key: _searchBarKey,
+                  color: Colors.transparent,
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 12,
+                          offset: const Offset(0, 2),
+                          spreadRadius: 0,
+                        ),
+                      ],
+                    ),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.search_rounded,
+                          color: const Color(0xFF20AF67),
+                          size: 22,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            onChanged: (value) {
+                              setState(() {}); // Update for clear button
+                              _searchProduct(value);
+                            },
+                            onTap: () {
+                              if (_searchController.text.isNotEmpty) {
+                                setState(() {
+                                  _showSearchDropdown = true;
+                                });
+                              }
+                            },
+                            style: const TextStyle(
+                              fontSize: 15,
+                              color: Colors.black87,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: "Search products...",
+                              hintStyle: TextStyle(
+                                color: Colors.grey.shade400,
+                                fontSize: 15,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding:
+                                  const EdgeInsets.symmetric(vertical: 12),
+                            ),
                           ),
-                          prefixIcon: Icon(
-                            Icons.search,
-                            color: Colors.green.shade700,
-                            size: 20,
+                        ),
+                        if (_searchController.text.isNotEmpty)
+                          IconButton(
+                            icon: Icon(
+                              Icons.clear_rounded,
+                              color: Colors.grey.shade400,
+                              size: 20,
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _showSearchDropdown = false;
+                                _searchResults = [];
+                                _filteredCategories = _categories;
+                              });
+                              _searchFocusNode.unfocus();
+                            },
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 36,
+                              minHeight: 36,
+                            ),
                           ),
-                          border: InputBorder.none,
-                          contentPadding:
-                              const EdgeInsets.symmetric(vertical: 8),
+                      ],
+                    ),
+                  ),
+                ),
+                // Main content
+                Expanded(
+                  child: _isLoading
+                      ? _buildSkeletonWithLoading()
+                      : _buildMainContent(),
+                ),
+              ],
+            ),
+            // Backdrop to close search dropdown when tapping outside
+            if (_showSearchDropdown)
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _showSearchDropdown = false;
+                    });
+                    _searchFocusNode.unfocus();
+                  },
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.1),
+                  ),
+                ),
+              ),
+            // Search results dropdown - positioned below search bar (fixed position)
+            if (_showSearchDropdown)
+              Builder(
+                builder: (context) {
+                  // Use fixed position calculation that doesn't change
+                  // Status bar + AppHeaderBar (~90px) + search bar padding (12px top + 8px bottom) + search bar height (~56px) + gap (4px)
+                  final statusBarHeight = MediaQuery.of(context).padding.top;
+                  final headerHeight = 90.0; // AppHeaderBar approximate height
+                  final searchBarTopPadding = 12.0;
+                  final searchBarBottomPadding = 8.0;
+                  final searchBarHeight = 56.0; // Approximate search bar height
+                  final gap = 4.0;
+
+                  final topPosition = statusBarHeight +
+                      headerHeight +
+                      searchBarTopPadding +
+                      searchBarHeight +
+                      searchBarBottomPadding +
+                      gap;
+
+                  return Positioned(
+                    top: topPosition,
+                    left: 16,
+                    right: 16,
+                    child: Material(
+                      elevation: 16,
+                      borderRadius: BorderRadius.circular(16),
+                      shadowColor: Colors.black.withValues(alpha: 0.25),
+                      child: GestureDetector(
+                        onTap: () {}, // Prevent tap from closing
+                        child: Container(
+                          constraints: const BoxConstraints(maxHeight: 450),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.grey.shade200,
+                              width: 1,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Header
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      const Color(0xFF20AF67).withOpacity(0.08),
+                                      const Color(0xFF20AF67).withOpacity(0.03),
+                                    ],
+                                  ),
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color: Colors.grey.shade200,
+                                      width: 1,
+                                    ),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(5),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF20AF67),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Icon(
+                                        Icons.search_rounded,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        _searchResults.isEmpty
+                                            ? 'Searching...'
+                                            : '${_searchResults.length} results found',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.grey.shade800,
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: Icon(
+                                        Icons.close_rounded,
+                                        color: Colors.grey.shade600,
+                                        size: 20,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          _showSearchDropdown = false;
+                                        });
+                                        _searchFocusNode.unfocus();
+                                      },
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(
+                                        minWidth: 28,
+                                        minHeight: 28,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Results list or empty state
+                              Flexible(
+                                child: _searchResults.isEmpty
+                                    ? Container(
+                                        padding: const EdgeInsets.all(30),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.search_off_rounded,
+                                              size: 40,
+                                              color: Colors.grey.shade400,
+                                            ),
+                                            const SizedBox(height: 10),
+                                            Text(
+                                              'No products found',
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              'Try a different search term',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.grey.shade500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    : ListView.builder(
+                                        controller: _searchScrollController,
+                                        shrinkWrap: true,
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 4),
+                                        itemCount: _searchResults.length,
+                                        itemBuilder: (context, index) {
+                                          return _buildSearchResultItem(
+                                              _searchResults[index]);
+                                        },
+                                      ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
-            ),
-            // Main content
-            Expanded(
-              child: _isLoading
-                  ? _buildSkeletonWithLoading()
-                  : _buildMainContent(),
-            ),
           ],
         ),
-        bottomNavigationBar: CustomBottomNav(initialIndex: 2),
+        bottomNavigationBar: CustomBottomNav(initialIndex: 3),
       ),
     );
   }
@@ -1144,247 +1463,296 @@ class CategoryPageState extends State<CategoryPage> {
     final categoryName = item['category_name'];
     final subcategoryName = item['subcategory_name'];
 
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ListTile(
-        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: Container(
-            width: 50,
-            height: 50,
-            child: productImage.isNotEmpty
-                ? CachedNetworkImage(
-                    imageUrl: productImage,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 100,
-                    memCacheHeight: 100,
-                    placeholder: (context, url) => Center(
-                        child: CircularProgressIndicator(strokeWidth: 2)),
-                    errorWidget: (context, url, error) => Container(
-                      color: Colors.grey.shade200,
-                      child: Icon(
-                        Icons.image_not_supported,
-                        color: Colors.grey.shade400,
-                        size: 24,
-                      ),
-                    ),
-                  )
-                : Container(
-                    color: Colors.grey.shade200,
-                    child: Icon(
-                      Icons.image_not_supported,
-                      color: Colors.grey.shade400,
-                      size: 24,
-                    ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          // FAST NAVIGATION: Use category/subcategory info already in search results
+          final categoryId = item['category_id'];
+          final categoryName = item['category_name'];
+          final subcategoryId = item['subcategory_id'];
+          final subcategoryName = item['subcategory_name'];
+          final productId = item['id'];
+          final productName = item['name'];
+
+          // Clear search and hide dropdown
+          setState(() {
+            _searchResults = [];
+            _showSearchDropdown = false;
+            _searchFocusNode.unfocus();
+          });
+
+          // Navigate instantly - no need to search again!
+          if (categoryId != null && categoryName != null) {
+            if (subcategoryId != null && subcategoryName != null) {
+              // Navigate to subcategory page
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SubcategoryPage(
+                    categoryId: categoryId,
+                    categoryName: categoryName,
+                    targetSubcategoryId: subcategoryId,
+                    searchedProductId: productId,
+                    searchedProductName: productName,
                   ),
-          ),
-        ),
-        title: Text(
-          productName,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey.shade800,
-          ),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(height: 4),
-            if (categoryName != null) ...[
-              Row(
-                children: [
-                  Icon(
-                    Icons.category,
-                    size: 12,
-                    color: Colors.green.shade600,
+                ),
+              );
+            } else {
+              // Navigate to product list page
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ProductListPage(
+                    categoryId: categoryId,
+                    categoryName: categoryName,
+                    searchedProductId: productId,
+                    searchedProductName: productName,
                   ),
-                  SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      categoryName,
+                ),
+              );
+            }
+          } else {
+            // Fallback: If category info is missing, use the slower search method
+            _navigateToProductFallback(productName);
+          }
+        },
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.grey.shade200,
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Product image
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: 50,
+                  height: 50,
+                  color: Colors.grey.shade100,
+                  child: productImage.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: productImage,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 120,
+                          memCacheHeight: 120,
+                          placeholder: (context, url) => Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                const Color(0xFF20AF67),
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            color: Colors.grey.shade200,
+                            child: Icon(
+                              Icons.image_not_supported,
+                              color: Colors.grey.shade400,
+                              size: 24,
+                            ),
+                          ),
+                        )
+                      : Icon(
+                          Icons.image_not_supported,
+                          color: Colors.grey.shade400,
+                          size: 24,
+                        ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Product details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      productName,
                       style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.green.shade600,
-                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade900,
+                        height: 1.2,
                       ),
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
-              ),
-              if (subcategoryName != null) ...[
-                SizedBox(height: 2),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.subdirectory_arrow_right,
-                      size: 12,
-                      color: Colors.grey.shade600,
-                    ),
-                    SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        subcategoryName,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade600,
+                    const SizedBox(height: 6),
+                    if (categoryName != null) ...[
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.category_rounded,
+                            size: 13,
+                            color: const Color(0xFF20AF67),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              categoryName,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: const Color(0xFF20AF67),
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (subcategoryName != null) ...[
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.arrow_right_rounded,
+                              size: 12,
+                              color: Colors.grey.shade500,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                subcategoryName,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      ],
+                      const SizedBox(height: 4),
+                    ],
+                    Text(
+                      'GH₵ ${_formatPrice(productPrice)}',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF20AF67),
                       ),
                     ),
                   ],
                 ),
-              ],
-              SizedBox(height: 4),
+              ),
+              const SizedBox(width: 6),
+              // Arrow icon
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.grey.shade400,
+                size: 18,
+              ),
             ],
-            Text(
-              'GH₵ ${_formatPrice(productPrice)}',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: Colors.green.shade700,
-              ),
-            ),
-          ],
+          ),
         ),
-        onTap: () async {
-          // Show loading indicator
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Text('Searching...'),
-                ],
-              ),
-              duration: Duration(seconds: 30),
-              backgroundColor: Colors.green.shade700,
-            ),
-          );
-
-          try {
-            // COMPREHENSIVE SEARCH: Go through ALL categories to find the exact product
-            debugPrint('🔍🔍 Starting comprehensive search for: $productName');
-            final searchResult = await _findProductInAllCategories(productName);
-
-            // Hide the loading snackbar
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-            if (searchResult != null) {
-              final foundProduct = searchResult['product'];
-              final foundCategoryId = searchResult['category_id'];
-              final foundCategoryName = searchResult['category_name'];
-              final foundSubcategoryId = searchResult['subcategory_id'];
-              final foundSubcategoryName = searchResult['subcategory_name'];
-              final foundInSubcategory =
-                  searchResult['found_in_subcategory'] ?? false;
-
-              debugPrint(
-                  '🔍🔍 Product found in: $foundCategoryName > ${foundSubcategoryName ?? "No subcategory"}');
-
-              // Store the found product for navigation
-              _storeSearchResultsForNavigation(foundProduct);
-
-              // Clear search and hide dropdown
-              setState(() {
-                _searchResults = [];
-                _showSearchDropdown = false;
-                _searchFocusNode.unfocus();
-              });
-
-              // Navigate to the correct page
-              if (foundInSubcategory && foundSubcategoryId != null) {
-                // Navigate to subcategory page
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SubcategoryPage(
-                      categoryId: foundCategoryId,
-                      categoryName: foundCategoryName,
-                      targetSubcategoryId: foundSubcategoryId,
-                      searchedProductId: foundProduct['id'],
-                      searchedProductName: foundProduct['name'],
-                    ),
-                  ),
-                );
-              } else {
-                // Navigate to product list page
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ProductListPage(
-                      categoryId: foundCategoryId,
-                      categoryName: foundCategoryName,
-                      searchedProductId: foundProduct['id'],
-                      searchedProductName: foundProduct['name'],
-                    ),
-                  ),
-                );
-              }
-
-              // Show success message
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                      'Found "${foundProduct['name']}" in $foundCategoryName${foundSubcategoryName != null ? ' > $foundSubcategoryName' : ''}'),
-                  backgroundColor: Colors.green.shade600,
-                  duration: Duration(seconds: 3),
-                ),
-              );
-            } else {
-              // Product not found in any category
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content:
-                      Text('Product "$productName" not found in any category.'),
-                  backgroundColor: Colors.orange.shade600,
-                  duration: Duration(seconds: 3),
-                ),
-              );
-            }
-          } catch (e) {
-            // Hide the loading snackbar
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-            debugPrint('🔍🔍 Error in comprehensive search: $e');
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content:
-                    Text('Error finding product location. Please try again.'),
-                backgroundColor: Colors.red.shade600,
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-        },
       ),
     );
+  }
+
+  // Fallback method only used if category info is missing from search results
+  Future<void> _navigateToProductFallback(String productName) async {
+    // Show loading indicator
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('Searching...'),
+          ],
+        ),
+        duration: Duration(seconds: 30),
+        backgroundColor: Colors.green.shade700,
+      ),
+    );
+
+    try {
+      debugPrint('🔍🔍 Fallback: Searching for: $productName');
+      final searchResult = await _findProductInAllCategories(productName);
+
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      if (searchResult != null) {
+        final foundProduct = searchResult['product'];
+        final foundCategoryId = searchResult['category_id'];
+        final foundCategoryName = searchResult['category_name'];
+        final foundSubcategoryId = searchResult['subcategory_id'];
+        final foundSubcategoryName = searchResult['subcategory_name'];
+        final foundInSubcategory =
+            searchResult['found_in_subcategory'] ?? false;
+
+        _storeSearchResultsForNavigation(foundProduct);
+
+        if (foundInSubcategory && foundSubcategoryId != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SubcategoryPage(
+                categoryId: foundCategoryId,
+                categoryName: foundCategoryName,
+                targetSubcategoryId: foundSubcategoryId,
+                searchedProductId: foundProduct['id'],
+                searchedProductName: foundProduct['name'],
+              ),
+            ),
+          );
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProductListPage(
+                categoryId: foundCategoryId,
+                categoryName: foundCategoryName,
+                searchedProductId: foundProduct['id'],
+                searchedProductName: foundProduct['name'],
+              ),
+            ),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Product "$productName" not found.'),
+            backgroundColor: Colors.orange.shade600,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error finding product. Please try again.'),
+          backgroundColor: Colors.red.shade600,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   Widget _buildCategoriesGrid() {
@@ -1572,19 +1940,65 @@ class CategoryPageState extends State<CategoryPage> {
     debugPrint('🔍 _prefetchAllProducts() method started');
     debugPrint('🔍 ==========================================');
     try {
+      // IMPORTANT:
+      // For search we need products in a FLATTENED format that already contains
+      // category_id / category_name / subcategory_id / subcategory_name so that
+      // search can be done entirely in memory without any extra API calls.
+      //
+      // The CategoryOptimizationService.getProducts() call returns a different
+      // shape (otcpom, drug, wellness, etc.) without those IDs, so we make a
+      // single direct call to the get-all-products API here and build the
+      // flattened index for CategoryCache.
       debugPrint(
-          '🔍 Calling _categoryService.getProducts() with forceRefresh: true...');
-      final products = await _categoryService.getProducts(forceRefresh: true);
-      debugPrint(
-          '🔍 Received ${products.length} products from service with otcpom data');
-      _allProducts = products;
-      CategoryCache.cacheAllProducts(products);
-      debugPrint('🔍 Cached ${products.length} products in CategoryCache');
+          '🔍 Prefetching products for search index via get-all-products...');
 
-      setState(() {});
+      final response = await http
+          .get(
+            Uri.parse(
+              'https://eclcommerce.ernestchemists.com.gh/api/get-all-products',
+            ),
+          )
+          .timeout(const Duration(seconds: 12));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> dataList = responseData['data'] ?? [];
+
+        debugPrint(
+            '🔍 Prefetch: received ${dataList.length} items from get-all-products');
+
+        // Build flattened products with full category / subcategory context
+        final List<dynamic> flattenedProducts = dataList.map<dynamic>((item) {
+          final productData = item['product'] as Map<String, dynamic>? ?? {};
+          return {
+            'id': productData['id'],
+            'name': productData['name'] ?? 'Unknown Product',
+            'thumbnail': productData['thumbnail'] ?? productData['image'] ?? '',
+            'price': item['price'] ?? 0,
+            'description': productData['description'] ?? '',
+            'category_id': item['category_id'],
+            'category_name': item['category_name'],
+            'subcategory_id': item['subcategory_id'],
+            'subcategory_name': item['subcategory_name'],
+          };
+        }).toList();
+
+        _allProducts = flattenedProducts;
+        CategoryCache.cacheAllProducts(flattenedProducts);
+        debugPrint(
+            '🔍 Prefetch: cached ${flattenedProducts.length} flattened products for instant search');
+
+        if (mounted) {
+          setState(() {});
+        }
+      } else {
+        debugPrint(
+            '🔍 Prefetch get-all-products failed with HTTP ${response.statusCode}');
+      }
     } catch (e) {
       debugPrint('🔍 Error in _prefetchAllProducts: $e');
     }
+
     debugPrint('🔍 ==========================================');
     debugPrint('🔍 _prefetchAllProducts() method completed');
     debugPrint('🔍 ==========================================');
@@ -1828,7 +2242,7 @@ class _ModernCategoryCard extends StatelessWidget {
     } else if (name == 'PERSONAL CARE') {
       return 'assets/images/Personal Care ECL.jpg';
     } else if (name == 'SPORTS NUTRITION') {
-      return 'assets/images/Sports Nutrition ECL (1).jpg';
+      return 'assets/images/Sports Nutrition ECL.jpg';
     } else if (name == 'FOOD AND DRINKS') {
       return 'assets/images/Food-Drinks ECL.jpg';
     } else if (name == 'SEXUAL HEALTH') {

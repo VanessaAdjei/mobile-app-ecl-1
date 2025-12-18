@@ -24,6 +24,7 @@ class DeliveryPage extends StatefulWidget {
 class DeliveryPageState extends State<DeliveryPage> {
   String deliveryOption = 'delivery';
   double deliveryFee = 0.00;
+  double? _distanceKm; // actual distance in km from closest store
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -1492,21 +1493,45 @@ class DeliveryPageState extends State<DeliveryPage> {
         print('🗺️ [MAP API RESPONSE] Data: ${result['data']}');
       }
 
-      if (result['closest_store'] != null) {}
+      final closestStore = result['closest_store'];
 
-      if (result['delivery_fee'] != null) {}
+      // If the API gave us a distance like "4.2 km", use that to compute the fee
+      if (closestStore != null) {
+        final distanceText = closestStore['distance_text']?.toString();
+        print('🗺️ [MAP API RESPONSE] Closest store: $closestStore');
+        print('🗺️ [MAP API RESPONSE] distance_text: $distanceText');
 
-      if (result['estimated_delivery_time'] != null) {}
-
-      if (result['success'] && result['closest_store'] != null) {
-        final durationText = result['closest_store']['duration_text'];
-        if (durationText != null) {
-          setState(() {
-            _apiDeliveryTime = durationText;
-          });
+        if (distanceText != null) {
+          final match = RegExp(r'([\d\.]+)').firstMatch(distanceText);
+          if (match != null) {
+            final parsedKm = double.tryParse(match.group(1)!);
+            if (parsedKm != null) {
+              final fee =
+                  DeliveryService.calculateDeliveryFeeByDistance(parsedKm);
+              print(
+                  '📦 Calculated delivery fee from actual distance ($parsedKm km): $fee');
+              if (mounted) {
+                setState(() {
+                  deliveryFee = fee;
+                  _distanceKm = parsedKm;
+                });
+              }
+            }
+          }
         }
       }
-    } catch (e) {}
+
+      if (result['estimated_delivery_time'] != null &&
+          closestStore != null &&
+          closestStore['duration_text'] != null) {
+        final durationText = closestStore['duration_text'];
+        setState(() {
+          _apiDeliveryTime = durationText;
+        });
+      }
+    } catch (e) {
+      print('❌ [DELIVERY] Error fetching delivery time/fee from API: $e');
+    }
   }
 
   Widget _buildPhoneField(bool isPhoneValid) {
@@ -2127,6 +2152,8 @@ class DeliveryPageState extends State<DeliveryPage> {
           lat: _latitude,
           lng: _longitude,
           estimatedDeliveryTime: _apiDeliveryTime,
+          distanceKm: _distanceKm,
+          deliveryFee: deliveryFee,
         ),
       ),
     );
@@ -2300,7 +2327,16 @@ class DeliveryPageState extends State<DeliveryPage> {
           '🗺️ [REVERSE GEOCODING RESPONSE] Placemarks count: ${placemarks.length}');
 
       if (placemarks.isNotEmpty) {
-        final placemark = placemarks.first;
+        // Try to pick the most human-friendly placemark:
+        // prefer one whose name looks like a real place (e.g. "Stanbic Heights")
+        // instead of a plus code like "HRXF+F4X" or just numbers like "3".
+        Placemark placemark = placemarks.first;
+        for (final p in placemarks) {
+          if (_isValidPlaceName(p.name)) {
+            placemark = p;
+            break;
+          }
+        }
 
         // Log detailed placemark information
         print('🗺️ [REVERSE GEOCODING RESPONSE] First placemark: $placemark');
@@ -2369,12 +2405,36 @@ class DeliveryPageState extends State<DeliveryPage> {
     }
   }
 
+  /// Check if a name looks like a real place name (not a Plus Code or just numbers)
+  bool _isValidPlaceName(String? name) {
+    if (name == null || name.isEmpty) return false;
+
+    final trimmed = name.trim();
+
+    // Reject Plus Codes (e.g., "HRXF+F4X") - they have + and are short alphanumeric
+    if (trimmed.contains('+') &&
+        trimmed.length <= 15 &&
+        RegExp(r'^[A-Z0-9]+\+[A-Z0-9]+$').hasMatch(trimmed)) {
+      return false;
+    }
+
+    // Reject if it's just numbers (but allow numbers with letters like "3rd Street")
+    if (RegExp(r'^\d+$').hasMatch(trimmed)) return false;
+
+    // Reject very short names (but allow 3+ characters)
+    if (trimmed.length < 3) return false;
+
+    // Must contain at least one letter to be a real place name
+    if (!RegExp(r'[a-zA-Z]').hasMatch(trimmed)) return false;
+
+    return true;
+  }
+
   /// Build a readable address from placemark, prioritizing place name
   /// Returns just the generic place name when available
   String _buildReadableAddressFromPlacemark(Placemark placemark) {
-    // Priority 1: Use the place name if available (e.g., "Accra Mall", "Kumasi Central Market")
-    if (placemark.name != null &&
-        placemark.name!.isNotEmpty &&
+    // Priority 1: Use the place name if available and valid (e.g., "Accra Mall", "Kumasi Central Market")
+    if (_isValidPlaceName(placemark.name) &&
         placemark.name != placemark.street &&
         placemark.name != placemark.thoroughfare) {
       return placemark.name!;

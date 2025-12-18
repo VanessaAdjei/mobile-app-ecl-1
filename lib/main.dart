@@ -394,6 +394,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (appInstallDate == null) {
       // first time opening, set the date and show onboarding
       await prefs.setString('app_install_date', currentDate);
+      if (!mounted) return;
       setState(() {
         _isFirstLaunch = true;
       });
@@ -408,6 +409,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         if (daysSinceInstall > 30) {
           // probably uninstalled and reinstalled, show onboarding again
           await prefs.setString('app_install_date', currentDate);
+          if (!mounted) return;
           setState(() {
             _isFirstLaunch = true;
           });
@@ -415,6 +417,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               '🚀 Main: App reinstall detected (${daysSinceInstall} days old) - showing onboarding');
         } else {
           // normal launch, skip onboarding
+          if (!mounted) return;
           setState(() {
             _isFirstLaunch = false;
           });
@@ -423,6 +426,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       } catch (e) {
         // if we cant parse the date, just treat it as a fresh install
         await prefs.setString('app_install_date', currentDate);
+        if (!mounted) return;
         setState(() {
           _isFirstLaunch = true;
         });
@@ -465,6 +469,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   Future<void> _checkAuthStatus() async {
     final isLoggedIn = await AuthService.isLoggedIn();
+    if (!mounted) return;
     setState(() {
       _isLoggedIn = isLoggedIn;
     });
@@ -797,13 +802,19 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               home: _isFirstLaunch == true
                   ? OnboardingSplashPage(
                       onFinish: () async {
+                        if (!mounted) return;
                         setState(() {
                           _isFirstLaunch = false;
                         });
 
                         // Show notification permission request after onboarding
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          _showNotificationPermissionIfNeeded();
+                        // Use Future.microtask to defer to next event loop tick
+                        Future.microtask(() {
+                          if (!mounted) return;
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (!mounted) return;
+                            _showNotificationPermissionIfNeeded();
+                          });
                         });
                       },
                     )
@@ -901,14 +912,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   /// Show notification permission request if needed
   Future<void> _showNotificationPermissionIfNeeded() async {
     try {
+      if (!mounted) return;
+
       final permission = Permission.notification;
       final status = await permission.status;
+
+      if (!mounted) return;
 
       // only show if we dont have permission and they havent permanently denied it
       if (!status.isGranted && !status.isPermanentlyDenied) {
         final context =
             NativeNotificationService.globalNavigatorKey.currentContext;
-        if (context != null) {
+        if (context != null && context.mounted) {
           await Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => const NotificationPermissionPage(),

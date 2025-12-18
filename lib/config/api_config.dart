@@ -168,6 +168,15 @@ class ApiConfig {
   static const String googleGeminiApi =
       'https://makersuite.google.com/app/apikey';
 
+  // google maps web geocoding api (used for map search)
+  static const String googleMapsGeocodingUrl =
+      'https://maps.googleapis.com/maps/api/geocode/json';
+
+  // NOTE: Set this to your real Google Maps API key (the same one you use in iOS/Android)
+  // before building the app. Leaving the placeholder will make geocoding requests fail.
+  static const String googleMapsApiKey =
+      'AIzaSyBovMgpzLro6Z-yabBeLRl1FLVnE52BTnc';
+
   // ==================== HELPER METHODS ====================
   // functions to build full urls from endpoints
 

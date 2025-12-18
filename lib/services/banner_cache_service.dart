@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 
-
 class BannerModel {
   final int id;
   final String img;
@@ -129,48 +128,169 @@ class BannerCacheService {
           .timeout(const Duration(seconds: 15));
 
       stopwatch.stop();
-      debugPrint('Banner API call completed in ${stopwatch.elapsedMilliseconds}ms');
+      debugPrint(
+          'Banner API call completed in ${stopwatch.elapsedMilliseconds}ms');
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final List bannersData = data['data'] ?? [];
+        // Check if response is actually JSON (not HTML error page)
+        final contentType = response.headers['content-type'] ?? '';
+        final body = response.body.trim();
 
-        final banners = bannersData
-            .map<BannerModel>((item) => BannerModel.fromJson(item))
-            .toList();
-
-        debugPrint('Successfully fetched ${banners.length} banners from API');
-
-        // Cache the banners
-        await _cacheBanners(banners);
-
-        // Start preloading images in background, but don't block UI
-        Future(() async {
-          final preloadStopwatch = Stopwatch()..start();
-          final context = _getAnyContext();
-          if (context != null) {
-            await preloadBannerImages(context);
-            preloadStopwatch.stop();
-            debugPrint('Banner image preloading completed in ${preloadStopwatch.elapsedMilliseconds}ms');
-          } else {
-            debugPrint('Banner image preloading skipped (no context available)');
+        // Check if response is HTML (error page) instead of JSON
+        if (body.startsWith('<!DOCTYPE') ||
+            body.startsWith('<html') ||
+            (!contentType.contains('json') &&
+                !body.startsWith('{') &&
+                !body.startsWith('['))) {
+          debugPrint(
+              'Banner API returned HTML instead of JSON. Response preview: ${body.substring(0, body.length > 100 ? 100 : body.length)}');
+          // Return cached banners if available, otherwise return empty list gracefully
+          if (hasCachedBanners) {
+            debugPrint('Returning cached banners due to HTML response');
+            return cachedBanners;
           }
-        });
+          // Try to load from storage as fallback
+          try {
+            await _loadFromStorage();
+            if (hasCachedBanners) {
+              debugPrint(
+                  'Loaded banners from storage cache after API HTML response');
+              return cachedBanners;
+            }
+          } catch (e) {
+            debugPrint('Failed to load banners from storage: $e');
+          }
+          // Return empty list gracefully instead of throwing
+          debugPrint('No cached banners available, returning empty list');
+          return [];
+        }
 
-        return banners;
+        try {
+          final data = json.decode(body);
+          final List bannersData = data['data'] ?? [];
+
+          final banners = bannersData
+              .map<BannerModel>((item) => BannerModel.fromJson(item))
+              .toList();
+
+          debugPrint('Successfully fetched ${banners.length} banners from API');
+
+          // Cache the banners
+          await _cacheBanners(banners);
+
+          // Start preloading images in background, but don't block UI
+          Future(() async {
+            final preloadStopwatch = Stopwatch()..start();
+            final context = _getAnyContext();
+            if (context != null) {
+              await preloadBannerImages(context);
+              preloadStopwatch.stop();
+              debugPrint(
+                  'Banner image preloading completed in ${preloadStopwatch.elapsedMilliseconds}ms');
+            } else {
+              debugPrint(
+                  'Banner image preloading skipped (no context available)');
+            }
+          });
+
+          return banners;
+        } on FormatException catch (e) {
+          debugPrint('Banner API JSON parse error: $e');
+          // Return cached banners if available
+          if (hasCachedBanners) {
+            debugPrint('Returning cached banners due to JSON parse error');
+            return cachedBanners;
+          }
+          // Try to load from storage as fallback
+          try {
+            await _loadFromStorage();
+            if (hasCachedBanners) {
+              debugPrint(
+                  'Loaded banners from storage cache after JSON parse error');
+              return cachedBanners;
+            }
+          } catch (storageError) {
+            debugPrint('Failed to load banners from storage: $storageError');
+          }
+          // Return empty list gracefully instead of throwing
+          debugPrint(
+              'No cached banners available after parse error, returning empty list');
+          return [];
+        }
       } else {
         debugPrint('Banner API error: ${response.statusCode}');
-        throw Exception('Server error: ${response.statusCode}');
+        // Return cached banners if available instead of throwing
+        if (hasCachedBanners) {
+          debugPrint(
+              'Returning cached banners due to HTTP ${response.statusCode}');
+          return cachedBanners;
+        }
+        // Try to load from storage as fallback
+        try {
+          await _loadFromStorage();
+          if (hasCachedBanners) {
+            debugPrint(
+                'Loaded banners from storage cache after HTTP ${response.statusCode}');
+            return cachedBanners;
+          }
+        } catch (storageError) {
+          debugPrint('Failed to load banners from storage: $storageError');
+        }
+        // Return empty list gracefully instead of throwing
+        debugPrint(
+            'No cached banners available after HTTP ${response.statusCode}, returning empty list');
+        return [];
       }
     } on TimeoutException {
       debugPrint('Banner API timeout');
-      throw Exception('Request timeout. Please check your connection.');
+      // Try to return cached banners or load from storage
+      if (hasCachedBanners) {
+        return cachedBanners;
+      }
+      try {
+        await _loadFromStorage();
+        if (hasCachedBanners) {
+          return cachedBanners;
+        }
+      } catch (e) {
+        debugPrint('Failed to load banners from storage after timeout: $e');
+      }
+      return [];
     } on http.ClientException {
       debugPrint('Banner API client error - no internet connection');
-      throw Exception('No internet connection.');
+      // Try to return cached banners or load from storage
+      if (hasCachedBanners) {
+        return cachedBanners;
+      }
+      try {
+        await _loadFromStorage();
+        if (hasCachedBanners) {
+          return cachedBanners;
+        }
+      } catch (e) {
+        debugPrint(
+            'Failed to load banners from storage after client error: $e');
+      }
+      return [];
     } catch (e) {
       debugPrint('Banner API error: $e');
-      throw Exception('Failed to load banners: $e');
+      // Try to return cached banners or load from storage
+      if (hasCachedBanners) {
+        debugPrint('Returning cached banners after error');
+        return cachedBanners;
+      }
+      try {
+        await _loadFromStorage();
+        if (hasCachedBanners) {
+          debugPrint('Loaded banners from storage after error');
+          return cachedBanners;
+        }
+      } catch (storageError) {
+        debugPrint('Failed to load banners from storage: $storageError');
+      }
+      // Return empty list gracefully instead of throwing
+      debugPrint('No cached banners available, returning empty list');
+      return [];
     } finally {
       _isLoading = false;
     }
@@ -232,7 +352,8 @@ class BannerCacheService {
             .toList();
         _lastCacheTime = cacheTime;
 
-        debugPrint('Loaded ${_cachedBanners.length} banners from storage cache');
+        debugPrint(
+            'Loaded ${_cachedBanners.length} banners from storage cache');
       }
     } catch (e) {
       debugPrint('Failed to load banner cache: $e');
@@ -270,8 +391,7 @@ class BannerCacheService {
       'api_calls': _apiCalls,
       'last_api_call': _lastApiCallTime?.toIso8601String(),
       'cache_hit_rate': _cacheHits + _cacheMisses > 0
-          ? '${(_cacheHits / (_cacheHits + _cacheMisses) * 100)
-                  .toStringAsFixed(1)}%'
+          ? '${(_cacheHits / (_cacheHits + _cacheMisses) * 100).toStringAsFixed(1)}%'
           : '0%',
     };
   }
