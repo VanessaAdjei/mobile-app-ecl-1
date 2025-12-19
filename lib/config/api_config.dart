@@ -90,6 +90,7 @@ class ApiConfig {
   static const String expressPayment = '/expresspayment';
   static const String checkPayment = '/check-payment';
   static const String paymentStatus = '/payment-status';
+  static const String applyCoupon = '/apply-coupon';
 
   // ==================== PRESCRIPTION ENDPOINTS ====================
   // prescription uploads and stuff

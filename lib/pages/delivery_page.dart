@@ -149,6 +149,9 @@ class DeliveryPageState extends State<DeliveryPage> {
         print('🗺️ [MAP COORDINATES] Longitude: ${location.longitude}');
         print('🗺️ [MAP COORDINATES] ======================================');
 
+        // Do reverse geocoding to get full address with place name
+        await _getAddressFromCoordinates(_latitude!, _longitude!);
+
         // Fetch delivery time from API with new coordinates
         _fetchDeliveryTimeFromAPI();
 
@@ -180,6 +183,9 @@ class DeliveryPageState extends State<DeliveryPage> {
             });
             print(
                 '✅ [GEOCODING] Fallback SUCCESS! Using city center coordinates: (${_latitude}, ${_longitude})');
+
+            // Do reverse geocoding to get full address with place name
+            await _getAddressFromCoordinates(_latitude!, _longitude!);
           } else {
             print('❌ [GEOCODING] Fallback also failed for: "$fallbackAddress"');
           }
@@ -208,6 +214,9 @@ class DeliveryPageState extends State<DeliveryPage> {
           });
           print(
               '✅ [GEOCODING] Fallback SUCCESS after error! Using city center: (${_latitude}, ${_longitude})');
+
+          // Do reverse geocoding to get full address with place name
+          await _getAddressFromCoordinates(_latitude!, _longitude!);
         }
       } catch (fallbackError) {
         print('❌ [GEOCODING] Fallback also failed: $fallbackError');
@@ -2282,7 +2291,7 @@ class DeliveryPageState extends State<DeliveryPage> {
         builder: (context) => MapPickerPage(
           initialLatitude: initialLat,
           initialLongitude: initialLng,
-          onLocationSelected: (lat, lng) {
+          onLocationSelected: (double lat, double lng, String? address) {
             setState(() {
               _latitude = lat;
               _longitude = lng;
@@ -2294,6 +2303,7 @@ class DeliveryPageState extends State<DeliveryPage> {
             print('   📍 Latitude: $lat');
             print('   📍 Longitude: $lng');
             print('   📍 Full coordinates: ($lat, $lng)');
+            print('   📍 Address from map picker: $address');
             print(
                 '   📍 Coordinates type: ${lat.runtimeType}, ${lng.runtimeType}');
             print(
@@ -2304,8 +2314,21 @@ class DeliveryPageState extends State<DeliveryPage> {
             print('   📍 Stored coordinates: ($_latitude, $_longitude)');
             print('🗺️ [MAP PICKER] ======================================');
 
-            // Get address from coordinates (reverse geocoding)
-            _getAddressFromCoordinates(lat, lng);
+            // If address was provided from map picker (from Places API), use it
+            // Otherwise, do reverse geocoding
+            if (address != null &&
+                address.isNotEmpty &&
+                address != 'Unknown location' &&
+                address != 'Address not found') {
+              // Use the address from map picker (which includes the place name from Places API)
+              setState(() {
+                _addressController.text = address;
+              });
+              print('🗺️ [MAP PICKER] Using address from map picker: $address');
+            } else {
+              // Fallback to reverse geocoding if no address provided
+              _getAddressFromCoordinates(lat, lng);
+            }
           },
         ),
       ),
@@ -2430,37 +2453,67 @@ class DeliveryPageState extends State<DeliveryPage> {
     return true;
   }
 
-  /// Build a readable address from placemark, prioritizing place name
-  /// Returns just the generic place name when available
+  /// Build a readable address from placemark, combining multiple components
+  /// Returns a complete address string with place name, street number, and street name
   String _buildReadableAddressFromPlacemark(Placemark placemark) {
-    // Priority 1: Use the place name if available and valid (e.g., "Accra Mall", "Kumasi Central Market")
-    if (_isValidPlaceName(placemark.name) &&
-        placemark.name != placemark.street &&
-        placemark.name != placemark.thoroughfare) {
-      return placemark.name!;
+    List<String> addressParts = [];
+    String? placeName;
+
+    // Get place name first if available and valid
+    if (_isValidPlaceName(placemark.name)) {
+      placeName = placemark.name;
     }
 
-    // Priority 2: Use thoroughfare (main street/road name) if no place name
-    if (placemark.thoroughfare != null && placemark.thoroughfare!.isNotEmpty) {
-      return placemark.thoroughfare!;
+    // Add sub-thoroughfare (street number) if available
+    if (placemark.subThoroughfare != null &&
+        placemark.subThoroughfare!.isNotEmpty &&
+        placemark.subThoroughfare != placeName) {
+      addressParts.add(placemark.subThoroughfare!);
     }
 
-    // Priority 3: Use street if thoroughfare is not available
+    // Add thoroughfare (street name) if available
+    if (placemark.thoroughfare != null &&
+        placemark.thoroughfare!.isNotEmpty &&
+        placemark.thoroughfare != placeName) {
+      addressParts.add(placemark.thoroughfare!);
+    }
+
+    // Build the address: place name first, then street address
+    if (placeName != null && addressParts.isNotEmpty) {
+      String streetAddress = addressParts.join(' ');
+      // Only add place name if it's not already in the street address
+      if (!streetAddress.toLowerCase().contains(placeName.toLowerCase())) {
+        return '$placeName, $streetAddress';
+      }
+      return '$placeName, $streetAddress';
+    }
+
+    // If we have street components but no place name, use street address
+    if (addressParts.isNotEmpty) {
+      return addressParts.join(' ');
+    }
+
+    // If we have place name but no street, use place name
+    if (placeName != null) {
+      return placeName;
+    }
+
+    // Fallback: Use street if available
     if (placemark.street != null && placemark.street!.isNotEmpty) {
       return placemark.street!;
     }
 
-    // Priority 4: Use sub-locality (neighborhood/area)
+    // Fallback: Use sub-locality (neighborhood/area)
     if (placemark.subLocality != null && placemark.subLocality!.isNotEmpty) {
       return placemark.subLocality!;
     }
 
-    // Priority 5: Use locality (city)
+    // Fallback: Use locality (city)
     if (placemark.locality != null && placemark.locality!.isNotEmpty) {
       return placemark.locality!;
     }
 
-    // Priority 6: Use administrative area (region)
+    // Fallback: Use administrative area (region)
     if (placemark.administrativeArea != null &&
         placemark.administrativeArea!.isNotEmpty) {
       return placemark.administrativeArea!;

@@ -2008,9 +2008,6 @@ class HomePageState extends State<HomePage>
   }
 
   Widget _buildCategoryScroll({bool isTablet = false}) {
-    debugPrint(
-        '🔍 HomePage: _buildCategoryScroll called - isLoading: $_isLoadingCategories, categories: ${_categories.length}, hasTried: $_hasTriedLoadingCategories');
-
     // Trigger category loading on first build if not already loading/loaded
     if (!_hasTriedLoadingCategories &&
         !_isLoadingCategories &&

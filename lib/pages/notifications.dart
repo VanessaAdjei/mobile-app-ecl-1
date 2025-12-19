@@ -14,7 +14,9 @@ import '../services/order_notification_service.dart';
 import '../services/performance_service.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key});
+  final bool scrollToTop;
+
+  const NotificationsScreen({super.key, this.scrollToTop = false});
 
   @override
   NotificationsScreenState createState() => NotificationsScreenState();
@@ -162,6 +164,19 @@ class NotificationsScreenState extends State<NotificationsScreen> {
         setState(() {
           isLoading = false;
         });
+
+        // Scroll to top if requested (e.g., when coming from notification banner)
+        if (widget.scrollToTop && _scrollController.hasClients) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_scrollController.hasClients) {
+              _scrollController.animateTo(
+                0,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut,
+              );
+            }
+          });
+        }
       }
       _performanceService.stopTimer('notifications_loading');
     }
@@ -301,33 +316,44 @@ class NotificationsScreenState extends State<NotificationsScreen> {
 
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.notifications_none,
-            size: 80,
-            color: Colors.blue[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No notifications yet',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[600],
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.notifications_outlined,
+                size: 64,
+                color: Colors.grey.shade400,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'You\'ll see order updates and promotions here',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[500],
+            const SizedBox(height: 24),
+            Text(
+              'No notifications',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade800,
+              ),
             ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              'You\'ll see order updates and promotions here when they arrive',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -338,9 +364,10 @@ class NotificationsScreenState extends State<NotificationsScreen> {
 
     return RefreshIndicator(
       onRefresh: () => _loadNotifications(forceRefresh: true),
+      color: Colors.green.shade600,
       child: ListView.builder(
         controller: _scrollController,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         itemCount: sortedDates.length,
         itemBuilder: (context, index) {
           final dateKey = sortedDates[index];
@@ -354,41 +381,30 @@ class NotificationsScreenState extends State<NotificationsScreen> {
 
   Widget _buildNotificationGroup(String dateKey,
       List<Map<String, dynamic>> notifications, int groupIndex) {
-    final theme = Theme.of(context);
-
-    return Animate(
-      effects: [
-        FadeEffect(duration: 400.ms, delay: (groupIndex * 80).ms),
-        SlideEffect(
-          duration: 400.ms,
-          begin: const Offset(0, 0.1),
-          end: Offset.zero,
-          delay: (groupIndex * 80).ms,
-        ),
-      ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // date header
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
-            child: Text(
-              _formatDate(dateKey),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // date header
+        Padding(
+          padding: const EdgeInsets.only(top: 16, bottom: 12, left: 4),
+          child: Text(
+            _formatDate(dateKey),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade600,
+              letterSpacing: 0.5,
             ),
           ),
+        ),
 
-          // Notifications for this date
-          ...notifications.asMap().entries.map((entry) {
-            final index = entry.key;
-            final notification = entry.value;
-            return _buildNotificationCard(notification, index);
-          }),
-        ],
-      ),
+        // Notifications for this date
+        ...notifications.asMap().entries.map((entry) {
+          final index = entry.key;
+          final notification = entry.value;
+          return _buildNotificationCard(notification, index);
+        }),
+      ],
     );
   }
 
@@ -428,119 +444,70 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     return Dismissible(
-      key: UniqueKey(),
+      key: Key('notification_${notification['id']}_$index'),
       direction: DismissDirection.endToStart,
       background: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
+        margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.red.shade400, Colors.red.shade600],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.red.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          color: Colors.red.shade500,
+          borderRadius: BorderRadius.circular(12),
         ),
         alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Icon(Icons.delete_sweep, color: Colors.white, size: 24),
-            const SizedBox(width: 8),
-            Text(
-              'Delete',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Icon(Icons.delete_outline, color: Colors.white, size: 24),
       ),
       onDismissed: (direction) {
         _deleteNotification(_getDateKey(notification), index);
       },
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
+        margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          color: isRead ? Colors.white : Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isRead ? Colors.grey.shade200 : Colors.blue.shade100,
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: Colors.black.withValues(alpha: isRead ? 0.02 : 0.04),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
             ),
           ],
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             onTap: () => _showNotificationDetails(notification),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Notification icon
-                  Stack(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: iconColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
                           color: iconColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
                         ),
-                        child: Icon(
-                          iconData,
-                          color: iconColor,
-                          size: 24,
-                        ),
-                      ),
-                      if (!isRead)
-                        Positioned(
-                          right: -2,
-                          top: -2,
-                          child: Container(
-                            width: 16,
-                            height: 16,
-                            decoration: BoxDecoration(
-                              color: Colors.blue,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 3),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.blue.withValues(alpha: 0.6),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: Text(
-                                '!',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
+                      ],
+                    ),
+                    child: Icon(
+                      iconData,
+                      color: iconColor,
+                      size: 24,
+                    ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
 
                   // notification content
                   Expanded(
@@ -548,6 +515,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
                               child: Text(
@@ -556,12 +524,12 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                   fontWeight: isRead
                                       ? FontWeight.w500
                                       : FontWeight.w600,
-                                  fontSize: 16,
+                                  fontSize: 15,
                                   color: isRead
-                                      ? Colors.grey[600]
-                                      : Colors.black87,
+                                      ? Colors.grey.shade700
+                                      : Colors.grey.shade900,
                                 ),
-                                maxLines: 2,
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -569,28 +537,49 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                             Text(
                               timeText,
                               style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[500],
+                                fontSize: 11,
+                                color: Colors.grey.shade500,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          notification['message'] ?? '',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                            height: 1.4,
+                        if ((notification['message'] ?? '')
+                            .toString()
+                            .isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            notification['message'] ?? '',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                              height: 1.3,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 8),
-                        Row(),
+                        ],
                       ],
                     ),
                   ),
+                  if (!isRead) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade600,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blue.shade600.withValues(alpha: 0.4),
+                            blurRadius: 4,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -796,33 +785,62 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     final orderNumber = notification['order_number']?.toString() ?? '';
     final totalAmount = notification['total_amount']?.toString() ?? '0.00';
     final status = notification['status']?.toString() ?? 'Order Placed';
+    final iconData = _getNotificationIcon(notification);
+    final iconColor = _getNotificationColor(notification);
+
+    // Format timestamp
+    String timeText = '';
+    try {
+      final timestamp = DateTime.parse(notification['timestamp']);
+      timeText = DateFormat('MMM d, y • h:mm a').format(timestamp);
+    } catch (e) {
+      timeText = 'Just now';
+    }
 
     showDialog(
       context: context,
       barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (context) => PopScope(
         onPopInvokedWithResult: (didPop, result) async {
           if (didPop) {
-            // Mark notification as read when dialog is dismissed
             await _markNotificationAsRead(notification);
           }
         },
         child: Dialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: Colors.transparent,
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           child: Container(
             constraints: BoxConstraints(
               maxHeight: MediaQuery.of(context).size.height * 0.8,
             ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header
+                // Modern Header
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade50,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        iconColor.withValues(alpha: 0.1),
+                        iconColor.withValues(alpha: 0.05),
+                      ],
+                    ),
                     borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(20),
                       topRight: Radius.circular(20),
@@ -831,45 +849,72 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(8),
+                        width: 40,
+                        height: 40,
                         decoration: BoxDecoration(
-                          color: Colors.green.shade100,
-                          borderRadius: BorderRadius.circular(12),
+                          color: iconColor,
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: iconColor.withValues(alpha: 0.3),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: Icon(
-                          _getNotificationIcon(notification),
-                          color: Colors.green.shade700,
+                          iconData,
+                          color: Colors.white,
                           size: 20,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               notification['title'] ?? 'Notification',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
                                 fontSize: 16,
+                                color: Colors.grey.shade900,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              timeText,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      IconButton(
-                        onPressed: () async {
-                          // Mark notification as read when dialog is closed
-                          await _markNotificationAsRead(notification);
-                          Navigator.pop(context);
-                        },
-                        icon: Icon(
-                          Icons.close,
-                          color: Colors.grey.shade600,
-                          size: 20,
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () async {
+                            await _markNotificationAsRead(notification);
+                            Navigator.pop(context);
+                          },
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.close_rounded,
+                              color: Colors.grey.shade700,
+                              size: 20,
+                            ),
+                          ),
                         ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
                       ),
                     ],
                   ),
@@ -878,7 +923,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                 // Content
                 Flexible(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -890,7 +935,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                             style: TextStyle(
                               color: Colors.grey.shade700,
                               fontSize: 14,
-                              height: 1.4,
+                              height: 1.5,
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -898,140 +943,93 @@ class NotificationsScreenState extends State<NotificationsScreen> {
 
                         // Items with images
                         if (items.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          ...items
-                              .map((item) => _buildImageItemRow(item))
-                              .toList(),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: items
+                                .map<Widget>((item) => _buildImageItemRow(item))
+                                .toList(),
+                          ),
                           const SizedBox(height: 16),
                         ],
 
-                        // Order details (just ID and amount)
-                        if (orderNumber.isNotEmpty ||
-                            totalAmount.isNotEmpty) ...[
+                        // Order details - simplified
+                        if (orderNumber.isNotEmpty) ...[
+                          Row(
+                            children: [
+                              Text(
+                                orderNumber,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                  color: Colors.grey.shade900,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                        if (status.isNotEmpty) ...[
                           Container(
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
                             decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
-                              borderRadius: BorderRadius.circular(12),
+                              color: Colors.green.shade600,
+                              borderRadius: BorderRadius.circular(18),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Order Number',
-                                      style: TextStyle(
-                                        color: Colors.grey.shade600,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    Flexible(
-                                      child: Text(
-                                        orderNumber,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
-                                          color: Colors.grey.shade800,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                        textAlign: TextAlign.end,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Status',
-                                      style: TextStyle(
-                                        color: Colors.grey.shade600,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green.shade100,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        status,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.green.shade700,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Total Amount',
-                                      style: TextStyle(
-                                        color: Colors.grey.shade600,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    Flexible(
-                                      child: Text(
-                                        '$totalAmount',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
-                                          color: Colors.green.shade700,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                        textAlign: TextAlign.end,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                            child: Text(
+                              status.toUpperCase(),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        if (totalAmount.isNotEmpty) ...[
+                          Text(
+                            totalAmount,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 18,
+                              color: Colors.green.shade700,
                             ),
                           ),
                           const SizedBox(height: 16),
+                        ],
 
-                          // Track Order Button
-                          if (notification['order_id'] != null ||
-                              notification['order_number'] != null) ...[
-                            Container(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: () {
-                                  // Close the dialog first
-                                  Navigator.pop(context);
-
-                                  // Then navigate to tracking page with proper navigation stack
-                                  _handleNotificationAction(notification);
-                                },
-                                icon: const Icon(Icons.track_changes, size: 18),
-                                label: const Text('Track Order'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green.shade600,
-                                  foregroundColor: Colors.white,
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
+                        // Track Order Button
+                        if (notification['order_id'] != null ||
+                            notification['order_number'] != null)
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _handleNotificationAction(notification);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green.shade600,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: const Text(
+                                'Track Order',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 16),
-                          ],
-                        ],
+                          ),
                       ],
                     ),
                   ),
@@ -1056,46 +1054,56 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     final imageUrl = _getImageUrl(rawImageUrl);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         child: imageUrl.isNotEmpty
             ? CachedNetworkImage(
                 imageUrl: imageUrl,
                 fit: BoxFit.cover,
-                height: 80,
-                width: 80,
-                memCacheWidth: 160,
-                memCacheHeight: 160,
+                height: 90,
+                width: 90,
+                memCacheWidth: 180,
+                memCacheHeight: 180,
                 placeholder: (context, url) => Container(
-                  height: 80,
-                  width: 80,
-                  color: Colors.grey.shade200,
+                  height: 90,
+                  width: 90,
+                  color: Colors.grey.shade100,
                   child: Icon(
                     Icons.image,
                     color: Colors.grey.shade400,
-                    size: 24,
+                    size: 28,
                   ),
                 ),
                 errorWidget: (context, url, error) => Container(
-                  height: 80,
-                  width: 80,
-                  color: Colors.grey.shade200,
+                  height: 90,
+                  width: 90,
+                  color: Colors.grey.shade100,
                   child: Icon(
                     Icons.image_not_supported,
                     color: Colors.grey.shade400,
-                    size: 24,
+                    size: 28,
                   ),
                 ),
               )
             : Container(
-                height: 80,
-                width: 80,
-                color: Colors.grey.shade200,
+                height: 90,
+                width: 90,
+                color: Colors.grey.shade100,
                 child: Icon(
                   Icons.inventory,
                   color: Colors.grey.shade400,
-                  size: 24,
+                  size: 28,
                 ),
               ),
       ),

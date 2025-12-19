@@ -178,7 +178,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
                 ],
               ),
               backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
+              duration: const Duration(seconds: 3),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
@@ -194,11 +194,13 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
                     // reset the notification tracking since they're viewing notifications
                     notificationProvider.resetOnNotificationsRead();
 
-                    // go directly to notifications page
+                    // go directly to notifications page and scroll to top
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const NotificationsScreen(),
+                        builder: (context) => const NotificationsScreen(
+                          scrollToTop: true,
+                        ),
                       ),
                     );
                   }
@@ -217,104 +219,115 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
   }
 
   void _showPlusMenu(BuildContext context) {
+    // Check if already navigating to prevent multiple calls
+    if (_isNavigating) {
+      debugPrint('🔍 ALREADY NAVIGATING - IGNORING PLUS MENU ===');
+      return;
+    }
+
     // Defer showing the bottom sheet until after the current frame
     // to avoid Navigator lock issues
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _disposed || !context.mounted) return;
-      showModalBottomSheet(
-        context: context,
-        backgroundColor: Colors.transparent,
-        builder: (BuildContext context) {
-          return Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 12,
-                  offset: const Offset(0, -2),
+
+      try {
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          builder: (BuildContext context) {
+            return Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
                 ),
-              ],
-            ),
-            child: SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Handle bar
-                  Container(
-                    margin: const EdgeInsets.only(top: 10, bottom: 4),
-                    width: 38,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildMenuOption(
-                          context,
-                          icon: Icons.medical_services_rounded,
-                          title: 'Meet your pharmacist',
-                          subtitle: 'Chat or schedule a consultation',
-                          color: Colors.green.shade600,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const PharmacistsPage(),
-                              ),
-                            );
-                          },
-                        ),
-                        const Divider(height: 1),
-                        _buildMenuOption(
-                          context,
-                          icon: Icons.location_on_rounded,
-                          title: 'Locate a store',
-                          subtitle: 'See nearby branches on the map',
-                          color: Colors.blue.shade600,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const StoreSelectionPage(),
-                              ),
-                            );
-                          },
-                        ),
-                        const Divider(height: 1),
-                        _buildMenuOption(
-                          context,
-                          icon: Icons.contact_support_rounded,
-                          title: 'Contact us',
-                          subtitle: 'Call or email customer care',
-                          color: Colors.orange.shade600,
-                          onTap: () {
-                            Navigator.pop(context);
-                            _showContactOptions(context);
-                          },
-                        ),
-                      ],
-                    ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, -2),
                   ),
                 ],
               ),
-            ),
-          );
-        },
-      );
+              child: SafeArea(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Handle bar
+                    Container(
+                      margin: const EdgeInsets.only(top: 10, bottom: 4),
+                      width: 38,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildMenuOption(
+                            context,
+                            icon: Icons.medical_services_rounded,
+                            title: 'Meet your pharmacist',
+                            subtitle: 'Chat or schedule a consultation',
+                            color: Colors.green.shade600,
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const PharmacistsPage(),
+                                ),
+                              );
+                            },
+                          ),
+                          const Divider(height: 1),
+                          _buildMenuOption(
+                            context,
+                            icon: Icons.location_on_rounded,
+                            title: 'Locate a store',
+                            subtitle: 'See nearby branches on the map',
+                            color: Colors.blue.shade600,
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const StoreSelectionPage(),
+                                ),
+                              );
+                            },
+                          ),
+                          const Divider(height: 1),
+                          _buildMenuOption(
+                            context,
+                            icon: Icons.contact_support_rounded,
+                            title: 'Contact us',
+                            subtitle: 'Call or email customer care',
+                            color: Colors.orange.shade600,
+                            onTap: () {
+                              Navigator.pop(context);
+                              _showContactOptions(context);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      } catch (e) {
+        debugPrint('🔍 ERROR SHOWING PLUS MENU: $e ===');
+      }
     });
   }
 
@@ -663,6 +676,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
 
     // Special handling for plus icon (index 2) - show menu and return
     if (index == 2) {
+      debugPrint('🔍 PLUS BUTTON TAPPED - SHOWING MENU ===');
       _showPlusMenu(context);
       return; // Don't proceed with navigation logic
     }
@@ -977,53 +991,68 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
             right: 0,
             top: -28,
             child: Center(
-              child: GestureDetector(
-                onTap: () => _onItemTapped(2),
-                child: Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Colors.white,
-                        Colors.white.withOpacity(0.98),
-                      ],
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF20AF67).withValues(alpha: 0.3),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                        spreadRadius: 0,
-                      ),
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 4),
-                        spreadRadius: -4,
-                      ),
-                    ],
-                  ),
+              child: Material(
+                color: Colors.transparent,
+                elevation: 0,
+                child: InkWell(
+                  onTap: () {
+                    debugPrint('🔍 CENTER BUTTON TAPPED ===');
+                    if (mounted && !_disposed && context.mounted) {
+                      _onItemTapped(2);
+                    } else {
+                      debugPrint('🔍 CONTEXT NOT AVAILABLE ===');
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(30),
+                  splashColor: const Color(0xFF20AF67).withValues(alpha: 0.2),
+                  highlightColor:
+                      const Color(0xFF20AF67).withValues(alpha: 0.1),
                   child: Container(
-                    margin: const EdgeInsets.all(2),
+                    width: 60,
+                    height: 60,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          const Color(0xFF20AF67).withOpacity(0.1),
-                          const Color(0xFF20AF67).withOpacity(0.05),
+                          Colors.white,
+                          Colors.white.withOpacity(0.98),
                         ],
                       ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF20AF67).withValues(alpha: 0.3),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                          spreadRadius: 0,
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 20,
+                          offset: const Offset(0, 4),
+                          spreadRadius: -4,
+                        ),
+                      ],
                     ),
-                    child: const Icon(
-                      Icons.apps_rounded,
-                      color: Color(0xFF20AF67),
-                      size: 28,
+                    child: Container(
+                      margin: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            const Color(0xFF20AF67).withOpacity(0.1),
+                            const Color(0xFF20AF67).withOpacity(0.05),
+                          ],
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.apps_rounded,
+                        color: Color(0xFF20AF67),
+                        size: 28,
+                      ),
                     ),
                   ),
                 ),

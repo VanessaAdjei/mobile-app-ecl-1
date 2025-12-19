@@ -3,9 +3,6 @@ import 'package:flutter/material.dart';
 import 'app_back_button.dart';
 import 'HomePage.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-import '../widgets/cart_icon_button.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import '../services/delivery_service.dart';
 import '../services/location_service.dart';
@@ -871,110 +868,105 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
   }
 
   Widget _buildHeaderSection() {
-    final theme = Theme.of(context);
     final topPadding = MediaQuery.of(context).padding.top;
 
-    return Animate(
-      effects: [
-        FadeEffect(duration: 400.ms),
-        SlideEffect(duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
-      ],
-      child: Container(
-        padding: EdgeInsets.only(top: topPadding * 0.5),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.green.shade600,
-              Colors.green.shade700,
-              Colors.green.shade800,
-            ],
-            stops: [0.0, 0.5, 1.0],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
+    return Container(
+      padding: EdgeInsets.only(top: topPadding * 0.5),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.green.shade600,
+            Colors.green.shade700,
+            Colors.green.shade800,
           ],
+          stops: [0.0, 0.5, 1.0],
         ),
-        child: SafeArea(
-          child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    AppBackButton(
-                      backgroundColor: Colors.white.withValues(alpha: 0.2),
-                      onPressed: () => Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (context) => HomePage()),
-                        (route) => false,
-                      ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  AppBackButton(
+                    backgroundColor: Colors.white.withValues(alpha: 0.2),
+                    onPressed: () => Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (context) => HomePage()),
+                      (route) => false,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Find a Store',
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Find a Store',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white,
                           ),
-                          const SizedBox(height: 1),
-                          Text(
-                            'Locate the nearest Ernest Chemists store',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: Colors.white.withValues(alpha: 0.9),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Map view button
-                    Container(
-                      margin: EdgeInsets.only(left: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: IconButton(
-                        icon: Icon(
-                          Icons.map,
-                          color: Colors.white,
-                          size: 24,
                         ),
-                        onPressed: () {
-                          // Use allStores if available, otherwise use filtered stores
-                          final storesToShow = allStores.isNotEmpty
-                              ? allStores
-                              : _getFilteredAllStores();
-                          print(
-                              '🗺️ Opening map with ${storesToShow.length} stores');
-
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => StoreMapPage(
-                                stores: storesToShow,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Locate the nearest Ernest Chemists store',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontWeight: FontWeight.w300,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                  // Map view button
+                  Container(
+                    margin: EdgeInsets.only(left: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.map,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      onPressed: () {
+                        // Use allStores if available, otherwise use filtered stores
+                        final storesToShow = allStores.isNotEmpty
+                            ? allStores
+                            : _getFilteredAllStores();
+                        print(
+                            '🗺️ Opening map with ${storesToShow.length} stores');
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => StoreMapPage(
+                              stores: storesToShow,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -987,9 +979,10 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.green.shade50,
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -997,10 +990,8 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       ),
       child: Row(
         children: [
-          // Region Dropdown
           Expanded(
-            flex: 1,
-            child: _buildCompactDropdown(
+            child: _buildSimpleDropdown(
               value: selectedRegion,
               hint: 'Region',
               items: regions
@@ -1026,11 +1017,9 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
               onRetry: _loadRegions,
             ),
           ),
-          SizedBox(width: 4),
-          // City Dropdown
+          SizedBox(width: 12),
           Expanded(
-            flex: 1,
-            child: _buildCompactDropdown(
+            child: _buildSimpleDropdown(
               value: selectedCity,
               hint: 'City',
               items: cities
@@ -1063,9 +1052,10 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.green.shade50,
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1076,13 +1066,13 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
         children: [
           Row(
             children: [
-              Icon(Icons.sort, color: Colors.green.shade600, size: 16),
+              Icon(Icons.sort, color: Colors.grey.shade700, size: 16),
               SizedBox(width: 6),
               Text(
                 'Sort by:',
-                style: GoogleFonts.poppins(
+                style: TextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w400,
                   color: Colors.grey.shade700,
                 ),
               ),
@@ -1113,16 +1103,16 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           if (isLocationAvailable) ...[
             SizedBox(height: 8),
             Container(
-              padding: EdgeInsets.all(6),
+              padding: EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.green.shade200),
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300, width: 1),
               ),
               child: Row(
                 children: [
                   Icon(Icons.check_circle,
-                      color: Colors.green.shade600, size: 14),
+                      color: Colors.grey.shade700, size: 14),
                   SizedBox(width: 6),
                   Expanded(
                     child: Column(
@@ -1130,9 +1120,10 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                       children: [
                         Text(
                           'Stores automatically sorted by distance',
-                          style: GoogleFonts.poppins(
-                            fontSize: 10,
-                            color: Colors.green.shade700,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade700,
+                            fontWeight: FontWeight.w400,
                           ),
                         ),
                         if (userLocation != null &&
@@ -1140,7 +1131,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                                 userLocation!.longitude))
                           Text(
                             'Using default Accra location',
-                            style: GoogleFonts.poppins(
+                            style: TextStyle(
                               fontSize: 8,
                               color: Colors.orange.shade700,
                               fontStyle: FontStyle.italic,
@@ -1176,7 +1167,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
               Expanded(
                 child: Text(
                   'Enable location to sort by distance',
-                  style: GoogleFonts.poppins(
+                  style: TextStyle(
                     fontSize: 11,
                     color: Colors.orange.shade700,
                   ),
@@ -1192,7 +1183,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                   ),
                   child: Text(
                     'Enable',
-                    style: GoogleFonts.poppins(
+                    style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
                       color: Colors.white,
@@ -1206,14 +1197,14 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
             SizedBox(height: 4),
             Row(
               children: [
-                Icon(Icons.info_outline, color: Colors.blue.shade600, size: 12),
+                Icon(Icons.info_outline, color: Colors.grey.shade700, size: 12),
                 SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     'Location accuracy: ${userLocation!.accuracy.toStringAsFixed(0)}m',
-                    style: GoogleFonts.poppins(
+                    style: TextStyle(
                       fontSize: 10,
-                      color: Colors.blue.shade700,
+                      color: Colors.grey.shade800,
                     ),
                   ),
                 ),
@@ -1222,12 +1213,12 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                   child: Container(
                     padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade500,
+                      color: Colors.grey.shade600,
                       borderRadius: BorderRadius.circular(3),
                     ),
                     child: Text(
                       'Refresh',
-                      style: GoogleFonts.poppins(
+                      style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.w500,
                         color: Colors.white,
@@ -1292,22 +1283,22 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     return Container(
       padding: EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
+        color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.shade200),
+        border: Border.all(color: Colors.grey.shade300),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.edit_location, color: Colors.blue.shade600, size: 16),
+              Icon(Icons.edit_location, color: Colors.grey.shade700, size: 16),
               SizedBox(width: 8),
               Text(
                 'Or enter your location manually',
-                style: GoogleFonts.poppins(
+                style: TextStyle(
                   fontSize: 11,
-                  color: Colors.blue.shade700,
+                  color: Colors.grey.shade800,
                 ),
               ),
             ],
@@ -1320,16 +1311,16 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                   controller: _locationController,
                   decoration: InputDecoration(
                     hintText: 'e.g., Accra, Ghana',
-                    hintStyle: GoogleFonts.poppins(fontSize: 10),
+                    hintStyle: TextStyle(fontSize: 10),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: Colors.blue.shade300),
+                      borderSide: BorderSide(color: Colors.grey.shade400),
                     ),
                     contentPadding:
                         EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                     isDense: true,
                   ),
-                  style: GoogleFonts.poppins(fontSize: 11),
+                  style: TextStyle(fontSize: 11),
                 ),
               ),
               SizedBox(width: 8),
@@ -1338,12 +1329,12 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                 child: Container(
                   padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade500,
+                    color: Colors.grey.shade600,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
                     'Find',
-                    style: GoogleFonts.poppins(
+                    style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
                       color: Colors.white,
@@ -1357,7 +1348,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
             SizedBox(height: 4),
             Text(
               'Location set: ${manualLatitude!.toStringAsFixed(4)}, ${manualLongitude!.toStringAsFixed(4)}',
-              style: GoogleFonts.poppins(
+              style: TextStyle(
                 fontSize: 10,
                 color: Colors.green.shade700,
               ),
@@ -1366,10 +1357,10 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           SizedBox(height: 8),
           Text(
             'Quick locations:',
-            style: GoogleFonts.poppins(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w500,
-              color: Colors.blue.shade700,
+              color: Colors.grey.shade800,
             ),
           ),
           SizedBox(height: 4),
@@ -1475,19 +1466,21 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.green.shade500 : Colors.white,
+          color: isSelected ? Colors.grey.shade800 : Colors.grey.shade50,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? Colors.green.shade500 : Colors.grey.shade300,
-            width: 1,
+            color: isSelected ? Colors.grey.shade800 : Colors.grey.shade300,
+            width: 1.5,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.green.shade100,
-              blurRadius: 2,
-              offset: Offset(0, 1),
-            ),
-          ],
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.grey.shade300,
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1500,9 +1493,9 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
             SizedBox(width: 4),
             Text(
               label,
-              style: GoogleFonts.poppins(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
                 color: isSelected ? Colors.white : Colors.grey.shade700,
               ),
             ),
@@ -1518,16 +1511,16 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
-          color: Colors.blue.shade100,
+          color: Colors.grey.shade200,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.blue.shade300),
+          border: Border.all(color: Colors.grey.shade400),
         ),
         child: Text(
           name,
-          style: GoogleFonts.poppins(
+          style: TextStyle(
             fontSize: 9,
             fontWeight: FontWeight.w500,
-            color: Colors.blue.shade700,
+            color: Colors.grey.shade800,
           ),
         ),
       ),
@@ -1568,7 +1561,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     }
   }
 
-  Widget _buildCompactDropdown({
+  Widget _buildSimpleDropdown({
     required dynamic value,
     required String hint,
     required List<String> items,
@@ -1577,77 +1570,73 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     String? error,
     VoidCallback? onRetry,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.green.shade100,
-            blurRadius: 2,
-            offset: Offset(0, 1),
-          ),
-        ],
-      ),
-      child: DropdownButtonFormField<String>(
-        value: value != null ? value['description'] : null,
-        decoration: InputDecoration(
-          labelText: hint,
-          labelStyle: TextStyle(color: Colors.grey[600], fontSize: 16),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(color: Colors.green.shade300, width: 1),
-          ),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-          suffixIcon: isLoading
-              ? Container(
-                  padding: EdgeInsets.all(4),
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(Colors.green.shade600),
-                    ),
-                  ),
-                )
-              : error != null
-                  ? IconButton(
-                      icon: Icon(Icons.refresh,
-                          color: Colors.red.shade400, size: 20),
-                      onPressed: onRetry,
-                      tooltip: 'Retry',
-                      padding: EdgeInsets.all(4),
-                      constraints: BoxConstraints(minWidth: 20, minHeight: 20),
-                    )
-                  : Icon(Icons.keyboard_arrow_down,
-                      color: Colors.green.shade700, size: 22),
+    return DropdownButtonFormField<String>(
+      value: value != null ? value['description'] : null,
+      decoration: InputDecoration(
+        labelText: hint,
+        labelStyle: TextStyle(
+          color: Colors.grey.shade700,
+          fontSize: 13,
+          fontWeight: FontWeight.w400,
         ),
-        hint: Text(hint,
-            overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16)),
-        isExpanded: true,
-        items: items.map((String item) {
-          return DropdownMenuItem<String>(
-            value: item,
-            child: Text(
-              item,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 16),
-            ),
-          );
-        }).toList(),
-        onChanged: isLoading ? null : onChanged,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade600, width: 2),
+        ),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+        suffixIcon: isLoading
+            ? Padding(
+                padding: EdgeInsets.all(8),
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(Colors.grey.shade600),
+                  ),
+                ),
+              )
+            : error != null
+                ? IconButton(
+                    icon: Icon(Icons.refresh,
+                        color: Colors.red.shade400, size: 20),
+                    onPressed: onRetry,
+                  )
+                : Icon(Icons.keyboard_arrow_down,
+                    color: Colors.grey.shade600, size: 20),
       ),
+      hint: Text(
+        hint,
+        style: TextStyle(
+          fontSize: 13,
+          color: Colors.grey.shade600,
+        ),
+      ),
+      isExpanded: true,
+      items: items.map((String item) {
+        return DropdownMenuItem<String>(
+          value: item,
+          child: Text(
+            item,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        );
+      }).toList(),
+      onChanged: isLoading ? null : onChanged,
     );
   }
 
@@ -1679,36 +1668,37 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
             margin: EdgeInsets.fromLTRB(16, 8, 16, 12),
             padding: EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.green.shade200),
+              border: Border.all(color: Colors.grey.shade300, width: 1),
             ),
             child: Row(
               children: [
                 Icon(
                   Icons.sort_by_alpha,
-                  color: Colors.green.shade600,
+                  color: Colors.grey.shade700,
                   size: 18,
                 ),
-                SizedBox(width: 8),
+                SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Stores sorted by distance from your location',
-                        style: GoogleFonts.poppins(
+                        style: TextStyle(
                           fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.green.shade700,
+                          fontWeight: FontWeight.w400,
+                          color: Colors.grey.shade800,
                         ),
                       ),
                       SizedBox(height: 2),
                       Text(
                         'Closest stores appear first',
-                        style: GoogleFonts.poppins(
+                        style: TextStyle(
                           fontSize: 10,
-                          color: Colors.green.shade600,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w400,
                         ),
                       ),
                     ],
@@ -1722,7 +1712,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                   ),
                   child: Text(
                     '${filteredStores.length} stores',
-                    style: GoogleFonts.poppins(
+                    style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                       color: Colors.green.shade700,
@@ -1836,7 +1826,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           SizedBox(height: 24),
           Text(
             'Error loading stores',
-            style: GoogleFonts.poppins(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
               color: Colors.grey[700],
@@ -1845,7 +1835,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           SizedBox(height: 8),
           Text(
             error,
-            style: GoogleFonts.poppins(
+            style: TextStyle(
               fontSize: 14,
               color: Colors.grey[500],
             ),
@@ -1863,6 +1853,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
+              elevation: 2,
             ),
           ),
         ],
@@ -1890,7 +1881,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           SizedBox(height: 24),
           Text(
             'No stores found',
-            style: GoogleFonts.poppins(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
               color: Colors.grey[700],
@@ -1901,7 +1892,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
             selectedCity != null
                 ? 'No stores available in ${selectedCity['name']}'
                 : 'Please select a region and city to find stores',
-            style: GoogleFonts.poppins(
+            style: TextStyle(
               fontSize: 14,
               color: Colors.grey[500],
             ),
@@ -1926,6 +1917,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
+              elevation: 2,
             ),
           ),
         ],
@@ -1937,31 +1929,23 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     final storeName = store['description'] ?? 'Unknown Store';
     final storeAddress = store['address'] ?? '';
     final storeHours = '8:00 AM - 8:00 PM';
-    final isOpen = _isStoreOpen();
-    // Get distance if available
 
     return Card(
       margin: EdgeInsets.only(bottom: 12),
       elevation: 2,
-      shadowColor: Colors.green.shade100,
+      shadowColor: Colors.grey.shade200,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200, width: 1),
       ),
       child: InkWell(
         onTap: () => _launchMaps(storeName, storeAddress),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: EdgeInsets.all(16),
+          padding: EdgeInsets.all(12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white,
-                Colors.green.shade50,
-              ],
-            ),
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.white,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1973,14 +1957,19 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                     padding: EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.green.shade400, Colors.green.shade600],
+                        colors: [
+                          Colors.green.shade400,
+                          Colors.green.shade600,
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.green.shade200,
-                          blurRadius: 6,
-                          offset: Offset(0, 2),
+                          color: Colors.green.shade300,
+                          blurRadius: 8,
+                          offset: Offset(0, 3),
                         ),
                       ],
                     ),
@@ -1995,84 +1984,29 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                storeName,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey.shade800,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              margin: EdgeInsets.only(right: 4),
-                              child: Icon(
-                                Icons.circle,
-                                size: 12,
-                                color: isOpen
-                                    ? Colors.green.shade400
-                                    : Colors.red.shade400,
-                              ),
-                            ),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: isOpen
-                                      ? [
-                                          Colors.green.shade50,
-                                          Colors.green.shade100
-                                        ]
-                                      : [
-                                          Colors.red.shade50,
-                                          Colors.red.shade100
-                                        ],
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: isOpen
-                                      ? Colors.green.shade200
-                                      : Colors.red.shade200,
-                                ),
-                              ),
-                              child: Text(
-                                isOpen ? 'Open' : 'Closed',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: isOpen
-                                      ? Colors.green.shade700
-                                      : Colors.red.shade700,
-                                ),
-                              ),
-                            ),
-                          ],
+                        Text(
+                          storeName,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey.shade800,
+                          ),
                         ),
-                        SizedBox(height: 4),
+                        SizedBox(height: 2),
                         Row(
                           children: [
-                            Container(
-                              padding: EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: Colors.orange.shade50,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Icon(Icons.location_on,
-                                  size: 12, color: Colors.orange.shade500),
-                            ),
-                            SizedBox(width: 6),
+                            Icon(Icons.location_on_rounded,
+                                size: 13, color: Colors.grey.shade600),
+                            SizedBox(width: 4),
                             if (store['region_name'] != null &&
                                 store['city_name'] != null)
                               Expanded(
                                 child: Text(
                                   '${store['city_name']}, ${store['region_name']}',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 13,
+                                  style: TextStyle(
+                                    fontSize: 11,
                                     color: Colors.grey.shade600,
+                                    fontWeight: FontWeight.w400,
                                   ),
                                 ),
                               ),
@@ -2084,26 +2018,26 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                                 padding: EdgeInsets.symmetric(
                                     horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: Colors.green.shade50,
+                                  color: Colors.grey.shade100,
                                   borderRadius: BorderRadius.circular(8),
-                                  border:
-                                      Border.all(color: Colors.green.shade200),
+                                  border: Border.all(
+                                      color: Colors.grey.shade300, width: 1),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
-                                      Icons.straighten,
-                                      size: 10,
-                                      color: Colors.green.shade600,
+                                      Icons.straighten_rounded,
+                                      size: 11,
+                                      color: Colors.grey.shade700,
                                     ),
-                                    SizedBox(width: 2),
+                                    SizedBox(width: 4),
                                     Text(
                                       _formatDistance(store['distance']),
-                                      style: GoogleFonts.poppins(
+                                      style: TextStyle(
                                         fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.green.shade700,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.grey.shade800,
                                       ),
                                     ),
                                   ],
@@ -2113,12 +2047,13 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                         ),
                         if (storeAddress.isNotEmpty)
                           Padding(
-                            padding: EdgeInsets.only(left: 28),
+                            padding: EdgeInsets.only(left: 17, top: 1),
                             child: Text(
                               storeAddress,
-                              style: GoogleFonts.poppins(
-                                fontSize: 11,
-                                color: Colors.grey.shade500,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey.shade600,
+                                height: 1.2,
                               ),
                             ),
                           ),
@@ -2128,64 +2063,52 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                 ],
               ),
 
-              SizedBox(height: 16),
+              SizedBox(height: 8),
 
               // Store Hours
               Row(
                 children: [
-                  Container(
-                    padding: EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.shade50,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Icon(Icons.access_time,
-                        size: 12, color: Colors.amber.shade500),
-                  ),
-                  SizedBox(width: 6),
-                  Text(
-                    'Hours',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  SizedBox(width: 8),
+                  Icon(Icons.access_time_rounded,
+                      size: 13, color: Colors.grey.shade600),
+                  SizedBox(width: 5),
                   Text(
                     storeHours,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: Colors.grey.shade500,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w400,
                     ),
                   ),
                 ],
               ),
 
-              SizedBox(height: 16),
+              SizedBox(height: 10),
 
               // Action Button
-              Container(
+              SizedBox(
                 width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.green.shade500, Colors.green.shade600],
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
                 child: ElevatedButton.icon(
                   onPressed: () => _launchMaps(storeName, storeAddress),
-                  icon: Icon(Icons.directions, size: 16, color: Colors.white),
-                  label: Text('Get Directions'),
+                  icon: Icon(Icons.directions_rounded,
+                      size: 16, color: Colors.green.shade600),
+                  label: Text(
+                    'Get Directions',
+                    style: TextStyle(
+                      color: Colors.green.shade600,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 13,
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    foregroundColor: Colors.white,
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.green.shade600,
                     padding: EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
+                      side:
+                          BorderSide(color: Colors.green.shade600, width: 1.5),
                     ),
                     elevation: 0,
-                    shadowColor: Colors.transparent,
                   ),
                 ),
               ),
@@ -2193,10 +2116,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           ),
         ),
       ),
-    )
-        .animate()
-        .fadeIn(duration: 300.ms, delay: (index * 100).ms)
-        .slideY(begin: 0.2, end: 0);
+    );
   }
 
   // Check if store is currently open (8:00 AM - 8:00 PM)
@@ -2279,7 +2199,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           ),
           title: Text(
             cityName,
-            style: GoogleFonts.poppins(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
               color: isSelected ? Colors.green.shade800 : Colors.grey.shade800,
@@ -2287,7 +2207,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           ),
           subtitle: Text(
             'Tap to view stores',
-            style: GoogleFonts.poppins(
+            style: TextStyle(
               fontSize: 12,
               color: Colors.grey.shade600,
             ),

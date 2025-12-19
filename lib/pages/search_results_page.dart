@@ -320,7 +320,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                                                 BorderRadius.circular(8),
                                           ),
                                           child: Text(
-                                            'Prescribed',
+                                            'Prescription',
                                             style: GoogleFonts.poppins(
                                               color: Colors.white,
                                               fontSize: 9.5,

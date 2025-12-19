@@ -20,6 +20,7 @@ import '../services/order_notification_service.dart';
 import '../providers/wallet_provider.dart';
 import '../services/notification_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../config/api_config.dart';
 
 class ExpressPayChannel {
   static const MethodChannel _channel =
@@ -652,44 +653,12 @@ class PaymentPageState extends State<PaymentPage> {
                 ),
               ),
               // Fixed Payment Methods and Button at Bottom
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 6,
-                      offset: Offset(0, -2),
-                    ),
-                  ],
-                ),
-                child: SafeArea(
-                  top: false,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Slide to Pay Button
-                      Animate(
-                        effects: [
-                          FadeEffect(duration: 400.ms),
-                          SlideEffect(
-                              duration: 400.ms,
-                              begin: Offset(0, 0.1),
-                              end: Offset(0, 0))
-                        ],
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                          child: Consumer<CartProvider>(
-                            builder: (context, cart, child) {
-                              return _buildSlideToPay(cart);
-                            },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              SafeArea(
+                top: false,
+                child: Consumer<CartProvider>(
+                  builder: (context, cart, child) {
+                    return _buildSlideToPay(cart);
+                  },
                 ),
               ),
             ],
@@ -781,23 +750,25 @@ class PaymentPageState extends State<PaymentPage> {
   Widget _buildSlideToPay(CartProvider cart) {
     final double containerWidth =
         MediaQuery.of(context).size.width - 24; // Account for padding (12*2)
+    final double handleSize = 44.0;
     final double maxSlideDistance =
-        containerWidth - 48 - 4; // Account for handle width and margins
-    final double threshold = maxSlideDistance * 0.85; // 85% to trigger payment
+        containerWidth - handleSize; // Account for handle width
+    final double threshold = maxSlideDistance * 0.8; // 80% to trigger payment
     final bool isCompleted = _slidePosition >= threshold;
     final bool wasCompleted =
         _slidePosition >= threshold - 10; // For haptic feedback
+    final double progress = (_slidePosition / maxSlideDistance).clamp(0.0, 1.0);
 
     return GestureDetector(
       onHorizontalDragStart: (_) {
-        if (!_isProcessingPayment) {
+        if (!_isProcessingPayment && cart.cartItems.isNotEmpty) {
           setState(() {
             _isSliding = true;
           });
         }
       },
       onHorizontalDragUpdate: (details) {
-        if (!_isProcessingPayment && _isSliding) {
+        if (!_isProcessingPayment && _isSliding && cart.cartItems.isNotEmpty) {
           final newPosition =
               (_slidePosition + details.delta.dx).clamp(0.0, maxSlideDistance);
           setState(() {
@@ -811,7 +782,7 @@ class PaymentPageState extends State<PaymentPage> {
         }
       },
       onHorizontalDragEnd: (_) {
-        if (!_isProcessingPayment) {
+        if (!_isProcessingPayment && cart.cartItems.isNotEmpty) {
           if (_slidePosition >= threshold) {
             // Trigger payment
             HapticFeedback.heavyImpact();
@@ -826,50 +797,97 @@ class PaymentPageState extends State<PaymentPage> {
         }
       },
       child: Container(
-        height: 56,
+        height: 50,
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(28),
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(25),
           border: Border.all(
-            color: isCompleted ? Colors.green.shade300 : Colors.grey.shade300,
+            color: Colors.green.shade600,
             width: 2,
           ),
         ),
         child: Stack(
+          clipBehavior: Clip.hardEdge,
           children: [
-            // Background gradient that fills as user slides
-            AnimatedContainer(
-              duration: Duration(milliseconds: 100),
-              width: _slidePosition,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: [
-                    Colors.green.shade500,
-                    Colors.green.shade600,
-                  ],
+            // Progress track - green fill
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              child: AnimatedContainer(
+                duration: Duration(milliseconds: 100),
+                curve: Curves.easeOut,
+                width: _slidePosition,
+                decoration: BoxDecoration(
+                  color: Colors.green.shade600,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(25),
+                    bottomLeft: Radius.circular(25),
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(26),
               ),
             ),
-            // Slider handle
+            // Text on the right side
+            Positioned.fill(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (_isProcessingPayment) ...[
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          color: Colors.green.shade600,
+                          strokeWidth: 2.5,
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      Text(
+                        'Processing Payment...',
+                        style: TextStyle(
+                          color: Colors.grey.shade800,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ] else ...[
+                      Icon(
+                        Icons.lock_outline,
+                        size: 16,
+                        color: Colors.grey.shade600,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        isCompleted ? 'Release to Pay' : 'Swipe right to pay',
+                        style: TextStyle(
+                          color: Colors.grey.shade800,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            // Sliding handle on the left
             AnimatedPositioned(
               duration: Duration(milliseconds: 100),
               curve: Curves.easeOut,
-              left: _slidePosition.clamp(4.0, maxSlideDistance + 4),
-              top: 4,
+              left: _slidePosition.clamp(0.0, maxSlideDistance),
+              top: 0,
+              bottom: 0,
               child: Container(
-                width: 48,
-                height: 48,
+                width: handleSize,
                 decoration: BoxDecoration(
-                  color: isCompleted ? Colors.green.shade700 : Colors.white,
-                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(25),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black
-                          .withValues(alpha: isCompleted ? 0.3 : 0.2),
-                      blurRadius: isCompleted ? 12 : 8,
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 8,
                       offset: Offset(0, 2),
                     ),
                   ],
@@ -880,46 +898,20 @@ class PaymentPageState extends State<PaymentPage> {
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
+                            color: Colors.green.shade600,
+                            strokeWidth: 2.5,
                           ),
                         )
                       : Icon(
-                          isCompleted ? Icons.check : Icons.arrow_forward_ios,
-                          color:
-                              isCompleted ? Colors.white : Colors.grey.shade700,
-                          size: 20,
+                          isCompleted
+                              ? Icons.check_circle
+                              : Icons.arrow_forward,
+                          color: isCompleted
+                              ? Colors.green.shade600
+                              : Colors.grey.shade700,
+                          size: 22,
                         ),
                 ),
-              ),
-            ),
-            // Text overlay
-            Positioned.fill(
-              child: Center(
-                child: _isProcessingPayment
-                    ? Text(
-                        'Processing Payment...',
-                        style: TextStyle(
-                          color: Colors.green.shade700,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      )
-                    : Text(
-                        _slidePosition < 10
-                            ? 'Slide to Pay'
-                            : isCompleted
-                                ? 'Release to Pay'
-                                : 'Keep Sliding...',
-                        style: TextStyle(
-                          color: _slidePosition > maxSlideDistance * 0.5
-                              ? Colors.white
-                              : Colors.grey.shade700,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
               ),
             ),
           ],
@@ -1687,43 +1679,110 @@ class PaymentPageState extends State<PaymentPage> {
     });
 
     try {
-      // Simulate API call for promo code validation
-      await Future.delayed(Duration(seconds: 1));
+      // Check if user is logged in or guest
+      final isLoggedIn = await AuthService.isLoggedIn();
+      final token = await AuthService.getToken();
 
-      // Mock promo code validation - replace with actual API call
-      if (promoCode.toLowerCase() == 'save10' ||
-          promoCode.toLowerCase() == 'discount20' ||
-          promoCode.toLowerCase() == 'test50') {
-        final discountPercentage = promoCode.toLowerCase() == 'save10'
-            ? 0.10
-            : promoCode.toLowerCase() == 'discount20'
-                ? 0.20
-                : 0.50; // 50% discount for test50
-        final cart = Provider.of<CartProvider>(context, listen: false);
-        final subtotal = cart.calculateSubtotal();
-        final discountAmount = subtotal * discountPercentage;
+      // Prepare headers
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      };
 
-        debugPrint('Promo code applied: $promoCode');
-        debugPrint('Subtotal: $subtotal');
-        debugPrint('Discount percentage: $discountPercentage');
-        debugPrint('Discount amount: $discountAmount');
+      // Prepare request body
+      final requestBody = <String, dynamic>{
+        'coupon': promoCode,
+      };
 
-        setState(() {
-          _appliedPromoCode = promoCode;
-          _discountAmount = discountAmount;
-          _promoError = null;
-        });
-
-        // Force rebuild of the order summary
-        if (mounted) {
-          setState(() {});
-        }
+      // Add authentication headers and guest_id if needed
+      if (isLoggedIn &&
+          token != null &&
+          token.isNotEmpty &&
+          !token.startsWith('guest_')) {
+        // Logged-in user: only send coupon code
+        headers['Authorization'] = 'Bearer $token';
+        debugPrint('[DEBUG] Applying coupon as logged-in user');
+      } else if (!isLoggedIn && token != null && token.startsWith('guest_')) {
+        // Guest user: send coupon code and guest_id
+        final guestId = token;
+        headers['Authorization'] = 'Guest $guestId';
+        headers['X-Guest-ID'] = guestId;
+        requestBody['guest_id'] = guestId;
+        debugPrint(
+            '[DEBUG] Applying coupon as guest user: guest_id = $guestId');
       } else {
         setState(() {
-          _promoError = 'Invalid promo code. Please try again.';
+          _promoError =
+              'You must be logged in or have a guest session to apply a coupon.';
         });
+        return;
+      }
+
+      // Make API call
+      debugPrint(
+          '[DEBUG] Apply Coupon API Request: ${jsonEncode(requestBody)}');
+      debugPrint('[DEBUG] Apply Coupon API Headers: $headers');
+
+      final response = await http
+          .post(
+            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.applyCoupon)),
+            headers: headers,
+            body: jsonEncode(requestBody),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      debugPrint(
+          '[DEBUG] Apply Coupon API Response: Status: ${response.statusCode}, Body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = json.decode(response.body);
+
+        // Check if the response indicates success
+        if (data['success'] == true || data['status'] == 'success') {
+          // Extract discount information from response
+          // The API returns totalDiscount which should be subtracted from the total
+          final discountAmount = (data['totalDiscount'] ?? 0.0).toDouble();
+
+          debugPrint('Promo code applied: $promoCode');
+          debugPrint('Discount amount: $discountAmount');
+
+          setState(() {
+            _appliedPromoCode = promoCode;
+            _discountAmount = discountAmount;
+            _promoError = null;
+          });
+
+          // Force rebuild of the order summary
+          if (mounted) {
+            setState(() {});
+          }
+        } else {
+          // API returned error message
+          final errorMessage = data['message'] ??
+              data['error'] ??
+              'Invalid promo code. Please try again.';
+          setState(() {
+            _promoError = errorMessage;
+          });
+        }
+      } else {
+        // Handle non-200 status codes
+        try {
+          final errorData = json.decode(response.body);
+          final errorMessage = errorData['message'] ??
+              errorData['error'] ??
+              'Failed to apply promo code. Please try again.';
+          setState(() {
+            _promoError = errorMessage;
+          });
+        } catch (e) {
+          setState(() {
+            _promoError = 'Failed to apply promo code. Please try again.';
+          });
+        }
       }
     } catch (e) {
+      debugPrint('[DEBUG] Exception during apply coupon API call: $e');
       setState(() {
         _promoError = 'Failed to apply promo code. Please try again.';
       });

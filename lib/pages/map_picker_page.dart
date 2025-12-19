@@ -10,10 +10,13 @@ import 'package:http/http.dart' as http;
 import '../widgets/animated_map_pin.dart';
 import '../config/api_config.dart';
 
+typedef LocationSelectedCallback = void Function(
+    double lat, double lng, String? address);
+
 class MapPickerPage extends StatefulWidget {
   final double initialLatitude;
   final double initialLongitude;
-  final Function(double, double) onLocationSelected;
+  final LocationSelectedCallback onLocationSelected;
 
   const MapPickerPage({
     super.key,
@@ -90,7 +93,8 @@ class _MapPickerPageState extends State<MapPickerPage> {
     };
   }
 
-  Future<void> _getAddressFromCoordinates(double lat, double lng) async {
+  Future<void> _getAddressFromCoordinates(double lat, double lng,
+      {String? originalQuery}) async {
     try {
       if (!mounted) return;
       setState(() {
@@ -104,7 +108,34 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
-        String address = _buildReadableAddress(place);
+
+        // If we have an originalQuery from Places API, ALWAYS prioritize it as the place name
+        // The Places API name is more authoritative than reverse geocoded name
+        String address;
+        if (originalQuery != null && _isValidPlaceName(originalQuery)) {
+          // Build address using originalQuery as place name and reverse geocoded street address
+          List<String> addressParts = [];
+
+          // Add street components from reverse geocoding
+          if (place.subThoroughfare != null &&
+              place.subThoroughfare!.isNotEmpty) {
+            addressParts.add(place.subThoroughfare!);
+          }
+          if (place.thoroughfare != null && place.thoroughfare!.isNotEmpty) {
+            addressParts.add(place.thoroughfare!);
+          }
+
+          // Use originalQuery (from Places API) as place name, then street address
+          if (addressParts.isNotEmpty) {
+            address = '$originalQuery, ${addressParts.join(' ')}';
+          } else {
+            // If no street address, use just the place name
+            address = originalQuery;
+          }
+        } else {
+          // No originalQuery, use reverse geocoded address
+          address = _buildReadableAddress(place);
+        }
 
         if (!mounted) return;
 
@@ -122,7 +153,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
       } else {
         if (!mounted) return;
         setState(() {
-          _selectedAddress = 'Address not found';
+          _selectedAddress = originalQuery ?? 'Address not found';
           _isLoadingAddress = false;
         });
       }
@@ -130,7 +161,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
       print('🗺️ [MAP] Error getting address: $e');
       if (!mounted) return;
       setState(() {
-        _selectedAddress = 'Error loading address';
+        _selectedAddress = originalQuery ?? 'Error loading address';
         _isLoadingAddress = false;
       });
     }
@@ -161,47 +192,77 @@ class _MapPickerPageState extends State<MapPickerPage> {
     return true;
   }
 
-  /// Build a readable address from placemark, prioritizing place name
-  /// Returns just the generic place name when available
+  /// Build a readable address from placemark, combining multiple components
+  /// Returns a complete address string with place name, street number, and street name
   String _buildReadableAddress(Placemark place) {
-    // Priority 1: Use the place name if available and valid (e.g., "Accra Mall", "Kumasi Central Market")
-    if (_isValidPlaceName(place.name) &&
-        place.name != place.street &&
-        place.name != place.thoroughfare) {
-      return place.name!;
+    List<String> addressParts = [];
+    String? placeName;
+
+    // Get place name first if available and valid
+    if (_isValidPlaceName(place.name)) {
+      placeName = place.name;
     }
 
-    // if no place name, use the street name
-    if (place.thoroughfare != null && place.thoroughfare!.isNotEmpty) {
-      return place.thoroughfare!;
+    // Add sub-thoroughfare (street number) if available
+    if (place.subThoroughfare != null &&
+        place.subThoroughfare!.isNotEmpty &&
+        place.subThoroughfare != placeName) {
+      addressParts.add(place.subThoroughfare!);
     }
 
-    // if no street name, use the street field
+    // Add thoroughfare (street name) if available
+    if (place.thoroughfare != null &&
+        place.thoroughfare!.isNotEmpty &&
+        place.thoroughfare != placeName) {
+      addressParts.add(place.thoroughfare!);
+    }
+
+    // Build the address: place name first, then street address
+    if (placeName != null && addressParts.isNotEmpty) {
+      String streetAddress = addressParts.join(' ');
+      // Only add place name if it's not already in the street address
+      if (!streetAddress.toLowerCase().contains(placeName.toLowerCase())) {
+        return '$placeName, $streetAddress';
+      }
+      return '$placeName, $streetAddress';
+    }
+
+    // If we have street components but no place name, use street address
+    if (addressParts.isNotEmpty) {
+      return addressParts.join(' ');
+    }
+
+    // If we have place name but no street, use place name
+    if (placeName != null) {
+      return placeName;
+    }
+
+    // Fallback: Use street if available
     if (place.street != null && place.street!.isNotEmpty) {
       return place.street!;
     }
 
-    // if no street, use the neighborhood/area
+    // Fallback: Use sub-locality (neighborhood/area)
     if (place.subLocality != null && place.subLocality!.isNotEmpty) {
       return place.subLocality!;
     }
 
-    // if no neighborhood, use the city
+    // Fallback: Use locality (city)
     if (place.locality != null && place.locality!.isNotEmpty) {
       return place.locality!;
     }
 
-    // if no city, use the region
+    // Fallback: Use administrative area (region)
     if (place.administrativeArea != null &&
         place.administrativeArea!.isNotEmpty) {
       return place.administrativeArea!;
     }
 
-    // if we got nothing, just say unknown
+    // Fallback: Return unknown if nothing is available
     return 'Unknown location';
   }
 
-  // get search suggestions as they type
+  // get search suggestions as they type using Google Places Autocomplete API
   Future<List<String>> _getSearchSuggestions(String query) async {
     if (query.length < 2) return [];
 
@@ -209,127 +270,251 @@ class _MapPickerPageState extends State<MapPickerPage> {
       List<String> suggestions = [];
       Set<String> uniqueSuggestions = {}; // Prevent duplicates
 
-      // Strategy 1: Search with Ghana context (most relevant for local users)
+      // Try Google Places Autocomplete API first (better for place names)
       try {
-        List<Location> locations = await locationFromAddress('$query, Ghana');
-        if (locations.isNotEmpty) {
-          for (Location location in locations.take(8)) {
-            try {
-              List<Placemark> placemarks = await placemarkFromCoordinates(
-                  location.latitude, location.longitude);
+        final placesUri = Uri.parse(
+                'https://maps.googleapis.com/maps/api/place/autocomplete/json')
+            .replace(
+          queryParameters: {
+            'input': query,
+            'key': ApiConfig.googleMapsApiKey,
+            'components': 'country:gh', // Restrict to Ghana
+            'types': 'establishment', // Focus on places/businesses
+          },
+        );
 
-              if (placemarks.isNotEmpty) {
-                Placemark place = placemarks[0];
-                String address = _buildReadableAddress(place);
-                if (address.isNotEmpty &&
-                    !uniqueSuggestions.contains(address)) {
-                  suggestions.add(address);
-                  uniqueSuggestions.add(address);
-                }
-              }
-            } catch (e) {
-              // if we cant get an address, just use the coordinates
-              String coordAddress =
-                  '${location.latitude.toStringAsFixed(4)}, ${location.longitude.toStringAsFixed(4)}';
-              if (!uniqueSuggestions.contains(coordAddress)) {
-                suggestions.add(coordAddress);
-                uniqueSuggestions.add(coordAddress);
+        print('🗺️ [MAP] Calling Google Places Autocomplete: $placesUri');
+
+        final placesResponse =
+            await http.get(placesUri).timeout(const Duration(seconds: 5));
+
+        if (placesResponse.statusCode == 200) {
+          final placesData = json.decode(placesResponse.body);
+          final status = placesData['status'];
+          print('🗺️ [MAP] Places Autocomplete status: $status');
+
+          if (status == 'OK' && placesData['predictions'] != null) {
+            final predictions = placesData['predictions'] as List;
+            print('🗺️ [MAP] Found ${predictions.length} predictions');
+
+            for (final prediction in predictions.take(10)) {
+              final description = prediction['description'] as String?;
+              if (description != null &&
+                  description.isNotEmpty &&
+                  !uniqueSuggestions.contains(description)) {
+                suggestions.add(description);
+                uniqueSuggestions.add(description);
+                if (suggestions.length >= 10) break;
               }
             }
+          } else {
+            print('🗺️ [MAP] Places Autocomplete status: $status');
           }
         }
       } catch (e) {
-        print('🗺️ [MAP] Ghana context search error: $e');
+        print('🗺️ [MAP] Places Autocomplete error: $e');
       }
 
-      // Strategy 2: Search without context (broader search)
+      // Fallback to Geocoding API if Places API didn't return enough results
       if (suggestions.length < 5) {
-        try {
-          List<Location> locations = await locationFromAddress(query);
-          if (locations.isNotEmpty) {
-            for (Location location in locations.take(5)) {
-              try {
-                List<Placemark> placemarks = await placemarkFromCoordinates(
-                    location.latitude, location.longitude);
+        final searchQueries = [
+          '$query, Accra, Ghana',
+          '$query, Ghana',
+          query,
+        ];
 
-                if (placemarks.isNotEmpty) {
-                  Placemark place = placemarks[0];
-                  String address = _buildReadableAddress(place);
-                  if (address.isNotEmpty &&
-                      !uniqueSuggestions.contains(address)) {
-                    suggestions.add(address);
-                    uniqueSuggestions.add(address);
+        for (final searchQuery in searchQueries) {
+          if (suggestions.length >= 15) break;
+
+          try {
+            final uri = Uri.parse(ApiConfig.googleMapsGeocodingUrl).replace(
+              queryParameters: {
+                'address': searchQuery,
+                'key': ApiConfig.googleMapsApiKey,
+              },
+            );
+
+            print('🗺️ [MAP] Calling Geocoding API: $uri');
+
+            final response =
+                await http.get(uri).timeout(const Duration(seconds: 5));
+
+            if (response.statusCode == 200) {
+              final data = json.decode(response.body);
+              final status = data['status'];
+              print(
+                  '🗺️ [MAP] Geocoding status: $status, results: ${data['results']?.length ?? 0}');
+
+              if (status == 'OK' && data['results'] != null) {
+                final results = data['results'] as List;
+
+                for (final result in results.take(10)) {
+                  final formattedAddress =
+                      result['formatted_address'] as String?;
+
+                  if (formattedAddress != null &&
+                      formattedAddress.isNotEmpty &&
+                      !uniqueSuggestions.contains(formattedAddress)) {
+                    String displayAddress = formattedAddress;
+                    if (formattedAddress.contains(',')) {
+                      final parts = formattedAddress.split(',');
+                      displayAddress = '${parts[0].trim()}, ${parts[1].trim()}';
+                    }
+
+                    suggestions.add(displayAddress);
+                    uniqueSuggestions.add(displayAddress);
+
+                    if (suggestions.length >= 15) break;
                   }
-                }
-              } catch (e) {
-                String coordAddress =
-                    '${location.latitude.toStringAsFixed(4)}, ${location.longitude.toStringAsFixed(4)}';
-                if (!uniqueSuggestions.contains(coordAddress)) {
-                  suggestions.add(coordAddress);
-                  uniqueSuggestions.add(coordAddress);
                 }
               }
             }
+          } catch (e) {
+            print('🗺️ [MAP] Geocoding API error for "$searchQuery": $e');
+            continue;
           }
-        } catch (e) {
-          print('🗺️ [MAP] Broader search error: $e');
         }
       }
 
-      // try partial matches to get more results
-      if (suggestions.length < 3 && query.length > 3) {
-        try {
-          // try with just the first few letters for partial matching
-          String partialQuery = query.substring(0, query.length - 1);
-          List<Location> locations =
-              await locationFromAddress('$partialQuery, Ghana');
-          if (locations.isNotEmpty) {
-            for (Location location in locations.take(3)) {
-              try {
-                List<Placemark> placemarks = await placemarkFromCoordinates(
-                    location.latitude, location.longitude);
+      print('🗺️ [MAP] Total suggestions found: ${suggestions.length}');
 
-                if (placemarks.isNotEmpty) {
-                  Placemark place = placemarks[0];
-                  String address = _buildReadableAddress(place);
-                  if (address.isNotEmpty &&
-                      !uniqueSuggestions.contains(address)) {
-                    suggestions.add(address);
-                    uniqueSuggestions.add(address);
-                  }
-                }
-              } catch (e) {
-                // dont use coordinates for partial matches
-              }
-            }
-          }
-        } catch (e) {
-          print('🗺️ [MAP] Partial match search error: $e');
-        }
-      }
-
-      // add what they typed as a fallback option
-      if (suggestions.isEmpty && query.isNotEmpty) {
-        suggestions.add('$query, Ghana');
-      }
-
-      return suggestions.take(10).toList(); // Increased from 8 to 10
+      return suggestions.take(15).toList();
     } catch (e) {
       print('🗺️ [MAP] Error getting suggestions: $e');
       return [];
     }
   }
 
-  // search for a place and move the map to it (using Google Geocoding API)
+  // search for a place and move the map to it (using Google Geocoding API or Places API)
   Future<void> _searchLocation(String query) async {
     if (query.trim().isEmpty) return;
 
-    // Try multiple search strategies
+    print('🗺️ [MAP] Searching for location: "$query"');
+
+    // First, try to get place_id from Places Autocomplete for exact location
+    String? placeId;
+    try {
+      final autocompleteUri = Uri.parse(
+              'https://maps.googleapis.com/maps/api/place/autocomplete/json')
+          .replace(
+        queryParameters: {
+          'input': query,
+          'key': ApiConfig.googleMapsApiKey,
+          'components': 'country:gh',
+        },
+      );
+
+      final autocompleteResponse =
+          await http.get(autocompleteUri).timeout(const Duration(seconds: 5));
+
+      if (autocompleteResponse.statusCode == 200) {
+        final autocompleteData = json.decode(autocompleteResponse.body);
+        if (autocompleteData['status'] == 'OK' &&
+            autocompleteData['predictions'] != null) {
+          final predictions = autocompleteData['predictions'] as List;
+          // Find exact match
+          for (final prediction in predictions) {
+            if (prediction['description'] == query) {
+              placeId = prediction['place_id'] as String?;
+              print('🗺️ [MAP] Found place_id: $placeId for "$query"');
+              break;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('🗺️ [MAP] Error getting place_id: $e');
+    }
+
+    // If we have place_id, use Places Details API for exact location
+    if (placeId != null) {
+      try {
+        final detailsUri =
+            Uri.parse('https://maps.googleapis.com/maps/api/place/details/json')
+                .replace(
+          queryParameters: {
+            'place_id': placeId,
+            'key': ApiConfig.googleMapsApiKey,
+            'fields': 'geometry,formatted_address,name',
+          },
+        );
+
+        print('🗺️ [MAP] Calling Places Details API: $detailsUri');
+
+        final detailsResponse =
+            await http.get(detailsUri).timeout(const Duration(seconds: 10));
+
+        if (detailsResponse.statusCode == 200) {
+          final detailsData = json.decode(detailsResponse.body);
+          if (detailsData['status'] == 'OK' && detailsData['result'] != null) {
+            final result = detailsData['result'];
+            final location = result['geometry']['location'];
+            final double lat = (location['lat'] as num).toDouble();
+            final double lng = (location['lng'] as num).toDouble();
+            final formattedAddress = result['formatted_address'] as String?;
+            final placeName = result['name'] as String?;
+
+            print('🗺️ [MAP] ✅ Exact location from Places API: ($lat, $lng)');
+            print('🗺️ [MAP] Place name: $placeName');
+            print('🗺️ [MAP] Formatted address: $formattedAddress');
+
+            LatLng newLocation = LatLng(lat, lng);
+
+            print('🗺️ [MAP] ===== SETTING NEW LOCATION =====');
+            print('🗺️ [MAP] New location coordinates: ($lat, $lng)');
+            print('🗺️ [MAP] Previous selected location: $_selectedLocation');
+
+            // CRITICAL: Update the selected location FIRST and synchronously
+            _selectedLocation = newLocation;
+
+            // Then update state to trigger UI refresh
+            setState(() {
+              // Location already set above, just trigger rebuild
+            });
+
+            print(
+                '🗺️ [MAP] ✅ _selectedLocation updated to: $_selectedLocation');
+
+            // move the map to show the new location
+            await _mapController.animateCamera(
+              CameraUpdate.newLatLngZoom(newLocation, 18.0),
+            );
+
+            print('🗺️ [MAP] Camera moved to: $newLocation');
+
+            await _updateMarkers();
+            print('🗺️ [MAP] Markers updated at: $_selectedLocation');
+
+            // get the address for the new location
+            await _getAddressFromCoordinates(lat, lng,
+                originalQuery: placeName ?? query.split(',').first.trim());
+
+            // show a message that it worked
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Location found: ${placeName ?? query}'),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+            print('🗺️ [MAP] ✅ Location selection complete');
+            return; // Success, exit early
+          }
+        }
+      } catch (e) {
+        print('🗺️ [MAP] Places Details API error: $e');
+        // Fall through to geocoding
+      }
+    }
+
+    // Fallback to Geocoding API if Places API didn't work
     final searchQueries = [
-      query, // Try without context first (global search)
-      '$query, Ghana', // Try with Ghana context as fallback
-      if (query.length > 3)
-        query.substring(0, query.length - 1), // Partial match
+      query, // Try exact query first (works well for Places Autocomplete descriptions)
+      '$query, Ghana', // Try with Ghana context
+      if (query.contains(','))
+        query.split(',').first.trim(), // Try just the place name part
     ];
 
     for (final searchQuery in searchQueries) {
@@ -364,41 +549,83 @@ class _MapPickerPageState extends State<MapPickerPage> {
           final double lat = (location['lat'] as num).toDouble();
           final double lng = (location['lng'] as num).toDouble();
 
+          print('🗺️ [MAP] ✅ Location found via Geocoding: ($lat, $lng)');
+
+          // Get formatted address from Google (might include place name)
+          final formattedAddress = result['formatted_address'] as String?;
+          // Extract place name from formatted address or use original query
+          String? placeName = formattedAddress;
+          if (placeName != null && placeName.contains(',')) {
+            // Take the first part before comma as it's usually the place name
+            placeName = placeName.split(',').first.trim();
+          }
+          // Use original query if it looks like a place name
+          if (_isValidPlaceName(query)) {
+            placeName = query.split(',').first.trim();
+          }
+
           LatLng newLocation = LatLng(lat, lng);
 
+          print('🗺️ [MAP] ===== SETTING NEW LOCATION =====');
+          print('🗺️ [MAP] New location coordinates: ($lat, $lng)');
+          print('🗺️ [MAP] New location LatLng: $newLocation');
+          print('🗺️ [MAP] Previous selected location: $_selectedLocation');
+
+          // CRITICAL: Update the selected location FIRST and synchronously
+          _selectedLocation = newLocation;
+
+          // Then update state to trigger UI refresh
+          setState(() {
+            // Location already set above, just trigger rebuild
+          });
+
+          print('🗺️ [MAP] ✅ _selectedLocation updated to: $_selectedLocation');
+          print('🗺️ [MAP] Verifying _selectedLocation: $_selectedLocation');
+
           // move the map to show the new location
-          _mapController.animateCamera(
+          await _mapController.animateCamera(
             CameraUpdate.newLatLngZoom(newLocation, 18.0),
           );
 
-          // update the selected location and markers
-          setState(() {
-            _selectedLocation = newLocation;
-            _updateMarkers();
-          });
+          print('🗺️ [MAP] Camera moved to: $newLocation');
+          print(
+              '🗺️ [MAP] After camera move, _selectedLocation: $_selectedLocation');
 
-          // get the address for the new location
-          _getAddressFromCoordinates(lat, lng);
+          await _updateMarkers();
+          print('🗺️ [MAP] Markers updated at: $_selectedLocation');
+          print(
+              '🗺️ [MAP] Final verification _selectedLocation: $_selectedLocation');
+
+          // get the address for the new location, passing the original query/place name
+          // This should NOT modify _selectedLocation, only get address text
+          await _getAddressFromCoordinates(lat, lng, originalQuery: placeName);
+
+          print(
+              '🗺️ [MAP] After address lookup, _selectedLocation: $_selectedLocation');
 
           // show a message that it worked
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Location found: $query'),
+                content: Text('Location found: ${placeName ?? query}'),
                 backgroundColor: Colors.green,
                 duration: const Duration(seconds: 2),
               ),
             );
           }
+          print('🗺️ [MAP] ✅ Location selection complete');
           return; // Success, exit early
+        } else {
+          print('🗺️ [MAP] ⚠️ No results for "$searchQuery", status: $status');
         }
       } catch (e) {
-        print('🗺️ [MAP] Search error for "$searchQuery": $e');
+        print('🗺️ [MAP] ❌ Search error for "$searchQuery": $e');
         continue; // Try next search query
       }
     }
 
     // If we get here, all searches failed
+    print('🗺️ [MAP] ❌ All search attempts failed for: "$query"');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -756,10 +983,26 @@ class _MapPickerPageState extends State<MapPickerPage> {
                         height: 48,
                         child: ElevatedButton(
                           onPressed: () {
+                            print('🗺️ [MAP] ===== CONFIRMING LOCATION =====');
+                            print(
+                                '🗺️ [MAP] Selected location: $_selectedLocation');
+                            print(
+                                '🗺️ [MAP] Latitude: ${_selectedLocation.latitude}');
+                            print(
+                                '🗺️ [MAP] Longitude: ${_selectedLocation.longitude}');
+                            print(
+                                '🗺️ [MAP] Calling onLocationSelected callback');
+                            print(
+                                '🗺️ [MAP] Selected address: $_selectedAddress');
+
                             widget.onLocationSelected(
                               _selectedLocation.latitude,
                               _selectedLocation.longitude,
+                              _selectedAddress, // Pass the address along with coordinates
                             );
+
+                            print(
+                                '🗺️ [MAP] Location confirmed and callback called');
                             Navigator.pop(context);
                           },
                           style: ElevatedButton.styleFrom(
@@ -816,7 +1059,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
             child: FloatingActionButton(
               onPressed: () async {
                 if (!mounted) return;
-                
+
                 try {
                   // Check location permissions first
                   LocationPermission permission =

@@ -480,7 +480,7 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                                                       BorderRadius.circular(4),
                                                 ),
                                                 child: Text(
-                                                  'Prescribed',
+                                                  'Prescription',
                                                   style: TextStyle(
                                                     color: Colors.white,
                                                     fontSize: 8,

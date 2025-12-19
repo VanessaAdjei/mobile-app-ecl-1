@@ -859,58 +859,58 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
                 }
 
                 return SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
                     onPressed: _isAddingToCart
                         ? null
                         : () => _addToCart(context, product),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green.shade600,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                  elevation: 2,
-                ),
-                child: _isAddingToCart
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade600,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      elevation: 2,
+                    ),
+                    child: _isAddingToCart
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
                                   valueColor: AlwaysStoppedAnimation<Color>(
                                       Colors.white),
-                            ),
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Adding...',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.shopping_cart, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Add to Cart',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Adding...',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.shopping_cart, size: 20),
-                          SizedBox(width: 8),
-                          Text(
-                            'Add to Cart',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-              ),
+                  ),
                 );
               },
             ),
@@ -1086,7 +1086,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        'Prescribed',
+                        'Prescription',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 8,

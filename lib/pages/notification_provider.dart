@@ -17,7 +17,17 @@ class NotificationProvider extends ChangeNotifier {
     // Only show if:
     // 1. There are unread notifications
     // 2. The count has increased since last shown (new notifications)
-    return currentUnreadCount > 0 && currentUnreadCount > _lastShownUnreadCount;
+    // 3. We haven't already shown a snackbar for this count or higher
+    final shouldShow = currentUnreadCount > 0 &&
+        currentUnreadCount > _lastShownUnreadCount &&
+        !_hasShownSnackbar;
+
+    // If we've already shown for this count or higher, never show again
+    if (_hasShownSnackbar && currentUnreadCount <= _lastShownUnreadCount) {
+      return false;
+    }
+
+    return shouldShow;
   }
 
   Future<void> initialize() async {

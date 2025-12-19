@@ -8,6 +8,7 @@ import '../services/delivery_service.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'auth_service.dart';
+import 'app_back_button.dart';
 
 class OrderTrackingPage extends StatefulWidget {
   final Map<String, dynamic> orderDetails;
@@ -546,31 +547,16 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
               ],
             ),
           ),
-          leading: IconButton(
+          leading: AppBackButton(
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
             onPressed: () {
-              debugPrint('🔍 Back button pressed in OrderTrackingPage');
-              debugPrint('🔍 Can pop: ${Navigator.canPop(context)}');
               if (Navigator.canPop(context)) {
-                debugPrint('🔍 Popping back to previous page (notifications)');
                 Navigator.pop(context);
               } else {
-                debugPrint('🔍 Cannot pop, navigating to home');
                 Navigator.of(context)
                     .pushNamedAndRemoveUntil('/', (route) => false);
               }
             },
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.arrow_back_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
           ),
           title: Text(
             'Track Order',
@@ -608,7 +594,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                     SizedBox(height: 16),
                     Text(
                       'Loading order details...',
-                      style: GoogleFonts.poppins(
+                      style: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 16,
                       ),
@@ -621,18 +607,19 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                 color: Colors.green.shade600,
                 child: SingleChildScrollView(
                   physics: AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildModernHeader(orderNumber, status, orderDate),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       _buildOrderItemsCard(
                           orderItems, totalQuantity, totalAmount),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       _buildStatusTimelineCard(status),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       _buildDeliveryDetailsCard(),
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
                     ],
                   ),
                 ),
@@ -666,12 +653,12 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
               SizedBox(height: 16),
               Text(
                 'Error loading order tracking',
-                style: GoogleFonts.poppins(fontSize: 18),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
               SizedBox(height: 8),
               Text(
                 'Error: $e',
-                style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey),
+                style: TextStyle(fontSize: 14, color: Colors.grey),
               ),
             ],
           ),
@@ -683,89 +670,48 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   Widget _buildModernHeader(
       String orderNumber, String status, DateTime? orderDate) {
     return Container(
-      margin: EdgeInsets.fromLTRB(12, 8, 12, 0),
-      padding: EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white,
-            Colors.grey[50]!,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.shade200, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: Offset(0, 2),
+            color: Colors.green.shade50,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Order #$orderNumber',
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      orderDate != null
-                          ? DateFormat('MMM dd, yyyy • hh:mm a')
-                              .format(orderDate)
-                          : 'Date not available',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _buildStatusBadge(status),
-            ],
-          ),
-          SizedBox(height: 8),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.green.shade200),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.local_shipping_rounded,
-                  color: Colors.green.shade600,
-                  size: 14,
-                ),
-                SizedBox(width: 6),
                 Text(
-                  'Track your order in real-time',
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    color: Colors.green.shade700,
-                    fontWeight: FontWeight.w500,
+                  orderNumber,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey.shade900,
                   ),
                 ),
+                if (orderDate != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    DateFormat('MMM d, y • h:mm a').format(orderDate),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
+          _buildStatusBadge(status),
         ],
       ),
     );
@@ -774,161 +720,102 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   Widget _buildStatusBadge(String status) {
     Color statusColor;
     String statusText;
-    IconData statusIcon;
 
     switch (status.toLowerCase()) {
       case 'delivered':
-        statusColor = Colors.green;
+        statusColor = Colors.green.shade600;
         statusText = 'Delivered';
-        statusIcon = Icons.check_circle_rounded;
         break;
       case 'shipped':
       case 'out for delivery':
-        statusColor = Colors.blue;
+        statusColor = Colors.blue.shade600;
         statusText = 'Shipped';
-        statusIcon = Icons.local_shipping_rounded;
         break;
       case 'processing':
       case 'confirmed':
-        statusColor = Colors.orange;
+        statusColor = Colors.orange.shade600;
         statusText = 'Processing';
-        statusIcon = Icons.settings_rounded;
         break;
       default:
-        statusColor = Colors.grey;
+        statusColor = Colors.grey.shade600;
         statusText = 'Pending';
-        statusIcon = Icons.schedule_rounded;
     }
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: statusColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+        color: statusColor,
+        borderRadius: BorderRadius.circular(18),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            statusIcon,
-            color: statusColor,
-            size: 16,
-          ),
-          SizedBox(width: 6),
-          Text(
-            statusText,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: statusColor,
-            ),
-          ),
-        ],
+      child: Text(
+        statusText.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }
 
   Widget _buildStatusTimelineCard(String currentStatus) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.shade200, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: Offset(0, 2),
+            color: Colors.green.shade50,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Order Progress',
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-          SizedBox(height: 16),
-          _buildModernStatusTimeline(currentStatus),
-        ],
-      ),
+      child: _buildModernStatusTimeline(currentStatus),
     );
   }
 
   Widget _buildOrderItemsCard(List<Map<String, dynamic>> orderItems,
       int totalQuantity, double totalAmount) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.shade200, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: Offset(0, 2),
+            color: Colors.green.shade50,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Order Items',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  formatQuantityText(totalQuantity),
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey[700],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 12),
           ...orderItems.map((item) => _buildModernOrderItemRow(item)),
-          Divider(height: 16),
+          const Divider(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Total Amount',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
+                'Total',
+                style: TextStyle(
+                  fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+                  color: Colors.grey.shade900,
                 ),
               ),
               Text(
                 'GHS ${totalAmount.toStringAsFixed(2)}',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green.shade600,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.green.shade700,
                 ),
               ),
             ],
@@ -943,26 +830,11 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     final productImg = getImageUrl(item['product_img']);
     final qty = item['qty'] ?? 1;
     final price = (item['price'] ?? 0.0).toDouble();
-    final batchNo = item['batch_no'] ?? '';
 
     return Container(
-      margin: EdgeInsets.only(bottom: 4),
-      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey[200]!, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 4,
-            offset: Offset(0, 1),
-          ),
-        ],
-      ),
+      margin: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
-          // Product Image
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: Image.network(
@@ -973,56 +845,44 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
               errorBuilder: (context, error, stackTrace) => Container(
                 width: 40,
                 height: 40,
-                color: Colors.grey[100],
+                color: Colors.grey.shade100,
                 child: Icon(Icons.image_rounded,
-                    color: Colors.grey[400], size: 18),
+                    color: Colors.grey.shade400, size: 16),
               ),
             ),
           ),
-          SizedBox(width: 10),
-          // Product Details
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   productName,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
+                  style: TextStyle(
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                    height: 1.1,
+                    color: Colors.grey.shade900,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                SizedBox(height: 4),
-                // Quantity Badge
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Qty: $qty',
-                    style: GoogleFonts.poppins(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.blue.shade700,
-                    ),
+                const SizedBox(height: 2),
+                Text(
+                  'Qty: $qty',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
                   ),
                 ),
               ],
             ),
           ),
-          // Price
           Text(
             'GHS ${price.toStringAsFixed(2)}',
-            style: GoogleFonts.poppins(
+            style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: Colors.green.shade600,
+              fontWeight: FontWeight.w700,
+              color: Colors.grey.shade900,
             ),
           ),
         ],
@@ -1033,28 +893,24 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   Widget _buildModernStatusTimeline(String currentStatus) {
     final statuses = [
       {
-        'icon': Icons.shopping_cart_rounded,
         'title': 'Order Placed',
-        'description': 'Your order has been received',
-        'status': 'pending'
+        'status': 'pending',
+        'icon': Icons.shopping_cart_rounded
       },
       {
-        'icon': Icons.verified_rounded,
-        'title': 'Order Confirmed',
-        'description': 'We\'re preparing your order',
-        'status': 'processing'
+        'title': 'Confirmed',
+        'status': 'processing',
+        'icon': Icons.verified_rounded
       },
       {
-        'icon': Icons.local_shipping_rounded,
-        'title': 'Out for Delivery',
-        'description': 'Your order is on the way',
-        'status': 'shipped'
+        'title': 'Shipped',
+        'status': 'shipped',
+        'icon': Icons.local_shipping_rounded
       },
       {
-        'icon': Icons.home_rounded,
         'title': 'Delivered',
-        'description': 'Order delivered successfully',
-        'status': 'delivered'
+        'status': 'delivered',
+        'icon': Icons.check_circle_rounded
       },
     ];
 
@@ -1066,109 +922,67 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         final statusStr = status['status'] as String;
         final isCompleted = _isStatusCompleted(statusStr, normalizedStatus);
         final isCurrent = statusStr == normalizedStatus;
+        final icon = status['icon'] as IconData;
 
-        return Container(
-          margin: EdgeInsets.only(bottom: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(
-                children: [
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Timeline indicator
+            Column(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: isCompleted
+                        ? Colors.green.shade600
+                        : isCurrent
+                            ? Colors.blue.shade600
+                            : Colors.grey.shade300,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+                if (index < statuses.length - 1)
                   Container(
-                    width: 36,
-                    height: 36,
+                    width: 2,
+                    height: 20,
+                    margin: const EdgeInsets.only(top: 2),
                     decoration: BoxDecoration(
                       color: isCompleted
-                          ? Colors.green.shade600
-                          : isCurrent
-                              ? Colors.blue.shade600
-                              : Colors.grey[300],
-                      shape: BoxShape.circle,
-                      boxShadow: isCompleted || isCurrent
-                          ? [
-                              BoxShadow(
-                                color:
-                                    (isCompleted ? Colors.green : Colors.blue)
-                                        .shade600
-                                        .withValues(alpha: 0.3),
-                                blurRadius: 4,
-                                offset: Offset(0, 1),
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Icon(
-                      status['icon'] as IconData,
-                      color: isCompleted || isCurrent
-                          ? Colors.white
-                          : Colors.grey[600],
-                      size: 18,
+                          ? Colors.green.shade400
+                          : Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(1),
                     ),
                   ),
-                  if (index < statuses.length - 1)
-                    Container(
-                      width: 2,
-                      height: 24,
-                      margin: EdgeInsets.only(top: 4),
-                      decoration: BoxDecoration(
-                        color: isCompleted
-                            ? Colors.green.shade300
-                            : Colors.grey[300],
-                        borderRadius: BorderRadius.circular(1),
-                      ),
-                    ),
-                ],
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      status['title'] as String,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: isCurrent
-                            ? Colors.blue.shade600
-                            : isCompleted
-                                ? Colors.green.shade600
-                                : Colors.grey[600],
-                      ),
-                    ),
-                    SizedBox(height: 1),
-                    Text(
-                      status['description'] as String,
-                      style: GoogleFonts.poppins(
-                        fontSize: 11,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                    if (isCurrent) ...[
-                      SizedBox(height: 6),
-                      Container(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.blue.shade200),
-                        ),
-                        child: Text(
-                          'Current Status',
-                          style: GoogleFonts.poppins(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.blue.shade700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+              ],
+            ),
+            const SizedBox(width: 10),
+            // Status content
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  status['title'] as String,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isCurrent || isCompleted
+                        ? FontWeight.w600
+                        : FontWeight.w500,
+                    color: isCurrent
+                        ? Colors.blue.shade700
+                        : isCompleted
+                            ? Colors.green.shade700
+                            : Colors.grey.shade600,
+                  ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         );
       }),
     );
@@ -1189,16 +1003,16 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
 
   Widget _buildDeliveryDetailsCard() {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-      padding: EdgeInsets.fromLTRB(12, 12, 12, 16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.shade200, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: Colors.green.shade50,
             blurRadius: 8,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -1209,119 +1023,81 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
             children: [
               Icon(
                 Icons.location_on_rounded,
+                size: 18,
                 color: Colors.green.shade600,
-                size: 20,
               ),
-              SizedBox(width: 6),
+              const SizedBox(width: 8),
               Text(
-                'Delivery Details',
-                style: GoogleFonts.poppins(
+                'Delivery Address',
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+                  color: Colors.green.shade700,
                 ),
               ),
             ],
           ),
-          SizedBox(height: 8),
-          if (_deliveryAddress == 'Address not available' ||
-              _contactNumber == 'Contact not available') ...[
-            Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange.shade200),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline_rounded,
-                      color: Colors.orange.shade600, size: 16),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Delivery details are being loaded from your saved delivery information.',
-                      style: GoogleFonts.poppins(
-                        color: Colors.orange.shade700,
-                        fontSize: 11,
-                        height: 1.2,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+          const SizedBox(height: 10),
+          Text(
+            _deliveryAddress ?? 'Not available',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade700,
+              height: 1.4,
             ),
-            SizedBox(height: 8),
-          ],
-          _buildModernInfoRow(
-            Icons.location_on_rounded,
-            'Delivery Address',
-            _deliveryAddress ?? 'Address not available',
-            Colors.red.shade600,
           ),
-          SizedBox(height: 8),
-          _buildModernInfoRow(
-            Icons.phone_rounded,
-            'Contact Number',
-            _contactNumber ?? 'Contact number not available',
-            Colors.blue.shade600,
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Icon(
+                Icons.phone_rounded,
+                size: 18,
+                color: Colors.green.shade600,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Contact',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.green.shade700,
+                ),
+              ),
+            ],
           ),
-          SizedBox(height: 8),
-          _buildModernInfoRow(
-            Icons.local_shipping_rounded,
-            'Delivery Method',
+          const SizedBox(height: 10),
+          Text(
+            _contactNumber ?? 'Not available',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Icon(
+                Icons.local_shipping_rounded,
+                size: 18,
+                color: Colors.green.shade600,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Delivery Method',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.green.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
             _deliveryOption ?? 'Standard Delivery',
-            Colors.green.shade600,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModernInfoRow(
-      IconData icon, String title, String value, Color iconColor) {
-    return Container(
-      padding: EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(icon, size: 16, color: iconColor),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  value,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                    height: 1.2,
-                  ),
-                ),
-              ],
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade700,
             ),
           ),
         ],

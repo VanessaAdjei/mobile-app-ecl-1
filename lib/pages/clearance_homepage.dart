@@ -224,7 +224,6 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
       print('API failed with error: $e');
       print(' Error type: ${e.runtimeType}');
 
-      
       if (mounted) {
         setState(() {
           _error = 'Failed to load products: ${e.toString()}';
@@ -286,15 +285,13 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
           final clearancePrice = originalPrice * (1 - actualDiscount / 100);
           final discountAmount = originalPrice * (actualDiscount / 100);
 
-  
           if (dataList.indexOf(item) < 3) {
             print('🔍 Product ${productData['name']} image fields:');
             print('  - thumbnail: ${productData['thumbnail']}');
             print('  - image: ${productData['image']}');
-            print('  - product_img: ${productData['product_img'
-            ]}');
+            print('  - product_img: ${productData['product_img']}');
           }
- 
+
           final imageUrl = productData['thumbnail'] ??
               productData['image'] ??
               productData['product_img'] ??
@@ -2188,7 +2185,7 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
                                     border: Border.all(color: Colors.red[200]!),
                                   ),
                                   child: Text(
-                                    'Prescribed',
+                                    'Prescription',
                                     style: _safeGoogleFonts(
                                       fontSize: fontSize * 0.5,
                                       color: Colors.red[700],

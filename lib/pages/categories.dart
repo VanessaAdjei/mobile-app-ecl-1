@@ -3709,7 +3709,7 @@ class _ProductCardState extends State<ProductCard> {
                           ],
                         ),
                         child: Text(
-                          'Prescribed',
+                          'Prescription',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 10,

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:intl/intl.dart';
 import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/app_header_bar.dart';
@@ -898,6 +899,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       context: context,
       barrierDismissible: false,
       builder: (context) {
+        final topPadding = MediaQuery.of(context).padding.top;
         return Dialog(
             backgroundColor: Colors.transparent,
             insetPadding: EdgeInsets.zero,
@@ -908,301 +910,186 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(0),
               ),
-              child: Padding(
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).viewInsets.bottom,
-                ),
-                child: Column(
-                  children: [
-                    // drag handle bar with animation
-                    Container(
-                      margin: EdgeInsets.only(top: 12),
-                      width: 50,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.grey[400]!, Colors.grey[300]!],
-                        ),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.3),
-
-                    // header with animations
-                    Container(
-                      padding: EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.green[600]!,
-                            Colors.green[700]!,
-                            Colors.green[800]!
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          stops: [0.0, 0.5, 1.0],
-                        ),
-                        borderRadius:
-                            BorderRadius.vertical(top: Radius.circular(25)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.green.withValues(alpha: 0.3),
-                            blurRadius: 15,
-                            offset: Offset(0, 5),
-                          ),
+              child: Column(
+                children: [
+                  // Green header
+                  Container(
+                    padding: EdgeInsets.only(top: topPadding),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.green.shade600,
+                          Colors.green.shade700,
                         ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.25),
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.1),
-                                  blurRadius: 8,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Icon(
-                              Icons.calendar_today,
-                              color: Colors.white,
-                              size: 26,
-                            ),
-                          ).animate().scale(
-                              duration: 600.ms, curve: Curves.elasticOut),
-                          SizedBox(width: 18),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Book Virtual Consultation',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    letterSpacing: 0.5,
-                                  ),
-                                )
-                                    .animate()
-                                    .fadeIn(delay: 200.ms)
-                                    .slideX(begin: 0.3),
-                                SizedBox(height: 4),
-                                Text(
-                                  'Get expert advice from our pharmacists',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 15,
-                                    color: Colors.white.withValues(alpha: 0.95),
-                                    height: 1.2,
-                                  ),
-                                )
-                                    .animate()
-                                    .fadeIn(delay: 400.ms)
-                                    .slideX(begin: 0.3),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.1),
-                                  blurRadius: 6,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: IconButton(
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: SafeArea(
+                      bottom: false,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back_ios,
+                                  size: 20, color: Colors.white),
                               onPressed: () => Navigator.pop(context),
-                              icon: Icon(Icons.close,
-                                  color: Colors.white, size: 22),
-                              tooltip: 'Close',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
                             ),
-                          ).animate().scale(
-                              duration: 400.ms, curve: Curves.elasticOut),
-                        ],
-                      ),
-                    ).animate().fadeIn(delay: 100.ms).slideY(begin: -0.2),
-
-                    // Enhanced Form content with animations
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: EdgeInsets.all(24),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            children: [
-                              // progress bar
-                              _buildProgressIndicator(),
-                              SizedBox(height: 24),
-
-                              // consultation details section
-                              _buildFormSection(
-                                'Consultation Details',
-                                Icons.video_call,
-                                Colors.blue,
-                                [
-                                  _buildEnhancedDropdownField(
-                                    ' Mode of Consultation',
-                                    _selectedConsultationType,
-                                    _consultationTypes,
-                                    (value) => setState(() =>
-                                        _selectedConsultationType = value!),
-                                    Icons.video_call,
-                                    Colors.blue,
-                                  ),
-                                  SizedBox(height: 12),
-                                  _buildEnhancedDropdownField(
-                                    'Preferred Platform',
-                                    _selectedPreferredPlatform,
-                                    _preferredPlatforms,
-                                    (value) => setState(() =>
-                                        _selectedPreferredPlatform = value!),
-                                    Icons.computer,
-                                    Colors.purple,
-                                  ),
-                                  SizedBox(height: 12),
-                                  _buildEnhancedDropdownField(
-                                    'Pharmacist Gender Preference',
-                                    _selectedGenderPreference,
-                                    _genderPreferences,
-                                    (value) => setState(() =>
-                                        _selectedGenderPreference = value!),
-                                    Icons.person,
-                                    Colors.teal,
-                                  ),
-                                ],
-                              )
-                                  .animate()
-                                  .fadeIn(delay: 500.ms)
-                                  .slideY(begin: 0.3),
-
-                              SizedBox(height: 20),
-
-                              // personal info section
-                              _buildFormSection(
-                                'Personal Information',
-                                Icons.person,
-                                Colors.indigo,
-                                [
-                                  _buildEnhancedTextField(
-                                    'Full Name',
-                                    _nameController,
-                                    Icons.person_outline,
-                                    Colors.indigo,
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Please enter your full name';
-                                      }
-                                      return null;
-                                    },
-                                    fieldKey: _nameFieldKey,
-                                  ),
-                                  SizedBox(height: 12),
-                                  _buildEnhancedTextField(
-                                    'Phone Number',
-                                    _phoneController,
-                                    Icons.phone,
-                                    Colors.green,
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Please enter your phone number';
-                                      }
-                                      if (!RegExp(r'^\+?[\d\s-]+$')
-                                          .hasMatch(value)) {
-                                        return 'Please enter a valid phone number';
-                                      }
-                                      return null;
-                                    },
-                                    fieldKey: _phoneFieldKey,
-                                  ),
-                                  SizedBox(height: 12),
-                                  _buildEnhancedTextField(
-                                    'Email Address',
-                                    _emailController,
-                                    Icons.email,
-                                    Colors.orange,
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Please enter your email address';
-                                      }
-                                      if (!RegExp(
-                                              r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                          .hasMatch(value)) {
-                                        return 'Please enter a valid email address';
-                                      }
-                                      return null;
-                                    },
-                                    fieldKey: _emailFieldKey,
-                                  ),
-                                ],
-                              )
-                                  .animate()
-                                  .fadeIn(delay: 600.ms)
-                                  .slideY(begin: 0.3),
-
-                              SizedBox(height: 20),
-
-                              // medical info section
-                              _buildFormSection(
-                                'Medical Information',
-                                Icons.health_and_safety,
-                                Colors.red,
-                                [
-                                  _buildEnhancedTextField(
-                                    'Symptoms/Concerns',
-                                    _symptomsController,
-                                    Icons.medical_services,
-                                    Colors.red,
-                                    maxLines: 3,
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Please describe your symptoms or concerns';
-                                      }
-                                      return null;
-                                    },
-                                    fieldKey: _symptomsFieldKey,
-                                  ),
-                                ],
-                              )
-                                  .animate()
-                                  .fadeIn(delay: 700.ms)
-                                  .slideY(begin: 0.3),
-
-                              SizedBox(height: 20),
-
-                              // Schedule Section
-                              _buildFormSection(
-                                'Schedule',
-                                Icons.schedule,
-                                Colors.orange,
-                                [
-                                  _buildEnhancedDatePicker(),
-                                  SizedBox(height: 12),
-                                  _buildEnhancedTimePicker(),
-                                ],
-                              )
-                                  .animate()
-                                  .fadeIn(delay: 800.ms)
-                                  .slideY(begin: 0.3),
-
-                              SizedBox(height: 24),
-
-                              // submit button with loading state
-                              _buildEnhancedSubmitButton(),
-                              SizedBox(height: 20),
-                            ],
-                          ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Book Consultation',
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+
+                  // Form content
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            // Consultation Details
+                            _buildSimpleFormSection(
+                              'Consultation Details',
+                              [
+                                _buildSimpleDropdownField(
+                                  'Mode of Consultation',
+                                  _selectedConsultationType,
+                                  _consultationTypes,
+                                  (value) => setState(
+                                      () => _selectedConsultationType = value!),
+                                ),
+                                const SizedBox(height: 12),
+                                _buildSimpleDropdownField(
+                                  'Preferred Platform',
+                                  _selectedPreferredPlatform,
+                                  _preferredPlatforms,
+                                  (value) => setState(() =>
+                                      _selectedPreferredPlatform = value!),
+                                ),
+                                const SizedBox(height: 12),
+                                _buildSimpleDropdownField(
+                                  'Gender Preference',
+                                  _selectedGenderPreference,
+                                  _genderPreferences,
+                                  (value) => setState(
+                                      () => _selectedGenderPreference = value!),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Personal Information
+                            _buildSimpleFormSection(
+                              'Personal Information',
+                              [
+                                _buildSimpleTextField(
+                                  'Full Name',
+                                  _nameController,
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Required';
+                                    }
+                                    return null;
+                                  },
+                                  fieldKey: _nameFieldKey,
+                                ),
+                                const SizedBox(height: 12),
+                                _buildSimpleTextField(
+                                  'Phone Number',
+                                  _phoneController,
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Required';
+                                    }
+                                    return null;
+                                  },
+                                  fieldKey: _phoneFieldKey,
+                                ),
+                                const SizedBox(height: 12),
+                                _buildSimpleTextField(
+                                  'Email Address',
+                                  _emailController,
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Required';
+                                    }
+                                    if (!RegExp(
+                                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                                        .hasMatch(value)) {
+                                      return 'Invalid email';
+                                    }
+                                    return null;
+                                  },
+                                  fieldKey: _emailFieldKey,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Medical Information
+                            _buildSimpleFormSection(
+                              'Medical Information',
+                              [
+                                _buildSimpleTextField(
+                                  'Symptoms/Concerns',
+                                  _symptomsController,
+                                  maxLines: 3,
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Required';
+                                    }
+                                    return null;
+                                  },
+                                  fieldKey: _symptomsFieldKey,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Schedule
+                            _buildSimpleFormSection(
+                              'Schedule',
+                              [
+                                _buildSimpleDatePicker(),
+                                const SizedBox(height: 12),
+                                _buildSimpleTimePicker(),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+
+                            // Submit button
+                            _buildSimpleSubmitButton(),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ));
       },
@@ -1705,6 +1592,280 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         ),
       ),
     ).animate().fadeIn(delay: 1200.ms).scale(begin: Offset(0.8, 0.8));
+  }
+
+  // Simplified form section
+  Widget _buildSimpleFormSection(String title, List<Widget> children) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.shade200, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.shade50,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Colors.green.shade700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  // Simplified dropdown field
+  Widget _buildSimpleDropdownField(
+    String label,
+    String value,
+    List<String> items,
+    Function(String?) onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: DropdownButtonFormField<String>(
+            value: value,
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              filled: true,
+              fillColor: Colors.grey.shade50,
+            ),
+            items: items.map((item) {
+              return DropdownMenuItem(
+                value: item,
+                child: Text(
+                  item,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade900,
+                  ),
+                ),
+              );
+            }).toList(),
+            onChanged: onChanged,
+            icon: Icon(Icons.keyboard_arrow_down,
+                color: Colors.grey.shade600, size: 20),
+            dropdownColor: Colors.white,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade900,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Simplified text field
+  Widget _buildSimpleTextField(
+    String label,
+    TextEditingController controller, {
+    String? Function(String?)? validator,
+    int maxLines = 1,
+    GlobalKey<FormFieldState<dynamic>>? fieldKey,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: TextFormField(
+            key: fieldKey,
+            controller: controller,
+            maxLines: maxLines,
+            validator: validator,
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              filled: true,
+              fillColor: Colors.grey.shade50,
+              hintText: 'Enter $label',
+              hintStyle: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade400,
+              ),
+            ),
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade900,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Simplified date picker
+  Widget _buildSimpleDatePicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Preferred Date',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        InkWell(
+          onTap: () async {
+            final date = await showDatePicker(
+              context: context,
+              initialDate: _selectedDate,
+              firstDate: DateTime.now(),
+              lastDate: DateTime.now().add(const Duration(days: 30)),
+            );
+            if (date != null) {
+              setState(() => _selectedDate = date);
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey.shade300),
+              color: Colors.grey.shade50,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  DateFormat('MMM d, y').format(_selectedDate),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade900,
+                  ),
+                ),
+                Icon(Icons.calendar_today,
+                    color: Colors.grey.shade600, size: 18),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Simplified time picker
+  Widget _buildSimpleTimePicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Preferred Time',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        InkWell(
+          onTap: () async {
+            final time = await showTimePicker(
+              context: context,
+              initialTime: _selectedTime,
+            );
+            if (time != null) {
+              setState(() => _selectedTime = time);
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey.shade300),
+              color: Colors.grey.shade50,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _selectedTime.format(context),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade900,
+                  ),
+                ),
+                Icon(Icons.access_time, color: Colors.grey.shade600, size: 18),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Simplified submit button
+  Widget _buildSimpleSubmitButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _submitBookingWithValidation,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.green.shade600,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          elevation: 0,
+        ),
+        child: const Text(
+          'Book Consultation',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
   }
 
   void _submitBookingWithValidation() async {
@@ -2889,8 +3050,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       ),
     );
 
-    // If user pressed Book Appointment, highlight the booking box
-    if (result == true && mounted) {
+    // If user pressed Book Appointment, open the form directly
+    if (result == 'open_form' && mounted) {
+      _showBookingForm();
+    } else if (result == true && mounted) {
+      // Legacy: highlight the booking box
       setState(() {
         _shouldHighlightBooking = true;
       });
@@ -3145,7 +3309,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               border: Border.all(
                 color: Colors.grey.shade200,
                 width: 1,
-                ),
+              ),
             ),
             child: Row(
               children: [
@@ -5714,20 +5878,36 @@ class _ErnestChatPageState extends State<ErnestChatPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
+        elevation: 0,
         title: Row(
           children: [
-            Icon(Icons.smart_toy, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Ask Ernest', style: GoogleFonts.poppins()),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.smart_toy, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Ask Ernest',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
-        backgroundColor: Colors.purple[600],
+        backgroundColor: Colors.green.shade600,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: Icon(Icons.settings),
+            icon: const Icon(Icons.settings_outlined),
             onPressed: _showSettings,
+            tooltip: 'Settings',
           ),
         ],
       ),
@@ -5736,7 +5916,7 @@ class _ErnestChatPageState extends State<ErnestChatPage> {
           // Chat messages
           Expanded(
             child: ListView.builder(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final message = _messages[index];
@@ -5750,52 +5930,86 @@ class _ErnestChatPageState extends State<ErnestChatPage> {
 
           // Input area
           Container(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.white,
-              border: Border(top: BorderSide(color: Colors.grey[300]!)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _questionController,
-                    decoration: InputDecoration(
-                      hintText: 'Ask Ernest about health...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(25),
-                      ),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    ),
-                    maxLines: 1,
-                    onSubmitted: (_) => _askQuestion(),
-                  ),
-                ),
-                SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.purple[500]!, Colors.purple[600]!],
-                    ),
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                  child: IconButton(
-                    onPressed: _isLoading ? null : _askQuestion,
-                    icon: _isLoading
-                        ? SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : Icon(Icons.send, color: Colors.white),
-                  ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, -2),
                 ),
               ],
+            ),
+            child: SafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: TextField(
+                        controller: _questionController,
+                        decoration: InputDecoration(
+                          hintText: 'Type your question...',
+                          hintStyle: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 14,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                        ),
+                        maxLines: null,
+                        textInputAction: TextInputAction.newline,
+                        style: const TextStyle(fontSize: 14),
+                        onSubmitted: (_) => _askQuestion(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade600,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.green.shade600.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(24),
+                        onTap: _isLoading ? null : _askQuestion,
+                        child: Center(
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
+                                  ),
+                                )
+                              : const Icon(Icons.send_rounded,
+                                  color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -5805,47 +6019,67 @@ class _ErnestChatPageState extends State<ErnestChatPage> {
 
   Widget _buildMessageBubble(ChatMessage message) {
     return Container(
-      margin: EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       child: Row(
         mainAxisAlignment:
             message.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!message.isUser) ...[
             Container(
-              padding: EdgeInsets.all(8),
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
-                color: Colors.purple[100],
-                borderRadius: BorderRadius.circular(20),
+                color: Colors.green.shade100,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.green.shade200, width: 1),
               ),
-              child: Icon(Icons.smart_toy, color: Colors.purple[600], size: 20),
+              child: Icon(Icons.smart_toy_rounded,
+                  color: Colors.green.shade700, size: 18),
             ),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
           ],
           Flexible(
             child: Container(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: message.isUser ? Colors.purple[600] : Colors.grey[100],
-                borderRadius: BorderRadius.circular(20),
+                color: message.isUser ? Colors.green.shade600 : Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(16),
+                  topRight: const Radius.circular(16),
+                  bottomLeft: Radius.circular(message.isUser ? 16 : 4),
+                  bottomRight: Radius.circular(message.isUser ? 4 : 16),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
               ),
               child: Text(
                 message.text,
-                style: GoogleFonts.poppins(
+                style: TextStyle(
                   fontSize: 14,
-                  color: message.isUser ? Colors.white : Colors.grey[800],
+                  color: message.isUser ? Colors.white : Colors.grey.shade800,
+                  height: 1.4,
                 ),
               ),
             ),
           ),
           if (message.isUser) ...[
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             Container(
-              padding: EdgeInsets.all(8),
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
-                color: Colors.purple[100],
-                borderRadius: BorderRadius.circular(20),
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade300, width: 1),
               ),
-              child: Icon(Icons.person, color: Colors.purple[600], size: 20),
+              child: Icon(Icons.person_rounded,
+                  color: Colors.grey.shade700, size: 18),
             ),
           ],
         ],
@@ -5855,38 +6089,51 @@ class _ErnestChatPageState extends State<ErnestChatPage> {
 
   Widget _buildQuickQuestions() {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: Colors.grey.shade200),
+          bottom: BorderSide(color: Colors.grey.shade200),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Quick Questions:',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
+            'Quick Questions',
+            style: TextStyle(
+              fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: Colors.grey[700],
+              color: Colors.grey.shade700,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: HealthCategories.categories.map((category) {
-              return InkWell(
-                onTap: () => _askQuickQuestion(category),
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.purple[50],
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.purple[200]!),
-                  ),
-                  child: Text(
-                    category,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: Colors.purple[700],
-                      fontWeight: FontWeight.w500,
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _askQuickQuestion(category),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                      border:
+                          Border.all(color: Colors.green.shade200, width: 1),
+                    ),
+                    child: Text(
+                      category,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.green.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ),
@@ -6066,8 +6313,8 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
   // Removed _shouldSuggestAppointment method
 
   void _navigateToAppointment() {
-    // Return true to indicate booking intent, which will highlight the booking box
-    Navigator.pop(context, true);
+    // Close the chat page and return a signal to open the booking form
+    Navigator.pop(context, 'open_form');
   }
 
   void _handleYesResponse() {

@@ -6,7 +6,6 @@ import '../models/product.dart' as models;
 import '../pages/itemdetail.dart';
 import '../services/homepage_optimization_service.dart';
 import '../services/stock_utility_service.dart';
-import 'package:flutter/foundation.dart'; // Added for kDebugMode
 import 'wishlist_button.dart';
 
 class HomeProductCard extends StatelessWidget {
@@ -157,7 +156,7 @@ class HomeProductCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(3),
                           ),
                           child: Text(
-                            'Prescribed',
+                            'Prescription',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 8,
@@ -397,7 +396,7 @@ class GenericProductCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(2),
                     ),
                     child: Text(
-                      'Prescribed',
+                      'Prescription',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 7,
@@ -461,8 +460,9 @@ class GenericProductCard extends StatelessWidget {
 
   bool _isPrescribed() {
     if (product is Product) return product.otcpom?.toLowerCase() == 'pom';
-    if (product is Map)
+    if (product is Map) {
       return (product['otcpom']?.toLowerCase() ?? '') == 'pom';
+    }
     return false;
   }
 
@@ -525,8 +525,9 @@ class ProductCard extends StatelessWidget {
 
   bool _isPrescribed() {
     if (product is Product) return product.otcpom?.toLowerCase() == 'pom';
-    if (product is Map)
+    if (product is Map) {
       return (product['otcpom']?.toLowerCase() ?? '') == 'pom';
+    }
     return false;
   }
 
@@ -595,7 +596,7 @@ class ProductCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          'Prescribed',
+                          'Prescription',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 8,

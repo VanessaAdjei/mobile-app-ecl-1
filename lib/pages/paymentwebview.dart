@@ -220,79 +220,68 @@ class PaymentWebViewState extends State<PaymentWebView> {
             barrierDismissible: false,
             builder: (context) => Dialog(
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20)),
+                  borderRadius: BorderRadius.circular(12)),
               backgroundColor: Colors.white,
               child: Padding(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        shape: BoxShape.circle,
-                      ),
-                      padding: const EdgeInsets.all(18),
-                      child: Icon(
-                        Icons.warning_amber_rounded,
-                        color: Colors.red.shade700,
-                        size: 38,
-                      ),
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.orange.shade700,
+                      size: 32,
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 12),
                     Text(
                       'Cancel Payment?',
                       style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red.shade800,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade900,
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     Text(
-                      'Are you sure you want to cancel this payment?',
+                      'Your payment will not be processed.',
                       style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.grey,
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 16),
                     Row(
                       children: [
                         Expanded(
                           child: OutlinedButton(
                             onPressed: () => Navigator.pop(context, false),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.red.shade700,
-                              side: BorderSide(
-                                  color: Colors.red.shade700, width: 1.2),
+                              foregroundColor: Colors.grey.shade700,
+                              side: BorderSide(color: Colors.grey.shade300),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: 10, horizontal: 8),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
                             ),
                             child: Text('No'),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () => Navigator.pop(context, true),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red.shade700,
+                              backgroundColor: Colors.grey.shade800,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: 10, horizontal: 8),
-                              elevation: 1,
-                              shadowColor: Colors.transparent,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              elevation: 0,
                             ),
-                            child: Text('Yes, Cancel'),
+                            child: Text('Cancel'),
                           ),
                         ),
                       ],
@@ -399,46 +388,38 @@ class PaymentWebViewState extends State<PaymentWebView> {
                                       builder: (context) => Dialog(
                                         shape: RoundedRectangleBorder(
                                             borderRadius:
-                                                BorderRadius.circular(20)),
+                                                BorderRadius.circular(12)),
                                         backgroundColor: Colors.white,
                                         child: Padding(
                                           padding: const EdgeInsets.symmetric(
-                                              horizontal: 28, vertical: 32),
+                                              horizontal: 20, vertical: 20),
                                           child: Column(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              Container(
-                                                decoration: BoxDecoration(
-                                                  color: Colors.red.shade50,
-                                                  shape: BoxShape.circle,
-                                                ),
-                                                padding:
-                                                    const EdgeInsets.all(18),
-                                                child: Icon(
-                                                  Icons.warning_amber_rounded,
-                                                  color: Colors.red.shade700,
-                                                  size: 38,
-                                                ),
+                                              Icon(
+                                                Icons.info_outline,
+                                                color: Colors.orange.shade700,
+                                                size: 32,
                                               ),
-                                              const SizedBox(height: 18),
+                                              const SizedBox(height: 12),
                                               Text(
                                                 'Cancel Payment?',
                                                 style: TextStyle(
-                                                  fontSize: 20,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.red.shade800,
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.grey.shade900,
                                                 ),
                                               ),
-                                              const SizedBox(height: 10),
+                                              const SizedBox(height: 8),
                                               Text(
-                                                'Are you sure you want to cancel this payment?',
+                                                'Your payment will not be processed.',
                                                 style: TextStyle(
-                                                  fontSize: 15,
-                                                  color: Colors.grey,
+                                                  fontSize: 13,
+                                                  color: Colors.grey.shade600,
                                                 ),
                                                 textAlign: TextAlign.center,
                                               ),
-                                              const SizedBox(height: 28),
+                                              const SizedBox(height: 16),
                                               Row(
                                                 children: [
                                                   Expanded(
@@ -448,12 +429,11 @@ class PaymentWebViewState extends State<PaymentWebView> {
                                                               context, false),
                                                       style: OutlinedButton
                                                           .styleFrom(
-                                                        foregroundColor:
-                                                            Colors.red.shade700,
+                                                        foregroundColor: Colors
+                                                            .grey.shade700,
                                                         side: BorderSide(
                                                             color: Colors
-                                                                .red.shade700,
-                                                            width: 1.2),
+                                                                .grey.shade300),
                                                         shape:
                                                             RoundedRectangleBorder(
                                                           borderRadius:
@@ -463,13 +443,12 @@ class PaymentWebViewState extends State<PaymentWebView> {
                                                         padding:
                                                             const EdgeInsets
                                                                 .symmetric(
-                                                                vertical: 10,
-                                                                horizontal: 8),
+                                                                vertical: 10),
                                                       ),
                                                       child: Text('No'),
                                                     ),
                                                   ),
-                                                  const SizedBox(width: 12),
+                                                  const SizedBox(width: 10),
                                                   Expanded(
                                                     child: ElevatedButton(
                                                       onPressed: () =>
@@ -477,8 +456,8 @@ class PaymentWebViewState extends State<PaymentWebView> {
                                                               context, true),
                                                       style: ElevatedButton
                                                           .styleFrom(
-                                                        backgroundColor:
-                                                            Colors.red.shade700,
+                                                        backgroundColor: Colors
+                                                            .grey.shade800,
                                                         foregroundColor:
                                                             Colors.white,
                                                         shape:
@@ -490,14 +469,10 @@ class PaymentWebViewState extends State<PaymentWebView> {
                                                         padding:
                                                             const EdgeInsets
                                                                 .symmetric(
-                                                                vertical: 10,
-                                                                horizontal: 8),
-                                                        elevation: 1,
-                                                        shadowColor:
-                                                            Colors.transparent,
+                                                                vertical: 10),
+                                                        elevation: 0,
                                                       ),
-                                                      child:
-                                                          Text('Yes, Cancel'),
+                                                      child: Text('Cancel'),
                                                     ),
                                                   ),
                                                 ],

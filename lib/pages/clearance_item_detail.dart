@@ -1337,7 +1337,7 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            'Prescribed',
+                            'Prescription',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 7,
@@ -1669,7 +1669,7 @@ Widget _buildRelatedProductCard(Product product, BuildContext context) {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          'Prescribed',
+                          'Prescription',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 7,

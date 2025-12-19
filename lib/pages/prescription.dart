@@ -3,13 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-
-import 'package:dotted_border/dotted_border.dart';
-import 'app_back_button.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:eclapp/widgets/error_display.dart';
 import '../config/api_config.dart';
 
@@ -251,92 +246,95 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
       return const SizedBox.shrink();
     }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 20),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.medication, color: Colors.green.shade700),
-                const SizedBox(width: 8),
-                Text(
-                  "Prescription Required",
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Colors.green.shade700,
-                  ),
-                ),
-              ],
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade300, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.red.shade100,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          if (widget.item!['product']['thumbnail'] != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                widget.item!['product']['thumbnail'],
+                height: 60,
+                width: 60,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 60,
+                    width: 60,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.image_not_supported,
+                        color: Colors.grey.shade400, size: 24),
+                  );
+                },
+              ),
             ),
-            const SizedBox(height: 12),
-            Row(
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (widget.item!['product']['thumbnail'] != null)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      widget.item!['product']['thumbnail'],
-                      height: 80,
-                      width: 80,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          height: 80,
-                          width: 80,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(Icons.image_not_supported,
-                              color: Colors.grey),
-                        );
-                      },
-                    ),
+                Text(
+                  widget.item!['product']['name'] ?? 'Unknown Product',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: Colors.grey.shade900,
                   ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.item!['product']['name'] ?? 'Unknown Product',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'GHS ${widget.item!['price'] ?? '0.00'}',
-                        style: TextStyle(
-                          color: Colors.green.shade700,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                      if (widget.item!['batch_no'] != null) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          'Batch: ${widget.item!['batch_no']}',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ],
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'GHS ${widget.item!['price'] ?? '0.00'}',
+                  style: TextStyle(
+                    color: Colors.green.shade700,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
                   ),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.red.shade700,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.medical_services_rounded,
+                    color: Colors.white, size: 12),
+                const SizedBox(width: 4),
+                Text(
+                  'Prescription',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -445,149 +443,142 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
         elevation: 0,
-        centerTitle: true,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.green.shade700,
-                Colors.green.shade800,
-              ],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
+        backgroundColor: Colors.red.shade700,
+        foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, size: 20),
+          onPressed: () {
+            if (_selectedImage != null) {
+              showDialog(
+                context: context,
+                builder: (context) => Dialog(
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.warning_amber_rounded,
+                            color: Colors.orange.shade600, size: 40),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Leave Upload?',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade900,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Your uploaded prescription will be lost.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.grey.shade700,
+                                  side: BorderSide(color: Colors.grey.shade300),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 10),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text('Cancel'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  Navigator.pop(context);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red.shade700,
+                                  foregroundColor: Colors.white,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 10),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: const Text('Leave'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            } else {
+              Navigator.pop(context);
+            }
+          },
         ),
-        leading: BackButtonUtils.withConfirmation(
-          backgroundColor: Colors.white.withValues(alpha: 0.2),
-          title: 'Leave Prescription',
-          message:
-              'Are you sure you want to leave? Your uploaded prescription will be lost.',
-        ),
-        title: Column(
+        title: Row(
           children: [
-            Text(
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.upload_file_rounded, size: 18),
+            ),
+            const SizedBox(width: 10),
+            const Text(
               'Upload Prescription',
-              style: GoogleFonts.poppins(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: Colors.white,
-                letterSpacing: 0.5,
-              ),
-            ),
-            Text(
-              'Get your medicines delivered',
-              style: GoogleFonts.poppins(
-                fontSize: 11,
-                color: Colors.white70,
-                fontWeight: FontWeight.w400,
               ),
             ),
           ],
         ),
       ),
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (widget.item != null)
-                    Animate(
-                      effects: [
-                        FadeEffect(duration: 400.ms),
-                        SlideEffect(
-                            duration: 400.ms,
-                            begin: const Offset(0, 0.1),
-                            end: Offset.zero)
-                      ],
-                      child: _buildItemDetails(),
-                    ),
-                  Animate(
-                    effects: [
-                      FadeEffect(duration: 400.ms),
-                      SlideEffect(
-                          duration: 400.ms,
-                          begin: const Offset(0, 0.1),
-                          end: Offset.zero)
-                    ],
-                    child: _buildUploadArea(theme),
-                  ),
-                  const SizedBox(height: 18),
-                  if (_selectedImage != null)
-                    Animate(
-                      effects: [
-                        FadeEffect(duration: 400.ms),
-                        SlideEffect(
-                            duration: 400.ms,
-                            begin: const Offset(0, 0.1),
-                            end: Offset.zero)
-                      ],
-                      child: _buildImagePreview(),
-                    ),
-                  const SizedBox(height: 18),
-                  Animate(
-                    effects: [
-                      FadeEffect(duration: 400.ms),
-                      SlideEffect(
-                          duration: 400.ms,
-                          begin: const Offset(0, 0.1),
-                          end: Offset.zero)
-                    ],
-                    child: _buildSubmitButton(),
-                  ),
-                  const SizedBox(height: 24),
-                  Animate(
-                    effects: [
-                      FadeEffect(duration: 400.ms),
-                      SlideEffect(
-                          duration: 400.ms,
-                          begin: const Offset(0, 0.1),
-                          end: Offset.zero)
-                    ],
-                    child: _buildRequirementsCard(),
-                  ),
-                  const SizedBox(height: 16),
-                  Animate(
-                    effects: [
-                      FadeEffect(duration: 400.ms),
-                      SlideEffect(
-                          duration: 400.ms,
-                          begin: const Offset(0, 0.1),
-                          end: Offset.zero)
-                    ],
-                    child: _buildSamplePrescriptionCard(),
-                  ),
-                  const SizedBox(height: 16),
-                  Animate(
-                    effects: [
-                      FadeEffect(duration: 400.ms),
-                      SlideEffect(
-                          duration: 400.ms,
-                          begin: const Offset(0, 0.1),
-                          end: Offset.zero)
-                    ],
-                    child: _buildWarningCard(),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (widget.item != null) ...[
+              _buildItemDetails(),
+              const SizedBox(height: 12),
+            ],
+            _buildUploadArea(theme),
+            if (_selectedImage != null) ...[
+              const SizedBox(height: 12),
+              _buildImagePreview(),
+            ],
+            const SizedBox(height: 16),
+            _buildSubmitButton(),
+            const SizedBox(height: 16),
+            _buildRequirementsCard(),
+            const SizedBox(height: 12),
+            _buildSamplePrescriptionCard(),
+            const SizedBox(height: 12),
+            _buildWarningCard(),
+            const SizedBox(height: 16),
+          ],
+        ),
       ),
-      backgroundColor: theme.scaffoldBackgroundColor ?? Colors.green.shade50,
     );
   }
 
@@ -595,52 +586,63 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
   Widget _buildUploadArea(ThemeData theme) {
     return GestureDetector(
       onTap: _isLoading ? null : _showUploadOptions,
-      child: DottedBorder(
-        color: Colors.green.shade700,
-        strokeWidth: 2,
-        borderType: BorderType.RRect,
-        radius: const Radius.circular(16),
-        dashPattern: const [8, 4],
-        child: Container(
-          height: 140,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.green.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+      child: Container(
+        height: 120,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.red.shade400,
+            width: 2,
+            style: BorderStyle.solid,
           ),
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.cloud_upload,
-                    size: 40, color: Colors.green.shade700),
-                const SizedBox(height: 10),
-                Text(
-                  "Tap to upload prescription",
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.green.shade700,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  "Supported: JPG, JPEG, PNG, Max 10MB",
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-              ],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.red.shade100,
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-          ),
+          ],
         ),
+        child: _isLoading
+            ? Center(
+                child: CircularProgressIndicator(
+                  color: Colors.red.shade700,
+                ),
+              )
+            : Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade100,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(Icons.upload_file_rounded,
+                          size: 28, color: Colors.red.shade800),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      "Tap to upload prescription",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade900,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "JPG, PNG • Max 10MB",
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
       ),
     );
   }
@@ -648,29 +650,91 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
   void _showUploadOptions() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 10, bottom: 4),
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildUploadOption(
+                      icon: Icons.photo_library_rounded,
+                      title: 'Choose from Gallery',
+                      onTap: () {
+                        Navigator.pop(context);
+                        _chooseFromGallery();
+                      },
+                    ),
+                    const Divider(height: 1),
+                    _buildUploadOption(
+                      icon: Icons.camera_alt_rounded,
+                      title: 'Take a Photo',
+                      onTap: () {
+                        Navigator.pop(context);
+                        _chooseFromCamera();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
       ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    );
+  }
+
+  Widget _buildUploadOption({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+        child: Row(
           children: [
-            ListTile(
-              leading: Icon(Icons.photo_library, color: Colors.green.shade700),
-              title: const Text('Choose from Gallery'),
-              onTap: () {
-                Navigator.pop(context);
-                _chooseFromGallery();
-              },
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: Colors.red.shade800, size: 20),
             ),
-            ListTile(
-              leading: Icon(Icons.camera_alt, color: Colors.green.shade700),
-              title: const Text('Take a Photo'),
-              onTap: () {
-                Navigator.pop(context);
-                _chooseFromCamera();
-              },
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade900,
+              ),
             ),
+            const Spacer(),
+            Icon(Icons.chevron_right_rounded,
+                color: Colors.grey.shade400, size: 20),
           ],
         ),
       ),
@@ -681,229 +745,264 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
   Widget _buildImagePreview() {
     if (_selectedImage == null) return const SizedBox.shrink();
 
-    return Stack(
-      children: [
-        GestureDetector(
-          onTap: () => _showFullImageDialog(context, _selectedImage!),
-          child: Container(
-            width: double.infinity,
-            height: 200,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Image.file(_selectedImage!, fit: BoxFit.cover),
-            ),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
-        ),
-        Positioned(
-          top: 8,
-          right: 8,
-          child: GestureDetector(
-            onTap: _deleteImage,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.85),
-                shape: BoxShape.circle,
+        ],
+      ),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: GestureDetector(
+              onTap: () => _showFullImageDialog(context, _selectedImage!),
+              child: Image.file(
+                _selectedImage!,
+                height: 180,
+                width: double.infinity,
+                fit: BoxFit.cover,
               ),
-              padding: const EdgeInsets.all(8),
-              child: const Icon(Icons.close, color: Colors.white, size: 20),
             ),
           ),
-        ),
-      ],
+          Positioned(
+            top: 8,
+            right: 8,
+            child: GestureDetector(
+              onTap: _deleteImage,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.red.shade700,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.all(6),
+                child: const Icon(Icons.close_rounded,
+                    color: Colors.white, size: 16),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   // the submit button
   Widget _buildSubmitButton() {
-    // only enable if we have an image and arent loading
     final isEnabled = _selectedImage != null && !_isLoading && !_isSubmitting;
-    final gradient = isEnabled
-        ? LinearGradient(
-            colors: [Colors.green.shade600, Colors.green.shade800],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          )
-        : LinearGradient(
-            colors: [Colors.grey.shade400, Colors.grey.shade500],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          );
-    final iconColor = isEnabled ? Colors.white : Colors.grey.shade300;
-    final textColor = isEnabled ? Colors.white : Colors.grey.shade300;
+
     return SizedBox(
       width: double.infinity,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: gradient,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: isEnabled
-                  ? Colors.green.withValues(alpha: 0.18)
-                  : Colors.grey.withValues(alpha: 0.10),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-            ),
-          ],
+      height: 48,
+      child: ElevatedButton(
+        onPressed: isEnabled ? _submitPrescription : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor:
+              isEnabled ? Colors.red.shade600 : Colors.grey.shade400,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          elevation: 0,
+          padding: EdgeInsets.zero,
         ),
-        child: ElevatedButton.icon(
-          onPressed: isEnabled ? _submitPrescription : null,
-          icon: _isSubmitting
-              ? const SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
-                  ),
-                )
-              : Icon(
-                  Icons.send,
-                  color: iconColor,
-                  size: 28,
+        child: _isSubmitting
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
                 ),
-          label: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6.0),
-            child: Text(
-              _isSubmitting ? "Uploading..." : "Submit Prescription",
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.send_rounded, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    _isSubmitting ? "Uploading..." : "Submit Prescription",
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            foregroundColor: textColor,
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            elevation: 0,
-          ).copyWith(
-            overlayColor: WidgetStateProperty.resolveWith<Color?>(
-              (Set<WidgetState> states) {
-                if (states.contains(WidgetState.pressed) && isEnabled) {
-                  return Colors.green.shade900.withValues(alpha: 0.18);
-                }
-                return null;
-              },
-            ),
-          ),
-        ),
       ),
     );
   }
 
   Widget _buildRequirementsCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.info_outline, color: Colors.green.shade700),
-                const SizedBox(width: 8),
-                Text("Prescription Requirements",
-                    style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                        color: Colors.green.shade700)),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(spacing: 6, runSpacing: 6, children: [
-              _infoChip("Doctor Details", Icons.person),
-              _infoChip("Date of Prescription", Icons.date_range),
-              _infoChip("Patient Details", Icons.account_circle),
-              _infoChip("Medicine Details", Icons.medication),
-              _infoChip("Max File Size: 10MB", Icons.upload_file),
-            ]),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline_rounded,
+                  color: Colors.green.shade700, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                "Requirements",
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: Colors.grey.shade900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _buildInfoChip("Doctor Details", Icons.person_outline_rounded),
+              _buildInfoChip("Date", Icons.calendar_today_rounded),
+              _buildInfoChip("Patient Details", Icons.person_rounded),
+              _buildInfoChip("Medicine Details", Icons.medication_rounded),
+              _buildInfoChip("Max 10MB", Icons.upload_file_rounded),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _infoChip(String text, IconData icon) =>
-      Chip(label: Text(text), avatar: Icon(icon, color: Colors.green.shade700));
+  Widget _buildInfoChip(String text, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.green.shade50,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.green.shade200),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.green.shade700, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.green.shade700,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildSamplePrescriptionCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text(
-              "Sample Prescription",
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-                color: Colors.green.shade700,
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.image_rounded, color: Colors.green.shade700, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                "Sample Prescription",
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: Colors.grey.shade900,
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            GestureDetector(
-              onTap: () => _showFullImageDialog(
-                  context, "assets/images/prescriptionsample.png"),
-              child: Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.asset(
-                    "assets/images/prescriptionsample.png",
-                    height: 120,
-                    fit: BoxFit.cover,
-                  ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () => _showFullImageDialog(
+                context, "assets/images/prescriptionsample.png"),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.asset(
+                  "assets/images/prescriptionsample.png",
+                  height: 100,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildWarningCard() {
-    return Card(
-      color: Colors.orange.shade50,
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: const Padding(
-        padding: EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Icon(Icons.warning, color: Colors.orange),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                "Our pharmacist will dispense medicines only if the prescription is valid & meets all government regulations.",
-                style: TextStyle(fontSize: 14, color: Colors.grey),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.orange.shade200),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded,
+              color: Colors.orange.shade700, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              "Our pharmacist will dispense medicines only if the prescription is valid & meets all government regulations.",
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.orange.shade800,
+                height: 1.4,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

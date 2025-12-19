@@ -1079,6 +1079,9 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildProductInfoCard(Product product, ThemeData theme) {
+    final isPrescription =
+        widget.isPrescribed || product.otcpom?.toLowerCase() == 'pom';
+
     return Animate(
       effects: [
         FadeEffect(duration: 400.ms, delay: 100.ms),
@@ -1092,39 +1095,77 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         margin: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
+          border: isPrescription
+              ? Border.all(color: Colors.red.shade300, width: 1.5)
+              : null,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
+              color: isPrescription
+                  ? Colors.red.shade100
+                  : Colors.black.withValues(alpha: 0.08),
               blurRadius: 8,
-              offset: const Offset(0, 3),
+              offset: const Offset(0, 2),
             ),
           ],
         ),
         child: Padding(
-          padding: EdgeInsets.all(10),
+          padding: EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // category chip
-              if (product.category.isNotEmpty)
-                Container(
-                  margin: EdgeInsets.only(bottom: 6),
-                  child: Chip(
-                    label: Text(
-                      product.category,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 11,
+              // Prescription badge and category
+              Row(
+                children: [
+                  if (isPrescription) ...[
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade700,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.medical_services_rounded,
+                              color: Colors.white, size: 10),
+                          SizedBox(width: 3),
+                          Text(
+                            'Prescription',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    backgroundColor: Colors.green.shade600,
-                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  ),
-                ),
+                    SizedBox(width: 6),
+                  ],
+                  if (product.category.isNotEmpty)
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Text(
+                        product.category,
+                        style: TextStyle(
+                          color: Colors.green.shade700,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
 
-              // product name (use the extracted name instead of urlName)
+              SizedBox(height: 8),
+
+              // Product name
               Text(
                 product.name.isNotEmpty
                     ? product.name
@@ -1135,24 +1176,25 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                             ? word[0].toUpperCase() + word.substring(1)
                             : '')
                         .join(' '),
-                style: GoogleFonts.poppins(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade900,
+                  height: 1.3,
                 ),
               ),
 
-              SizedBox(height: 4),
+              SizedBox(height: 6),
 
-              // price
+              // Price
               Row(
                 children: [
                   Text(
                     'GHS ${double.parse(product.price).toStringAsFixed(2)}',
-                    style: GoogleFonts.poppins(
+                    style: TextStyle(
                       fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green.shade800,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.green.shade700,
                     ),
                   ),
                   if (product.uom != null && product.uom!.isNotEmpty) ...[
@@ -1160,16 +1202,16 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                     Container(
                       padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                       decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.green.shade200),
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.grey.shade300),
                       ),
                       child: Text(
-                        '${product.uom}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
+                        product.uom!,
+                        style: TextStyle(
+                          fontSize: 10,
                           fontWeight: FontWeight.w500,
-                          color: Colors.green.shade700,
+                          color: Colors.grey.shade700,
                         ),
                       ),
                     ),
@@ -1177,10 +1219,40 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 ],
               ),
 
-              SizedBox(height: 8),
+              // Prescription information section
+              if (isPrescription) ...[
+                SizedBox(height: 10),
+                Container(
+                  padding: EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade100,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.red.shade300),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline_rounded,
+                          color: Colors.red.shade800, size: 14),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'This medication requires a valid prescription from a licensed healthcare provider.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.red.shade800,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
 
-              // Description
-              if (!widget.isPrescribed && product.description.isNotEmpty)
+              SizedBox(height: isPrescription ? 0 : 6),
+
+              // Description (only for non-prescription items)
+              if (!isPrescription && product.description.isNotEmpty)
                 ProductDescription(description: product.description),
             ],
           ),
@@ -1442,6 +1514,9 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               return SizedBox.shrink();
             }
 
+            final isPrescription =
+                widget.isPrescribed || product.otcpom?.toLowerCase() == 'pom';
+
             return Container(
               margin: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               child: SizedBox(
@@ -1449,15 +1524,16 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 height: 44,
                 child: Container(
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.green.shade600, Colors.green.shade800],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(22),
+                    color: isPrescription
+                        ? Colors.red.shade700
+                        : Colors.green.shade600,
+                    borderRadius: BorderRadius.circular(10),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.green.shade200.withValues(alpha: 0.3),
+                        color: (isPrescription
+                                ? Colors.red.shade700
+                                : Colors.green.shade600)
+                            .withValues(alpha: 0.3),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
@@ -1472,7 +1548,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                           'DEBUG: ItemPage urlName = \\${widget.urlName}');
                       debugPrint(
                           'DEBUG: isPrescribed = \\${widget.isPrescribed}');
-                      if (widget.isPrescribed) {
+                      if (isPrescription) {
                         final token = await AuthService.getToken();
                         if (token == null || token == "guest-temp-token") {
                           final prefs = await SharedPreferences.getInstance();
@@ -1524,38 +1600,42 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(horizontal: 10),
+                      padding: EdgeInsets.symmetric(horizontal: 14),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(22),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       elevation: 0,
-                      backgroundColor: widget.isPrescribed
-                          ? Colors.red.shade600
-                          : Colors.transparent,
+                      backgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        if (widget.isPrescribed) ...[
-                          Icon(Icons.medical_services_outlined,
-                              color: Colors.white, size: 16),
-                          SizedBox(width: 4),
-                        ] else ...[
-                          Icon(Icons.add_shopping_cart,
-                              color: Colors.white, size: 16),
-                          SizedBox(width: 4),
-                        ],
-                        Text(
-                          widget.isPrescribed
-                              ? 'Upload Prescription'
-                              : 'Add to Cart',
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: Colors.white,
+                        if (isPrescription) ...[
+                          Icon(Icons.upload_file_rounded,
+                              color: Colors.white, size: 18),
+                          SizedBox(width: 6),
+                          Text(
+                            'Upload Prescription',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
+                        ] else ...[
+                          Icon(Icons.shopping_cart_rounded,
+                              color: Colors.white, size: 18),
+                          SizedBox(width: 6),
+                          Text(
+                            'Add to Cart',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -1654,7 +1734,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                     icon: Icons.error_outline,
                     title: 'Failed to load related products',
                     message: 'Please try again later',
-                    color: Colors.red.shade400,
+                    color: Colors.red.shade500,
                   );
                 }
 
@@ -1885,7 +1965,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            'Prescribed',
+                            'Prescription',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 7,
@@ -1961,60 +2041,60 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       builder: (context) {
         return Dialog(
           shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           backgroundColor: Colors.white,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+            padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade50,
+                    color: Colors.red.shade100,
                     shape: BoxShape.circle,
+                    border: Border.all(color: Colors.red.shade300, width: 1.5),
                   ),
-                  padding: const EdgeInsets.all(18),
                   child: Icon(
-                    Icons.lock_outline,
-                    color: Colors.green.shade700,
-                    size: 38,
+                    Icons.medical_services_rounded,
+                    color: Colors.red.shade700,
+                    size: 24,
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 12),
                 Text(
-                  'Sign In Required',
+                  'Prescription Required',
                   style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green.shade800,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade900,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 6),
                 Text(
-                  'This feature is only for signed up users.\nSign in to upload a prescription, get refillable drugs, and track your order.',
+                  'This medication requires a valid prescription. Please sign in to upload your prescription and complete your order.',
                   style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.grey,
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    height: 1.3,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => Navigator.of(context).pop(),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.green.shade700,
-                          side: BorderSide(
-                              color: Colors.green.shade700, width: 1.2),
+                          foregroundColor: Colors.grey.shade700,
+                          side: BorderSide(color: Colors.grey.shade300),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 10, horizontal: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        child: Text('Cancel'),
+                        child: const Text('Cancel'),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -2030,17 +2110,15 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade700,
+                          backgroundColor: Colors.red.shade700,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 10, horizontal: 8),
-                          elevation: 1,
-                          shadowColor: Colors.transparent,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          elevation: 0,
                         ),
-                        child: Text('Sign In'),
+                        child: const Text('Sign In'),
                       ),
                     ),
                   ],
