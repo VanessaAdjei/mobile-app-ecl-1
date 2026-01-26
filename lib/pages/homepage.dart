@@ -663,31 +663,8 @@ class HomePageState extends State<HomePage>
     // always show the skeleton for at least 800ms so it looks smooth
     final skeletonStartTime = DateTime.now();
 
-    // check if we have cached data that's still good
-    if (ProductCache.isCacheValid && ProductCache.cachedProducts.isNotEmpty) {
-      // use cached data but still show skeleton for a bit
-      final cachedProducts = ProductCache.cachedProducts;
-      _processProducts(cachedProducts);
-
-      // load images in the background
-      _preloadImages(cachedProducts);
-
-      // make sure skeleton shows for at least 800ms
-      final elapsed = DateTime.now().difference(skeletonStartTime);
-      if (elapsed.inMilliseconds < 800) {
-        await Future.delayed(
-            Duration(milliseconds: 800 - elapsed.inMilliseconds));
-      }
-
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _error = null;
-        });
-      }
-      return;
-    }
-
+    // Always try to fetch from server first
+    debugPrint('🔄 HomePage: Attempting to fetch products from server...');
     try {
       if (mounted) {
         setState(() {
@@ -758,30 +735,107 @@ class HomePageState extends State<HomePage>
       } else {
         throw Exception('Server error');
       }
-    } on TimeoutException {
-      if (mounted) {
-        setState(() {
-          _error = 'Connection timed out';
-          _isLoading = false;
-        });
+    } on TimeoutException catch (e) {
+      debugPrint('❌ HomePage: TimeoutException (connectivity error): $e');
+      // Only use cache when offline (connectivity error)
+      if (ProductCache.cachedProducts.isNotEmpty) {
+        debugPrint(
+            '⚠️ HomePage: Using ${ProductCache.cachedProducts.length} cached products');
+        final cachedProducts = ProductCache.cachedProducts;
+        _processProducts(cachedProducts);
+        _preloadImages(cachedProducts);
+
+        final elapsed = DateTime.now().difference(skeletonStartTime);
+        if (elapsed.inMilliseconds < 800) {
+          await Future.delayed(
+              Duration(milliseconds: 800 - elapsed.inMilliseconds));
+        }
+
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _error = null;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _error = 'Connection timed out';
+            _isLoading = false;
+          });
+        }
       }
-    } on http.ClientException {
-      if (mounted) {
-        setState(() {
-          _error = 'No internet connection';
-          _isLoading = false;
-        });
+    } on http.ClientException catch (e) {
+      debugPrint('❌ HomePage: ClientException (connectivity error): $e');
+      // Only use cache when offline (connectivity error)
+      if (ProductCache.cachedProducts.isNotEmpty) {
+        debugPrint(
+            '⚠️ HomePage: Using ${ProductCache.cachedProducts.length} cached products');
+        final cachedProducts = ProductCache.cachedProducts;
+        _processProducts(cachedProducts);
+        _preloadImages(cachedProducts);
+
+        final elapsed = DateTime.now().difference(skeletonStartTime);
+        if (elapsed.inMilliseconds < 800) {
+          await Future.delayed(
+              Duration(milliseconds: 800 - elapsed.inMilliseconds));
+        }
+
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _error = null;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _error = 'No internet connection';
+            _isLoading = false;
+          });
+        }
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Something went wrong';
-          _isLoading = false;
-        });
+      debugPrint('❌ HomePage: Error fetching products: $e');
+      debugPrint('❌ HomePage: Error type: ${e.runtimeType}');
+
+      // Check if this is a connectivity error
+      final errorString = e.toString();
+      final isConnectivityError = errorString.contains('Connection failed') ||
+          errorString.contains('No internet connection') ||
+          errorString.contains('Unable to connect') ||
+          errorString.contains('Request timeout') ||
+          errorString.contains('SocketException') ||
+          errorString.contains('TimeoutException');
+
+      if (isConnectivityError && ProductCache.cachedProducts.isNotEmpty) {
+        // Only use cache when offline (connectivity error)
+        debugPrint(
+            '⚠️ HomePage: Connectivity error - using ${ProductCache.cachedProducts.length} cached products');
+        final cachedProducts = ProductCache.cachedProducts;
+        _processProducts(cachedProducts);
+        _preloadImages(cachedProducts);
+
+        final elapsed = DateTime.now().difference(skeletonStartTime);
+        if (elapsed.inMilliseconds < 800) {
+          await Future.delayed(
+              Duration(milliseconds: 800 - elapsed.inMilliseconds));
+        }
+
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _error = null;
+          });
+        }
+        return;
       }
-    } finally {
+
+      // For other errors, show error message
+      debugPrint('❌ HomePage: Non-connectivity error - showing error');
       if (mounted) {
         setState(() {
+          _error = 'Error loading products: $e';
           _isLoading = false;
         });
       }

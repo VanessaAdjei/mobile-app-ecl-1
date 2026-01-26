@@ -27,16 +27,34 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   String? _contactNumber;
   String? _deliveryOption;
   bool _isLoading = true;
+  double? _actualTotalAmount; // Store actual total fetched from API if needed
+  double? _actualDeliveryFee; // Store actual delivery fee fetched from API if needed
 
   @override
   void initState() {
     super.initState();
     debugPrint('🔍 OrderTrackingPage initState called');
     debugPrint('🔍 Order details in initState: ${widget.orderDetails}');
+    debugPrint('🔍 All order details keys: ${widget.orderDetails.keys.toList()}');
+    // Log delivery fee related fields
+    debugPrint('🔍 Delivery fee fields check:');
+    debugPrint('🔍   delivery_fee: ${widget.orderDetails['delivery_fee']}');
+    debugPrint('🔍   deliveryFee: ${widget.orderDetails['deliveryFee']}');
+    debugPrint('🔍   total_price: ${widget.orderDetails['total_price']}');
+    debugPrint('🔍   amount: ${widget.orderDetails['amount']}');
     debugPrint(
         'Current navigation stack depth: ${Navigator.of(context).widget.observers.length}');
     debugPrint('Can pop current context: ${Navigator.canPop(context)}');
     _loadDeliveryInfo();
+    
+    // If delivery fee is missing, try to retrieve it from stored preferences
+    final hasDeliveryFee = widget.orderDetails['delivery_fee'] != null || 
+                          widget.orderDetails['deliveryFee'] != null;
+    if (!hasDeliveryFee) {
+      debugPrint('🔍 Delivery fee missing - trying to retrieve from stored data...');
+      _loadStoredDeliveryFee();
+      _fetchOrderDetailsFromAPI();
+    }
   }
 
   Future<void> _loadDeliveryInfo() async {
@@ -206,6 +224,111 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     }
   }
 
+  // Load delivery fee from SharedPreferences if it was stored when order was placed
+  Future<void> _loadStoredDeliveryFee() async {
+    try {
+      final transactionId = widget.orderDetails['transaction_id']?.toString() ??
+                           widget.orderDetails['delivery_id']?.toString() ??
+                           widget.orderDetails['order_id']?.toString();
+      
+      if (transactionId == null || transactionId.isEmpty) {
+        debugPrint('🔍 Cannot load stored delivery fee: no transaction_id');
+        return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Try with the transaction_id/delivery_id as-is (could be ECL format)
+      String deliveryFeeKey = 'order_delivery_fee_$transactionId';
+      String totalKey = 'order_total_$transactionId';
+      
+      double? storedDeliveryFee = prefs.getDouble(deliveryFeeKey);
+      double? storedTotal = prefs.getDouble(totalKey);
+      
+      // If not found and transactionId is ECL format, also try with ORDER_ prefix
+      // (in case it was stored with ORDER_ prefix from confirmation page)
+      if (storedDeliveryFee == null && transactionId.startsWith('ECL')) {
+        // Extract the numeric part from ECL format (timestamp + random chars)
+        final eclNumericPart = transactionId.replaceFirst('ECL', '');
+        // Try to find ORDER_ prefixed version by checking all keys
+        final allKeys = prefs.getKeys();
+        for (final key in allKeys) {
+          if (key.startsWith('order_delivery_fee_ORDER_')) {
+            // Extract numeric part from ORDER_ key
+            final orderNumericPart = key.replaceFirst('order_delivery_fee_ORDER_', '');
+            // Try matching with different lengths (ECL might have shorter timestamp)
+            // Match if ORDER_ timestamp starts with ECL timestamp (or vice versa)
+            final minLength = eclNumericPart.length < orderNumericPart.length 
+                ? eclNumericPart.length 
+                : orderNumericPart.length;
+            if (minLength >= 10) {
+              // Try matching first 10 digits (common timestamp length)
+              final eclPrefix = eclNumericPart.substring(0, minLength > 10 ? 10 : minLength);
+              final orderPrefix = orderNumericPart.substring(0, minLength > 10 ? 10 : minLength);
+              if (eclPrefix == orderPrefix) {
+                deliveryFeeKey = key;
+                storedDeliveryFee = prefs.getDouble(key);
+                debugPrint('🔍 Found delivery fee with ORDER_ prefix: $key (matched by timestamp prefix)');
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      // If still not found, try the reverse: if we have ORDER_ prefix, try ECL format
+      if (storedDeliveryFee == null && transactionId.startsWith('ORDER_')) {
+        final orderNumericPart = transactionId.replaceFirst('ORDER_', '');
+        // Try to find ECL format by searching for keys with matching timestamp prefix
+        final allKeys = prefs.getKeys();
+        for (final key in allKeys) {
+          if (key.startsWith('order_delivery_fee_ECL')) {
+            // Extract numeric part from ECL key
+            final eclNumericPart = key.replaceFirst('order_delivery_fee_ECL', '');
+            // Try matching with different lengths
+            final minLength = eclNumericPart.length < orderNumericPart.length 
+                ? eclNumericPart.length 
+                : orderNumericPart.length;
+            if (minLength >= 10) {
+              // Try matching first 10 digits (common timestamp length)
+              final eclPrefix = eclNumericPart.substring(0, minLength > 10 ? 10 : minLength);
+              final orderPrefix = orderNumericPart.substring(0, minLength > 10 ? 10 : minLength);
+              if (eclPrefix == orderPrefix) {
+                deliveryFeeKey = key;
+                storedDeliveryFee = prefs.getDouble(key);
+                debugPrint('🔍 Found delivery fee with ECL format: $key (matched by timestamp prefix)');
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      if (storedDeliveryFee != null && storedDeliveryFee > 0) {
+        debugPrint('🔍 ✅ Found stored delivery fee: $storedDeliveryFee for order $transactionId');
+        // Also get the total if available
+        if (storedTotal == null) {
+          totalKey = deliveryFeeKey.replaceFirst('order_delivery_fee_', 'order_total_');
+          storedTotal = prefs.getDouble(totalKey);
+        }
+        
+        if (mounted) {
+          setState(() {
+            _actualDeliveryFee = storedDeliveryFee;
+            if (storedTotal != null && storedTotal > 0) {
+              _actualTotalAmount = storedTotal;
+            }
+          });
+        }
+      } else {
+        debugPrint('🔍 No stored delivery fee found for order $transactionId');
+        debugPrint('🔍 Tried key: $deliveryFeeKey');
+      }
+    } catch (e) {
+      debugPrint('🔍 Error loading stored delivery fee: $e');
+    }
+  }
+
   // try to get order details from api to find delivery info
   Future<void> _fetchOrderDetailsFromAPI() async {
     try {
@@ -298,18 +421,23 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
 
           // first try matching by delivery_id (most reliable for notifications)
           final notificationDeliveryId =
-              widget.orderDetails['delivery_id']?.toString();
+              widget.orderDetails['delivery_id']?.toString() ??
+              widget.orderDetails['transaction_id']?.toString();
           if (notificationDeliveryId != null &&
               notificationDeliveryId.isNotEmpty) {
             debugPrint(
-                '🔍 Trying to match by delivery_id from notification: $notificationDeliveryId');
-            targetOrder = orders.firstWhere(
-              (order) => order['delivery_id'] == notificationDeliveryId,
-              orElse: () => null,
-            );
-            if (targetOrder != null) {
-              debugPrint(
-                  '🔍 Found order by delivery_id: ${targetOrder['delivery_id']}');
+                '🔍 Trying to match by delivery_id/transaction_id: $notificationDeliveryId');
+            try {
+              targetOrder = orders.firstWhere(
+                (order) => order['delivery_id'] == notificationDeliveryId,
+                orElse: () => null,
+              );
+              if (targetOrder != null) {
+                debugPrint(
+                    '🔍 Found order by delivery_id: ${targetOrder['delivery_id']}');
+              }
+            } catch (e) {
+              debugPrint('🔍 Error finding order by delivery_id: $e');
             }
           }
 
@@ -371,6 +499,66 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
             targetOrder.forEach((key, value) {
               debugPrint('🔍   $key: $value');
             });
+
+            // Check if we need to update total and delivery fee
+            // Group orders by delivery_id to calculate actual total
+            final deliveryId = targetOrder['delivery_id']?.toString();
+            if (deliveryId != null) {
+              // Find all orders with same delivery_id to get the complete order
+              final groupedOrders = orders.where((o) => 
+                o['delivery_id']?.toString() == deliveryId
+              ).toList();
+              
+              if (groupedOrders.isNotEmpty) {
+                // Calculate actual total from all items in this delivery
+                double actualSubtotal = 0.0;
+                for (var order in groupedOrders) {
+                  final price = (order['price'] ?? 0.0).toDouble();
+                  final qty = (order['qty'] ?? 1).toInt();
+                  actualSubtotal += price * qty;
+                }
+                
+                debugPrint('🔍 Grouped ${groupedOrders.length} orders for delivery_id: $deliveryId');
+                debugPrint('🔍 Calculated subtotal from grouped orders: $actualSubtotal');
+                
+                // Check if there's a delivery fee field in any of the orders
+                double? foundDeliveryFee;
+                for (var order in groupedOrders) {
+                  final fee = order['delivery_fee'] ?? order['deliveryFee'];
+                  if (fee != null) {
+                    foundDeliveryFee = (fee is num) ? fee.toDouble() : 
+                        (double.tryParse(fee.toString()) ?? 0.0);
+                    debugPrint('🔍 Found delivery fee in order: $foundDeliveryFee');
+                    if (foundDeliveryFee > 0) break;
+                  }
+                }
+                
+                // If delivery fee not found in orders, the API doesn't return it
+                // We'll need to calculate it from the actual paid amount if available
+                // For now, we'll estimate it based on the difference if total_price > subtotal
+                if (foundDeliveryFee == null || foundDeliveryFee <= 0) {
+                  debugPrint('🔍 Delivery fee not in orders API response');
+                  debugPrint('🔍 Note: Orders API does not return delivery fee field');
+                  debugPrint('🔍 Delivery fee should be passed from order confirmation page');
+                }
+                
+                // If we found delivery fee, store it
+                if (foundDeliveryFee != null && foundDeliveryFee > 0) {
+                  final feeValue = foundDeliveryFee;
+                  debugPrint('🔍 ✅ Storing delivery fee from API: $feeValue');
+                  if (mounted) {
+                    setState(() {
+                      _actualDeliveryFee = feeValue;
+                      _actualTotalAmount = actualSubtotal + feeValue;
+                    });
+                  }
+                } else {
+                  debugPrint('🔍 ⚠️ Could not find delivery fee in API response');
+                  debugPrint('🔍 This is expected - orders API does not return delivery fee');
+                  debugPrint('🔍 Delivery fee should come from order confirmation page data');
+                }
+              }
+            }
 
             // get delivery info from the order we found
             // note: the api response doesnt seem to have delivery address fields
@@ -487,13 +675,92 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         .fold(0, (sum, item) => sum + (item['qty'] ?? 1) as int);
   }
 
-  // add up the total price of all items
+  // Get total amount - use total_price from order if available (includes delivery fee),
+  // otherwise calculate from items and add delivery fee
   double getTotalAmount() {
-    return getOrderItems().fold(0.0, (sum, item) {
+    // Calculate subtotal from items first
+    final subtotal = getOrderItems().fold(0.0, (sum, item) {
       final price = (item['price'] ?? 0.0).toDouble();
       final qty = item['qty'] ?? 1;
       return sum + (price * qty);
     });
+    
+    // Get discount if any
+    final discountValue = widget.orderDetails['discount'] ?? 
+                         widget.orderDetails['discount_amount'];
+    final discount = discountValue != null
+        ? ((discountValue is num) 
+            ? discountValue.toDouble() 
+            : (double.tryParse(discountValue.toString()) ?? 0.0))
+        : 0.0;
+    
+    // Get delivery fee from order details
+    final deliveryFeeValue = widget.orderDetails['delivery_fee'] ?? 
+                            widget.orderDetails['deliveryFee'] ??
+                            widget.orderDetails['delivery_fee_amount'] ??
+                            widget.orderDetails['shipping_fee'] ??
+                            widget.orderDetails['shippingFee'];
+    double deliveryFee = 0.0;
+    if (deliveryFeeValue != null) {
+      deliveryFee = (deliveryFeeValue is num) 
+          ? deliveryFeeValue.toDouble() 
+          : (double.tryParse(deliveryFeeValue.toString()) ?? 0.0);
+    }
+    
+    // Try to use total_price/total_amount/amount from order details
+    final orderTotalPrice = widget.orderDetails['total_price'] ?? 
+                           widget.orderDetails['total_amount'] ??
+                           widget.orderDetails['amount'];
+    
+    if (orderTotalPrice != null) {
+      final totalFromOrder = (orderTotalPrice is num) 
+          ? orderTotalPrice.toDouble() 
+          : (double.tryParse(orderTotalPrice.toString()) ?? 0.0);
+      
+      if (totalFromOrder > 0) {
+        // Check if totalFromOrder equals subtotal exactly (within 0.01 tolerance)
+        // This means the API only returned subtotal, not the total with delivery fee
+        final isSubtotalOnly = (totalFromOrder - subtotal).abs() < 0.01;
+        
+        if (isSubtotalOnly && deliveryFee <= 0.01) {
+          // total_price is just subtotal, and no delivery fee in order details
+          // Check if we fetched actual total/delivery fee from API
+          if (_actualTotalAmount != null && _actualTotalAmount! > subtotal) {
+            debugPrint('🔍 getTotalAmount: Using actual total fetched from API: $_actualTotalAmount');
+            return _actualTotalAmount!;
+          }
+          if (_actualDeliveryFee != null && _actualDeliveryFee! > 0) {
+            final calculatedTotal = subtotal + _actualDeliveryFee! - discount;
+            debugPrint('🔍 getTotalAmount: Using delivery fee fetched from API: $_actualDeliveryFee, total: $calculatedTotal');
+            return calculatedTotal;
+          }
+          
+          // total_price is just subtotal, and no delivery fee in order details
+          // This means delivery fee is missing from API response
+          debugPrint('🔍 getTotalAmount: ⚠️ total_price ($totalFromOrder) equals subtotal ($subtotal) - delivery fee missing from API');
+          debugPrint('🔍 getTotalAmount: Returning subtotal only (delivery fee not available): $subtotal');
+          return subtotal;
+        } else if (isSubtotalOnly && deliveryFee > 0.01) {
+          // total_price is subtotal, but we have delivery fee from order details
+          final correctedTotal = totalFromOrder + deliveryFee - discount;
+          debugPrint('🔍 getTotalAmount: total_price is subtotal only. Adding delivery fee: $totalFromOrder + $deliveryFee - $discount = $correctedTotal');
+          return correctedTotal;
+        } else if (totalFromOrder > subtotal + 0.01) {
+          // totalFromOrder is greater than subtotal, so it likely includes delivery fee
+          debugPrint('🔍 getTotalAmount: Using total_price/total_amount/amount (includes delivery): $totalFromOrder');
+          return totalFromOrder;
+        } else {
+          // Use totalFromOrder as is (might be less than subtotal due to discount)
+          debugPrint('🔍 getTotalAmount: Using total_price/total_amount/amount: $totalFromOrder');
+          return totalFromOrder;
+        }
+      }
+    }
+    
+    // Fallback: calculate total from subtotal + delivery fee - discount
+    final calculatedTotal = subtotal + deliveryFee - discount;
+    debugPrint('🔍 getTotalAmount: Calculated total: subtotal $subtotal + deliveryFee $deliveryFee - discount $discount = $calculatedTotal');
+    return calculatedTotal;
   }
 
   // Helper method to format quantity text
@@ -733,6 +1000,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         break;
       case 'processing':
       case 'confirmed':
+      case 'paid':
         statusColor = Colors.orange.shade600;
         statusText = 'Processing';
         break;
@@ -780,6 +1048,62 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
 
   Widget _buildOrderItemsCard(List<Map<String, dynamic>> orderItems,
       int totalQuantity, double totalAmount) {
+    // Calculate subtotal from items
+    final subtotal = orderItems.fold(0.0, (sum, item) {
+      final price = (item['price'] ?? 0.0).toDouble();
+      final qty = item['qty'] ?? 1;
+      return sum + (price * qty);
+    });
+    
+    // Get discount first (needed for delivery fee calculation)
+    final discountValue = widget.orderDetails['discount'] ?? 
+                         widget.orderDetails['discount_amount'];
+    final discount = discountValue != null
+        ? ((discountValue is num) 
+            ? discountValue.toDouble() 
+            : (double.tryParse(discountValue.toString()) ?? 0.0))
+        : 0.0;
+    
+    // Get delivery fee from order details - prioritize delivery_fee and deliveryFee
+    // These are set when navigating from order confirmation page
+    final deliveryFeeValue = widget.orderDetails['delivery_fee'] ?? 
+                            widget.orderDetails['deliveryFee'];
+    
+    double deliveryFee = 0.0;
+    if (deliveryFeeValue != null) {
+      deliveryFee = (deliveryFeeValue is num) 
+          ? deliveryFeeValue.toDouble() 
+          : (double.tryParse(deliveryFeeValue.toString()) ?? 0.0);
+    }
+    
+    // Debug logging
+    debugPrint('🔍 ===== Delivery Fee Calculation =====');
+    debugPrint('🔍   totalAmount: $totalAmount');
+    debugPrint('🔍   subtotal: $subtotal');
+    debugPrint('🔍   discount: $discount');
+    debugPrint('🔍   deliveryFeeValue from order: $deliveryFeeValue');
+    debugPrint('🔍   deliveryFee (from order): $deliveryFee');
+    
+    // Use stored delivery fee if available (stored when order was placed)
+    if (deliveryFee <= 0.01 && _actualDeliveryFee != null && _actualDeliveryFee! > 0.01) {
+      deliveryFee = _actualDeliveryFee!;
+      debugPrint('🔍   ✅ Using stored delivery fee: $deliveryFee');
+    }
+    
+    // Calculate delivery fee from difference: total = subtotal + deliveryFee - discount
+    // So: deliveryFee = total - subtotal + discount
+    // This is a fallback when delivery fee is not explicitly provided
+    if (deliveryFee <= 0.01) {
+      final calculatedFeeFromDifference = totalAmount - subtotal + discount;
+      if (calculatedFeeFromDifference > 0.01) {
+        deliveryFee = calculatedFeeFromDifference;
+        debugPrint('🔍   ✅ Using calculated deliveryFee from difference: $deliveryFee');
+      }
+    }
+    
+    debugPrint('🔍   ===== Final deliveryFee: $deliveryFee =====');
+    debugPrint('🔍   Will show delivery fee: ${deliveryFee > 0.01}');
+    
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -799,6 +1123,108 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         children: [
           ...orderItems.map((item) => _buildModernOrderItemRow(item)),
           const Divider(height: 12),
+          // Price Breakdown
+          // Subtotal
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Subtotal',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                ),
+              ),
+              Text(
+                'GHS ${subtotal.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ],
+          ),
+          // Delivery Fee - always show if there's a difference between total and subtotal
+          Builder(
+            builder: (context) {
+              // Use the deliveryFee calculated above, or calculate from difference
+              double finalDeliveryFee = deliveryFee;
+              
+              // If delivery fee is 0 or very small, calculate from difference
+              // Formula: total = subtotal + deliveryFee - discount
+              // So: deliveryFee = total - subtotal + discount
+              if (finalDeliveryFee <= 0.01) {
+                final calculatedFee = totalAmount - subtotal + discount;
+                if (calculatedFee > 0.01) {
+                  finalDeliveryFee = calculatedFee;
+                }
+              }
+              
+              debugPrint('🔍 Display Builder: finalDeliveryFee=$finalDeliveryFee, totalAmount=$totalAmount, subtotal=$subtotal, discount=$discount');
+              
+              // Always show if there's a meaningful delivery fee
+              if (finalDeliveryFee > 0.01) {
+                debugPrint('🔍 Display: ✅ SHOWING delivery fee: GHS ${finalDeliveryFee.toStringAsFixed(2)}');
+                return Column(
+                  children: [
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Delivery Fee',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        Text(
+                          'GHS ${finalDeliveryFee.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              } else {
+                debugPrint('🔍 Display: ❌ NOT showing delivery fee');
+                debugPrint('🔍   - finalDeliveryFee: $finalDeliveryFee');
+                debugPrint('🔍   - totalAmount: $totalAmount');
+                debugPrint('🔍   - subtotal: $subtotal');
+                debugPrint('🔍   - discount: $discount');
+                debugPrint('🔍   - calculated difference: ${totalAmount - subtotal + discount}');
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+          // Discount (if any)
+          if (discount > 0) ...[
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Discount',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.green[700],
+                  ),
+                ),
+                Text(
+                  '-GHS ${discount.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.green[700],
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const Divider(height: 12),
+          // Total
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -915,13 +1341,18 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     ];
 
     final normalizedStatus = currentStatus.toLowerCase().trim();
+    // Map 'paid' and 'confirmed' to 'processing' for timeline display
+    final timelineStatus = normalizedStatus == 'paid' || 
+                          normalizedStatus == 'confirmed'
+        ? 'processing'
+        : normalizedStatus;
 
     return Column(
       children: List.generate(statuses.length, (index) {
         final status = statuses[index];
         final statusStr = status['status'] as String;
         final isCompleted = _isStatusCompleted(statusStr, normalizedStatus);
-        final isCurrent = statusStr == normalizedStatus;
+        final isCurrent = statusStr == timelineStatus;
         final icon = status['icon'] as IconData;
 
         return Row(
@@ -990,7 +1421,15 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
 
   bool _isStatusCompleted(String status, String currentStatus) {
     final statusOrder = ['pending', 'processing', 'shipped', 'delivered'];
-    final currentIndex = statusOrder.indexOf(currentStatus);
+    
+    // Normalize status: map 'paid' and 'confirmed' to 'processing'
+    final normalizedCurrentStatus = currentStatus.toLowerCase().trim();
+    final normalizedStatus = normalizedCurrentStatus == 'paid' || 
+                             normalizedCurrentStatus == 'confirmed'
+        ? 'processing'
+        : normalizedCurrentStatus;
+    
+    final currentIndex = statusOrder.indexOf(normalizedStatus);
     final statusIndex = statusOrder.indexOf(status);
 
     // If current status is not in the list, treat it as 'pending'

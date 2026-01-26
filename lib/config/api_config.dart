@@ -148,9 +148,10 @@ class ApiConfig {
   // ==================== WISHLIST ENDPOINTS ====================
   // wishlist stuff
 
-  static const String wishlist = '/wishlist';
-  static const String addToWishlist = '/wishlist/add';
-  static const String removeFromWishlist = '/wishlist/remove';
+  static const String getWishlist = '/get-wishlist';
+  static const String addToWishlist = '/add-to-wishlist';
+  static const String removeFromWishlist =
+      '/remove-from-wishlist'; // add {id} at the end
 
   // ==================== HEALTH TIPS ENDPOINTS ====================
   // health tips from external api
@@ -262,5 +263,10 @@ class ApiConfig {
   // build url for product by id
   static String getProductByIdUrl(String productId) {
     return '$baseUrl/products/$productId';
+  }
+
+  // build url for removing wishlist item
+  static String getRemoveWishlistItemUrl(int wishlistItemId) {
+    return '$baseUrl$removeFromWishlist/$wishlistItemId';
   }
 }

@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import '../services/wishlist_service.dart';
 import '../models/product.dart';
+import '../pages/auth_service.dart';
+import '../pages/signinpage.dart';
 
 class WishlistButton extends StatefulWidget {
   final Product product;
@@ -47,19 +49,81 @@ class _WishlistButtonState extends State<WishlistButton> {
   Future<void> _toggleWishlist() async {
     if (_isLoading) return;
 
+    // Check if user is logged in
+    final isLoggedIn = await AuthService.isLoggedIn();
+    if (!isLoggedIn) {
+      // Show login prompt
+      final shouldLogin = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Sign In Required'),
+          content: const Text('Please sign in to add items to your wishlist.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Sign In'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldLogin == true && mounted) {
+        // Navigate to sign in page
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SignInScreen(
+              returnTo: ModalRoute.of(context)?.settings.name,
+            ),
+          ),
+        );
+
+        // Check if user logged in after returning
+        final nowLoggedIn = await AuthService.isLoggedIn();
+        if (!nowLoggedIn) {
+          return; // User didn't log in
+        }
+
+        // Refresh wishlist status after login
+        await _checkWishlistStatus();
+      }
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
 
     try {
       if (_isInWishlist) {
+        debugPrint(
+            '🗑️ WishlistButton: Removing product ID ${widget.product.id}');
         final success =
             await _wishlistService.removeFromWishlist(widget.product.id);
+        debugPrint('🗑️ WishlistButton: Remove result: $success');
+
         if (success && mounted) {
           setState(() {
             _isInWishlist = false;
           });
           _showSnackBar('Removed from wishlist', Colors.green);
+        } else if (mounted) {
+          // Check if it's still in wishlist or if removal failed
+          final isStillInWishlist =
+              await _wishlistService.isInWishlist(widget.product.id);
+          if (isStillInWishlist) {
+            _showSnackBar('Failed to remove from wishlist. Please try again.',
+                Colors.red);
+          } else {
+            // Item was removed, update UI
+            setState(() {
+              _isInWishlist = false;
+            });
+          }
         }
       } else {
         final success = await _wishlistService.addToWishlist(widget.product);
@@ -69,12 +133,28 @@ class _WishlistButtonState extends State<WishlistButton> {
           });
           _showSnackBar('Added to wishlist', Colors.green);
         } else if (mounted) {
-          _showSnackBar('Already in wishlist', Colors.orange);
+          // Check if it's already in wishlist or if it failed
+          final isAlreadyInWishlist =
+              await _wishlistService.isInWishlist(widget.product.id);
+          if (isAlreadyInWishlist) {
+            _showSnackBar('Already in wishlist', Colors.orange);
+          } else {
+            // Operation failed (likely connection error)
+            _showSnackBar(
+                'Failed to add to wishlist. Please check your connection.',
+                Colors.red);
+          }
         }
       }
     } catch (e) {
       if (mounted) {
-        _showSnackBar('Error updating wishlist', Colors.red);
+        final errorMessage = e.toString().contains('sign in')
+            ? 'Please sign in to use wishlist'
+            : e.toString().contains('Connection failed') ||
+                    e.toString().contains('Unable to connect')
+                ? 'No internet connection. Please check your connection and try again.'
+                : 'Error updating wishlist. Please try again.';
+        _showSnackBar(errorMessage, Colors.red);
       }
     } finally {
       if (mounted) {

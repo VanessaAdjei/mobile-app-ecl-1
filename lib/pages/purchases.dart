@@ -66,13 +66,18 @@ class PurchaseScreenState extends State<PurchaseScreen> {
       debugPrint(
           '🔍 Cache check: ${isCacheValid ? 'HIT' : 'MISS'} (age: ${timeSinceLastFetch.inMinutes}min)');
 
-      if (isCacheValid) {
+      if (isCacheValid && _cachedOrders!.isNotEmpty) {
         setState(() {
           _orders = _cachedOrders!;
           _isLoading = false;
         });
         debugPrint('🔍 Loaded ${_orders.length} orders from cache');
         return;
+      } else if (isCacheValid && _cachedOrders!.isEmpty) {
+        // Cache has 0 orders - this might be stale, force refresh
+        debugPrint('🔍 Cache has 0 orders, forcing fresh fetch...');
+        _cachedOrders = null;
+        _lastFetchTime = null;
       }
     }
 
@@ -89,11 +94,19 @@ class PurchaseScreenState extends State<PurchaseScreen> {
       }
 
       final result = await AuthService.getOrders();
+      debugPrint('🔍 Orders API result status: ${result['status']}');
+      debugPrint('🔍 Orders API result data type: ${result['data'].runtimeType}');
+      debugPrint('🔍 Orders API result data length: ${result['data'] is List ? (result['data'] as List).length : 'N/A'}');
 
       if (result['status'] == 'success' && result['data'] is List) {
         if (mounted) {
           final rawOrders = result['data'] as List;
+          debugPrint('🔍 Raw orders count before processing: ${rawOrders.length}');
+          if (rawOrders.isNotEmpty) {
+            debugPrint('🔍 Sample raw order: ${rawOrders.first.toString().substring(0, rawOrders.first.toString().length > 300 ? 300 : rawOrders.first.toString().length)}');
+          }
           final processedOrders = await _processOrders(rawOrders);
+          debugPrint('🔍 Processed orders count: ${processedOrders.length}');
 
           // save the data to cache
           _cachedOrders = processedOrders;
@@ -145,6 +158,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
   }
 
   Future<void> _refreshOrders() async {
+    debugPrint('🔍 Refreshing orders - clearing cache...');
     setState(() {
       // refresh started
     });
@@ -165,11 +179,19 @@ class PurchaseScreenState extends State<PurchaseScreen> {
   Future<List<dynamic>> _processOrdersInBackground(
       List<dynamic> rawOrders) async {
     debugPrint('🔍 Starting background order processing...');
+    debugPrint('🔍 Total raw orders received: ${rawOrders.length}');
     final Map<String, List<dynamic>> groupedOrders = {};
 
     // group orders by transaction id
+    int validCount = 0;
+    int invalidCount = 0;
     for (final order in rawOrders) {
-      if (!_isValidOrder(order)) continue;
+      if (!_isValidOrder(order)) {
+        invalidCount++;
+        debugPrint('🔍 Invalid order filtered out: ${order.toString().substring(0, order.toString().length > 200 ? 200 : order.toString().length)}');
+        continue;
+      }
+      validCount++;
 
       final transactionId = _getTransactionId(order);
       if (!groupedOrders.containsKey(transactionId)) {
@@ -177,6 +199,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
       }
       groupedOrders[transactionId]!.add(order);
     }
+    debugPrint('🔍 Valid orders: $validCount, Invalid orders: $invalidCount');
 
     // Convert grouped orders to combined orders
     debugPrint('🔍 Processing ${groupedOrders.length} grouped orders...');
@@ -209,15 +232,18 @@ class PurchaseScreenState extends State<PurchaseScreen> {
         order['payment_method'] ?? order['payment_type'] ?? '';
     final isCashOnDelivery = _isCashOnDelivery(paymentMethod);
 
+    // For online payments, prefer delivery_id as it's the most reliable identifier
+    // (it's what the backend uses for order tracking)
     if (isCashOnDelivery) {
       return order['delivery_id']?.toString() ??
           order['order_id']?.toString() ??
           order['transaction_id']?.toString() ??
           'cod_${order['created_at'] ?? DateTime.now().toIso8601String()}';
     } else {
-      return order['order_id']?.toString() ??
+      // Online payment: use delivery_id first (most reliable), then transaction_id, then order_id
+      return order['delivery_id']?.toString() ??
           order['transaction_id']?.toString() ??
-          order['delivery_id']?.toString() ??
+          order['order_id']?.toString() ??
           '${order['created_at'] ?? DateTime.now().toIso8601String()}_${order['product_name'] ?? 'unknown'}';
     }
   }
@@ -367,6 +393,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
   }
 
   List<dynamic> _removeDuplicates(List<dynamic> orders) {
+    debugPrint('🔍 Removing duplicates from ${orders.length} orders...');
     final uniqueOrders = <String, dynamic>{};
 
     for (final order in orders) {
@@ -381,26 +408,38 @@ class PurchaseScreenState extends State<PurchaseScreen> {
             order['transaction_id'] ??
             '';
       } else {
+        // For online payments, use delivery_id first (most reliable)
         final deliveryId = order['delivery_id'] ?? '';
         baseTransactionId = deliveryId.isNotEmpty
             ? deliveryId
-            : (order['transaction_id'] ?? '');
+            : (order['transaction_id'] ?? order['order_id'] ?? '');
+      }
+
+      if (baseTransactionId.isEmpty) {
+        debugPrint('🔍 Warning: Order has no transaction ID, skipping: ${order['product_name'] ?? 'Unknown'}');
+        continue;
       }
 
       if (!uniqueOrders.containsKey(baseTransactionId)) {
         uniqueOrders[baseTransactionId] = order;
+        debugPrint('🔍 Added unique order: $baseTransactionId - ${order['product_name'] ?? 'Unknown'}');
       } else {
         final existingOrder = uniqueOrders[baseTransactionId];
         final existingStatus = existingOrder['status'] ?? '';
         final newStatus = order['status'] ?? '';
 
+        debugPrint('🔍 Duplicate found: $baseTransactionId - existing: $existingStatus, new: $newStatus');
         if (_shouldReplaceOrderWithData(
             existingOrder, order, existingStatus, newStatus)) {
           uniqueOrders[baseTransactionId] = order;
+          debugPrint('🔍 Replaced order with newer data: $baseTransactionId');
+        } else {
+          debugPrint('🔍 Kept existing order: $baseTransactionId');
         }
       }
     }
 
+    debugPrint('🔍 After removing duplicates: ${uniqueOrders.length} unique orders');
     return uniqueOrders.values.toList();
   }
 
@@ -425,10 +464,13 @@ class PurchaseScreenState extends State<PurchaseScreen> {
   }
 
   Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
+    final lowerStatus = status.toLowerCase();
+    switch (lowerStatus) {
       case 'completed':
+      case 'paid':
         return Colors.green;
       case 'processing':
+      case 'confirmed':
         return Colors.blue;
       case 'cancelled':
         return Colors.red;
@@ -903,14 +945,22 @@ class PurchaseScreenState extends State<PurchaseScreen> {
   }
 
   bool _isValidOrder(dynamic order) {
-    if (order == null) return false;
+    if (order == null) {
+      debugPrint('🔍 Order validation failed: order is null');
+      return false;
+    }
     final hasProductName = order['product_name'] != null &&
         order['product_name'].toString().isNotEmpty;
     final hasItems = order['items'] != null &&
         order['items'] is List &&
         (order['items'] as List).isNotEmpty;
     final hasCreatedAt = order['created_at'] != null;
-    return hasProductName || hasItems || hasCreatedAt;
+    final isValid = hasProductName || hasItems || hasCreatedAt;
+    
+    if (!isValid) {
+      debugPrint('🔍 Order validation failed - product_name: ${order['product_name']}, hasItems: ${order['items'] != null}, created_at: ${order['created_at']}');
+    }
+    return isValid;
   }
 
   bool _shouldReplaceOrderWithData(dynamic existingOrder, dynamic newOrder,

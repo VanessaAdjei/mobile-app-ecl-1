@@ -70,31 +70,8 @@ class AdvancedPerformanceService {
 
     final duration = cacheDuration ?? _defaultCacheDuration;
 
-    // Check memory cache first
-    if (!forceRefresh && _memoryCache.containsKey(key)) {
-      final entry = _memoryCache[key]!;
-      if (DateTime.now().difference(entry.timestamp) < duration) {
-        _trackEvent('cache_hit', {'key': key, 'type': 'memory'});
-        return entry.data as T;
-      } else {
-        // Cache expired, remove it
-        _memoryCache.remove(key);
-        _cacheTimers[key]?.cancel();
-        _cacheTimers.remove(key);
-      }
-    }
-
-    // Check persistent cache
-    if (!forceRefresh) {
-      final cached = await _getPersistentCache<T>(key);
-      if (cached != null) {
-        _addToMemoryCache(key, cached, duration);
-        _trackEvent('cache_hit', {'key': key, 'type': 'persistent'});
-        return cached;
-      }
-    }
-
-    // Fetch fresh data
+    // Always try server first (unless forceRefresh is false and we have valid cache)
+    // Always try to fetch from server first
     _trackEvent('cache_miss', {'key': key});
     try {
       final data = await fetchFunction();
@@ -103,6 +80,41 @@ class AdvancedPerformanceService {
       return data;
     } catch (e) {
       _trackEvent('fetch_error', {'key': key, 'error': e.toString()});
+
+      // Check if this is a connectivity error (offline) vs other API errors
+      final errorString = e.toString();
+      final isConnectivityError = errorString.contains('Connection failed') ||
+          errorString.contains('No internet connection') ||
+          errorString.contains('Unable to connect') ||
+          errorString.contains('Request timeout') ||
+          errorString.contains('SocketException');
+
+      if (isConnectivityError) {
+        // Only use cached data when offline (connectivity error)
+        debugPrint('Connectivity error detected for $key - using cached data');
+
+        // Check memory cache first
+        if (_memoryCache.containsKey(key)) {
+          final entry = _memoryCache[key]!;
+          _trackEvent('cache_fallback',
+              {'key': key, 'reason': 'connectivity_error', 'type': 'memory'});
+          return entry.data as T;
+        }
+
+        // Check persistent cache
+        final cached = await _getPersistentCache<T>(key);
+        if (cached != null) {
+          _addToMemoryCache(key, cached, duration);
+          _trackEvent('cache_fallback', {
+            'key': key,
+            'reason': 'connectivity_error',
+            'type': 'persistent'
+          });
+          return cached;
+        }
+      }
+
+      // For other errors (auth, server errors, etc.) - don't use cache, rethrow
       rethrow;
     }
   }

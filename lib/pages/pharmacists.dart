@@ -46,6 +46,14 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   DateTime _selectedDate = DateTime.now().add(Duration(days: 1));
   TimeOfDay _selectedTime = TimeOfDay.now();
 
+  // Booking flow: user must pick availability before filling the form.
+  int _bookingStep = 0; // 0 = date, 1 = time, 2 = form
+  DateTime? _availabilityDate;
+  TimeOfDay? _availabilityTime;
+  List<DateTime> _availableDates = [];
+  Set<String> _availableDateKeys = {};
+  List<TimeOfDay> _availableTimes = [];
+
   final List<String> _consultationTypes = [
     'Video Call',
     'Audio Call',
@@ -77,6 +85,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   @override
   void initState() {
     super.initState();
+    // Load bookings regardless of login to support availability checks.
+    _loadBookings();
     _checkLoginStatus();
     _loadHealthTips();
   }
@@ -577,25 +587,21 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     try {
       final userData = await AuthService.getCurrentUser();
       if (userData != null) {
-        setState(() {
-          // fill in name if we have it
-          if (userData['name'] != null &&
-              userData['name'].toString().isNotEmpty) {
-            _nameController.text = userData['name'].toString();
-          }
+        // Controllers update the fields directly; no widget rebuild required.
+        final name = userData['name']?.toString() ?? '';
+        final phone = userData['phone']?.toString() ?? '';
+        final email = userData['email']?.toString() ?? '';
 
-          // Prefill phone if available
-          if (userData['phone'] != null &&
-              userData['phone'].toString().isNotEmpty) {
-            _phoneController.text = userData['phone'].toString();
-          }
-
-          // fill in email if we have it
-          if (userData['email'] != null &&
-              userData['email'].toString().isNotEmpty) {
-            _emailController.text = userData['email'].toString();
-          }
-        });
+        // Only prefill empty fields so we don't overwrite user edits.
+        if (_nameController.text.trim().isEmpty && name.trim().isNotEmpty) {
+          _nameController.text = name;
+        }
+        if (_phoneController.text.trim().isEmpty && phone.trim().isNotEmpty) {
+          _phoneController.text = phone;
+        }
+        if (_emailController.text.trim().isEmpty && email.trim().isNotEmpty) {
+          _emailController.text = email;
+        }
       }
     } catch (e) {
       debugPrint('Error prefilling user data: $e');
@@ -895,204 +901,631 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
 
   void _showBookingForm() async {
     // Allow booking without login requirement
+    await _prepareAvailabilityForBooking();
+    await _prefillUserData();
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        final topPadding = MediaQuery.of(context).padding.top;
-        return Dialog(
-            backgroundColor: Colors.transparent,
-            insetPadding: EdgeInsets.zero,
+        // Dialog content must manage its own state; page setState won't
+        // rebuild this route. Use StatefulBuilder to update steps.
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final topPadding = MediaQuery.of(context).padding.top;
+            return Dialog(
+                backgroundColor: Colors.transparent,
+                insetPadding: EdgeInsets.zero,
+                child: Container(
+                  width: MediaQuery.of(context).size.width,
+                  height: MediaQuery.of(context).size.height,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(0),
+                  ),
+                  child: Column(
+                    children: [
+                      // Green header
+                      Container(
+                        padding: EdgeInsets.only(top: topPadding),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.green.shade600,
+                              Colors.green.shade700,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: SafeArea(
+                          bottom: false,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.arrow_back_ios,
+                                      size: 20, color: Colors.white),
+                                  onPressed: () {
+                                    if (_bookingStep > 0) {
+                                      setDialogState(() {
+                                        _bookingStep -= 1;
+                                      });
+                                      return;
+                                    }
+                                    Navigator.pop(context);
+                                  },
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    _bookingStep == 0
+                                        ? 'Select a Date'
+                                        : _bookingStep == 1
+                                            ? 'Select a Time'
+                                            : 'Book Consultation',
+                                    style: const TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Step content
+                      Expanded(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: _bookingStep == 0
+                              ? _buildSelectDateStep(
+                                  key: const ValueKey('step0'),
+                                  setDialogState: setDialogState,
+                                )
+                              : _bookingStep == 1
+                                  ? _buildSelectTimeStep(
+                                      key: const ValueKey('step1'),
+                                      setDialogState: setDialogState,
+                                    )
+                                  : _buildBookingFormStep(
+                                      key: const ValueKey('step2'),
+                                      setDialogState: setDialogState,
+                                    ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ));
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _prepareAvailabilityForBooking() async {
+    if (!mounted) return;
+    await _loadBookings();
+    setState(() {
+      _bookingStep = 0;
+      _availabilityDate = null;
+      _availabilityTime = null;
+      _availableTimes = [];
+    });
+    _refreshAvailableDates();
+  }
+
+  void _refreshAvailableDates({StateSetter? dialogSetState}) {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    final end = start.add(const Duration(days: 30));
+
+    final dates = <DateTime>[];
+    for (var d = start;
+        d.isBefore(end);
+        d = d.add(const Duration(days: 1))) {
+      final times = _computeAvailableTimesForDate(d);
+      if (times.isNotEmpty) dates.add(d);
+    }
+
+    if (!mounted) return;
+    final update = dialogSetState ?? setState;
+    update(() {
+      _availableDates = dates;
+      _availableDateKeys = dates.map(_dateKey).toSet();
+
+      // CalendarDatePicker highlights an initialDate even when the user
+      // hasn't interacted yet. To keep the "Next" button usable, we
+      // auto-select the first available date (or clear if none exist).
+      if (dates.isEmpty) {
+        _availabilityDate = null;
+      } else {
+        final current = _availabilityDate;
+        if (current == null ||
+            !_availableDateKeys.contains(_dateKey(current))) {
+          _availabilityDate = dates.first;
+        }
+      }
+    });
+  }
+
+  List<TimeOfDay> _computeAvailableTimesForDate(DateTime date) {
+    final slots = _generateStandardTimeSlots();
+    final booked = <String>{};
+    for (final b in _bookings) {
+      final dt = _parseBookingDateTime(b);
+      if (dt == null) continue;
+      if (_isSameDay(dt, date)) {
+        booked.add(_timeKey(TimeOfDay(hour: dt.hour, minute: dt.minute)));
+      }
+    }
+
+    final now = DateTime.now();
+    final isToday = _isSameDay(date, now);
+
+    return slots.where((t) {
+      if (booked.contains(_timeKey(t))) return false;
+      if (isToday) {
+        final dt = DateTime(date.year, date.month, date.day, t.hour, t.minute);
+        if (!dt.isAfter(now.add(const Duration(minutes: 15)))) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  List<TimeOfDay> _generateStandardTimeSlots() {
+    // 30-minute slots from 09:00 to 17:00 (inclusive)
+    final slots = <TimeOfDay>[];
+    for (int hour = 9; hour <= 17; hour++) {
+      slots.add(TimeOfDay(hour: hour, minute: 0));
+      if (hour != 17) {
+        slots.add(TimeOfDay(hour: hour, minute: 30));
+      }
+    }
+    return slots;
+  }
+
+  DateTime? _parseBookingDateTime(Map<String, dynamic> b) {
+    try {
+      final parts = (b['date'] ?? '').toString().split('/');
+      if (parts.length != 3) return null;
+      final day = int.tryParse(parts[0]) ?? 1;
+      final month = int.tryParse(parts[1]) ?? 1;
+      final year = int.tryParse(parts[2]) ?? 2000;
+      final time = _parseTimeOfDay((b['time'] ?? '').toString());
+      if (time == null) return null;
+      return DateTime(year, month, day, time.hour, time.minute);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  TimeOfDay? _parseTimeOfDay(String raw) {
+    final s = raw.trim();
+    if (s.isEmpty) return null;
+
+    final ampm = RegExp(r'^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$').firstMatch(s);
+    if (ampm != null) {
+      int hour = int.tryParse(ampm.group(1)!) ?? 0;
+      final minute = int.tryParse(ampm.group(2)!) ?? 0;
+      final suffix = ampm.group(3)!.toUpperCase();
+      if (suffix == 'PM' && hour < 12) hour += 12;
+      if (suffix == 'AM' && hour == 12) hour = 0;
+      return TimeOfDay(hour: hour, minute: minute);
+    }
+
+    final hm = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(s);
+    if (hm != null) {
+      final hour = int.tryParse(hm.group(1)!) ?? 0;
+      final minute = int.tryParse(hm.group(2)!) ?? 0;
+      return TimeOfDay(hour: hour, minute: minute);
+    }
+
+    return null;
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  String _dateKey(DateTime d) => '${d.day}/${d.month}/${d.year}';
+
+  String _timeKey(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  Widget _buildSelectDateStep({Key? key, required StateSetter setDialogState}) {
+    final now = DateTime.now();
+    final firstDate =
+        DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    final lastDate = firstDate.add(const Duration(days: 30));
+    final initialDate = _availabilityDate ??
+        (_availableDates.isNotEmpty ? _availableDates.first : firstDate);
+
+    return Container(
+      key: key,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Available dates',
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[800],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Pick a date to see available times.',
+            style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
             child: Container(
-              width: MediaQuery.of(context).size.width,
-              height: MediaQuery.of(context).size.height,
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(0),
-              ),
-              child: Column(
-                children: [
-                  // Green header
-                  Container(
-                    padding: EdgeInsets.only(top: topPadding),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.green.shade600,
-                          Colors.green.shade700,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: SafeArea(
-                      bottom: false,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        child: Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.arrow_back_ios,
-                                  size: 20, color: Colors.white),
-                              onPressed: () => Navigator.pop(context),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Book Consultation',
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Form content
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          children: [
-                            // Consultation Details
-                            _buildSimpleFormSection(
-                              'Consultation Details',
-                              [
-                                _buildSimpleDropdownField(
-                                  'Mode of Consultation',
-                                  _selectedConsultationType,
-                                  _consultationTypes,
-                                  (value) => setState(
-                                      () => _selectedConsultationType = value!),
-                                ),
-                                const SizedBox(height: 12),
-                                _buildSimpleDropdownField(
-                                  'Preferred Platform',
-                                  _selectedPreferredPlatform,
-                                  _preferredPlatforms,
-                                  (value) => setState(() =>
-                                      _selectedPreferredPlatform = value!),
-                                ),
-                                const SizedBox(height: 12),
-                                _buildSimpleDropdownField(
-                                  'Gender Preference',
-                                  _selectedGenderPreference,
-                                  _genderPreferences,
-                                  (value) => setState(
-                                      () => _selectedGenderPreference = value!),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Personal Information
-                            _buildSimpleFormSection(
-                              'Personal Information',
-                              [
-                                _buildSimpleTextField(
-                                  'Full Name',
-                                  _nameController,
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Required';
-                                    }
-                                    return null;
-                                  },
-                                  fieldKey: _nameFieldKey,
-                                ),
-                                const SizedBox(height: 12),
-                                _buildSimpleTextField(
-                                  'Phone Number',
-                                  _phoneController,
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Required';
-                                    }
-                                    return null;
-                                  },
-                                  fieldKey: _phoneFieldKey,
-                                ),
-                                const SizedBox(height: 12),
-                                _buildSimpleTextField(
-                                  'Email Address',
-                                  _emailController,
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Required';
-                                    }
-                                    if (!RegExp(
-                                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                        .hasMatch(value)) {
-                                      return 'Invalid email';
-                                    }
-                                    return null;
-                                  },
-                                  fieldKey: _emailFieldKey,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Medical Information
-                            _buildSimpleFormSection(
-                              'Medical Information',
-                              [
-                                _buildSimpleTextField(
-                                  'Symptoms/Concerns',
-                                  _symptomsController,
-                                  maxLines: 3,
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Required';
-                                    }
-                                    return null;
-                                  },
-                                  fieldKey: _symptomsFieldKey,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Schedule
-                            _buildSimpleFormSection(
-                              'Schedule',
-                              [
-                                _buildSimpleDatePicker(),
-                                const SizedBox(height: 12),
-                                _buildSimpleTimePicker(),
-                              ],
-                            ),
-                            const SizedBox(height: 20),
-
-                            // Submit button
-                            _buildSimpleSubmitButton(),
-                            const SizedBox(height: 20),
-                          ],
-                        ),
-                      ),
-                    ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
-            ));
-      },
+              child: CalendarDatePicker(
+                initialDate: initialDate,
+                firstDate: firstDate,
+                lastDate: lastDate,
+                selectableDayPredicate: (date) {
+                  return _availableDateKeys.contains(_dateKey(date));
+                },
+                onDateChanged: (date) {
+                  setDialogState(() {
+                    _availabilityDate = date;
+                  });
+                },
+              ),
+            ),
+          ),
+          if (_availableDates.isEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'No available dates found in the next 30 days.',
+              style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _availabilityDate == null
+                  ? null
+                  : () {
+                      final times =
+                          _computeAvailableTimesForDate(_availabilityDate!);
+                      setDialogState(() {
+                        _availableTimes = times;
+                        _availabilityTime = null;
+                        _bookingStep = 1;
+                      });
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green.shade600,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                'Next',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectTimeStep({Key? key, required StateSetter setDialogState}) {
+    final date = _availabilityDate;
+    return Container(
+      key: key,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (date != null) ...[
+            Text(
+              DateFormat('EEE, MMM d, y').format(date),
+              style: GoogleFonts.poppins(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 6),
+          ],
+          Text(
+            'Available times',
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[800],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: _availableTimes.isEmpty
+                ? Center(
+                    child: Text(
+                      'No available times for this date.',
+                      style: GoogleFonts.poppins(color: Colors.grey[600]),
+                    ),
+                  )
+                : GridView.builder(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      childAspectRatio: 2.6,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                    ),
+                    itemCount: _availableTimes.length,
+                    itemBuilder: (context, index) {
+                      final t = _availableTimes[index];
+                      final isSelected = _availabilityTime != null &&
+                          _timeKey(t) == _timeKey(_availabilityTime!);
+                      return InkWell(
+                        onTap: () =>
+                            setDialogState(() => _availabilityTime = t),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Colors.green.withValues(alpha: 0.12)
+                                : Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected
+                                  ? Colors.green.shade600
+                                  : Colors.grey.shade300,
+                            ),
+                          ),
+                          child: Text(
+                            t.format(context),
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[900],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _availabilityDate == null || _availabilityTime == null
+                  ? null
+                  : () {
+                      setDialogState(() {
+                        _selectedDate = _availabilityDate!;
+                        _selectedTime = _availabilityTime!;
+                        _bookingStep = 2;
+                      });
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green.shade600,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                'Continue to form',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBookingFormStep({Key? key, required StateSetter setDialogState}) {
+    return SingleChildScrollView(
+      key: key,
+      padding: const EdgeInsets.all(16),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            // Consultation Details
+            _buildSimpleFormSection(
+              'Consultation Details',
+              [
+                _buildSimpleDropdownField(
+                  'Mode of Consultation',
+                  _selectedConsultationType,
+                  _consultationTypes,
+                  (value) =>
+                      setState(() => _selectedConsultationType = value!),
+                ),
+                const SizedBox(height: 12),
+                _buildSimpleDropdownField(
+                  'Preferred Platform',
+                  _selectedPreferredPlatform,
+                  _preferredPlatforms,
+                  (value) =>
+                      setState(() => _selectedPreferredPlatform = value!),
+                ),
+                const SizedBox(height: 12),
+                _buildSimpleDropdownField(
+                  'Gender Preference',
+                  _selectedGenderPreference,
+                  _genderPreferences,
+                  (value) =>
+                      setState(() => _selectedGenderPreference = value!),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Personal Information
+            _buildSimpleFormSection(
+              'Personal Information',
+              [
+                _buildSimpleTextField(
+                  'Full Name',
+                  _nameController,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Required';
+                    }
+                    return null;
+                  },
+                  fieldKey: _nameFieldKey,
+                ),
+                const SizedBox(height: 12),
+                _buildSimpleTextField(
+                  'Phone Number',
+                  _phoneController,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Required';
+                    }
+                    return null;
+                  },
+                  fieldKey: _phoneFieldKey,
+                ),
+                const SizedBox(height: 12),
+                _buildSimpleTextField(
+                  'Email Address',
+                  _emailController,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Required';
+                    }
+                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                        .hasMatch(value)) {
+                      return 'Invalid email';
+                    }
+                    return null;
+                  },
+                  fieldKey: _emailFieldKey,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Medical Information
+            _buildSimpleFormSection(
+              'Medical Information',
+              [
+                _buildSimpleTextField(
+                  'Symptoms/Concerns',
+                  _symptomsController,
+                  maxLines: 3,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Required';
+                    }
+                    return null;
+                  },
+                  fieldKey: _symptomsFieldKey,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Schedule (locked in)
+            _buildSimpleFormSection(
+              'Schedule',
+              [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade300),
+                    color: Colors.grey.shade50,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.event, color: Colors.grey.shade700, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '${DateFormat('MMM d, y').format(_selectedDate)} at ${_selectedTime.format(context)}',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade900,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setDialogState(() {
+                            _bookingStep = 0;
+                            _availabilityDate = null;
+                            _availabilityTime = null;
+                            _availableTimes = [];
+                          });
+                          _refreshAvailableDates(dialogSetState: setDialogState);
+                        },
+                        child: Text(
+                          'Change',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Submit button
+            _buildSimpleSubmitButton(),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
     );
   }
 

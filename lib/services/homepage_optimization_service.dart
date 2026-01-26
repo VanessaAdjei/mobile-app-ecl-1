@@ -73,11 +73,6 @@ class HomepageOptimizationService {
   Future<List<Product>> getProducts({bool forceRefresh = false}) async {
     _optimizationService.startTimer('HomepageService_GetProducts');
 
-    if (_isProductsCacheValid && _cachedProducts.isNotEmpty && !forceRefresh) {
-      _optimizationService.endTimer('HomepageService_GetProducts');
-      return _cachedProducts;
-    }
-
     if (_isLoadingProducts) {
       while (_isLoadingProducts) {
         await Future.delayed(const Duration(milliseconds: 50));
@@ -86,27 +81,68 @@ class HomepageOptimizationService {
       return _cachedProducts;
     }
 
-    if (_cachedProducts.isNotEmpty && !forceRefresh) {
-      _optimizationService.endTimer('HomepageService_GetProducts');
-      _fetchProducts();
-      return _cachedProducts;
-    }
+    // Always try to fetch from server first
+    debugPrint(
+        '🔄 [HomepageService] Attempting to fetch products from server...');
+    try {
+      final products = await _fetchProducts();
+      debugPrint(
+          '✅ [HomepageService] Successfully fetched ${products.length} products from server');
+      return products;
+    } catch (e) {
+      debugPrint('❌ [HomepageService] Error fetching products: $e');
+      debugPrint('❌ [HomepageService] Error type: ${e.runtimeType}');
 
-    return await _fetchProducts();
+      // Check if this is a connectivity error
+      final errorString = e.toString();
+      final isConnectivityError = errorString.contains('Connection failed') ||
+          errorString.contains('No internet connection') ||
+          errorString.contains('Unable to connect') ||
+          errorString.contains('Request timeout') ||
+          errorString.contains('SocketException') ||
+          errorString.contains('TimeoutException');
+
+      debugPrint(
+          '❌ [HomepageService] Is connectivity error: $isConnectivityError');
+      debugPrint(
+          '❌ [HomepageService] Has cached products: ${_cachedProducts.isNotEmpty}');
+
+      if (isConnectivityError && _cachedProducts.isNotEmpty) {
+        // Only use cache when offline (connectivity error)
+        debugPrint(
+            '⚠️ [HomepageService] Connectivity error - using ${_cachedProducts.length} cached products');
+        _optimizationService.endTimer('HomepageService_GetProducts');
+        return _cachedProducts;
+      }
+
+      // For other errors, rethrow
+      debugPrint('❌ [HomepageService] Non-connectivity error - rethrowing');
+      _optimizationService.endTimer('HomepageService_GetProducts');
+      rethrow;
+    }
   }
 
   Future<List<Product>> _fetchProducts() async {
     _isLoadingProducts = true;
 
     try {
+      debugPrint(
+          '🌐 [HomepageService] Making API request to get-all-products...');
       final response = await http
           .get(Uri.parse(
               'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'))
           .timeout(const Duration(seconds: 10));
 
+      debugPrint(
+          '📡 [HomepageService] API response status: ${response.statusCode}');
+
       if (response.statusCode == 200) {
+        debugPrint('✅ [HomepageService] Parsing response data...');
         final Map<String, dynamic> responseData = json.decode(response.body);
-        final List<dynamic> dataList = responseData['data'];
+        final List<dynamic> dataList = responseData['data'] ?? [];
+
+        debugPrint(
+            '📦 [HomepageService] Found ${dataList.length} products in response');
 
         final products = dataList.map<Product>((item) {
           final productData = item['product'] as Map<String, dynamic>;
@@ -130,13 +166,18 @@ class HomepageOptimizationService {
           );
         }).toList();
 
+        debugPrint('💾 [HomepageService] Caching ${products.length} products');
         _cacheProducts(products);
         _optimizationService.endTimer('HomepageService_GetProducts');
         return products;
       } else {
-        throw Exception('Failed to load products');
+        debugPrint(
+            '❌ [HomepageService] API returned status ${response.statusCode}');
+        throw Exception('Failed to load products: HTTP ${response.statusCode}');
       }
     } catch (e) {
+      debugPrint('💥 [HomepageService] Exception in _fetchProducts: $e');
+      debugPrint('💥 [HomepageService] Exception type: ${e.runtimeType}');
       _optimizationService.endTimer('HomepageService_GetProducts');
       rethrow;
     } finally {
@@ -149,9 +190,12 @@ class HomepageOptimizationService {
   /// Ultra-fast popular products loading (no animations, maximum performance)
   Future<List<Product>> getPopularProductsUltraFast(
       {bool forceRefresh = false}) async {
-    if (_isPopularProductsCacheValid &&
-        _cachedPopularProducts.isNotEmpty &&
-        !forceRefresh) {
+    // Always try server first unless cache is valid and not forcing refresh
+    if (!forceRefresh &&
+        _isPopularProductsCacheValid &&
+        _cachedPopularProducts.isNotEmpty) {
+      // Return cached but refresh in background
+      _fetchPopularProducts();
       return _cachedPopularProducts;
     }
 
@@ -164,7 +208,27 @@ class HomepageOptimizationService {
       return _cachedPopularProducts;
     }
 
-    return await _fetchPopularProducts();
+    // Try to fetch from server
+    try {
+      return await _fetchPopularProducts();
+    } catch (e) {
+      // Check if this is a connectivity error
+      final errorString = e.toString();
+      final isConnectivityError = errorString.contains('Connection failed') ||
+          errorString.contains('No internet connection') ||
+          errorString.contains('Unable to connect') ||
+          errorString.contains('Request timeout') ||
+          errorString.contains('SocketException');
+
+      if (isConnectivityError && _cachedPopularProducts.isNotEmpty) {
+        // Only use cache when offline
+        debugPrint('Connectivity error - using cached popular products');
+        return _cachedPopularProducts;
+      }
+
+      // For other errors, rethrow
+      rethrow;
+    }
   }
 
   /// Get popular products with loading state for better UX
@@ -202,9 +266,12 @@ class HomepageOptimizationService {
   Future<List<Product>> getPopularProducts({bool forceRefresh = false}) async {
     _optimizationService.startTimer('HomepageService_GetPopularProducts');
 
-    if (_isPopularProductsCacheValid &&
-        _cachedPopularProducts.isNotEmpty &&
-        !forceRefresh) {
+    // Always try server first unless cache is valid and not forcing refresh
+    if (!forceRefresh &&
+        _isPopularProductsCacheValid &&
+        _cachedPopularProducts.isNotEmpty) {
+      // Return cached but refresh in background
+      _fetchPopularProducts(); // Refresh in background
       _optimizationService.endTimer('HomepageService_GetPopularProducts');
       return _cachedPopularProducts;
     }
@@ -217,7 +284,29 @@ class HomepageOptimizationService {
       return _cachedPopularProducts;
     }
 
-    return await _fetchPopularProducts();
+    // Try to fetch from server
+    try {
+      return await _fetchPopularProducts();
+    } catch (e) {
+      // Check if this is a connectivity error
+      final errorString = e.toString();
+      final isConnectivityError = errorString.contains('Connection failed') ||
+          errorString.contains('No internet connection') ||
+          errorString.contains('Unable to connect') ||
+          errorString.contains('Request timeout') ||
+          errorString.contains('SocketException');
+
+      if (isConnectivityError && _cachedPopularProducts.isNotEmpty) {
+        // Only use cache when offline
+        debugPrint('Connectivity error - using cached popular products');
+        _optimizationService.endTimer('HomepageService_GetPopularProducts');
+        return _cachedPopularProducts;
+      }
+
+      // For other errors, rethrow
+      _optimizationService.endTimer('HomepageService_GetPopularProducts');
+      rethrow;
+    }
   }
 
   Future<List<Product>> _fetchPopularProducts() async {
@@ -298,9 +387,12 @@ class HomepageOptimizationService {
       {bool forceRefresh = false}) async {
     _optimizationService.startTimer('HomepageService_GetCategorizedProducts');
 
-    if (_isCategorizedProductsCacheValid &&
-        _cachedCategorizedProducts.isNotEmpty &&
-        !forceRefresh) {
+    // Always try server first unless cache is valid and not forcing refresh
+    if (!forceRefresh &&
+        _isCategorizedProductsCacheValid &&
+        _cachedCategorizedProducts.isNotEmpty) {
+      // Return cached but refresh in background
+      _fetchCategorizedProducts(); // Refresh in background
       _optimizationService.endTimer('HomepageService_GetCategorizedProducts');
       return _cachedCategorizedProducts;
     }
@@ -313,7 +405,29 @@ class HomepageOptimizationService {
       return _cachedCategorizedProducts;
     }
 
-    return await _fetchCategorizedProducts();
+    // Try to fetch from server
+    try {
+      return await _fetchCategorizedProducts();
+    } catch (e) {
+      // Check if this is a connectivity error
+      final errorString = e.toString();
+      final isConnectivityError = errorString.contains('Connection failed') ||
+          errorString.contains('No internet connection') ||
+          errorString.contains('Unable to connect') ||
+          errorString.contains('Request timeout') ||
+          errorString.contains('SocketException');
+
+      if (isConnectivityError && _cachedCategorizedProducts.isNotEmpty) {
+        // Only use cache when offline
+        debugPrint('Connectivity error - using cached categorized products');
+        _optimizationService.endTimer('HomepageService_GetCategorizedProducts');
+        return _cachedCategorizedProducts;
+      }
+
+      // For other errors, rethrow
+      _optimizationService.endTimer('HomepageService_GetCategorizedProducts');
+      rethrow;
+    }
   }
 
   Future<Map<String, List<Product>>> _fetchCategorizedProducts() async {

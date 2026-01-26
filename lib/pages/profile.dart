@@ -47,6 +47,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
   late AnimationController _contentAnimationController;
   late Animation<double> _contentAnimation;
   final ScrollController _scrollController = ScrollController();
+  int? _wishlistCount; // Cache wishlist count to allow refresh
 
   @override
   void initState() {
@@ -132,7 +133,27 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => screen),
-    );
+    ).then((_) {
+      // Refresh wishlist count when returning from wishlist page
+      if (screen is WishlistPage && mounted) {
+        _refreshWishlistCount();
+      }
+    });
+  }
+
+  Future<void> _refreshWishlistCount() async {
+    if (!mounted) return;
+    try {
+      final count =
+          await WishlistService.instance.getWishlistCount(useCache: false);
+      if (mounted) {
+        setState(() {
+          _wishlistCount = count;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error refreshing wishlist count: $e');
+    }
   }
 
   void _navigateToRefillPage() {
@@ -634,9 +655,16 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                   ),
                   // wishlist menu option
                   FutureBuilder<int>(
-                    future: WishlistService.instance.getWishlistCount(),
+                    future: _wishlistCount != null
+                        ? Future.value(_wishlistCount!)
+                        : WishlistService.instance
+                            .getWishlistCount(useCache: false),
                     builder: (context, snapshot) {
-                      final wishlistCount = snapshot.data ?? 0;
+                      if (snapshot.hasData) {
+                        _wishlistCount = snapshot.data;
+                      }
+                      final wishlistCount =
+                          snapshot.data ?? _wishlistCount ?? 0;
                       return _buildEnhancedProfileOption(
                         context,
                         Icons.favorite_outline,

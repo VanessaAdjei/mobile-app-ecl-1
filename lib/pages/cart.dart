@@ -483,13 +483,27 @@ class CartState extends State<Cart> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Total',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.black87,
-                              ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Total',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                if (cart.cartItems.length !=
+                                    cart.getSelectedItems().length)
+                                  Text(
+                                    '${cart.getSelectedItems().length} of ${cart.cartItems.length} items selected',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                              ],
                             ),
                             Text(
                               'GHS ${cart.calculateSubtotal().toStringAsFixed(2)}',
@@ -509,7 +523,7 @@ class CartState extends State<Cart> {
                       Container(
                         width: double.infinity,
                         decoration: BoxDecoration(
-                          gradient: cart.cartItems.isNotEmpty
+                          gradient: cart.getSelectedItems().isNotEmpty
                               ? LinearGradient(
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
@@ -540,7 +554,7 @@ class CartState extends State<Cart> {
                           child: InkWell(
                             borderRadius: BorderRadius.circular(8),
                             onTap: (cart.isAnyItemUpdating ||
-                                    cart.cartItems.isEmpty)
+                                    cart.getSelectedItems().isEmpty)
                                 ? null
                                 : () async {
                                     if (!_isLoggedIn) {
@@ -1030,8 +1044,11 @@ class CartState extends State<Cart> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: item.isSelected ? Colors.white : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(8),
+        border: item.isSelected
+            ? null
+            : Border.all(color: Colors.grey.shade300, width: 1),
       ),
       child: Padding(
         padding: const EdgeInsets.all(10),
@@ -1121,10 +1138,12 @@ class CartState extends State<Cart> {
                 children: [
                   Text(
                     item.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                      color: item.isSelected
+                          ? Colors.black87
+                          : Colors.grey.shade600,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -1142,114 +1161,123 @@ class CartState extends State<Cart> {
 
                   // Quantity Controls - Compact Design
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Loading indicator when item is being updated
-                            if (cart.isItemUpdating(item.id))
-                              Container(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 8),
-                                child: SizedBox(
-                                  width: 12,
-                                  height: 12,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.green.shade600,
+                      Flexible(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Loading indicator when item is being updated
+                              if (cart.isItemUpdating(item.id))
+                                Container(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 8),
+                                  child: SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.green.shade600,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            item.quantity > 1
-                                ? OptimizedRemoveButton(
-                                    onPressed: cart.isItemUpdating(item.id)
-                                        ? null
-                                        : () {
-                                            debugPrint(
-                                                '🔍 Cart: Minus button pressed for ${item.name}');
-                                            debugPrint(
-                                                '🔍 Cart: Current quantity: ${item.quantity}');
-                                            debugPrint(
-                                                '🔍 Cart: New quantity will be: ${item.quantity - 1}');
-                                            debugPrint(
-                                                '🔍 Cart: Item index: $index');
-                                            debugPrint(
-                                                '🔍 Cart: Item ID: ${item.id}');
+                              item.quantity > 1
+                                  ? OptimizedRemoveButton(
+                                      onPressed: cart.isItemUpdating(item.id)
+                                          ? null
+                                          : () {
+                                              debugPrint(
+                                                  '🔍 Cart: Minus button pressed for ${item.name}');
+                                              debugPrint(
+                                                  '🔍 Cart: Current quantity: ${item.quantity}');
+                                              debugPrint(
+                                                  '🔍 Cart: New quantity will be: ${item.quantity - 1}');
+                                              debugPrint(
+                                                  '🔍 Cart: Item index: $index');
+                                              debugPrint(
+                                                  '🔍 Cart: Item ID: ${item.id}');
 
-                                            // Use item ID instead of index for reliable updates
-                                            cart.updateQuantityById(
-                                                item.id, item.quantity - 1);
-                                          },
-                                    isEnabled: !cart.isItemUpdating(item.id),
-                                    size: 32.0,
-                                  )
-                                : OptimizedDeleteButton(
-                                    onPressed: () async {
-                                      debugPrint(
-                                          '🔍 Cart: Delete button pressed for ${item.name}');
-                                      final confirmed = await _confirmRemove(
-                                          context, item.name);
-                                      if (confirmed) {
-                                        cart.removeFromCart(item.id);
-                                      }
-                                    },
-                                    isEnabled: true,
-                                    size: 32.0,
+                                              // Use item ID instead of index for reliable updates
+                                              cart.updateQuantityById(
+                                                  item.id, item.quantity - 1);
+                                            },
+                                      isEnabled: !cart.isItemUpdating(item.id),
+                                      size: 32.0,
+                                    )
+                                  : OptimizedDeleteButton(
+                                      onPressed: () async {
+                                        debugPrint(
+                                            '🔍 Cart: Delete button pressed for ${item.name}');
+                                        final confirmed = await _confirmRemove(
+                                            context, item.name);
+                                        if (confirmed) {
+                                          cart.removeFromCart(item.id);
+                                        }
+                                      },
+                                      isEnabled: true,
+                                      size: 32.0,
+                                    ),
+                              Container(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 10),
+                                child: Text(
+                                  '${item.quantity}',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
                                   ),
-                            Container(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 10),
-                              child: Text(
-                                '${item.quantity}',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                            ),
-                            OptimizedAddButton(
-                              onPressed: cart.isItemUpdating(item.id)
-                                  ? null
-                                  : () {
-                                      cart.updateQuantityById(
-                                          item.id, item.quantity + 1);
-                                    },
-                              isEnabled: !cart.isItemUpdating(item.id),
-                              size: 32.0,
-                            ),
-                          ],
+                              OptimizedAddButton(
+                                onPressed: cart.isItemUpdating(item.id)
+                                    ? null
+                                    : () {
+                                        cart.updateQuantityById(
+                                            item.id, item.quantity + 1);
+                                      },
+                                isEnabled: !cart.isItemUpdating(item.id),
+                                size: 32.0,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade50,
-                          borderRadius: BorderRadius.circular(5),
-                          border: Border.all(color: Colors.green.shade200),
-                        ),
-                        child: Text(
-                          'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.green.shade700,
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(5),
+                            border: Border.all(color: Colors.green.shade200),
+                          ),
+                          child: Text(
+                            'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.green.shade700,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ),
                       // Add delete button
                       IconButton(
-                        icon: Icon(Icons.delete, color: Colors.red.shade400),
+                        icon: Icon(Icons.delete,
+                            color: Colors.red.shade400, size: 20),
                         tooltip: 'Remove from cart',
+                        padding: EdgeInsets.zero,
+                        constraints: BoxConstraints(),
                         onPressed: () async {
                           final confirmed =
                               await _confirmRemove(context, item.name);

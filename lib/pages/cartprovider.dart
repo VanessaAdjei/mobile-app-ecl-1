@@ -118,6 +118,14 @@ class CartProvider with ChangeNotifier {
       _cartItems = [];
     }
 
+    // Ensure all items are selected by default (for backward compatibility)
+    _cartItems = _cartItems.map((item) {
+      if (!item.isSelected) {
+        return item.copyWith(isSelected: true);
+      }
+      return item;
+    }).toList();
+
     _loadPurchasedItems();
   }
 
@@ -720,8 +728,12 @@ class CartProvider with ChangeNotifier {
   void purchaseItems() async {
     if (_currentUserId == null) return;
 
-    _purchasedItems.addAll(_cartItems);
-    _cartItems.clear();
+    // Only add selected items to purchased items
+    final selectedItems = _cartItems.where((item) => item.isSelected).toList();
+    _purchasedItems.addAll(selectedItems);
+    
+    // Remove selected items from cart (keep unselected items)
+    _cartItems.removeWhere((item) => item.isSelected);
 
     await _saveUserCarts();
     await _savePurchasedItems();
@@ -1367,12 +1379,34 @@ class CartProvider with ChangeNotifier {
 
   double calculateTotal() {
     return _cartItems.fold(
-        0, (total, item) => total + (item.price * item.quantity));
+        0, (total, item) => item.isSelected ? total + (item.price * item.quantity) : total);
   }
 
   double calculateSubtotal() {
     return _cartItems.fold(
-        0, (subtotal, item) => subtotal + (item.price * item.quantity));
+        0, (subtotal, item) => item.isSelected ? subtotal + (item.price * item.quantity) : subtotal);
+  }
+
+  // Toggle selection for a cart item
+  void toggleItemSelection(String itemId) {
+    final index = _cartItems.indexWhere((item) => item.id == itemId);
+    if (index != -1) {
+      _cartItems[index] = _cartItems[index].copyWith(
+        isSelected: !_cartItems[index].isSelected,
+      );
+      notifyListeners();
+      debugPrint('🛒 CartProvider: Toggled selection for item ${_cartItems[index].name}: ${_cartItems[index].isSelected}');
+    }
+  }
+
+  // Get only selected items
+  List<CartItem> getSelectedItems() {
+    return _cartItems.where((item) => item.isSelected).toList();
+  }
+
+  // Get count of selected items
+  int get selectedItemsCount {
+    return _cartItems.where((item) => item.isSelected).fold(0, (sum, item) => sum + item.quantity);
   }
 
   Future<void> _savePurchasedItems() async {

@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:eclapp/pages/auth_service.dart';
+import '../config/api_config.dart';
 
 // class to store cached data with a timestamp
 class _CacheEntry {
@@ -20,8 +21,8 @@ class _CacheEntry {
 }
 
 class ApiService {
-  // the base url for all api calls
-  static const String baseUrl = 'https://eclpharmacy.com/api';
+  // the base url for all api calls - use ApiConfig to ensure consistency
+  static String get baseUrl => ApiConfig.baseUrl;
   // cache expires after 1 hour
   static const Duration cacheExpiry = Duration(hours: 1);
   // requests timeout after 15 seconds (used to be 30 but that was too long)
@@ -109,6 +110,11 @@ class ApiService {
     final url = _buildUrl(endpoint, queryParams);
     final cacheKey = url;
 
+    // Debug: Log the actual URL being called
+    debugPrint('🌐 [ApiService] GET Request URL: $url');
+    debugPrint('🌐 [ApiService] Base URL: $baseUrl');
+    debugPrint('🌐 [ApiService] Endpoint: $endpoint');
+
     // check cache first
     if (useCache && _cache.containsKey(cacheKey)) {
       final entry = _cache[cacheKey]!;
@@ -133,6 +139,7 @@ class ApiService {
     // make request with retry logic
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        debugPrint('🔄 [ApiService] Attempt $attempt/$maxRetries: GET $url');
         final response = await _client
             .get(
               Uri.parse(url),
@@ -140,8 +147,10 @@ class ApiService {
             )
             .timeout(requestTimeout);
 
+        debugPrint('✅ [ApiService] GET Success: Status ${response.statusCode}');
         return _handleResponse(response, cacheKey, useCache);
-      } on SocketException {
+      } on SocketException catch (e) {
+        debugPrint('❌ [ApiService] SocketException on attempt $attempt: $e');
         if (attempt == maxRetries) {
           throw ApiException(
             'Connection failed',
@@ -197,6 +206,9 @@ class ApiService {
 
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        debugPrint('🔄 [ApiService] Attempt $attempt/$maxRetries: POST $url');
+        debugPrint(
+            '📤 [ApiService] POST Body: ${body != null ? json.encode(body) : "null"}');
         final response = await _client
             .post(
               Uri.parse(url),
@@ -205,8 +217,11 @@ class ApiService {
             )
             .timeout(requestTimeout);
 
+        debugPrint(
+            '✅ [ApiService] POST Success: Status ${response.statusCode}');
         return _handleResponse(response, null, false);
-      } on SocketException {
+      } on SocketException catch (e) {
+        debugPrint('❌ [ApiService] SocketException on attempt $attempt: $e');
         if (attempt == maxRetries) {
           throw ApiException(
             'Connection failed',
@@ -305,7 +320,14 @@ class ApiService {
     Map<String, dynamic>? queryParams,
     bool skipConnectivityCheck = false, // Allow skipping for faster requests
   }) async {
+    final headers = await _authHeaders;
     final url = _buildUrl(endpoint, queryParams);
+
+    // Debug: Log the actual URL being called
+    debugPrint('🌐 [ApiService] DELETE Request URL: $url');
+    debugPrint('🌐 [ApiService] Base URL: $baseUrl');
+    debugPrint('🌐 [ApiService] Endpoint: $endpoint');
+
     if (enableDebugLogs) {
       debugPrint('[API] DELETE $endpoint');
     }
@@ -320,15 +342,19 @@ class ApiService {
 
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        debugPrint('🔄 [ApiService] Attempt $attempt/$maxRetries: DELETE $url');
         final response = await _client
             .delete(
               Uri.parse(url),
-              headers: await _authHeaders,
+              headers: headers,
             )
             .timeout(requestTimeout);
 
+        debugPrint(
+            '✅ [ApiService] DELETE Success: Status ${response.statusCode}');
         return _handleResponse(response, null, false);
-      } on SocketException {
+      } on SocketException catch (e) {
+        debugPrint('❌ [ApiService] SocketException on attempt $attempt: $e');
         if (attempt == maxRetries) {
           throw ApiException(
             'Connection failed',
@@ -337,7 +363,8 @@ class ApiService {
         }
         // shorter delay: milliseconds instead of seconds
         await Future.delayed(Duration(milliseconds: 100 * attempt));
-      } on TimeoutException {
+      } on TimeoutException catch (e) {
+        debugPrint('❌ [ApiService] TimeoutException on attempt $attempt: $e');
         if (attempt == maxRetries) {
           throw ApiException(
             'Request timeout',
@@ -347,6 +374,8 @@ class ApiService {
         // shorter delay: milliseconds instead of seconds
         await Future.delayed(Duration(milliseconds: 100 * attempt));
       } catch (e) {
+        debugPrint(
+            '❌ [ApiService] Exception on attempt $attempt: $e (${e.runtimeType})');
         if (attempt == maxRetries) {
           throw ApiException(
             'Request failed',
@@ -361,7 +390,11 @@ class ApiService {
 
   // build url with query parameters
   static String _buildUrl(String endpoint, Map<String, dynamic>? queryParams) {
-    String url = '$baseUrl/$endpoint';
+    // ApiConfig endpoints start with '/', and baseUrl ends with '/api', so we need to handle this
+    // Remove leading slash from endpoint if present to avoid double slashes
+    final cleanEndpoint =
+        endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
+    String url = '$baseUrl/$cleanEndpoint';
 
     if (queryParams != null && queryParams.isNotEmpty) {
       final queryString = queryParams.entries

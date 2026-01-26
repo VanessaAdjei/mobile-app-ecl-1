@@ -18,6 +18,7 @@ class CartItem {
   DateTime? lastModified;
   final String urlName;
   final double totalPrice;
+  bool isSelected; // Whether this item is selected for checkout
 
   CartItem({
     required this.id,
@@ -34,6 +35,7 @@ class CartItem {
     DateTime? lastModified,
     required this.urlName,
     required this.totalPrice,
+    this.isSelected = true, // All items are selected by default
   }) : lastModified = lastModified ?? DateTime.now();
 
   // these help us convert stuff to the right type
@@ -74,6 +76,7 @@ class CartItem {
       'product_id': productId,
       'original_product_id': originalProductId,
       'server_product_id': serverProductId,
+      'is_selected': isSelected,
     };
   }
 
@@ -103,6 +106,7 @@ class CartItem {
       lastModified: _parseDate(json['last_modified']),
       urlName: json['url_name'] ?? '',
       totalPrice: price * quantity,
+      isSelected: json['is_selected'] ?? true, // Default to selected
     );
   }
 
@@ -153,6 +157,7 @@ class CartItem {
       batchNo: json['batch_no']?.toString() ?? '',
       urlName: json['url_name']?.toString() ?? '',
       totalPrice: totalPrice,
+      isSelected: json['is_selected'] ?? true, // Default to selected
     );
   }
 
@@ -177,6 +182,7 @@ class CartItem {
     DateTime? lastModified,
     String? urlName,
     double? totalPrice,
+    bool? isSelected,
   }) {
     return CartItem(
       id: id ?? this.id,
@@ -194,6 +200,7 @@ class CartItem {
       lastModified: lastModified ?? this.lastModified,
       urlName: urlName ?? this.urlName,
       totalPrice: totalPrice ?? this.totalPrice,
+      isSelected: isSelected ?? this.isSelected,
     );
   }
 

@@ -21,6 +21,7 @@ import '../providers/wallet_provider.dart';
 import '../services/notification_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config/api_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ExpressPayChannel {
   static const MethodChannel _channel =
@@ -218,19 +219,22 @@ class PaymentPageState extends State<PaymentPage> {
     });
 
     try {
-      // make sure cart isnt empty
-      if (cart.cartItems.isEmpty) {
-        debugPrint('[DEBUG] Returning early: cart is empty');
+      // Get only selected items
+      final selectedItems = cart.getSelectedItems();
+      
+      // make sure cart has selected items
+      if (selectedItems.isEmpty) {
+        debugPrint('[DEBUG] Returning early: no items selected');
         throw Exception(
-            'Your cart is empty. Please add items before proceeding with payment.');
+            'Please select at least one item to proceed with payment.');
       }
-      debugPrint('[DEBUG] Passed cart empty check');
+      debugPrint('[DEBUG] Passed selected items check (${selectedItems.length} items selected)');
 
-      // add up the total price
+      // add up the total price (only for selected items)
       final subtotal = cart.calculateSubtotal();
       if (subtotal <= 0) {
         debugPrint('[DEBUG] Returning early: subtotal <= 0');
-        throw Exception('Invalid order amount. Please check your cart items.');
+        throw Exception('Invalid order amount. Please check your selected items.');
       }
       debugPrint('[DEBUG] Passed subtotal check');
 
@@ -259,8 +263,8 @@ class PaymentPageState extends State<PaymentPage> {
       }
       debugPrint('[DEBUG] Passed contact number check');
 
-      // make a description of what theyre ordering
-      String orderDesc = cart.cartItems
+      // make a description of what theyre ordering (only selected items)
+      String orderDesc = selectedItems
           .map((item) => '${item.quantity}x ${item.name}')
           .join(', ');
       if (orderDesc.length > 100) {
@@ -296,7 +300,8 @@ class PaymentPageState extends State<PaymentPage> {
         'shipping_type': widget.deliveryOption,
       };
 
-      final purchasedItems = List<CartItem>.from(cart.cartItems);
+      // Only include selected items in purchased items
+      final purchasedItems = List<CartItem>.from(selectedItems);
       final transactionId = params['order_id'];
 
       // Online Payment Flow
@@ -761,7 +766,7 @@ class PaymentPageState extends State<PaymentPage> {
 
     return GestureDetector(
       onHorizontalDragStart: (_) {
-        if (!_isProcessingPayment && cart.cartItems.isNotEmpty) {
+        if (!_isProcessingPayment && cart.getSelectedItems().isNotEmpty) {
           setState(() {
             _isSliding = true;
           });
@@ -782,7 +787,7 @@ class PaymentPageState extends State<PaymentPage> {
         }
       },
       onHorizontalDragEnd: (_) {
-        if (!_isProcessingPayment && cart.cartItems.isNotEmpty) {
+        if (!_isProcessingPayment && cart.getSelectedItems().isNotEmpty) {
           if (_slidePosition >= threshold) {
             // Trigger payment
             HapticFeedback.heavyImpact();
@@ -921,6 +926,9 @@ class PaymentPageState extends State<PaymentPage> {
   }
 
   Widget _buildOrderItems(CartProvider cart) {
+    // Get only selected items
+    final selectedItems = cart.getSelectedItems();
+    
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
@@ -968,10 +976,10 @@ class PaymentPageState extends State<PaymentPage> {
             ),
             const SizedBox(height: 12),
 
-            // Order Items
-            if (cart.cartItems.isNotEmpty) ...[
+            // Order Items (only selected items)
+            if (selectedItems.isNotEmpty) ...[
               Text(
-                'Items in your order (${cart.cartItems.length})',
+                'Items in your order (${selectedItems.length})',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 12,
@@ -979,8 +987,8 @@ class PaymentPageState extends State<PaymentPage> {
                 ),
               ),
               const SizedBox(height: 8),
-              ...cart.cartItems
-                  .take(_showAllItems ? cart.cartItems.length : 3)
+              ...selectedItems
+                  .take(_showAllItems ? selectedItems.length : 3)
                   .map((item) => Container(
                         margin: const EdgeInsets.only(bottom: 6),
                         padding: const EdgeInsets.all(8),
@@ -1063,7 +1071,7 @@ class PaymentPageState extends State<PaymentPage> {
                           ],
                         ),
                       )),
-              if (cart.cartItems.length > 3 && !_showAllItems) ...[
+              if (selectedItems.length > 3 && !_showAllItems) ...[
                 const SizedBox(height: 4),
                 GestureDetector(
                   onTap: () {
@@ -1089,7 +1097,7 @@ class PaymentPageState extends State<PaymentPage> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          'Show ${cart.cartItems.length - 3} more items',
+                          'Show ${selectedItems.length - 3} more items',
                           style: TextStyle(
                             color: Colors.blue.shade700,
                             fontSize: 10,
@@ -1101,7 +1109,7 @@ class PaymentPageState extends State<PaymentPage> {
                   ),
                 ),
               ],
-              if (cart.cartItems.length > 3 && _showAllItems) ...[
+              if (selectedItems.length > 3 && _showAllItems) ...[
                 const SizedBox(height: 4),
                 GestureDetector(
                   onTap: () {
@@ -1998,6 +2006,62 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
     return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
   }
 
+  /// Store delivery fee for this order so it can be retrieved later
+  Future<void> _storeDeliveryFeeForOrder() async {
+    try {
+      if (_transactionId == null || _transactionId!.isEmpty) {
+        debugPrint('🔍 Cannot store delivery fee: transaction_id is null');
+        return;
+      }
+
+      // Calculate delivery fee from paymentParams (same as in build method)
+      final subtotal = widget.purchasedItems.fold<double>(
+          0, (sum, item) => sum + (item.price * item.quantity));
+      final totalAmountStr = widget.paymentParams['amount']?.toString() ?? '';
+      final total = totalAmountStr.isNotEmpty
+          ? (double.tryParse(totalAmountStr) ?? 0.0)
+          : subtotal;
+      final deliveryFeeStr = widget.paymentParams['delivery_fee']?.toString() ?? 
+                             widget.paymentParams['deliveryFee']?.toString();
+      final deliveryFee = deliveryFeeStr != null && deliveryFeeStr.isNotEmpty
+          ? (double.tryParse(deliveryFeeStr) ?? 0.0)
+          : (total > subtotal ? (total - subtotal) : 0.0).clamp(0.0, double.infinity);
+
+      if (deliveryFee > 0) {
+        final prefs = await SharedPreferences.getInstance();
+        
+        // Get the original transaction ID (ORDER_ prefix) from initialTransactionId
+        final originalTransactionId = widget.initialTransactionId;
+        
+        // Store with the current transaction_id (which should be ECL format after payment response)
+        final key = 'order_delivery_fee_$_transactionId';
+        await prefs.setDouble(key, deliveryFee);
+        debugPrint('🔍 Stored delivery fee for order $_transactionId: $deliveryFee');
+        
+        // Also store total amount for reference
+        final totalKey = 'order_total_$_transactionId';
+        await prefs.setDouble(totalKey, total);
+        debugPrint('🔍 Stored total amount for order $_transactionId: $total');
+        
+        // Also store with the original ORDER_ prefix if it's different (for backward compatibility)
+        if (originalTransactionId != null && 
+            originalTransactionId.isNotEmpty && 
+            originalTransactionId != _transactionId &&
+            originalTransactionId.startsWith('ORDER_')) {
+          final originalKey = 'order_delivery_fee_$originalTransactionId';
+          await prefs.setDouble(originalKey, deliveryFee);
+          debugPrint('🔍 Also stored delivery fee with original ORDER_ prefix $originalTransactionId: $deliveryFee');
+          
+          final originalTotalKey = 'order_total_$originalTransactionId';
+          await prefs.setDouble(originalTotalKey, total);
+          debugPrint('🔍 Also stored total with original ORDER_ prefix $originalTransactionId: $total');
+        }
+      }
+    } catch (e) {
+      debugPrint('🔍 Error storing delivery fee: $e');
+    }
+  }
+
   /// Create notification for successful payment verification
   Future<void> _createPaymentSuccessNotification() async {
     try {
@@ -2043,7 +2107,9 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
   void _startStatusChecking() {
     // Check status immediately
-    _checkPaymentStatus();
+    _checkPaymentStatus().catchError((e) {
+      debugPrint('Error in initial payment status check: $e');
+    });
 
     // Set up periodic checking every 5 seconds instead of every second
     _statusCheckTimer = Timer.periodic(Duration(seconds: 5), (timer) {
@@ -2073,56 +2139,76 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
       final result = await _fetchPaymentStatus();
       debugPrint('[DEBUG] _fetchPaymentStatus result: $result');
       if (mounted) {
+        final newStatus = result['status'];
+        final currentStatus = _status?.toLowerCase();
+
+        // Always update status if we get a new status from server
+        // Only keep failed status if server returns pending/error/null
+        String? updatedStatus = _status;
+        String? updatedMessage = _statusMessage;
+        
+        if (currentStatus == 'failed' &&
+            (newStatus == 'pending' ||
+                newStatus == 'error' ||
+                newStatus == null)) {
+          // Keep the failed status, don't update
+          updatedMessage = result['message'] ?? _statusMessage;
+        } else {
+          // Update status normally - this includes updating from failed to success
+          updatedStatus = newStatus;
+          updatedMessage = result['message'];
+        }
+
         setState(() {
           debugPrint(
-              '[DEBUG] setState in _checkPaymentStatus: updating status to ${result['status']?.toString() ?? 'null'}');
-          final newStatus = result['status'];
-          final currentStatus = _status?.toLowerCase();
-
-          // Always update status if we get a new status from server
-          // Only keep failed status if server returns pending/error/null
-          if (currentStatus == 'failed' &&
-              (newStatus == 'pending' ||
-                  newStatus == 'error' ||
-                  newStatus == null)) {
-            // Keep the failed status, don't update
-            _statusMessage = result['message'] ?? _statusMessage;
-          } else {
-            // Update status normally - this includes updating from failed to success
-            _status = newStatus;
-            _statusMessage = result['message'];
-          }
-
+              '[DEBUG] setState in _checkPaymentStatus: updating status to ${updatedStatus?.toString() ?? 'null'}');
+          _status = updatedStatus;
+          _statusMessage = updatedMessage;
           _paymentSuccess = _status?.toLowerCase() == 'success';
           _isLoading = false;
-
-          // Handle different payment states
-          if (_status?.toLowerCase() == 'success') {
-            _statusCheckTimer?.cancel();
-            _buttonShowTimer?.cancel();
-            _emptyResponseTimer?.cancel();
-            _showCheckStatusButton = false;
-            // Reset empty response tracking
-            _firstEmptyResponseTime = null;
-            _emptyResponseCount = 0;
-
-            // Clear cart after successful payment verification
-            final cartProvider =
-                Provider.of<CartProvider>(context, listen: false);
-            cartProvider.clearCart();
-
-            // Create notification only after payment is verified as successful
-            _createPaymentSuccessNotification();
-          } else if (_status?.toLowerCase() == 'failed') {
-            _statusCheckTimer?.cancel(); // Stop automatic checks
-            _buttonShowTimer?.cancel(); // Cancel the button show timer
-            _emptyResponseTimer?.cancel();
-            // Don't hide the check status button for failed payments
-            // Reset empty response tracking
-            _firstEmptyResponseTime = null;
-            _emptyResponseCount = 0;
-          }
         });
+
+        // Handle different payment states (outside setState for async operations)
+        if (updatedStatus?.toLowerCase() == 'success') {
+          _statusCheckTimer?.cancel();
+          _buttonShowTimer?.cancel();
+          _emptyResponseTimer?.cancel();
+          _showCheckStatusButton = false;
+          // Reset empty response tracking
+          _firstEmptyResponseTime = null;
+          _emptyResponseCount = 0;
+
+          // Update _transactionId with actual transaction_id from payment response if available
+          // This ensures we use the ECL format ID that matches the API
+          final actualTransactionId = result['transaction_id']?.toString();
+          if (actualTransactionId != null && actualTransactionId.isNotEmpty) {
+            final oldTransactionId = _transactionId;
+            _transactionId = actualTransactionId;
+            debugPrint('[DEBUG] Updated _transactionId from payment response: $oldTransactionId -> $actualTransactionId');
+          } else {
+            debugPrint('[DEBUG] No transaction_id in payment response, keeping: $_transactionId');
+          }
+
+          // Clear cart after successful payment verification
+          final cartProvider =
+              Provider.of<CartProvider>(context, listen: false);
+          cartProvider.clearCart();
+
+          // Store delivery fee for later retrieval (now using the correct transaction_id)
+          debugPrint('[DEBUG] About to store delivery fee with transaction_id: $_transactionId');
+          await _storeDeliveryFeeForOrder();
+
+          // Create notification only after payment is verified as successful
+          _createPaymentSuccessNotification();
+        } else if (updatedStatus?.toLowerCase() == 'failed') {
+          _statusCheckTimer?.cancel(); // Stop automatic checks
+          _buttonShowTimer?.cancel(); // Cancel the button show timer
+          _emptyResponseTimer?.cancel();
+          // Don't hide the check status button for failed payments
+          // Reset empty response tracking
+          _firstEmptyResponseTime = null;
+          _emptyResponseCount = 0;
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -2144,8 +2230,31 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
   @override
   Widget build(BuildContext context) {
-    final total = widget.purchasedItems
-        .fold<double>(0, (sum, item) => sum + (item.price * item.quantity));
+    // Calculate subtotal from items
+    final subtotal = widget.purchasedItems.fold<double>(
+        0, (sum, item) => sum + (item.price * item.quantity));
+    
+    // Use the actual amount from paymentParams (includes delivery fee and discount)
+    // Fallback to calculating from items if amount is not available
+    final totalAmountStr = widget.paymentParams['amount']?.toString() ?? '';
+    final total = totalAmountStr.isNotEmpty
+        ? (double.tryParse(totalAmountStr) ?? 0.0)
+        : subtotal;
+    
+    // Get delivery fee from paymentParams or estimate from difference
+    final deliveryFeeStr = widget.paymentParams['delivery_fee']?.toString() ?? 
+                           widget.paymentParams['deliveryFee']?.toString();
+    final deliveryFee = deliveryFeeStr != null && deliveryFeeStr.isNotEmpty
+        ? (double.tryParse(deliveryFeeStr) ?? 0.0)
+        : (total > subtotal ? (total - subtotal) : 0.0).clamp(0.0, double.infinity);
+    
+    // Get discount if any
+    final discountStr = widget.paymentParams['discount']?.toString() ?? 
+                       widget.paymentParams['discount_amount']?.toString();
+    final discount = discountStr != null && discountStr.isNotEmpty
+        ? (double.tryParse(discountStr) ?? 0.0)
+        : 0.0;
+    
     final topPadding = MediaQuery.of(context).padding.top;
 
     return Scaffold(
@@ -2605,6 +2714,78 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                             ),
                                           )),
                                       const Divider(height: 24),
+                                      // Price Breakdown
+                                      // Subtotal
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            'Subtotal',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey[700],
+                                            ),
+                                          ),
+                                          Text(
+                                            'GHS ${subtotal.toStringAsFixed(2)}',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey[700],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      // Delivery Fee
+                                      if (deliveryFee > 0) ...[
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              'Delivery Fee',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.grey[700],
+                                              ),
+                                            ),
+                                            Text(
+                                              'GHS ${deliveryFee.toStringAsFixed(2)}',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.grey[700],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                      ],
+                                      // Discount (if any)
+                                      if (discount > 0) ...[
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              'Discount',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.green[700],
+                                              ),
+                                            ),
+                                            Text(
+                                              '-GHS ${discount.toStringAsFixed(2)}',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.green[700],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                      ],
+                                      const Divider(height: 24),
                                       // Total
                                       Row(
                                         mainAxisAlignment:
@@ -2733,6 +2914,24 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                         const SizedBox(width: 8),
                                         ElevatedButton.icon(
                                           onPressed: () {
+                                            // Calculate delivery fee from paymentParams (same as in build method)
+                                            final subtotal = widget.purchasedItems.fold<double>(
+                                                0, (sum, item) => sum + (item.price * item.quantity));
+                                            final totalAmountStr = widget.paymentParams['amount']?.toString() ?? '';
+                                            final total = totalAmountStr.isNotEmpty
+                                                ? (double.tryParse(totalAmountStr) ?? 0.0)
+                                                : subtotal;
+                                            final deliveryFeeStr = widget.paymentParams['delivery_fee']?.toString() ?? 
+                                                                   widget.paymentParams['deliveryFee']?.toString();
+                                            final deliveryFee = deliveryFeeStr != null && deliveryFeeStr.isNotEmpty
+                                                ? (double.tryParse(deliveryFeeStr) ?? 0.0)
+                                                : (total > subtotal ? (total - subtotal) : 0.0).clamp(0.0, double.infinity);
+                                            final discountStr = widget.paymentParams['discount']?.toString() ?? 
+                                                               widget.paymentParams['discount_amount']?.toString();
+                                            final discount = discountStr != null && discountStr.isNotEmpty
+                                                ? (double.tryParse(discountStr) ?? 0.0)
+                                                : 0.0;
+                                            
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(
@@ -2777,14 +2976,14 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                                         ? widget.purchasedItems
                                                             .first.price
                                                         : 0,
-                                                    'total_price': widget
-                                                        .purchasedItems
-                                                        .fold(
-                                                            0.0,
-                                                            (sum, item) =>
-                                                                sum +
-                                                                (item.price *
-                                                                    item.quantity)),
+                                                    // Use total from paymentParams (includes delivery fee and discount)
+                                                    'total_price': total,
+                                                    // Include delivery fee explicitly
+                                                    'delivery_fee': deliveryFee,
+                                                    'deliveryFee': deliveryFee,
+                                                    // Include discount if any
+                                                    'discount': discount > 0 ? discount : null,
+                                                    'discount_amount': discount > 0 ? discount : null,
                                                     'order_items': widget
                                                         .purchasedItems
                                                         .map((item) => {

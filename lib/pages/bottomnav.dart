@@ -27,16 +27,42 @@ class CustomBottomNav extends StatefulWidget {
   State<CustomBottomNav> createState() => _CustomBottomNavState();
 }
 
-class _CustomBottomNavState extends State<CustomBottomNav> {
+class _CustomBottomNavState extends State<CustomBottomNav>
+    with SingleTickerProviderStateMixin {
   late int _selectedIndex;
   bool _isNavigating = false;
   bool _disposed = false;
+  late AnimationController _centerButtonController;
+  late Animation<double> _centerButtonScaleAnimation;
+  late Animation<double> _centerButtonRotationAnimation;
 
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
     _checkLoginStatus();
+
+    // Initialize center button animation
+    _centerButtonController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+
+    _centerButtonScaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.85,
+    ).animate(CurvedAnimation(
+      parent: _centerButtonController,
+      curve: Curves.easeInOut,
+    ));
+
+    _centerButtonRotationAnimation = Tween<double>(
+      begin: 0.0,
+      end: 0.25,
+    ).animate(CurvedAnimation(
+      parent: _centerButtonController,
+      curve: Curves.easeInOut,
+    ));
 
     // Check for new notifications when the app becomes active
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -49,6 +75,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
   @override
   void dispose() {
     _disposed = true;
+    _centerButtonController.dispose();
     super.dispose();
   }
 
@@ -234,92 +261,98 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
         showModalBottomSheet(
           context: context,
           backgroundColor: Colors.transparent,
+          isScrollControlled: false,
+          enableDrag: true,
+          isDismissible: true,
+          useSafeArea: true,
           builder: (BuildContext context) {
-            return Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, -2),
+            return _AnimatedBottomSheet(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
                   ),
-                ],
-              ),
-              child: SafeArea(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Handle bar
-                    Container(
-                      margin: const EdgeInsets.only(top: 10, bottom: 4),
-                      width: 38,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 8),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildMenuOption(
-                            context,
-                            icon: Icons.medical_services_rounded,
-                            title: 'Meet your pharmacist',
-                            subtitle: 'Chat or schedule a consultation',
-                            color: Colors.green.shade600,
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const PharmacistsPage(),
-                                ),
-                              );
-                            },
-                          ),
-                          const Divider(height: 1),
-                          _buildMenuOption(
-                            context,
-                            icon: Icons.location_on_rounded,
-                            title: 'Locate a store',
-                            subtitle: 'See nearby branches on the map',
-                            color: Colors.blue.shade600,
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const StoreSelectionPage(),
-                                ),
-                              );
-                            },
-                          ),
-                          const Divider(height: 1),
-                          _buildMenuOption(
-                            context,
-                            icon: Icons.contact_support_rounded,
-                            title: 'Contact us',
-                            subtitle: 'Call or email customer care',
-                            color: Colors.orange.shade600,
-                            onTap: () {
-                              Navigator.pop(context);
-                              _showContactOptions(context);
-                            },
-                          ),
-                        ],
-                      ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, -2),
                     ),
                   ],
+                ),
+                child: SafeArea(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Handle bar
+                      Container(
+                        margin: const EdgeInsets.only(top: 10, bottom: 4),
+                        width: 38,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 8),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildMenuOption(
+                              context,
+                              icon: Icons.medical_services_rounded,
+                              title: 'Meet your pharmacist',
+                              subtitle: 'Chat or schedule a consultation',
+                              color: Colors.green.shade600,
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const PharmacistsPage(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const Divider(height: 1),
+                            _buildMenuOption(
+                              context,
+                              icon: Icons.location_on_rounded,
+                              title: 'Locate a store',
+                              subtitle: 'See nearby branches on the map',
+                              color: Colors.blue.shade600,
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const StoreSelectionPage(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const Divider(height: 1),
+                            _buildMenuOption(
+                              context,
+                              icon: Icons.contact_support_rounded,
+                              title: 'Contact us',
+                              subtitle: 'Call or email customer care',
+                              color: Colors.orange.shade600,
+                              onTap: () {
+                                Navigator.pop(context);
+                                _showContactOptions(context);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -421,83 +454,89 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: false,
+      enableDrag: true,
+      isDismissible: true,
+      useSafeArea: true,
       builder: (BuildContext context) {
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(16),
-              topRight: Radius.circular(16),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 12,
-                offset: const Offset(0, -2),
+        return _AnimatedBottomSheet(
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
               ),
-            ],
-          ),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Handle bar
-                Container(
-                  margin: const EdgeInsets.only(top: 10, bottom: 4),
-                  width: 38,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildContactOption(
-                        context,
-                        icon: Icons.phone_rounded,
-                        title: 'Call Us',
-                        subtitle: 'Speak directly with our team',
-                        color: Colors.green.shade600,
-                        onTap: () {
-                          Navigator.pop(context);
-                          _launchPhoneDialer(phoneNumber);
-                        },
-                      ),
-                      const Divider(height: 1),
-                      _buildContactOption(
-                        context,
-                        icon: Icons.message_rounded,
-                        title: 'WhatsApp',
-                        subtitle: 'Chat with us instantly',
-                        color: const Color(0xFF25D366),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _launchWhatsApp(phoneNumber,
-                              "Hello! I need help with the ECL app. Can you assist me?");
-                        },
-                      ),
-                      const Divider(height: 1),
-                      _buildContactOption(
-                        context,
-                        icon: Icons.email_rounded,
-                        title: 'Email Us',
-                        subtitle: 'Send us a detailed message',
-                        color: Colors.blue.shade600,
-                        onTap: () {
-                          Navigator.pop(context);
-                          _launchEmail('support@ernestchemists.com',
-                              'ECL App Support & Inquiry');
-                        },
-                      ),
-                    ],
-                  ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, -2),
                 ),
               ],
+            ),
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Handle bar
+                  Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 4),
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildContactOption(
+                          context,
+                          icon: Icons.phone_rounded,
+                          title: 'Call Us',
+                          subtitle: 'Speak directly with our team',
+                          color: Colors.green.shade600,
+                          onTap: () {
+                            Navigator.pop(context);
+                            _launchPhoneDialer(phoneNumber);
+                          },
+                        ),
+                        const Divider(height: 1),
+                        _buildContactOption(
+                          context,
+                          icon: Icons.message_rounded,
+                          title: 'WhatsApp',
+                          subtitle: 'Chat with us instantly',
+                          color: const Color(0xFF25D366),
+                          onTap: () {
+                            Navigator.pop(context);
+                            _launchWhatsApp(phoneNumber,
+                                "Hello! I need help with the ECL app. Can you assist me?");
+                          },
+                        ),
+                        const Divider(height: 1),
+                        _buildContactOption(
+                          context,
+                          icon: Icons.email_rounded,
+                          title: 'Email Us',
+                          subtitle: 'Send us a detailed message',
+                          color: Colors.blue.shade600,
+                          onTap: () {
+                            Navigator.pop(context);
+                            _launchEmail('support@ernestchemists.com',
+                                'ECL App Support & Inquiry');
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -985,77 +1024,97 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
               ),
             ),
           ),
-          // Floating center button with fluid design
+          // Floating center button with fluid design and animation
           Positioned(
             left: 0,
             right: 0,
             top: -28,
             child: Center(
-              child: Material(
-                color: Colors.transparent,
-                elevation: 0,
-                child: InkWell(
-                  onTap: () {
-                    debugPrint('🔍 CENTER BUTTON TAPPED ===');
-                    if (mounted && !_disposed && context.mounted) {
-                      _onItemTapped(2);
-                    } else {
-                      debugPrint('🔍 CONTEXT NOT AVAILABLE ===');
-                    }
-                  },
-                  borderRadius: BorderRadius.circular(30),
-                  splashColor: const Color(0xFF20AF67).withValues(alpha: 0.2),
-                  highlightColor:
-                      const Color(0xFF20AF67).withValues(alpha: 0.1),
-                  child: Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Colors.white,
-                          Colors.white.withOpacity(0.98),
-                        ],
+              child: AnimatedBuilder(
+                animation: _centerButtonController,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _centerButtonScaleAnimation.value,
+                    child: Transform.rotate(
+                      angle: _centerButtonRotationAnimation.value,
+                      child: Material(
+                        color: Colors.transparent,
+                        elevation: 0,
+                        child: InkWell(
+                          onTap: () {
+                            debugPrint('🔍 CENTER BUTTON TAPPED ===');
+                            if (mounted && !_disposed && context.mounted) {
+                              // Animate button press
+                              _centerButtonController.forward().then((_) {
+                                _centerButtonController.reverse();
+                              });
+                              // Show menu after a short delay
+                              Future.delayed(const Duration(milliseconds: 100), () {
+                                if (mounted && !_disposed && context.mounted) {
+                                  _onItemTapped(2);
+                                }
+                              });
+                            } else {
+                              debugPrint('🔍 CONTEXT NOT AVAILABLE ===');
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(30),
+                          splashColor: const Color(0xFF20AF67).withValues(alpha: 0.2),
+                          highlightColor:
+                              const Color(0xFF20AF67).withValues(alpha: 0.1),
+                          child: Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Colors.white,
+                                  Colors.white.withOpacity(0.98),
+                                ],
+                              ),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF20AF67).withValues(alpha: 0.3),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 6),
+                                  spreadRadius: 0,
+                                ),
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 4),
+                                  spreadRadius: -4,
+                                ),
+                              ],
+                            ),
+                            child: Container(
+                              margin: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    const Color(0xFF20AF67).withOpacity(0.1),
+                                    const Color(0xFF20AF67).withOpacity(0.05),
+                                  ],
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.apps_rounded,
+                                color: Color(0xFF20AF67),
+                                size: 28,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF20AF67).withValues(alpha: 0.3),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                          spreadRadius: 0,
-                        ),
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 20,
-                          offset: const Offset(0, 4),
-                          spreadRadius: -4,
-                        ),
-                      ],
                     ),
-                    child: Container(
-                      margin: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            const Color(0xFF20AF67).withOpacity(0.1),
-                            const Color(0xFF20AF67).withOpacity(0.05),
-                          ],
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.apps_rounded,
-                        color: Color(0xFF20AF67),
-                        size: 28,
-                      ),
-                    ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ),
@@ -1114,4 +1173,71 @@ class _NotchedBottomNavClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
+
+// Animated bottom sheet wrapper for smooth animations
+class _AnimatedBottomSheet extends StatefulWidget {
+  final Widget child;
+
+  const _AnimatedBottomSheet({required this.child});
+
+  @override
+  State<_AnimatedBottomSheet> createState() => _AnimatedBottomSheetState();
+}
+
+class _AnimatedBottomSheetState extends State<_AnimatedBottomSheet>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _slideAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 350),
+      vsync: this,
+    );
+
+    _slideAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    ));
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOut,
+    ));
+
+    // Start animation
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, 30 * _slideAnimation.value),
+          child: Opacity(
+            opacity: _fadeAnimation.value,
+            child: widget.child,
+          ),
+        );
+      },
+    );
+  }
 }
