@@ -28,13 +28,17 @@ class CustomBottomNav extends StatefulWidget {
 }
 
 class _CustomBottomNavState extends State<CustomBottomNav>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late int _selectedIndex;
   bool _isNavigating = false;
   bool _disposed = false;
   late AnimationController _centerButtonController;
   late Animation<double> _centerButtonScaleAnimation;
   late Animation<double> _centerButtonRotationAnimation;
+
+  // Animation controllers for each nav item
+  late Map<int, AnimationController> _navItemControllers;
+  late Map<int, Animation<double>> _navItemScaleAnimations;
 
   @override
   void initState() {
@@ -64,6 +68,28 @@ class _CustomBottomNavState extends State<CustomBottomNav>
       curve: Curves.easeInOut,
     ));
 
+    // Initialize nav item animations (0: Home, 1: Cart, 3: Categories, 4: Profile)
+    _navItemControllers = {};
+    _navItemScaleAnimations = {};
+
+    for (int i = 0; i < 5; i++) {
+      if (i != 2) {
+        // Skip index 2 (center button)
+        _navItemControllers[i] = AnimationController(
+          duration: const Duration(milliseconds: 250),
+          vsync: this,
+        );
+
+        _navItemScaleAnimations[i] = Tween<double>(
+          begin: 1.0,
+          end: 0.75,
+        ).animate(CurvedAnimation(
+          parent: _navItemControllers[i]!,
+          curve: Curves.easeInOut,
+        ));
+      }
+    }
+
     // Check for new notifications when the app becomes active
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !_disposed) {
@@ -76,6 +102,10 @@ class _CustomBottomNavState extends State<CustomBottomNav>
   void dispose() {
     _disposed = true;
     _centerButtonController.dispose();
+    // Dispose all nav item controllers
+    for (var controller in _navItemControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -130,21 +160,41 @@ class _CustomBottomNavState extends State<CustomBottomNav>
     required IconData icon,
     required bool isSelected,
     Widget? child,
+    int? itemIndex,
   }) {
-    // Simple color intensity change - brighter white when selected
-    // The BottomNavigationBar handles the base color, we just enhance visibility
+    // Get animation for this item if it exists
+    final animation = itemIndex != null && itemIndex != 2
+        ? _navItemScaleAnimations[itemIndex]
+        : null;
+
+    Widget iconWidget;
+
     if (child != null) {
       // For icons with custom children (badges), apply opacity animation
-      return AnimatedOpacity(
+      iconWidget = AnimatedOpacity(
         duration: const Duration(milliseconds: 200),
         opacity: isSelected ? 1.0 : 0.7,
         child: child,
       );
+    } else {
+      // For simple icons, the BottomNavigationBar's selectedItemColor handles it
+      iconWidget = Icon(icon);
     }
 
-    // For simple icons, the BottomNavigationBar's selectedItemColor handles it
-    // We just return the icon - the color is controlled by the nav bar
-    return Icon(icon);
+    // Wrap with scale animation if available
+    if (animation != null) {
+      return AnimatedBuilder(
+        animation: animation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: animation.value,
+            child: iconWidget,
+          );
+        },
+      );
+    }
+
+    return iconWidget;
   }
 
   // get the name of the current page (for debugging)
@@ -213,10 +263,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                 label: 'View',
                 textColor: Colors.white,
                 onPressed: () {
-                  // Hide snackbar immediately when View is pressed
                   scaffoldMessenger.hideCurrentSnackBar();
-
-                  // check if widget is still mounted before navigating
                   if (mounted && !_disposed && context.mounted) {
                     // reset the notification tracking since they're viewing notifications
                     notificationProvider.resetOnNotificationsRead();
@@ -313,7 +360,8 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const PharmacistsPage(),
+                                    builder: (context) =>
+                                        const PharmacistsPage(),
                                   ),
                                 );
                               },
@@ -358,9 +406,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
             );
           },
         );
-      } catch (e) {
-        debugPrint('🔍 ERROR SHOWING PLUS MENU: $e ===');
-      }
+      } catch (e) {}
     });
   }
 
@@ -713,6 +759,14 @@ class _CustomBottomNavState extends State<CustomBottomNav>
       return;
     }
 
+    // Animate the tapped item (except center button which has its own animation)
+    if (index != 2 && _navItemControllers.containsKey(index)) {
+      final controller = _navItemControllers[index]!;
+      controller.forward().then((_) {
+        controller.reverse();
+      });
+    }
+
     // Special handling for plus icon (index 2) - show menu and return
     if (index == 2) {
       debugPrint('🔍 PLUS BUTTON TAPPED - SHOWING MENU ===');
@@ -902,6 +956,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                       icon: _buildIconWithGlow(
                         icon: Icons.home_rounded,
                         isSelected: _selectedIndex == 0,
+                        itemIndex: 0,
                       ),
                       label: 'Home',
                     ),
@@ -909,6 +964,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                       icon: _buildIconWithGlow(
                         icon: Icons.shopping_cart_rounded,
                         isSelected: _selectedIndex == 1,
+                        itemIndex: 1,
                         child: Stack(
                           clipBehavior: Clip.none,
                           children: [
@@ -958,6 +1014,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                       icon: _buildIconWithGlow(
                         icon: Icons.grid_view_rounded,
                         isSelected: _selectedIndex == 3,
+                        itemIndex: 3,
                       ),
                       label: 'Categories',
                     ),
@@ -967,6 +1024,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                           return _buildIconWithGlow(
                             icon: Icons.person_rounded,
                             isSelected: _selectedIndex == 4,
+                            itemIndex: 4,
                             child: Stack(
                               clipBehavior: Clip.none,
                               children: [
@@ -1049,7 +1107,8 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                 _centerButtonController.reverse();
                               });
                               // Show menu after a short delay
-                              Future.delayed(const Duration(milliseconds: 100), () {
+                              Future.delayed(const Duration(milliseconds: 100),
+                                  () {
                                 if (mounted && !_disposed && context.mounted) {
                                   _onItemTapped(2);
                                 }
@@ -1059,7 +1118,8 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                             }
                           },
                           borderRadius: BorderRadius.circular(30),
-                          splashColor: const Color(0xFF20AF67).withValues(alpha: 0.2),
+                          splashColor:
+                              const Color(0xFF20AF67).withValues(alpha: 0.2),
                           highlightColor:
                               const Color(0xFF20AF67).withValues(alpha: 0.1),
                           child: Container(
@@ -1077,7 +1137,8 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF20AF67).withValues(alpha: 0.3),
+                                  color: const Color(0xFF20AF67)
+                                      .withValues(alpha: 0.3),
                                   blurRadius: 16,
                                   offset: const Offset(0, 6),
                                   spreadRadius: 0,

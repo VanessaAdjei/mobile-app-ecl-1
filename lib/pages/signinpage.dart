@@ -424,7 +424,7 @@ class SignInScreenState extends State<SignInScreen> {
                   // Error Message with improved styling
                   if (_errorMessage != null)
                     Container(
-                      margin: const EdgeInsets.only(bottom: 20),
+                      margin: const EdgeInsets.only(bottom:  12),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
@@ -434,23 +434,17 @@ class SignInScreenState extends State<SignInScreen> {
                             Colors.orange.shade50,
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: Colors.red.shade200.withValues(alpha: 0.6),
-                          width: 1.5,
+                          width: 1,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.red.shade200.withValues(alpha: 0.3),
-                            blurRadius: 20,
-                            offset: const Offset(0, 6),
-                            spreadRadius: 0,
-                          ),
-                          BoxShadow(
-                            color: Colors.red.shade50.withValues(alpha: 0.5),
+                            color: Colors.red.shade200.withValues(alpha: 0.2),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
-                            spreadRadius: -2,
+                            spreadRadius: 0,
                           ),
                         ],
                       ),
@@ -462,13 +456,13 @@ class SignInScreenState extends State<SignInScreen> {
                               _errorMessage = null;
                             });
                           },
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(10),
                           child: Padding(
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.all(10),
                             child: Row(
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.all(10),
+                                  padding: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
@@ -476,23 +470,23 @@ class SignInScreenState extends State<SignInScreen> {
                                         Colors.red.shade600,
                                       ],
                                     ),
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(8),
                                     boxShadow: [
                                       BoxShadow(
                                         color: Colors.red.shade300
-                                            .withValues(alpha: 0.4),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
+                                            .withValues(alpha: 0.3),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 1),
                                       ),
                                     ],
                                   ),
                                   child: const Icon(
                                     Icons.error_outline_rounded,
                                     color: Colors.white,
-                                    size: 22,
+                                    size: 16,
                                   ),
                                 ),
-                                const SizedBox(width: 14),
+                                const SizedBox(width: 8),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -502,29 +496,29 @@ class SignInScreenState extends State<SignInScreen> {
                                         _getErrorTitle(_errorMessage!),
                                         style: TextStyle(
                                           color: Colors.red.shade800,
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: 0.2,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: 0.1,
                                         ),
                                       ),
-                                      const SizedBox(height: 4),
+                                      const SizedBox(height: 2),
                                       Text(
                                         _errorMessage!,
                                         style: TextStyle(
                                           color: Colors.red.shade700,
-                                          fontSize: 13.5,
-                                          height: 1.5,
-                                          fontWeight: FontWeight.w500,
+                                          fontSize: 11,
+                                          height: 1.3,
+                                          fontWeight: FontWeight.w400,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+                                const SizedBox(width: 4),
                                 Icon(
                                   Icons.close_rounded,
                                   color: Colors.red.shade400,
-                                  size: 20,
+                                  size: 16,
                                 ),
                               ],
                             ),

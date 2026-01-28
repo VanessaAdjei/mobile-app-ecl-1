@@ -301,7 +301,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Enter your email and we\'ll send you instructions to reset your password.',
+                    'Enter the email linked to your account and we\'ll send you instructions to reset your password.',
                     style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                     textAlign: TextAlign.center,
                   ),
@@ -310,7 +310,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
-                      labelText: 'Email or Phone',
+                      labelText: 'Email address',
+                      hintText: 'you@example.com',
                       prefixIcon:
                           const Icon(Icons.email_outlined, color: Colors.green),
                       border: OutlineInputBorder(
@@ -320,7 +321,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return 'Please enter your email or phone';
+                        return 'Please enter your email address';
                       }
                       return null;
                     },

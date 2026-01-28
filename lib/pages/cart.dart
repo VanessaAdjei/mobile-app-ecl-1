@@ -261,7 +261,7 @@ class CartState extends State<Cart> {
                           // Header with back button and title
                           Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
+                                horizontal: 16, vertical: 6),
                             child: Row(
                               children: [
                                 BackButtonUtils.simple(
@@ -274,9 +274,9 @@ class CartState extends State<Cart> {
                                       'Shopping Cart',
                                       style: TextStyle(
                                         color: Colors.white,
-                                        fontSize: 18,
+                                        fontSize: 16,
                                         fontWeight: FontWeight.w600,
-                                        letterSpacing: 0.5,
+                                        letterSpacing: 0.3,
                                       ),
                                     ),
                                   ),
@@ -289,7 +289,7 @@ class CartState extends State<Cart> {
                           // Enhanced progress indicator
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                vertical: 16, horizontal: 8),
+                                vertical: 10, horizontal: 8),
                             child: SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               child: Row(
@@ -328,18 +328,18 @@ class CartState extends State<Cart> {
                             snapshot.data == true) {
                           return Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 10),
+                                horizontal: 12, vertical: 8),
                             child: Card(
                               elevation: 2,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(10),
                                 side: BorderSide(
                                     color: Colors.green.shade100, width: 1.5),
                               ),
                               color: Colors.green.shade50,
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
-                                    vertical: 12, horizontal: 14),
+                                    vertical: 10, horizontal: 12),
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
@@ -347,26 +347,26 @@ class CartState extends State<Cart> {
                                     Container(
                                       decoration: BoxDecoration(
                                         color: Colors.green.shade100,
-                                        borderRadius: BorderRadius.circular(8),
+                                        borderRadius: BorderRadius.circular(6),
                                       ),
-                                      padding: const EdgeInsets.all(8),
+                                      padding: const EdgeInsets.all(6),
                                       child: Icon(Icons.person_outline,
                                           color: Colors.green.shade700,
-                                          size: 24),
+                                          size: 20),
                                     ),
-                                    const SizedBox(width: 16),
+                                    const SizedBox(width: 10),
                                     // Text in the middle
                                     Expanded(
                                       child: Text(
                                         "You're shopping as a guest.",
                                         style: TextStyle(
-                                          fontSize: 15,
+                                          fontSize: 13,
                                           color: Colors.green.shade900,
-                                          fontWeight: FontWeight.w600,
+                                          fontWeight: FontWeight.w500,
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(width: 16),
+                                    const SizedBox(width: 10),
                                     // Login button on the right
                                     OutlinedButton(
                                       style: OutlinedButton.styleFrom(
@@ -375,10 +375,17 @@ class CartState extends State<Cart> {
                                             color: Colors.green.shade400),
                                         shape: RoundedRectangleBorder(
                                           borderRadius:
-                                              BorderRadius.circular(8),
+                                              BorderRadius.circular(6),
                                         ),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 6),
+                                        minimumSize: Size(0, 0),
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                       ),
-                                      child: Text("Log in"),
+                                      child: Text(
+                                        "Log in",
+                                        style: TextStyle(fontSize: 12),
+                                      ),
                                       onPressed: () async {
                                         // Navigate to login screen directly (no loading dialog needed)
                                         await Navigator.push(
@@ -454,10 +461,10 @@ class CartState extends State<Cart> {
               ],
             ),
             bottomNavigationBar: Container(
-              margin: const EdgeInsets.all(12),
+              margin: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.1),
@@ -468,13 +475,13 @@ class CartState extends State<Cart> {
               ),
               child: SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(12),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // Order Summary
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: Colors.grey.shade50,
                           borderRadius: BorderRadius.circular(8),
@@ -489,8 +496,8 @@ class CartState extends State<Cart> {
                                 Text(
                                   'Total',
                                   style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
                                     color: Colors.black87,
                                   ),
                                 ),
@@ -499,7 +506,7 @@ class CartState extends State<Cart> {
                                   Text(
                                     '${cart.getSelectedItems().length} of ${cart.cartItems.length} items selected',
                                     style: TextStyle(
-                                      fontSize: 10,
+                                      fontSize: 9,
                                       color: Colors.grey.shade600,
                                     ),
                                   ),
@@ -508,7 +515,7 @@ class CartState extends State<Cart> {
                             Text(
                               'GHS ${cart.calculateSubtotal().toStringAsFixed(2)}',
                               style: TextStyle(
-                                fontSize: 16,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.green.shade700,
                               ),
@@ -517,11 +524,12 @@ class CartState extends State<Cart> {
                         ),
                       ),
 
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
 
                       // Checkout Button
                       Container(
                         width: double.infinity,
+                        height: 48,
                         decoration: BoxDecoration(
                           gradient: cart.getSelectedItems().isNotEmpty
                               ? LinearGradient(
@@ -826,20 +834,20 @@ class CartState extends State<Cart> {
                                     );
                                   },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(
                                     Icons.shopping_cart_checkout,
                                     color: Colors.white,
-                                    size: 18,
+                                    size: 16,
                                   ),
-                                  const SizedBox(width: 8),
+                                  const SizedBox(width: 6),
                                   Text(
                                     'PROCEED TO CHECKOUT',
                                     style: const TextStyle(
-                                      fontSize: 15,
+                                      fontSize: 14,
                                       fontWeight: FontWeight.w600,
                                       color: Colors.white,
                                     ),
@@ -863,7 +871,7 @@ class CartState extends State<Cart> {
 
   Widget _buildProgressLine({required bool isActive}) {
     return Container(
-      width: 50,
+      width: 40,
       height: 1,
       color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.3),
     );
@@ -881,49 +889,49 @@ class CartState extends State<Cart> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 24,
-          height: 24,
+          width: 20,
+          height: 20,
           decoration: BoxDecoration(
             color: isCompleted || isActive
                 ? Colors.white.withValues(alpha: 0.2)
                 : Colors.transparent,
             border: Border.all(
               color: color,
-              width: 2,
+              width: 1.5,
             ),
             shape: BoxShape.circle,
             boxShadow: isCompleted || isActive
                 ? [
                     BoxShadow(
                       color: Colors.white.withValues(alpha: 0.3),
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
+                      blurRadius: 3,
+                      offset: Offset(0, 1),
                     ),
                   ]
                 : null,
           ),
           child: Center(
             child: isCompleted
-                ? Icon(Icons.check, size: 14, color: Colors.white)
+                ? Icon(Icons.check, size: 12, color: Colors.white)
                 : Text(
                     step.toString(),
                     style: TextStyle(
                       color: color,
                       fontWeight: FontWeight.bold,
-                      fontSize: 10,
+                      fontSize: 9,
                     ),
                   ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         Text(
           text,
           style: TextStyle(
             color: color,
-            fontSize: 9,
+            fontSize: 8,
             fontWeight:
                 isActive || isCompleted ? FontWeight.w600 : FontWeight.w500,
-            letterSpacing: 0.3,
+            letterSpacing: 0.2,
           ),
         ),
       ],
@@ -1042,7 +1050,7 @@ class CartState extends State<Cart> {
     final item = cart.cartItems[index];
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
       decoration: BoxDecoration(
         color: item.isSelected ? Colors.white : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(8),
@@ -1051,13 +1059,13 @@ class CartState extends State<Cart> {
             : Border.all(color: Colors.grey.shade300, width: 1),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(8),
         child: Row(
           children: [
             // Product Image - Compact Design with Placeholder
             SizedBox(
-              width: 50,
-              height: 50,
+              width: 60,
+              height: 60,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(6),
                 child: CachedNetworkImage(
@@ -1129,7 +1137,7 @@ class CartState extends State<Cart> {
               ),
             ),
 
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
 
             // Product Details
             Expanded(
@@ -1139,8 +1147,8 @@ class CartState extends State<Cart> {
                   Text(
                     item.name,
                     style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
                       color: item.isSelected
                           ? Colors.black87
                           : Colors.grey.shade600,
@@ -1148,143 +1156,150 @@ class CartState extends State<Cart> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 2),
                   Text(
                     'GHS ${item.price.toStringAsFixed(2)}',
                     style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                       color: Colors.green.shade600,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
 
                   // Quantity Controls - Compact Design
                   Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Flexible(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Colors.grey.shade200),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Loading indicator when item is being updated
-                              if (cart.isItemUpdating(item.id))
-                                Container(
-                                  padding:
-                                      const EdgeInsets.symmetric(horizontal: 8),
-                                  child: SizedBox(
-                                    width: 12,
-                                    height: 12,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.green.shade600,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              item.quantity > 1
-                                  ? OptimizedRemoveButton(
-                                      onPressed: cart.isItemUpdating(item.id)
-                                          ? null
-                                          : () {
-                                              debugPrint(
-                                                  '🔍 Cart: Minus button pressed for ${item.name}');
-                                              debugPrint(
-                                                  '🔍 Cart: Current quantity: ${item.quantity}');
-                                              debugPrint(
-                                                  '🔍 Cart: New quantity will be: ${item.quantity - 1}');
-                                              debugPrint(
-                                                  '🔍 Cart: Item index: $index');
-                                              debugPrint(
-                                                  '🔍 Cart: Item ID: ${item.id}');
-
-                                              // Use item ID instead of index for reliable updates
-                                              cart.updateQuantityById(
-                                                  item.id, item.quantity - 1);
-                                            },
-                                      isEnabled: !cart.isItemUpdating(item.id),
-                                      size: 32.0,
-                                    )
-                                  : OptimizedDeleteButton(
-                                      onPressed: () async {
-                                        debugPrint(
-                                            '🔍 Cart: Delete button pressed for ${item.name}');
-                                        final confirmed = await _confirmRemove(
-                                            context, item.name);
-                                        if (confirmed) {
-                                          cart.removeFromCart(item.id);
-                                        }
-                                      },
-                                      isEnabled: true,
-                                      size: 32.0,
-                                    ),
+                      // Quantity selector - fixed width to prevent overflow
+                      Container(
+                        constraints: BoxConstraints(maxWidth: 110),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Loading indicator when item is being updated
+                            if (cart.isItemUpdating(item.id))
                               Container(
                                 padding:
-                                    const EdgeInsets.symmetric(horizontal: 10),
-                                child: Text(
-                                  '${item.quantity}',
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
+                                    const EdgeInsets.symmetric(horizontal: 6),
+                                child: SizedBox(
+                                  width: 10,
+                                  height: 10,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.5,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.green.shade600,
+                                    ),
                                   ),
                                 ),
                               ),
-                              OptimizedAddButton(
-                                onPressed: cart.isItemUpdating(item.id)
-                                    ? null
-                                    : () {
-                                        cart.updateQuantityById(
-                                            item.id, item.quantity + 1);
-                                      },
-                                isEnabled: !cart.isItemUpdating(item.id),
-                                size: 32.0,
+                            item.quantity > 1
+                                ? OptimizedRemoveButton(
+                                    onPressed: cart.isItemUpdating(item.id)
+                                        ? null
+                                        : () {
+                                            debugPrint(
+                                                '🔍 Cart: Minus button pressed for ${item.name}');
+                                            debugPrint(
+                                                '🔍 Cart: Current quantity: ${item.quantity}');
+                                            debugPrint(
+                                                '🔍 Cart: New quantity will be: ${item.quantity - 1}');
+                                            debugPrint(
+                                                '🔍 Cart: Item index: $index');
+                                            debugPrint(
+                                                '🔍 Cart: Item ID: ${item.id}');
+
+                                            // Use item ID instead of index for reliable updates
+                                            cart.updateQuantityById(
+                                                item.id, item.quantity - 1);
+                                          },
+                                    isEnabled: !cart.isItemUpdating(item.id),
+                                    size: 28.0,
+                                  )
+                                : OptimizedDeleteButton(
+                                    onPressed: () async {
+                                      debugPrint(
+                                          '🔍 Cart: Delete button pressed for ${item.name}');
+                                      final confirmed = await _confirmRemove(
+                                          context, item.name);
+                                      if (confirmed) {
+                                        cart.removeFromCart(item.id);
+                                      }
+                                    },
+                                    isEnabled: true,
+                                    size: 28.0,
+                                  ),
+                            Container(
+                              constraints: BoxConstraints(minWidth: 18),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 6),
+                              child: Text(
+                                '${item.quantity}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade50,
-                            borderRadius: BorderRadius.circular(5),
-                            border: Border.all(color: Colors.green.shade200),
-                          ),
-                          child: Text(
-                            'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.green.shade700,
                             ),
-                            overflow: TextOverflow.ellipsis,
+                            OptimizedAddButton(
+                              onPressed: cart.isItemUpdating(item.id)
+                                  ? null
+                                  : () {
+                                      cart.updateQuantityById(
+                                          item.id, item.quantity + 1);
+                                    },
+                              isEnabled: !cart.isItemUpdating(item.id),
+                              size: 28.0,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      // Total price - fit content
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.green.shade200),
+                        ),
+                        child: Text(
+                          'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green.shade700,
                           ),
                         ),
                       ),
-                      // Add delete button
-                      IconButton(
-                        icon: Icon(Icons.delete,
-                            color: Colors.red.shade400, size: 20),
-                        tooltip: 'Remove from cart',
-                        padding: EdgeInsets.zero,
-                        constraints: BoxConstraints(),
-                        onPressed: () async {
-                          final confirmed =
-                              await _confirmRemove(context, item.name);
-                          if (confirmed) {
-                            cart.removeFromCart(item.id);
-                          }
-                        },
+                      const SizedBox(width: 3),
+                      // Delete button - fixed size
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () async {
+                            final confirmed =
+                                await _confirmRemove(context, item.name);
+                            if (confirmed) {
+                              cart.removeFromCart(item.id);
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            child: Icon(
+                              Icons.delete_outline,
+                              color: Colors.red.shade400,
+                              size: 16,
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
