@@ -24,14 +24,15 @@ class CartProvider with ChangeNotifier {
   String? _pendingItemBatch;
 
   String _normalizeProductName(String name) {
-    final normalized = name.toLowerCase().trim();
+    return CartProvider.normalizeProductName(name);
+  }
 
+  /// Public helper so item detail and others can match cart items by name (e.g. "E-Panol" vs "E Panol").
+  static String normalizeProductName(String name) {
+    final normalized = name.toLowerCase().trim().replaceAll('-', ' ');
     final words =
-        normalized.split(' ').where((word) => word.isNotEmpty).toList();
-
-    final result = words.join(' ').toLowerCase();
-
-    return result;
+        normalized.split(RegExp(r'\s+')).where((word) => word.isNotEmpty).toList();
+    return words.join(' ').toLowerCase();
   }
 
   List<CartItem> get cartItems => _cartItems;

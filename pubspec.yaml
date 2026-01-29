@@ -99,6 +99,7 @@ flutter:
   assets:
     - assets/images/
     - assets/images/prescriptionsample.png
+    - assets/images/sample_prescription.png
     - assets/sounds/
 
   fonts:

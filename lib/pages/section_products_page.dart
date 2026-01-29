@@ -398,7 +398,11 @@ class _SectionProductsPageState extends State<SectionProductsPage> {
                           child: Material(
                             color: Colors.transparent,
                             child: InkWell(
-                              onTap: openContainer,
+                              onTap: () {
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  openContainer();
+                                });
+                              },
                               child: Column(
                                 children: [
                                   // Image Section

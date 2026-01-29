@@ -62,7 +62,7 @@ class HomepageOptimizationService {
   // Image preloading
   final Map<String, bool> _preloadedImages = {};
 
-  // Initialize service
+  // Initialize service (load from storage for offline fallback only)
   Future<void> initialize() async {
     await _loadFromStorage();
     _optimizationService.startTimer('HomepageService_Initialize');

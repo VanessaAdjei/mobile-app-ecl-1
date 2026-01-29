@@ -832,11 +832,12 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
             // Add to cart button - hide if item is already in cart
             Consumer<CartProvider>(
               builder: (context, cartProvider, child) {
-                // Check if product is already in cart
+                // Check if product is already in cart (use normalized name so "E-Panol" matches "E Panol")
                 final cartItems = cartProvider.cartItems;
+                final productNameNorm = CartProvider.normalizeProductName(product.name);
                 final existingItem = cartItems.firstWhere(
                   (item) =>
-                      item.name.toLowerCase() == product.name.toLowerCase() &&
+                      CartProvider.normalizeProductName(item.name) == productNameNorm &&
                       item.batchNo == product.batch_no,
                   orElse: () => CartItem(
                     id: '',

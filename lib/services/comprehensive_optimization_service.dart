@@ -56,9 +56,8 @@ class ComprehensiveOptimizationService {
   // Image preloading
   final Map<String, bool> _preloadedImages = {};
 
-  // Initialize service
+  // Initialize service - do not load cached data on app load; fetch fresh when needed
   Future<void> initialize() async {
-    await _loadAllFromStorage();
     _optimizationService.startTimer('ComprehensiveService_Initialize');
   }
 

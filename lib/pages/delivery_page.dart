@@ -366,25 +366,22 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final topPadding = MediaQuery.of(context).padding.top;
-
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF2F3F5),
       body: Stack(
         children: [
           Column(
             children: [
-              // nice header at the top
+              // Header - green gradient with title and progress steps
               Animate(
                 effects: [
                   FadeEffect(duration: 400.ms),
                   SlideEffect(
                       duration: 400.ms,
-                      begin: Offset(0, 0.1),
-                      end: Offset(0, 0))
+                      begin: const Offset(0, 0.1),
+                      end: Offset.zero)
                 ],
                 child: Container(
-                  padding: EdgeInsets.only(top: topPadding),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
@@ -394,74 +391,74 @@ class DeliveryPageState extends State<DeliveryPage> {
                         Colors.green.shade700,
                         Colors.green.shade800,
                       ],
-                      stops: [0.0, 0.5, 1.0],
+                      stops: const [0.0, 0.5, 1.0],
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.15),
-                        blurRadius: 12,
-                        offset: Offset(0, 4),
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  child: Column(
-                    children: [
-                      // header with back button and title
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        child: Row(
-                          children: [
-                            BackButtonUtils.withConfirmation(
-                              backgroundColor:
-                                  Colors.white.withValues(alpha: 0.2),
-                              title: 'Leave Delivery',
-                              message:
-                                  'Are you sure you want to leave the delivery page? Your information will be saved.',
-                            ),
-                            Expanded(
-                              child: Center(
-                                child: Text(
-                                  'Delivery Information',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.5,
+                  child: SafeArea(
+                    bottom: false,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+                          child: Row(
+                            children: [
+                              BackButtonUtils.withConfirmation(
+                                backgroundColor:
+                                    Colors.white.withValues(alpha: 0.2),
+                                title: 'Leave Delivery',
+                                message:
+                                    'Are you sure you want to leave the delivery page? Your information will be saved.',
+                              ),
+                              Expanded(
+                                child: Center(
+                                  child: Text(
+                                    'Delivery Information',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.3,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(
-                                width: 48), // Balance the back button
-                          ],
-                        ),
-                      ),
-                      // progress bar showing how far they are
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 16, horizontal: 8),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildProgressStep("Cart",
-                                  isActive: false, isCompleted: true, step: 1),
-                              _buildProgressLine(isActive: false),
-                              _buildProgressStep("Delivery",
-                                  isActive: true, isCompleted: false, step: 2),
-                              _buildProgressLine(isActive: false),
-                              _buildProgressStep("Payment",
-                                  isActive: false, isCompleted: false, step: 3),
-                              _buildProgressLine(isActive: false),
-                              _buildProgressStep("Confirmation",
-                                  isActive: false, isCompleted: false, step: 4),
+                              const SizedBox(width: 48),
                             ],
                           ),
                         ),
-                      ),
-                    ],
+                        // Progress steps
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildProgressStep('Cart',
+                                    isActive: false, isCompleted: true, step: 1),
+                                _buildProgressLine(isActive: false),
+                                _buildProgressStep('Delivery',
+                                    isActive: true, isCompleted: false, step: 2),
+                                _buildProgressLine(isActive: false),
+                                _buildProgressStep('Payment',
+                                    isActive: false, isCompleted: false, step: 3),
+                                _buildProgressLine(isActive: false),
+                                _buildProgressStep('Confirmation',
+                                    isActive: false, isCompleted: false, step: 4),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -564,11 +561,21 @@ class DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
+  static const double _cardRadius = 14;
+  static const double _fieldRadius = 10;
+  static const Color _cardShadow = Color(0x0A000000);
+  static const Color _accent = Color(0xFF2E7D32);
+
   Widget _buildProgressLine({required bool isActive}) {
     return Container(
-      width: 50,
-      height: 1,
-      color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.3),
+      width: 36,
+      height: 2,
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(1),
+      ),
     );
   }
 
@@ -578,55 +585,43 @@ class DeliveryPageState extends State<DeliveryPage> {
         ? Colors.white
         : isActive
             ? Colors.white
-            : Colors.white.withValues(alpha: 0.6);
+            : Colors.white.withValues(alpha: 0.65);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 24,
-          height: 24,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
             color: isCompleted || isActive
-                ? Colors.white.withValues(alpha: 0.2)
+                ? Colors.white.withValues(alpha: 0.25)
                 : Colors.transparent,
-            border: Border.all(
-              color: color,
-              width: 2,
-            ),
+            border: Border.all(color: color, width: 1.5),
             shape: BoxShape.circle,
-            boxShadow: isCompleted || isActive
-                ? [
-                    BoxShadow(
-                      color: Colors.white.withValues(alpha: 0.3),
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ]
-                : null,
           ),
           child: Center(
             child: isCompleted
-                ? Icon(Icons.check, size: 14, color: Colors.white)
+                ? Icon(Icons.check_rounded, size: 16, color: Colors.white)
                 : Text(
                     step.toString(),
                     style: TextStyle(
                       color: color,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
                     ),
                   ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
           text,
           style: TextStyle(
             color: color,
-            fontSize: 9,
+            fontSize: 11,
             fontWeight:
                 isActive || isCompleted ? FontWeight.w600 : FontWeight.w500,
-            letterSpacing: 0.3,
+            letterSpacing: 0.2,
           ),
         ),
       ],
@@ -636,67 +631,47 @@ class DeliveryPageState extends State<DeliveryPage> {
   Widget _buildDeliveryOptions() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(_cardRadius),
+        boxShadow: [
+          BoxShadow(
+            color: _cardShadow,
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildSectionLabel('How do you want to receive your order?'),
+          const SizedBox(height: 14),
+          // Segmented control
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(_fieldRadius),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.local_shipping,
-                      color: Colors.green[700],
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'DELIVERY METHOD',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                        color: Colors.grey[800],
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
+                Expanded(
+                  child: _buildDeliveryOptionChip(
+                    label: 'Delivery',
+                    icon: Icons.home_rounded,
+                    isSelected: deliveryOption == 'delivery',
+                    onTap: () => _handleDeliveryOptionChange('delivery'),
+                  ),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildDeliveryOptionCard(
-                        title: 'Home Delivery',
-                        subtitle: 'Delivered to your doorstep',
-                        icon: Icons.home,
-                        isSelected: deliveryOption == 'delivery',
-                        onTap: () => _handleDeliveryOptionChange('delivery'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildDeliveryOptionCard(
-                        title: 'Pickup Station',
-                        subtitle: 'Collect from nearest station',
-                        icon: Icons.store,
-                        isSelected: deliveryOption == 'pickup',
-                        onTap: () => _handleDeliveryOptionChange('pickup'),
-                      ),
-                    ),
-                  ],
+                Expanded(
+                  child: _buildDeliveryOptionChip(
+                    label: 'Pickup',
+                    icon: Icons.store_rounded,
+                    isSelected: deliveryOption == 'pickup',
+                    onTap: () => _handleDeliveryOptionChange('pickup'),
+                  ),
                 ),
               ],
             ),
@@ -706,64 +681,67 @@ class DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  Widget _buildDeliveryOptionCard({
-    required String title,
-    required String subtitle,
+  Widget _buildSectionLabel(String text) {
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 18,
+          decoration: BoxDecoration(
+            color: _accent,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          text,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+            color: Colors.grey.shade800,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDeliveryOptionChip({
+    required String label,
     required IconData icon,
     required bool isSelected,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.green.shade50 : Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? Colors.green.shade300 : Colors.grey.shade300,
-            width: 2,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? _accent : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Colors.green.withValues(alpha: 0.1),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.green.shade700 : Colors.grey.shade600,
-              size: 24,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-                color:
-                    isSelected ? Colors.green.shade700 : Colors.grey.shade800,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: isSelected ? Colors.white : Colors.grey.shade600,
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 12,
-                color:
-                    isSelected ? Colors.green.shade600 : Colors.grey.shade600,
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: isSelected ? Colors.white : Colors.grey.shade700,
+                ),
               ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -772,42 +750,23 @@ class DeliveryPageState extends State<DeliveryPage> {
   Widget _buildPickupForm() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.store,
-                  color: Colors.green[700],
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'PICKUP LOCATION',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Colors.grey[800],
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(_cardRadius),
+        boxShadow: [
+          BoxShadow(
+            color: _cardShadow,
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionLabel('Pickup location'),
+          const SizedBox(height: 14),
             // region dropdown
             _buildPickupDropdown(
               label: 'Select Region',
@@ -892,52 +851,54 @@ class DeliveryPageState extends State<DeliveryPage> {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(_fieldRadius),
                   border: Border.all(color: Colors.red.shade200),
                 ),
                 child: Row(
                   children: [
                     Icon(
-                      Icons.error_outline,
+                      Icons.error_outline_rounded,
                       color: Colors.red.shade600,
-                      size: 16,
+                      size: 18,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Please select all required pickup location fields',
+                        'Please select region, city and pickup site',
                         style: TextStyle(
                           color: Colors.red.shade700,
-                          fontSize: 12,
+                          fontSize: 13,
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
             ],
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.shade200),
+                borderRadius: BorderRadius.circular(_fieldRadius),
+                border: Border.all(color: Colors.blue.shade100),
               ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(
-                    Icons.info_outline,
+                    Icons.info_outline_rounded,
                     color: Colors.blue.shade600,
-                    size: 16,
+                    size: 18,
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Pickup stations are open Monday-Saturday, 9am-6pm. Please bring a valid ID for collection.',
+                      'Pickup stations are open Mon–Sat, 9am–6pm. Bring a valid ID for collection.',
                       style: TextStyle(
-                        color: Colors.blue.shade700,
+                        color: Colors.blue.shade800,
                         fontSize: 12,
+                        height: 1.35,
                       ),
                     ),
                   ),
@@ -946,8 +907,7 @@ class DeliveryPageState extends State<DeliveryPage> {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildPickupDropdown({
@@ -967,7 +927,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               style: TextStyle(
                 fontWeight: FontWeight.w500,
                 fontSize: 14,
-                color: _highlightPickupField ? Colors.red : Colors.grey[700],
+                color: _highlightPickupField ? Colors.red : Colors.grey.shade700,
               ),
             ),
             Text(
@@ -984,11 +944,11 @@ class DeliveryPageState extends State<DeliveryPage> {
           width: double.infinity,
           decoration: BoxDecoration(
             border: Border.all(
-              color: _highlightPickupField ? Colors.red : Colors.grey[300]!,
+              color: _highlightPickupField ? Colors.red : Colors.grey.shade300,
               width: _highlightPickupField ? 2 : 1,
             ),
-            borderRadius: BorderRadius.circular(8),
-            color: _highlightPickupField ? Colors.red.shade50 : Colors.grey[50],
+            borderRadius: BorderRadius.circular(_fieldRadius),
+            color: _highlightPickupField ? Colors.red.shade50 : Colors.grey.shade50,
           ),
           child: DropdownButtonFormField<Map<String, dynamic>>(
             value: value,
@@ -1004,26 +964,27 @@ class DeliveryPageState extends State<DeliveryPage> {
                           valueColor: AlwaysStoppedAnimation<Color>(
                             _highlightPickupField
                                 ? Colors.red
-                                : (Colors.grey[600] ?? Colors.grey),
+                                : Colors.grey.shade600,
                           ),
                         ),
                       ),
                     )
                   : Icon(
-                      Icons.location_on_outlined,
+                      Icons.location_on_rounded,
                       color:
-                          _highlightPickupField ? Colors.red : Colors.grey[600],
+                          _highlightPickupField ? Colors.red : Colors.grey.shade600,
+                      size: 22,
                     ),
               border: InputBorder.none,
               contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
             hint: Text(
               isLoading
                   ? 'Loading...'
                   : (items.isEmpty ? 'No options available' : label),
               style: TextStyle(
-                color: Colors.grey[500],
+                color: Colors.grey.shade500,
                 fontSize: 14,
               ),
             ),
@@ -1032,7 +993,6 @@ class DeliveryPageState extends State<DeliveryPage> {
                 ? null
                 : (Map<String, dynamic>? newValue) {
                     onChanged(newValue);
-                    // stop highlighting when they pick something
                     if (_highlightPickupField) {
                       setState(() {
                         _highlightPickupField = false;
@@ -1041,11 +1001,11 @@ class DeliveryPageState extends State<DeliveryPage> {
                   },
             dropdownColor: Colors.white,
             icon: Icon(
-              Icons.keyboard_arrow_down,
-              color: _highlightPickupField ? Colors.red : Colors.grey[600],
+              Icons.keyboard_arrow_down_rounded,
+              color: _highlightPickupField ? Colors.red : Colors.grey.shade600,
             ),
             style: TextStyle(
-              color: Colors.grey[800],
+              color: Colors.grey.shade800,
               fontSize: 14,
             ),
             isExpanded: true,
@@ -1061,70 +1021,48 @@ class DeliveryPageState extends State<DeliveryPage> {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: Offset(0, 2),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(_cardRadius),
+        boxShadow: [
+          BoxShadow(
+            color: _cardShadow,
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildSectionLabel('Contact & address'),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(_fieldRadius),
+              border: Border.all(color: Colors.grey.shade200),
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.person,
-                  color: Colors.green[700],
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
                 Text(
-                  'CONTACT INFORMATION',
+                  'Personal details',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Colors.grey[800],
-                    letterSpacing: 0.5,
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    letterSpacing: 0.3,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // name, phone, email fields
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Colors.grey[200]!,
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Personal Details',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
-                  // name input field
-                  _buildFormField(
+                // name input field
+                _buildFormField(
                     key: nameSectionKey,
                     controller: _nameController,
                     label: 'Full Name',
@@ -1164,146 +1102,121 @@ class DeliveryPageState extends State<DeliveryPage> {
 
             // Only show location section for delivery option
             if (deliveryOption == 'delivery') ...[
-              const SizedBox(height: 20),
-
-              // Location Information Header
-              Row(
-                children: [
-                  Icon(
-                    Icons.location_on,
-                    color: Colors.green[700],
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'DELIVERY LOCATION',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                      color: Colors.grey[800],
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
-              ),
               const SizedBox(height: 16),
-
-              // Location Fields Section
+              Text(
+                'Delivery location',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(height: 10),
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[200]!),
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(_fieldRadius),
+                  border: Border.all(color: Colors.grey.shade200),
                 ),
                 child: Column(
                   children: [
-                    // Map Picker Button - Now at the top as primary method
-                    Container(
-                      width: double.infinity,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.green.shade500,
-                            Colors.green.shade600
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.green.shade300.withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                            spreadRadius: 1,
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _showMapPicker(),
+                        borderRadius: BorderRadius.circular(_fieldRadius),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: _accent,
+                            borderRadius:
+                                BorderRadius.circular(_fieldRadius),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _accent.withValues(alpha: 0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () => _showMapPicker(),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 16),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.map_outlined,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.map_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Pick location on map',
+                                style: TextStyle(
                                   color: Colors.white,
-                                  size: 24,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    'Pick Location on Map',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                                Icon(
-                                  Icons.arrow_forward_ios_rounded,
-                                  color: Colors.white.withOpacity(0.8),
-                                  size: 18,
-                                ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(width: 8),
+                              Icon(
+                                Icons.arrow_forward_rounded,
+                                color: Colors.white.withValues(alpha: 0.85),
+                                size: 16,
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ),
 
-                    const SizedBox(height: 20),
-
-                    // Location Status Display
                     if (_addressController.text.isNotEmpty) ...[
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
                       Container(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(_fieldRadius),
                           border: Border.all(
-                            color: Colors.green.shade200,
+                            color: _accent.withValues(alpha: 0.4),
                             width: 1,
                           ),
                         ),
-                        child: Column(
+                        child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.check_circle_outline,
-                                  color: Colors.green[600],
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Location Confirmed',
-                                  style: TextStyle(
-                                    color: Colors.green[700],
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
+                            Icon(
+                              Icons.check_circle_rounded,
+                              color: _accent,
+                              size: 20,
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              _addressController.text,
-                              style: TextStyle(
-                                color: Colors.green[800],
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Location confirmed',
+                                    style: TextStyle(
+                                      color: _accent,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _addressController.text,
+                                    style: TextStyle(
+                                      color: Colors.grey.shade800,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -1316,8 +1229,7 @@ class DeliveryPageState extends State<DeliveryPage> {
             ],
           ],
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildFormField({
@@ -1340,8 +1252,8 @@ class DeliveryPageState extends State<DeliveryPage> {
               label,
               style: TextStyle(
                 fontWeight: FontWeight.w500,
-                fontSize: 14,
-                color: isHighlighted ? Colors.red : Colors.grey[700],
+                fontSize: 13,
+                color: isHighlighted ? Colors.red : Colors.grey.shade700,
               ),
             ),
             if (isRequired)
@@ -1362,33 +1274,34 @@ class DeliveryPageState extends State<DeliveryPage> {
           decoration: InputDecoration(
             prefixIcon: Icon(
               icon,
-              color: isHighlighted ? Colors.red : Colors.grey[600],
+              color: isHighlighted ? Colors.red : Colors.grey.shade600,
+              size: 22,
             ),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(_fieldRadius),
               borderSide: BorderSide(
-                color: isHighlighted ? Colors.red : Colors.grey[300]!,
+                color: isHighlighted ? Colors.red : Colors.grey.shade300,
                 width: isHighlighted ? 2 : 1,
               ),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(_fieldRadius),
               borderSide: BorderSide(
-                color: isHighlighted ? Colors.red : Colors.grey[300]!,
+                color: isHighlighted ? Colors.red : Colors.grey.shade300,
                 width: isHighlighted ? 2 : 1,
               ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(_fieldRadius),
               borderSide: BorderSide(
-                color: isHighlighted ? Colors.red : Colors.green[400]!,
+                color: isHighlighted ? Colors.red : _accent,
                 width: 2,
               ),
             ),
             filled: true,
-            fillColor: isHighlighted ? Colors.red.shade50 : Colors.grey[50],
+            fillColor: isHighlighted ? Colors.red.shade50 : Colors.grey.shade50,
             contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
           onChanged: onChanged,
         ),
@@ -1396,7 +1309,6 @@ class DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  // Read-only field for location data from reverse geocoding
   Widget _buildReadOnlyField({
     required GlobalKey key,
     required String label,
@@ -1414,8 +1326,8 @@ class DeliveryPageState extends State<DeliveryPage> {
               label,
               style: TextStyle(
                 fontWeight: FontWeight.w500,
-                fontSize: 14,
-                color: isHighlighted ? Colors.red : Colors.grey[700],
+                fontSize: 13,
+                color: isHighlighted ? Colors.red : Colors.grey.shade700,
               ),
             ),
             Text(
@@ -1430,21 +1342,21 @@ class DeliveryPageState extends State<DeliveryPage> {
         const SizedBox(height: 8),
         Container(
           key: key,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             border: Border.all(
-              color: isHighlighted ? Colors.red : Colors.grey[300]!,
+              color: isHighlighted ? Colors.red : Colors.grey.shade300,
               width: isHighlighted ? 2 : 1,
             ),
-            borderRadius: BorderRadius.circular(8),
-            color: isHighlighted ? Colors.red.shade50 : Colors.grey[100],
+            borderRadius: BorderRadius.circular(_fieldRadius),
+            color: isHighlighted ? Colors.red.shade50 : Colors.grey.shade100,
           ),
           child: Row(
             children: [
               Icon(
                 icon,
-                color: isHighlighted ? Colors.red : Colors.grey[600],
-                size: 20,
+                color: isHighlighted ? Colors.red : Colors.grey.shade600,
+                size: 22,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1452,8 +1364,8 @@ class DeliveryPageState extends State<DeliveryPage> {
                   value,
                   style: TextStyle(
                     color: value.contains('Select location')
-                        ? Colors.grey[500]
-                        : Colors.grey[800],
+                        ? Colors.grey.shade500
+                        : Colors.grey.shade800,
                     fontSize: 14,
                     fontStyle: value.contains('Select location')
                         ? FontStyle.italic
@@ -1550,11 +1462,11 @@ class DeliveryPageState extends State<DeliveryPage> {
         Row(
           children: [
             Text(
-              'Phone Number',
+              'Phone number',
               style: TextStyle(
                 fontWeight: FontWeight.w500,
-                fontSize: 14,
-                color: _highlightPhoneField ? Colors.red : Colors.grey[700],
+                fontSize: 13,
+                color: _highlightPhoneField ? Colors.red : Colors.grey.shade700,
               ),
             ),
             Text(
@@ -1582,7 +1494,9 @@ class DeliveryPageState extends State<DeliveryPage> {
             return Text(
               '$currentLength/$maxLength',
               style: TextStyle(
-                color: currentLength == maxLength ? Colors.green : Colors.grey,
+                color: currentLength == maxLength
+                    ? _accent
+                    : Colors.grey.shade500,
                 fontSize: 12,
               ),
             );
@@ -1598,38 +1512,39 @@ class DeliveryPageState extends State<DeliveryPage> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: const [
-                  Text('🇬🇭', style: TextStyle(fontSize: 24)),
+                  Text('🇬🇭', style: TextStyle(fontSize: 22)),
                   SizedBox(width: 4),
-                  Text('+233', style: TextStyle(fontSize: 16)),
+                  Text('+233', style: TextStyle(fontSize: 15)),
                 ],
               ),
             ),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(_fieldRadius),
               borderSide: BorderSide(
-                color: _highlightPhoneField ? Colors.red : Colors.grey[300]!,
+                color: _highlightPhoneField ? Colors.red : Colors.grey.shade300,
                 width: _highlightPhoneField ? 2 : 1,
               ),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(_fieldRadius),
               borderSide: BorderSide(
-                color: _highlightPhoneField ? Colors.red : Colors.grey[300]!,
+                color: _highlightPhoneField ? Colors.red : Colors.grey.shade300,
                 width: _highlightPhoneField ? 2 : 1,
               ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(_fieldRadius),
               borderSide: BorderSide(
-                color: _highlightPhoneField ? Colors.red : Colors.green[400]!,
+                color: _highlightPhoneField ? Colors.red : _accent,
                 width: 2,
               ),
             ),
             filled: true,
-            fillColor:
-                _highlightPhoneField ? Colors.red.shade50 : Colors.grey[50],
+            fillColor: _highlightPhoneField
+                ? Colors.red.shade50
+                : Colors.grey.shade50,
             contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             errorText: isPhoneValid ? null : 'Phone number must be 10 digits',
           ),
         ),
@@ -1640,89 +1555,73 @@ class DeliveryPageState extends State<DeliveryPage> {
   Widget _buildDeliveryNotes() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.note,
-                  color: Colors.green[700],
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'DELIVERY NOTES',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Colors.grey[800],
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'OPTIONAL',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _notesController,
-              decoration: InputDecoration(
-                hintText:
-                    'Any special delivery instructions? (e.g., gate code, landmarks, etc.)',
-                hintStyle: TextStyle(
-                  color: Colors.grey[500],
-                  fontSize: 14,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.green[400]!, width: 2),
-                ),
-                filled: true,
-                fillColor: Colors.grey[50],
-                contentPadding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(_cardRadius),
+        boxShadow: [
+          BoxShadow(
+            color: _cardShadow,
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildSectionLabel('Delivery notes'),
               ),
-              maxLines: 3,
-              textInputAction: TextInputAction.done,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'Optional',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _notesController,
+            decoration: InputDecoration(
+              hintText:
+                  'e.g. gate code, landmarks, or special instructions',
+              hintStyle: TextStyle(
+                color: Colors.grey.shade500,
+                fontSize: 14,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(_fieldRadius),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(_fieldRadius),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(_fieldRadius),
+                borderSide: BorderSide(color: _accent, width: 2),
+              ),
+              filled: true,
+              fillColor: Colors.grey.shade50,
+              contentPadding: const EdgeInsets.all(16),
             ),
-          ],
-        ),
+            maxLines: 3,
+            textInputAction: TextInputAction.done,
+          ),
+        ],
       ),
     );
   }
@@ -1733,64 +1632,47 @@ class DeliveryPageState extends State<DeliveryPage> {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: Offset(0, 2),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(_cardRadius),
+        boxShadow: [
+          BoxShadow(
+            color: _cardShadow,
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionLabel('Order summary'),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(_fieldRadius),
+              border: Border.all(color: Colors.grey.shade200),
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+            child: Column(
               children: [
-                Icon(
-                  Icons.receipt_long,
-                  color: Colors.green[700],
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'ORDER SUMMARY',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Colors.grey[800],
-                    letterSpacing: 0.5,
-                  ),
-                ),
+                _buildSummaryRow('Subtotal', subtotal,
+                    icon: Icons.shopping_cart_rounded),
+                const SizedBox(height: 12),
+                _buildSummaryRow('Delivery fee', deliveryFee,
+                    icon: Icons.local_shipping_rounded),
+                Divider(
+                    height: 28,
+                    thickness: 1,
+                    color: Colors.grey.shade300),
+                _buildSummaryRow('Total', total,
+                    isHighlighted: true, icon: Icons.payment_rounded),
               ],
             ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey[200]!),
-              ),
-              child: Column(
-                children: [
-                  _buildSummaryRow('Subtotal', subtotal,
-                      icon: Icons.shopping_cart_outlined),
-                  const SizedBox(height: 8),
-                  _buildSummaryRow('Delivery Fee', deliveryFee,
-                      icon: Icons.local_shipping_outlined),
-                  Divider(height: 24, thickness: 1, color: Colors.grey[300]),
-                  _buildSummaryRow('TOTAL', total,
-                      isHighlighted: true, icon: Icons.payment),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1802,18 +1684,20 @@ class DeliveryPageState extends State<DeliveryPage> {
         if (icon != null) ...[
           Icon(
             icon,
-            size: 16,
-            color: isHighlighted ? Colors.green[700] : Colors.grey[600],
+            size: 18,
+            color: isHighlighted ? _accent : Colors.grey.shade600,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
         ],
         Expanded(
           child: Text(
             label,
             style: TextStyle(
               fontWeight: isHighlighted ? FontWeight.w600 : FontWeight.w500,
-              fontSize: isHighlighted ? 16 : 14,
-              color: isHighlighted ? Colors.grey[800] : Colors.grey[700],
+              fontSize: isHighlighted ? 15 : 14,
+              color: isHighlighted
+                  ? Colors.grey.shade800
+                  : Colors.grey.shade700,
             ),
           ),
         ),
@@ -1821,8 +1705,8 @@ class DeliveryPageState extends State<DeliveryPage> {
           'GHS ${value.toStringAsFixed(2)}',
           style: TextStyle(
             fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w600,
-            fontSize: isHighlighted ? 18 : 14,
-            color: isHighlighted ? Colors.green[700] : Colors.grey[800],
+            fontSize: isHighlighted ? 17 : 14,
+            color: isHighlighted ? _accent : Colors.grey.shade800,
           ),
         ),
       ],
@@ -1832,32 +1716,24 @@ class DeliveryPageState extends State<DeliveryPage> {
   Widget _buildContinueButton() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        width: double.infinity,
-        height: 56,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.green.shade600,
-              Colors.green.shade700,
-            ],
+      width: double.infinity,
+      height: 52,
+      decoration: BoxDecoration(
+        color: _accent,
+        borderRadius: BorderRadius.circular(_fieldRadius),
+        boxShadow: [
+          BoxShadow(
+            color: _accent.withValues(alpha: 0.35),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.green.withValues(alpha: 0.3),
-              blurRadius: 12,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () async {
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(_fieldRadius),
+          onTap: () async {
               bool isValid = true;
 
               // Validate name
@@ -2032,7 +1908,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 12),
                           decoration: BoxDecoration(
-                            color: Colors.green[600],
+                            color: _accent,
                             borderRadius: BorderRadius.circular(8),
                             boxShadow: [
                               BoxShadow(
@@ -2044,7 +1920,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.check_circle, color: Colors.white),
+                              Icon(Icons.check_circle_rounded, color: Colors.white),
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -2085,18 +1961,18 @@ class DeliveryPageState extends State<DeliveryPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.payment,
+                    Icons.payment_rounded,
                     color: Colors.white,
-                    size: 20,
+                    size: 22,
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Text(
-                    'CONTINUE TO PAYMENT',
+                    'Continue to payment',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
+                      letterSpacing: 0.2,
                     ),
                   ),
                 ],
@@ -2104,7 +1980,6 @@ class DeliveryPageState extends State<DeliveryPage> {
             ),
           ),
         ),
-      ),
     );
   }
 

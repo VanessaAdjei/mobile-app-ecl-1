@@ -45,17 +45,27 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
           ),
           title: Row(
             children: [
-              Icon(
-                Icons.error_outline,
-                color: Colors.red[600],
-                size: 28,
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.error_outline_rounded,
+                  color: Colors.red.shade600,
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 12),
-              Text(
-                'Invalid File Type',
-                style: TextStyle(
-                  color: Colors.red[700],
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Text(
+                  'Invalid file type',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade800,
+                  ),
                 ),
               ),
             ],
@@ -66,43 +76,47 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
             children: [
               Text(
                 'The file you selected is not supported.',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[800],
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey.shade700,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue[200]!),
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '📱 Supported Formats:',
-                      style: TextStyle(
+                      'Supported formats',
+                      style: GoogleFonts.poppins(
                         fontWeight: FontWeight.w600,
-                        color: Colors.blue[700],
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text('• JPG (JPEG)',
-                        style: TextStyle(color: Colors.blue[600])),
-                    Text('• PNG', style: TextStyle(color: Colors.blue[600])),
+                    Text(
+                      'JPG, JPEG or PNG',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Text(
-                'Please select a valid image file and try again.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                  fontStyle: FontStyle.italic,
+                'Please choose a valid image and try again.',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
                 ),
               ),
             ],
@@ -111,9 +125,9 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: Text(
-                'Got it!',
-                style: TextStyle(
-                  color: Colors.blue[600],
+                'OK',
+                style: GoogleFonts.poppins(
+                  color: _accent,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -339,10 +353,38 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
     }
   }
 
+  static const double _cardRadius = 14;
+  static const double _fieldRadius = 12;
+  static const Color _accent = Color(0xFF2E7D32);
+
+  Widget _buildSectionLabel(String text) {
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 18,
+          decoration: BoxDecoration(
+            color: _accent,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          text,
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+            color: Colors.grey.shade800,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF2F3F5),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -356,42 +398,49 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
         title: Text(
           'Upload Prescription',
           style: GoogleFonts.poppins(
-            fontSize: 18,
+            fontSize: 17,
             fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            color: Colors.grey.shade900,
           ),
         ),
-        iconTheme: IconThemeData(color: Colors.black87),
+        iconTheme: IconThemeData(color: Colors.grey.shade800),
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(24),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Simple Header
+            // Prescription required notice
             Container(
               width: double.infinity,
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.green.shade200),
+                color: _accent.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(_fieldRadius),
+                border: Border.all(color: _accent.withValues(alpha: 0.25)),
               ),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.medication,
-                    color: Colors.green.shade600,
-                    size: 24,
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.medication_rounded,
+                      color: _accent,
+                      size: 22,
+                    ),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'This product requires a prescription',
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
-                        color: Colors.green.shade700,
+                        color: Colors.grey.shade800,
                       ),
                     ),
                   ),
@@ -399,240 +448,308 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
               ),
             ).animate().fadeIn(duration: 300.ms),
 
-            SizedBox(height: 32),
+            const SizedBox(height: 20),
 
-            // Product Info
+            // Product card
             Container(
               width: double.infinity,
-              padding: EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Product Details',
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.product.name,
-                              style: GoogleFonts.poppins(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.black87,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'GHS ${widget.product.price}',
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ).animate().fadeIn(duration: 400.ms),
-
-            SizedBox(height: 32),
-
-            // Upload Section
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
+                borderRadius: BorderRadius.circular(_cardRadius),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: Colors.black.withValues(alpha: 0.06),
                     blurRadius: 10,
-                    offset: Offset(0, 2),
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _buildSectionLabel('Product'),
+                  const SizedBox(height: 14),
                   Text(
-                    'Upload Prescription',
+                    widget.product.name,
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade800,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'GHS ${widget.product.price}',
                     style: GoogleFonts.poppins(
                       fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                      fontWeight: FontWeight.w700,
+                      color: _accent,
                     ),
                   ),
-                  SizedBox(height: 16),
+                ],
+              ),
+            ).animate().fadeIn(duration: 350.ms),
 
-                  // Upload Area
-                  Container(
-                    width: double.infinity,
-                    height: 180,
-                    decoration: BoxDecoration(
-                      color: _image == null
-                          ? Colors.grey.shade50
-                          : Colors.green.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: _image == null
-                            ? Colors.grey.shade300
-                            : Colors.green.shade300,
-                        width: 1,
+            const SizedBox(height: 20),
+
+            // Sample prescription reference (shown first so user sees what to upload)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(_cardRadius),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionLabel('Sample prescription'),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Use a clear photo like this. Include patient name, date, medication, and prescriber signature.',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: Colors.grey.shade700,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(_fieldRadius),
+                    child: Image.asset(
+                      'assets/images/sample_prescription.png',
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                      height: 220,
+                      errorBuilder: (_, __, ___) => Container(
+                        height: 220,
+                        alignment: Alignment.center,
+                        child: Icon(Icons.image_not_supported_rounded,
+                            color: Colors.grey.shade400, size: 48),
                       ),
                     ),
-                    child: _image == null
-                        ? InkWell(
-                            onTap: _isUploading ? null : _pickImage,
-                            child: Container(
-                              padding: EdgeInsets.all(20),
-                              child: Column(
+                  ),
+                ],
+              ),
+            ).animate().fadeIn(duration: 380.ms),
+
+            const SizedBox(height: 20),
+
+            // Upload card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(_cardRadius),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionLabel('Prescription image'),
+                  const SizedBox(height: 16),
+
+                  // Drop zone
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _isUploading ? null : _pickImage,
+                      borderRadius: BorderRadius.circular(_fieldRadius),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: double.infinity,
+                        height: 172,
+                        decoration: BoxDecoration(
+                          color: _image == null
+                              ? Colors.grey.shade50
+                              : _accent.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(_fieldRadius),
+                          border: Border.all(
+                            color: _image == null
+                                ? Colors.grey.shade300
+                                : _accent.withValues(alpha: 0.4),
+                            width: _image == null ? 1.5 : 2,
+                          ),
+                        ),
+                        child: _image == null
+                            ? Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(
-                                    Icons.cloud_upload_outlined,
-                                    size: 40,
+                                    Icons.add_photo_alternate_rounded,
+                                    size: 44,
                                     color: Colors.grey.shade400,
                                   ),
-                                  SizedBox(height: 12),
+                                  const SizedBox(height: 12),
                                   Text(
-                                    'Tap to upload prescription',
+                                    'Tap to add prescription photo',
                                     style: GoogleFonts.poppins(
                                       fontSize: 14,
+                                      fontWeight: FontWeight.w500,
                                       color: Colors.grey.shade600,
                                     ),
                                   ),
-                                  SizedBox(height: 8),
+                                  const SizedBox(height: 4),
                                   Text(
-                                    'Supported: JPG, JPEG, PNG',
+                                    'JPG, JPEG or PNG',
                                     style: GoogleFonts.poppins(
                                       fontSize: 12,
                                       color: Colors.grey.shade500,
                                     ),
                                   ),
+                                  if (_isUploading) ...[
+                                    const SizedBox(height: 12),
+                                    SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(_accent),
+                                      ),
+                                    ),
+                                  ],
                                 ],
+                              )
+                            : ClipRRect(
+                                borderRadius: BorderRadius.circular(_fieldRadius),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    Image.file(
+                                      _image!,
+                                      fit: BoxFit.cover,
+                                      cacheWidth: 400,
+                                      cacheHeight: 400,
+                                    ),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: [
+                                            Colors.black.withValues(alpha: 0.3),
+                                            Colors.transparent,
+                                            Colors.transparent,
+                                            Colors.black.withValues(alpha: 0.2),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: 10,
+                                      right: 10,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: _accent,
+                                          shape: BoxShape.circle,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(alpha: 0.2),
+                                              blurRadius: 6,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: const Icon(
+                                          Icons.check_rounded,
+                                          color: Colors.white,
+                                          size: 18,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          )
-                        : ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Stack(
-                              children: [
-                                Image.file(
-                                  _image!,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  fit: BoxFit.cover,
-                                  cacheWidth: 400, // Optimize memory usage
-                                  cacheHeight: 400,
-                                ),
-                                Positioned(
-                                  top: 8,
-                                  right: 8,
-                                  child: Container(
-                                    padding: EdgeInsets.all(4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.shade600,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Icon(
-                                      Icons.check,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                      ),
+                    ),
                   ),
 
-                  SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
-                  // Buttons
+                  // Actions
                   Row(
                     children: [
                       Expanded(
-                        child: ElevatedButton(
+                        child: OutlinedButton.icon(
                           onPressed: _isUploading ? null : _pickImage,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue.shade600,
-                            foregroundColor: Colors.white,
-                            minimumSize: Size(double.infinity, 48),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: _isUploading
+                          icon: _isUploading
                               ? SizedBox(
-                                  width: 20,
-                                  height: 20,
+                                  width: 18,
+                                  height: 18,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white),
+                                    valueColor: AlwaysStoppedAnimation<Color>(_accent),
                                   ),
                                 )
-                              : Text(
-                                  'Upload',
-                                  style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.w500),
-                                ),
+                              : Icon(Icons.photo_library_rounded, size: 20, color: _accent),
+                          label: Text(
+                            _image == null ? 'Choose image' : 'Change',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: _accent,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _accent,
+                            side: BorderSide(color: _accent),
+                            minimumSize: const Size(double.infinity, 48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(_fieldRadius),
+                            ),
+                          ),
                         ),
                       ),
                       if (_image != null) ...[
-                        SizedBox(width: 12),
+                        const SizedBox(width: 12),
                         Expanded(
-                          child: ElevatedButton(
-                            onPressed:
-                                _isSubmitting ? null : _submitPrescription,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green.shade600,
-                              foregroundColor: Colors.white,
-                              minimumSize: Size(double.infinity, 48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              elevation: 0,
-                            ),
-                            child: _isSubmitting
+                          flex: 2,
+                          child: FilledButton.icon(
+                            onPressed: _isSubmitting ? null : _submitPrescription,
+                            icon: _isSubmitting
                                 ? SizedBox(
                                     width: 20,
                                     height: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                          Colors.white),
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                                     ),
                                   )
-                                : Text(
-                                    'Submit',
-                                    style: GoogleFonts.poppins(
-                                        fontWeight: FontWeight.w500),
-                                  ),
+                                : const Icon(Icons.send_rounded, size: 20),
+                            label: Text(
+                              'Submit prescription',
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _accent,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(double.infinity, 48),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(_fieldRadius),
+                              ),
+                              elevation: 0,
+                            ),
                           ),
                         ),
                       ],
@@ -640,48 +757,61 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                   ),
                 ],
               ),
-            ).animate().fadeIn(duration: 500.ms),
+            ).animate().fadeIn(duration: 400.ms),
 
-            SizedBox(height: 32),
+            const SizedBox(height: 20),
 
-            // Tips Section
+            // Tips
             Container(
               width: double.infinity,
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.shade200),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(_cardRadius),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(
-                        Icons.lightbulb_outline,
-                        color: Colors.blue.shade600,
-                        size: 20,
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.lightbulb_outline_rounded,
+                          color: Colors.blue.shade600,
+                          size: 18,
+                        ),
                       ),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       Text(
-                        'Upload Tips',
+                        'Tips',
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Colors.blue.shade700,
+                          color: Colors.grey.shade800,
                         ),
                       ),
                     ],
                   ),
-                  SizedBox(height: 12),
-                  _buildTip('Ensure prescription is clearly visible'),
+                  const SizedBox(height: 14),
+                  _buildTip('Ensure the prescription is clearly visible'),
                   _buildTip('Include doctor\'s signature and date'),
                   _buildTip('Make sure all text is readable'),
-                  _buildTip('Check that prescription is current'),
+                  _buildTip('Use a current, valid prescription'),
                 ],
               ),
-            ).animate().fadeIn(duration: 600.ms),
+            ).animate().fadeIn(duration: 450.ms),
           ],
         ),
       ),
@@ -690,16 +820,16 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
 
   Widget _buildTip(String text) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 4,
-            height: 4,
-            margin: EdgeInsets.only(top: 6, right: 8),
+            width: 5,
+            height: 5,
+            margin: const EdgeInsets.only(top: 6, right: 10),
             decoration: BoxDecoration(
-              color: Colors.blue.shade600,
+              color: Colors.blue.shade400,
               shape: BoxShape.circle,
             ),
           ),
@@ -708,7 +838,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
               text,
               style: GoogleFonts.poppins(
                 fontSize: 13,
-                color: Colors.blue.shade700,
+                color: Colors.grey.shade700,
                 height: 1.4,
               ),
             ),

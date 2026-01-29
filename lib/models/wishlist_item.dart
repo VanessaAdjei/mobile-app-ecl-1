@@ -13,13 +13,9 @@ class WishlistItem {
   });
 
   factory WishlistItem.fromJson(Map<String, dynamic> json) {
-    // Handle different API response formats
-    // Format 1: { id: 1, product: {...}, added_at: "..." }
-    // Format 2: { id: 1, product_id: 77, created_at: "...", product: {...} }
+ 
     int wishlistItemId = json['id'] ?? 0;
 
-    // Parse product data - wishlist API returns: {id: 1, product: {...}, ...}
-    // Product.fromJson expects: {product: {...}, batch_no: ..., price: ...}
     Map<String, dynamic> productData;
 
     if (json.containsKey('product') && json['product'] is Map) {

@@ -1792,7 +1792,9 @@ class CategoryPageState extends State<CategoryPage> {
             final iconColor = Colors.green.shade700;
             final available =
                 category['product_count'] ?? category['available'];
+            final catKey = category['id'] ?? index;
             return OpenContainer(
+              key: ValueKey('category_$catKey'),
               transitionType: ContainerTransitionType.fadeThrough,
               openColor: Theme.of(context).scaffoldBackgroundColor,
               closedColor: Colors.transparent,
@@ -1826,7 +1828,11 @@ class CategoryPageState extends State<CategoryPage> {
                 icon: icon,
                 iconColor: iconColor,
                 available: available is int ? available : null,
-                onTap: openContainer,
+                onTap: () {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    openContainer();
+                  });
+                },
               ),
             );
           },
@@ -2404,7 +2410,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   String sortOption = 'Latest';
   int? highlightedProductId;
   Timer? highlightTimer;
-  bool isSidebarVisible = true; // New state for sidebar visibility
+  bool isSidebarVisible = true;
 
   // Cache for subcategories and products
   static final Map<int, List<dynamic>> _subcategoriesCache = {};
@@ -2992,16 +2998,12 @@ class SubcategoryPageState extends State<SubcategoryPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Responsive layout based on screen width
+        // Sidebar + grid both visible; balanced widths so everything fits
         bool isTablet = constraints.maxWidth > 600;
-        double sideNavWidth = isTablet ? 260 : constraints.maxWidth * 0.35;
-        // Ensure minimum width for sidebar with proper bounds
-        double minWidth = 200.0;
-        double maxWidth = constraints.maxWidth * 0.45;
-        // Ensure min is not greater than max
-        if (minWidth > maxWidth) {
-          minWidth = maxWidth * 0.8; // Use 80% of max as min
-        }
+        double sideNavWidth = isTablet ? 220 : constraints.maxWidth * 0.30;
+        double minWidth = 160.0;
+        double maxWidth = constraints.maxWidth * 0.40;
+        if (minWidth > maxWidth) minWidth = maxWidth * 0.85;
         sideNavWidth = sideNavWidth.clamp(minWidth, maxWidth);
 
         // Only force hide sidebar if screen is extremely narrow
@@ -3065,7 +3067,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                 color: Color(0xFFF8F9FA),
                 child: Column(
                   children: [
-                    // Sticky subcategory header - Always show for debugging
+                    // Sticky subcategory header
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -3081,10 +3083,20 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                           ? buildSubcategoryHeader()
                           : Container(
                               padding: EdgeInsets.all(8),
-                              color: Colors.red.shade100,
-                              child: Text(
-                                'DEBUG: subcategories.isEmpty = ${subcategories.isEmpty}, length = ${subcategories.length}',
-                                style: TextStyle(color: Colors.red.shade800),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.category_outlined,
+                                      size: 18, color: Colors.grey.shade600),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Categories',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey.shade600,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                     ),
@@ -3177,7 +3189,6 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                // Hide sidebar button
                 SizedBox(
                   width: 32,
                   height: 32,
@@ -3294,23 +3305,23 @@ class SubcategoryPageState extends State<SubcategoryPage> {
             : {'name': 'All Products', 'id': null};
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(color: Colors.white),
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(6),
+            padding: EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
               Icons.category_outlined,
               color: Colors.green.shade700,
-              size: 16,
+              size: 18,
             ),
           ),
-          SizedBox(width: 8),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -3321,19 +3332,19 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                       ? (selectedSubcategory['name'] ?? 'All Products')
                       : 'All Products',
                   style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
                     color: Colors.grey.shade800,
-                    height: 1.1,
+                    height: 1.2,
                   ),
                 ),
-                SizedBox(height: 1),
+                SizedBox(height: 2),
                 Text(
                   '${products.length} products available',
                   style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade500,
-                    height: 1.1,
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    height: 1.2,
                   ),
                 ),
               ],
@@ -3357,36 +3368,35 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   Widget buildProductsGrid() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Keep 2 columns but adjust aspect ratio based on sidebar visibility and screen size
-        double childAspectRatio = 0.55;
+        // Aspect ratio so sidebar + grid both fit; cards readable, not squeezed
+        double childAspectRatio = 0.56;
         bool isTablet = MediaQuery.of(context).size.width > 600;
 
         if (isTablet) {
-          // Much smaller cards for tablets
-          childAspectRatio = 1.0;
-        } else if (!isSidebarVisible) {
-          // When sidebar is hidden, make images smaller (larger aspect ratio = shorter/wider images)
           childAspectRatio = 0.85;
+        } else if (!isSidebarVisible) {
+          childAspectRatio = 0.62;
         } else {
-          // When sidebar is visible, use normal size
-          childAspectRatio = 0.55;
+          childAspectRatio = 0.56;
         }
 
         return GridView.builder(
           controller: scrollController,
-          padding: EdgeInsets.all(16),
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: isTablet ? 3 : 2,
             childAspectRatio: childAspectRatio,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
           ),
           itemCount: products.length,
           itemBuilder: (context, index) {
             final product = products[index];
             final isHighlighted = highlightedProductId == product['id'];
+            final productKey = product['id'] ?? index;
 
             return Container(
+              key: ValueKey('subcat_product_$productKey'),
               decoration: isHighlighted
                   ? BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
@@ -3436,7 +3446,11 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                 },
                 closedBuilder: (context, openContainer) => ProductCard(
                   product: product,
-                  onTap: openContainer,
+                  onTap: () {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      openContainer();
+                    });
+                  },
                 ),
               ),
             );
@@ -4130,8 +4144,10 @@ class ProductListPageState extends State<ProductListPage> {
         itemBuilder: (context, index) {
           final product = products[index];
           final isHighlighted = highlightedProductId == product['id'];
+          final productKey = product['id'] ?? index;
 
           return Container(
+            key: ValueKey('list_product_$productKey'),
             decoration: isHighlighted
                 ? BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
@@ -4179,7 +4195,11 @@ class ProductListPageState extends State<ProductListPage> {
               },
               closedBuilder: (context, openContainer) => ProductCard(
                 product: product,
-                onTap: openContainer,
+                onTap: () {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    openContainer();
+                  });
+                },
               ),
             ),
           );

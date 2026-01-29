@@ -588,40 +588,9 @@ class HomePageState extends State<HomePage>
     _isLoadingContent = true;
 
     try {
-      // check if we have cached popular products (use old data while refreshing)
-      if (ProductCache.cachedPopularProducts.isNotEmpty) {
-        debugPrint(
-            'HomePage: Using cached popular products, showing immediately');
-        debugPrint('🔍 USING CACHED PRODUCTS:');
-        for (int i = 0; i < ProductCache.cachedPopularProducts.length; i++) {
-          final product = ProductCache.cachedPopularProducts[i];
-          debugPrint('  ${i + 1}. ${product.name} (ID: ${product.id})');
-        }
-        debugPrint('🔍 END CACHED PRODUCTS');
-        setState(() {
-          popularProducts = ProductCache.cachedPopularProducts;
-          _isLoadingPopular = false;
-        });
-
-        // start auto-scrolling the popular products
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && popularProducts.isNotEmpty) {
-            _startPopularProductsAutoScroll();
-          }
-        });
-
-        // if cache is old, refresh in the background (dont wait for it)
-        if (!ProductCache.isCacheValid && ProductCache.canUseStaleData) {
-          debugPrint(
-              '🔄 HomePage: Cache is stale, refreshing in background...');
-          unawaited(_fetchPopularProducts());
-        }
-      } else {
-        // only load popular products if we have no cache at all
-        debugPrint(
-            'HomePage: No cached popular products, fetching from API...');
-        await _fetchPopularProducts();
-      }
+      // Always fetch popular products from API on load/refresh - do not use cache for initial display
+      debugPrint('HomePage: Fetching popular products from API...');
+      await _fetchPopularProducts();
 
       // load products first
       debugPrint('HomePage: Loading products');
@@ -727,13 +696,28 @@ class HomePageState extends State<HomePage>
           );
         }).toList();
 
+        // Shuffle so the same products don't always appear in the same order
+        allProducts.shuffle();
+
         ProductCache.cacheProducts(allProducts);
 
         _processProducts(allProducts);
 
         _preloadImages(allProducts);
       } else {
-        throw Exception('Server error');
+        if (ProductCache.cachedProducts.isNotEmpty) {
+          final cachedProducts = ProductCache.cachedProducts;
+          _processProducts(cachedProducts);
+          _preloadImages(cachedProducts);
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _error = null;
+            });
+          }
+        } else {
+          throw Exception('Server error');
+        }
       }
     } on TimeoutException catch (e) {
       debugPrint('❌ HomePage: TimeoutException (connectivity error): $e');
@@ -1447,10 +1431,10 @@ class HomePageState extends State<HomePage>
 
     WidgetsBinding.instance.addObserver(this);
 
-    // load cached data right away if we have it (dont wait for it)
+    // Show loading state; cache is only used when server can't be reached
     _loadCachedDataImmediately();
 
-    // Initialize services in background (non-blocking)
+    // Initialize services in background (load cache for offline fallback only)
     unawaited(_initializeServicesInBackground());
 
     // Load section shuffle timestamp from storage synchronously
@@ -1500,41 +1484,20 @@ class HomePageState extends State<HomePage>
     // Auto-scroll will be initialized when popular products are loaded
   }
 
-  // Load cached data immediately without blocking
+  // Set loading state only - do not display cached data on homepage load
   void _loadCachedDataImmediately() {
-    // Load from ProductCache if available
-    if (ProductCache.cachedProducts.isNotEmpty) {
-      setState(() {
-        _products = ProductCache.cachedProducts;
-        filteredProducts = ProductCache.cachedProducts;
-        _isLoading = true;
-        _error = null;
-      });
-    }
-
-    // Load popular products from cache if available
-    if (ProductCache.cachedPopularProducts.isNotEmpty) {
-      setState(() {
-        popularProducts = ProductCache.cachedPopularProducts;
-        _isLoadingPopular = false;
-      });
-    } else {
-      // Show loading skeleton immediately for better perceived performance
-      setState(() {
-        _isLoadingPopular = true;
-      });
-    }
+    setState(() {
+      _isLoading = true;
+      _isLoadingPopular = true;
+      _error = null;
+    });
   }
 
-  // Initialize services in background (non-blocking)
+  // Initialize services in background (load cache for offline fallback only)
   Future<void> _initializeServicesInBackground() async {
-    // Load storage in background
     await ProductCache.loadFromStorage();
-
-    // Initialize optimization service
     await _optimizationService.initialize();
 
-    // Update UI with any newly loaded cached data
     if (mounted) {
       _loadCachedDataImmediately();
     }
@@ -2962,20 +2925,8 @@ class HomePageState extends State<HomePage>
         '🔄 HomePage: _fetchPopularProducts called at ${startTime.toIso8601String()}');
     if (!mounted) return;
 
-    // Check if we have valid cached popular products
-    if (ProductCache.isCacheValid &&
-        ProductCache.cachedPopularProducts.isNotEmpty) {
-      debugPrint(
-          '✅ HomePage: Using cached popular products (${ProductCache.cachedPopularProducts.length} products)');
-      setState(() {
-        // Use the shuffle system - products will be shuffled every 24 hours
-        popularProducts = ProductCache.popularProductsWithShuffle;
-        _isLoadingPopular = false;
-      });
-      return;
-    }
-
-    debugPrint('🔄 HomePage: Cache invalid or empty, fetching from API...');
+    // Always fetch from API on homepage load/refresh - do not use cache for initial display
+    debugPrint('🔄 HomePage: Fetching popular products from API...');
     setState(() {
       _isLoadingPopular = true;
       _popularError = null;
@@ -3004,7 +2955,7 @@ class HomePageState extends State<HomePage>
         }
         debugPrint('🔍 END RAW API RESPONSE');
 
-        final popularProductsList = productsData.map<Product>((item) {
+        List<Product> popularProductsList = productsData.map<Product>((item) {
           final productData = item['product'] as Map<String, dynamic>;
           return Product(
             id: productData['id'] ?? 0,
@@ -3025,6 +2976,9 @@ class HomePageState extends State<HomePage>
             accessories: productData['accessories'],
           );
         }).toList();
+
+        // Shuffle so popular products don't always appear in the same order
+        popularProductsList.shuffle();
 
         // Cache popular products
         ProductCache.cachePopularProducts(popularProductsList);
@@ -3055,29 +3009,73 @@ class HomePageState extends State<HomePage>
             '⚡ HomePage: Popular products loaded in ${totalTime.inMilliseconds}ms');
       } else {
         if (!mounted) return;
-        setState(() {
-          _popularError = 'Server error';
-          _isLoadingPopular = false;
-        });
+        if (ProductCache.cachedPopularProducts.isNotEmpty) {
+          setState(() {
+            popularProducts = ProductCache.cachedPopularProducts;
+            _isLoadingPopular = false;
+            _popularError = null;
+          });
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && popularProducts.isNotEmpty) _startPopularProductsAutoScroll();
+          });
+        } else {
+          setState(() {
+            _popularError = 'Server error';
+            _isLoadingPopular = false;
+          });
+        }
       }
     } on TimeoutException {
       if (!mounted) return;
-      setState(() {
-        _popularError = 'Connection timed out';
-        _isLoadingPopular = false;
-      });
+      if (ProductCache.cachedPopularProducts.isNotEmpty) {
+        setState(() {
+          popularProducts = ProductCache.cachedPopularProducts;
+          _isLoadingPopular = false;
+          _popularError = null;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && popularProducts.isNotEmpty) _startPopularProductsAutoScroll();
+        });
+      } else {
+        setState(() {
+          _popularError = 'Connection timed out';
+          _isLoadingPopular = false;
+        });
+      }
     } on http.ClientException {
       if (!mounted) return;
-      setState(() {
-        _popularError = 'No internet connection';
-        _isLoadingPopular = false;
-      });
+      if (ProductCache.cachedPopularProducts.isNotEmpty) {
+        setState(() {
+          popularProducts = ProductCache.cachedPopularProducts;
+          _isLoadingPopular = false;
+          _popularError = null;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && popularProducts.isNotEmpty) _startPopularProductsAutoScroll();
+        });
+      } else {
+        setState(() {
+          _popularError = 'No internet connection';
+          _isLoadingPopular = false;
+        });
+      }
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _popularError = 'Something went wrong';
-        _isLoadingPopular = false;
-      });
+      if (ProductCache.cachedPopularProducts.isNotEmpty) {
+        setState(() {
+          popularProducts = ProductCache.cachedPopularProducts;
+          _isLoadingPopular = false;
+          _popularError = null;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && popularProducts.isNotEmpty) _startPopularProductsAutoScroll();
+        });
+      } else {
+        setState(() {
+          _popularError = 'Something went wrong';
+          _isLoadingPopular = false;
+        });
+      }
     }
   }
 }
@@ -3853,7 +3851,11 @@ class _AnimatedVisibilityProductCardState
           padding: widget.padding,
           imageHeight: widget.imageHeight,
           showWishlistButton: true,
-          onTap: openContainer,
+          onTap: () {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              openContainer();
+            });
+          },
           showHero: false, // Disable Hero in closedBuilder
         ),
       ),

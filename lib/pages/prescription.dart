@@ -64,7 +64,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
           setState(() {
             _selectedImage = imageFile;
           });
-          _showConfirmationSnackbar("Prescription uploaded successfully!");
+          _showConfirmationSnackbar("Image added. Tap Submit Prescription to send.");
         } else {
           _showConfirmationSnackbar("File exceeds 10MB and was not added.");
         }
@@ -73,7 +73,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
       }
     } catch (e) {
       debugPrint('🔍 Error selecting image: $e');
-      _showConfirmationSnackbar("Failed to upload image: $e");
+      _showConfirmationSnackbar("Failed to add image: $e");
     } finally {
       setState(() => _isLoading = false);
     }
@@ -109,7 +109,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
           setState(() {
             _selectedImage = imageFile;
           });
-          _showConfirmationSnackbar("Prescription uploaded successfully!");
+          _showConfirmationSnackbar("Image added. Tap Submit Prescription to send.");
         } else {
           _showConfirmationSnackbar("File exceeds 10MB and was not added.");
         }
@@ -118,7 +118,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
       }
     } catch (e) {
       debugPrint('🔍 Error capturing image: $e');
-      _showConfirmationSnackbar("Failed to capture image: $e");
+      _showConfirmationSnackbar("Failed to add image: $e");
     } finally {
       setState(() => _isLoading = false);
     }
@@ -143,14 +143,14 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
               children: [
                 Icon(
                   Icons.error_outline,
-                  color: Colors.red[600],
+                  color: Colors.green[600],
                   size: 28,
                 ),
                 const SizedBox(width: 12),
                 Text(
                   'Invalid File Type',
                   style: TextStyle(
-                    color: Colors.red[700],
+                    color: Colors.green[700],
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -251,10 +251,10 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade300, width: 1.5),
+        border: Border.all(color: Colors.green.shade300, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.red.shade100,
+            color: Colors.green.shade100,
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -395,6 +395,14 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
 
         final response = await http.Response.fromStream(streamedResponse);
 
+        // Log full API response to terminal
+        debugPrint('═══════════════════════════════════════════════════════');
+        debugPrint('📤 PRESCRIPTION API RESPONSE');
+        debugPrint('═══════════════════════════════════════════════════════');
+        debugPrint('Status code: ${response.statusCode}');
+        debugPrint('Response body:\n${response.body}');
+        debugPrint('═══════════════════════════════════════════════════════');
+
         if (response.statusCode == 200 || response.statusCode == 201) {
           final data = json.decode(response.body);
           debugPrint('🔍 Upload response: ${data['status']}');
@@ -446,7 +454,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.red.shade700,
+        backgroundColor: Colors.green.shade700,
         foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, size: 20),
@@ -508,7 +516,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                                   Navigator.pop(context);
                                 },
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red.shade700,
+                                  backgroundColor: Colors.green.shade700,
                                   foregroundColor: Colors.white,
                                   padding:
                                       const EdgeInsets.symmetric(vertical: 10),
@@ -592,13 +600,13 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: Colors.red.shade400,
+            color: Colors.green.shade400,
             width: 2,
             style: BorderStyle.solid,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.red.shade100,
+              color: Colors.green.shade100,
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -607,7 +615,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
         child: _isLoading
             ? Center(
                 child: CircularProgressIndicator(
-                  color: Colors.red.shade700,
+                  color: Colors.green.shade700,
                 ),
               )
             : Center(
@@ -617,11 +625,11 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.red.shade100,
+                        color: Colors.green.shade100,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(Icons.upload_file_rounded,
-                          size: 28, color: Colors.red.shade800),
+                          size: 28, color: Colors.green.shade800),
                     ),
                     const SizedBox(height: 10),
                     Text(
@@ -718,10 +726,10 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.red.shade100,
+                color: Colors.green.shade100,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: Colors.red.shade800, size: 20),
+              child: Icon(icon, color: Colors.green.shade800, size: 20),
             ),
             const SizedBox(width: 12),
             Text(
@@ -778,7 +786,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
               onTap: _deleteImage,
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.red.shade700,
+                  color: Colors.green.shade700,
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
@@ -810,7 +818,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
         onPressed: isEnabled ? _submitPrescription : null,
         style: ElevatedButton.styleFrom(
           backgroundColor:
-              isEnabled ? Colors.red.shade600 : Colors.grey.shade400,
+              isEnabled ? Colors.green.shade600 : Colors.grey.shade400,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
@@ -956,7 +964,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
           const SizedBox(height: 10),
           GestureDetector(
             onTap: () => _showFullImageDialog(
-                context, "assets/images/prescriptionsample.png"),
+                context, "assets/images/sample_prescription.png"),
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
@@ -965,10 +973,19 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Image.asset(
-                  "assets/images/prescriptionsample.png",
-                  height: 100,
+                  "assets/images/sample_prescription.png",
+                  height: 200,
                   width: double.infinity,
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => Container(
+                    height: 200,
+                    alignment: Alignment.center,
+                    child: Icon(
+                      Icons.image_not_supported_rounded,
+                      color: Colors.grey.shade400,
+                      size: 48,
+                    ),
+                  ),
                 ),
               ),
             ),
