@@ -110,11 +110,20 @@ class ApiConfig {
 
   static const String saveBillingAddress = '/save-billing-add';
   static const String getBillingAddress = '/get-billing-add';
+  static const String calculateDeliveryFee = '/calculate-delivery-fee';
   static const String regions = '/regions';
   static const String regionCities =
       '/regions'; // add regionId like /regions/{regionId}/cities
   static const String cityStores =
       '/cities'; // add cityId like /cities/{cityId}/stores
+
+  // ==================== BOOKINGS ENDPOINTS ====================
+  // pharmacist / consultation bookings
+
+  static const String bookingsAvailableSessions = '/bookings/available-sessions';
+  static const String bookingsBook = '/bookings/book';
+  static const String bookingsHistory = '/bookings/history';
+  static const String bookingsCancel = '/bookings/cancel';
 
   // ==================== WALLET ENDPOINTS ====================
   // wallet stuff
@@ -268,5 +277,21 @@ class ApiConfig {
   // build url for removing wishlist item
   static String getRemoveWishlistItemUrl(int wishlistItemId) {
     return '$baseUrl$removeFromWishlist/$wishlistItemId';
+  }
+
+  // build url for available booking sessions: /bookings/available-sessions?date={date}
+  static String getBookingsAvailableSessionsUrl(String date) {
+    final path = bookingsAvailableSessions.startsWith('/')
+        ? bookingsAvailableSessions.substring(1)
+        : bookingsAvailableSessions;
+    return '$baseUrl/$path?date=${Uri.encodeComponent(date)}';
+  }
+
+  // build url for cancel booking: /bookings/cancel/{id}
+  static String getBookingsCancelUrl(String id) {
+    final path = bookingsCancel.startsWith('/')
+        ? bookingsCancel.substring(1)
+        : bookingsCancel;
+    return '$baseUrl/$path/$id';
   }
 }

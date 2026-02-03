@@ -1,4 +1,5 @@
 // pages/delivery_page.dart
+import 'dart:convert';
 import 'package:eclapp/pages/payment_page.dart';
 import 'package:eclapp/pages/auth_service.dart';
 import 'package:eclapp/services/delivery_service.dart';
@@ -1405,39 +1406,54 @@ class DeliveryPageState extends State<DeliveryPage> {
         lng: _longitude,
       );
 
-      print('🗺️ [MAP API RESPONSE] ===== COMPLETE API RESPONSE =====');
-      print('🗺️ [MAP API RESPONSE] Raw response: $result');
-      print('🗺️ [MAP API RESPONSE] Response type: ${result.runtimeType}');
-      print('🗺️ [MAP API RESPONSE] Success: ${result['success']}');
-
+      // Log full API response to terminal
+      print('═══════════════════════════════════════════════════════');
+      print('📤 DELIVERY / MAP API RESPONSE');
+      print('═══════════════════════════════════════════════════════');
+      try {
+        print(json.encode(result));
+      } catch (_) {
+        print(result.toString());
+      }
+      print('═══════════════════════════════════════════════════════');
+      print('Success: ${result['success']}');
+      print('Message: ${result['message']}');
+      if (result['closest_store'] != null) {
+        print('closest_store: ${result['closest_store']}');
+      }
       if (result['data'] != null) {
-        print('🗺️ [MAP API RESPONSE] Data: ${result['data']}');
+        print('data: ${result['data']}');
       }
 
       final closestStore = result['closest_store'];
+      final distanceText = closestStore?['distance_text']?.toString();
 
-      // If the API gave us a distance like "4.2 km", use that to compute the fee
-      if (closestStore != null) {
-        final distanceText = closestStore['distance_text']?.toString();
-        print('🗺️ [MAP API RESPONSE] Closest store: $closestStore');
-        print('🗺️ [MAP API RESPONSE] distance_text: $distanceText');
-
-        if (distanceText != null) {
-          final match = RegExp(r'([\d\.]+)').firstMatch(distanceText);
-          if (match != null) {
-            final parsedKm = double.tryParse(match.group(1)!);
-            if (parsedKm != null) {
-              final fee =
-                  DeliveryService.calculateDeliveryFeeByDistance(parsedKm);
-              print(
-                  '📦 Calculated delivery fee from actual distance ($parsedKm km): $fee');
-              if (mounted) {
-                setState(() {
-                  deliveryFee = fee;
-                  _distanceKm = parsedKm;
-                });
-              }
-            }
+      // Use /calculate-delivery-fee API with distance_text; response: { "distance": 4, "delivery_fee": "44.00" }
+      if (distanceText != null && distanceText.isNotEmpty) {
+        print('📤 [DELIVERY] Calling /calculate-delivery-fee with distance_text: "$distanceText"');
+        final feeResult = await DeliveryService.fetchDeliveryFeeFromApi(
+          distanceText: distanceText,
+        );
+        if (feeResult != null && mounted) {
+          final feeValue = feeResult['delivery_fee'] as double;
+          final distanceKm = feeResult['distance'] as double?;
+          setState(() {
+            deliveryFee = feeValue;
+            _distanceKm = distanceKm;
+          });
+          print('📦 Delivery fee from /calculate-delivery-fee API: distance=$distanceKm km, delivery_fee=GHS ${feeValue.toStringAsFixed(2)}');
+        } else if (mounted) {
+          // Fallback: calculate from distance_text when /calculate-delivery-fee fails
+          print('📦 [DELIVERY] /calculate-delivery-fee returned null, using local calculation (fallback)');
+          final fallbackResult =
+              DeliveryService.calculateDeliveryFeeFromDistanceText(distanceText);
+          if (fallbackResult != null) {
+            setState(() {
+              deliveryFee = fallbackResult['fee']!;
+              _distanceKm = fallbackResult['distanceKm'];
+            });
+            print(
+                '📦 Delivery fee from distance_text (fallback) "$distanceText" → ${fallbackResult['distanceKm']} km → GHS ${fallbackResult['fee']?.toStringAsFixed(2)}');
           }
         }
       }

@@ -16,6 +16,7 @@ import '../models/health_tip.dart';
 import '../services/ernest_ai_service.dart';
 import 'auth_service.dart';
 import 'signinpage.dart';
+import '../services/booking_service.dart';
 
 class PharmacistsPage extends StatefulWidget {
   const PharmacistsPage({super.key});
@@ -92,13 +93,30 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   }
 
   Future<void> _loadBookings() async {
+    final isLoggedIn = await AuthService.isLoggedIn();
+    if (isLoggedIn) {
+      final result = await BookingService.getHistory();
+      if (result['success'] == true && result['data'] is List) {
+        final list = result['data'] as List<dynamic>;
+        final items = list
+            .map((e) => Map<String, dynamic>.from(e as Map<dynamic, dynamic>))
+            .toList();
+        if (mounted) {
+          setState(() => _bookings = items);
+        }
+        await _saveBookings();
+        return;
+      }
+    }
     final prefs = await SharedPreferences.getInstance();
     final bookingsJson = prefs.getStringList('pharmacist_bookings') ?? [];
-    setState(() {
-      _bookings = bookingsJson
-          .map((e) => Map<String, dynamic>.from(_decodeJson(e)))
-          .toList();
-    });
+    if (mounted) {
+      setState(() {
+        _bookings = bookingsJson
+            .map((e) => Map<String, dynamic>.from(_decodeJson(e)))
+            .toList();
+      });
+    }
   }
 
   Future<void> _saveBookings() async {
@@ -616,6 +634,44 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     });
   }
 
+  /// Cancel a booking via API (when it has id) and remove from list.
+  /// Returns true if cancel succeeded (so caller can close sheet).
+  Future<bool> _cancelBooking(Map<String, dynamic> booking) async {
+    final id = booking['id'];
+    if (id == null) {
+      setState(() => _bookings.remove(booking));
+      await _saveBookings();
+      return true;
+    }
+    final result = await BookingService.cancel(id.toString());
+    if (!mounted) return false;
+    if (result['success'] == true) {
+      setState(() =>
+          _bookings.removeWhere((e) => e['id'] == id || identical(e, booking)));
+      await _saveBookings();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Booking cancelled'),
+          backgroundColor: Colors.green.shade700,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return true;
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              result['message']?.toString() ?? 'Failed to cancel booking'),
+          backgroundColor: Colors.red.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return false;
+    }
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -903,6 +959,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     // Allow booking without login requirement
     await _prepareAvailabilityForBooking();
     await _prefillUserData();
+    final loadingSessionsHolder = [false];
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -995,6 +1052,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                               ? _buildSelectDateStep(
                                   key: const ValueKey('step0'),
                                   setDialogState: setDialogState,
+                                  loadingSessionsHolder: loadingSessionsHolder,
                                 )
                               : _bookingStep == 1
                                   ? _buildSelectTimeStep(
@@ -1100,6 +1158,25 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
 
   DateTime? _parseBookingDateTime(Map<String, dynamic> b) {
     try {
+      // API history format: session_date "2026-01-27", start_time "09:00:00"
+      final sessionDate = b['session_date']?.toString();
+      final startTime = b['start_time']?.toString();
+      if (sessionDate != null &&
+          sessionDate.isNotEmpty &&
+          startTime != null &&
+          startTime.isNotEmpty) {
+        final dateParts = sessionDate.split('-');
+        final timeParts = startTime.split(':');
+        if (dateParts.length >= 3 && timeParts.length >= 2) {
+          final year = int.tryParse(dateParts[0]) ?? 2000;
+          final month = int.tryParse(dateParts[1]) ?? 1;
+          final day = int.tryParse(dateParts[2]) ?? 1;
+          final hour = int.tryParse(timeParts[0]) ?? 0;
+          final minute = int.tryParse(timeParts[1]) ?? 0;
+          return DateTime(year, month, day, hour, minute);
+        }
+      }
+      // Local format: date "d/m/y", time "2:30 PM" or "14:30"
       final parts = (b['date'] ?? '').toString().split('/');
       if (parts.length != 3) return null;
       final day = int.tryParse(parts[0]) ?? 1;
@@ -1145,13 +1222,19 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   String _timeKey(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
-  Widget _buildSelectDateStep({Key? key, required StateSetter setDialogState}) {
+  Widget _buildSelectDateStep({
+    Key? key,
+    required StateSetter setDialogState,
+    List<bool>? loadingSessionsHolder,
+  }) {
     final now = DateTime.now();
     final firstDate =
         DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
     final lastDate = firstDate.add(const Duration(days: 30));
     final initialDate = _availabilityDate ??
         (_availableDates.isNotEmpty ? _availableDates.first : firstDate);
+    final isLoading =
+        loadingSessionsHolder != null && loadingSessionsHolder.isNotEmpty && loadingSessionsHolder[0];
 
     return Container(
       key: key,
@@ -1214,15 +1297,52 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _availabilityDate == null
+              onPressed: _availabilityDate == null || isLoading
                   ? null
-                  : () {
-                      final times =
-                          _computeAvailableTimesForDate(_availabilityDate!);
+                  : () async {
+                      final date = _availabilityDate!;
+                      final dateStr =
+                          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+                      setDialogState(() {
+                        if (loadingSessionsHolder != null &&
+                            loadingSessionsHolder.isNotEmpty) {
+                          loadingSessionsHolder[0] = true;
+                        }
+                      });
+                      final result =
+                          await BookingService.getAvailableSessions(dateStr);
+                      if (!mounted) return;
+                      List<TimeOfDay> times = [];
+                      if (result['success'] == true && result['data'] is List) {
+                        final sessions =
+                            result['data'] as List<dynamic>;
+                        for (final s in sessions) {
+                          if (s is! Map) continue;
+                          if (s['available'] != true) continue;
+                          final start = s['start']?.toString();
+                          if (start == null || start.isEmpty) continue;
+                          final parts = start.split(':');
+                          final hour = parts.isNotEmpty
+                              ? int.tryParse(parts[0]) ?? 0
+                              : 0;
+                          final minute = parts.length > 1
+                              ? int.tryParse(parts[1]) ?? 0
+                              : 0;
+                          times.add(TimeOfDay(hour: hour, minute: minute));
+                        }
+                      }
+                      if (times.isEmpty) {
+                        times =
+                            _computeAvailableTimesForDate(_availabilityDate!);
+                      }
                       setDialogState(() {
                         _availableTimes = times;
                         _availabilityTime = null;
                         _bookingStep = 1;
+                        if (loadingSessionsHolder != null &&
+                            loadingSessionsHolder.isNotEmpty) {
+                          loadingSessionsHolder[0] = false;
+                        }
                       });
                     },
               style: ElevatedButton.styleFrom(
@@ -1234,13 +1354,23 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 ),
                 elevation: 0,
               ),
-              child: Text(
-                'Next',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              child: isLoading
+                  ? SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Text(
+                      'Next',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -2302,10 +2432,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   }
 
   void _submitBookingWithValidation() async {
-    // Allow booking without login requirement
     final isValid = _formKey.currentState?.validate() ?? false;
     if (!isValid) {
-      // Scroll to the first invalid field
       if (_nameController.text.isEmpty) {
         _scrollToField(_nameFieldKey);
       } else if (_phoneController.text.isEmpty) {
@@ -2315,7 +2443,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       } else if (_symptomsController.text.isEmpty) {
         _scrollToField(_symptomsFieldKey);
       }
-      // Show validation errors
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Please complete all required fields.'),
@@ -2328,8 +2455,29 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       );
       return;
     }
-    // Save booking
-    final booking = {
+    final sessionDate =
+        '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
+    final startTime =
+        '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}';
+    final endHour = _selectedTime.hour + 2;
+    final endMinute = _selectedTime.minute;
+    final endTime =
+        '${(endHour % 24).toString().padLeft(2, '0')}:${endMinute.toString().padLeft(2, '0')}';
+    final typeValue = _selectedConsultationType
+        .toLowerCase()
+        .replaceAll(' ', '');
+    final apiBody = {
+      'session_date': sessionDate,
+      'start_time': startTime,
+      'end_time': endTime,
+      'full_name': _nameController.text.trim(),
+      'email': _emailController.text.trim(),
+      'phone': _phoneController.text.trim(),
+      'platform': _selectedPreferredPlatform,
+      'type': typeValue,
+      'reason': _symptomsController.text.trim(),
+    };
+    final localBooking = {
       'name': _nameController.text,
       'phone': _phoneController.text,
       'email': _emailController.text,
@@ -2341,21 +2489,43 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
       'time': _selectedTime.format(context),
     };
-    setState(() {
-      _bookings.insert(0, booking);
-    });
-    await _saveBookings();
-    // Show loading state
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => _buildLoadingDialog(),
     );
-    // Simulate API call
-    Future.delayed(Duration(seconds: 2), () {
-      Navigator.pop(context); // Close loading dialog
+    try {
+      final result = await BookingService.book(apiBody);
+      if (!mounted) return;
+      Navigator.pop(context);
+      if (result['success'] == true) {
+        final bookingData = result['booking'];
+        if (bookingData is Map<String, dynamic>) {
+          setState(() => _bookings.insert(0, bookingData));
+        } else {
+          setState(() => _bookings.insert(0, localBooking));
+        }
+        await _saveBookings();
+        _showSuccessDialog();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']?.toString() ?? 'Booking failed'),
+            backgroundColor: Colors.red[600],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      setState(() => _bookings.insert(0, localBooking));
+      await _saveBookings();
       _showSuccessDialog();
-    });
+    }
   }
 
   void _scrollToField(GlobalKey key) {
@@ -2874,13 +3044,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                                     showModalBottomSheet(
                                       context: context,
                                       isScrollControlled: true,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.vertical(
-                                            top: Radius.circular(24)),
-                                      ),
+                                      backgroundColor: Colors.transparent,
                                       builder: (_) => BookingsListSheet(
                                         bookings: _bookings,
                                         onClear: _clearBookings,
+                                        onCancelBooking: _cancelBooking,
                                       ),
                                     );
                                   },
@@ -5176,140 +5344,123 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   }
 
   Widget _buildSlimBookingCard(Map<String, dynamic> b) {
+    final isUpcoming = getBookingStatus(b) == 'Upcoming';
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[200]!, width: 0.5),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 4,
-            offset: Offset(0, 1),
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
+        border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Padding(
-        padding: EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Compact header
-            Row(
-              children: [
-                Icon(Icons.calendar_today, color: Colors.green[600], size: 14),
-                SizedBox(width: 6),
-                Text(
-                  '${b['date']} at ${b['time']}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.green[700],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: 4,
+                decoration: BoxDecoration(
+                  color: isUpcoming ? Colors.green.shade500 : Colors.grey.shade400,
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.event_rounded, color: Colors.green.shade600, size: 16),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '${bookingDisplayDate(b)} · ${bookingDisplayTime(b)}',
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade800,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: isUpcoming ? Colors.green.shade50 : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              getBookingStatus(b),
+                              style: GoogleFonts.poppins(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: isUpcoming ? Colors.green.shade700 : Colors.grey.shade700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        bookingDisplayName(b),
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${bookingDisplayConsultationType(b)} · ${bookingDisplayPlatform(b)}',
+                        style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey.shade600),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (b['id'] != null && isUpcoming) ...[
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: InkWell(
+                            onTap: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => _buildCancelBookingConfirmDialog(ctx),
+                              );
+                              if (confirm == true) await _cancelBooking(b);
+                            },
+                            borderRadius: BorderRadius.circular(6),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              child: Text(
+                                'Cancel booking',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.red.shade600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                Spacer(),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: getBookingStatus(b) == 'Upcoming'
-                        ? Colors.green[100]
-                        : Colors.grey[200],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    getBookingStatus(b),
-                    style: GoogleFonts.poppins(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                      color: getBookingStatus(b) == 'Upcoming'
-                          ? Colors.green[700]
-                          : Colors.grey[600],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 8),
-
-            // Compact details
-            Row(
-              children: [
-                Icon(Icons.person, color: Colors.blue[600], size: 12),
-                SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    b['name'] ?? '',
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                SizedBox(width: 16),
-                Icon(Icons.phone, color: Colors.green[600], size: 12),
-                SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    b['phone'] ?? '',
-                    style: GoogleFonts.poppins(fontSize: 11),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(Icons.email, color: Colors.orange[600], size: 12),
-                SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    b['email'] ?? '',
-                    style: GoogleFonts.poppins(fontSize: 11),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                SizedBox(width: 16),
-                Icon(Icons.video_call, color: Colors.purple[600], size: 12),
-                SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    b['consultationType'] ?? '',
-                    style: GoogleFonts.poppins(fontSize: 11),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 6),
-
-            // Compact symptoms
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.medical_services, color: Colors.red[600], size: 12),
-                SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    b['symptoms'] ?? '',
-                    style: GoogleFonts.poppins(
-                      fontSize: 10,
-                      color: Colors.grey[600],
-                      height: 1.2,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -5361,7 +5512,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                     ),
                     SizedBox(width: 8),
                     Text(
-                      '${b['date']} at ${b['time']}',
+                      '${bookingDisplayDate(b)} at ${bookingDisplayTime(b)}',
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -5414,7 +5565,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   child: _buildDetailItem(
                     Icons.person,
                     'Name',
-                    b['name'] ?? '',
+                    bookingDisplayName(b),
                     Colors.blue[600]!,
                   ),
                 ),
@@ -5445,7 +5596,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   child: _buildDetailItem(
                     Icons.video_call,
                     'Type',
-                    b['consultationType'] ?? '',
+                    bookingDisplayConsultationType(b),
                     Colors.purple[600]!,
                   ),
                 ),
@@ -5485,7 +5636,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   ),
                   SizedBox(height: 6),
                   Text(
-                    b['symptoms'] ?? '',
+                    bookingDisplaySymptoms(b),
                     style: GoogleFonts.poppins(
                       fontSize: 11,
                       color: Colors.grey[600],
@@ -5564,7 +5715,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                         color: Colors.green[700], size: 15),
                     SizedBox(width: 6),
                     Text(
-                      '${b['date']} at ${b['time']}',
+                      '${bookingDisplayDate(b)} at ${bookingDisplayTime(b)}',
                       style: GoogleFonts.poppins(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
@@ -5600,7 +5751,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    b['name'] ?? '',
+                    bookingDisplayName(b),
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -5645,7 +5796,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    b['consultationType'] ?? '',
+                    bookingDisplayConsultationType(b),
                     style: GoogleFonts.poppins(fontSize: 12),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -5659,7 +5810,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    'Platform: ${b['preferredPlatform'] ?? 'Not specified'}',
+                    'Platform: ${bookingDisplayPlatform(b)}',
                     style: GoogleFonts.poppins(fontSize: 12),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -5675,7 +5826,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    b['symptoms'] ?? '',
+                    bookingDisplaySymptoms(b),
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       color: Colors.grey[700],
@@ -5835,57 +5986,154 @@ class ChatMessage {
 class BookingsListSheet extends StatelessWidget {
   final List<Map<String, dynamic>> bookings;
   final VoidCallback onClear;
-  const BookingsListSheet(
-      {required this.bookings, required this.onClear, super.key});
+  final Future<bool> Function(Map<String, dynamic> booking)? onCancelBooking;
+  const BookingsListSheet({
+    required this.bookings,
+    required this.onClear,
+    this.onCancelBooking,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.only(top: 16, left: 0, right: 0, bottom: 0),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Text(
-                    'All Booked Appointments',
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green[800],
+            // Header
+            Container(
+              padding: EdgeInsets.fromLTRB(20, 20, 12, 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.green.shade600, Colors.green.shade700],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.event_note_rounded, color: Colors.white, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Booking history',
+                          style: GoogleFonts.poppins(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${bookings.length} consultation${bookings.length == 1 ? '' : 's'}',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: Colors.white.withValues(alpha: 0.9),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  IconButton(
+                    icon: Icon(Icons.close_rounded, color: Colors.white, size: 24),
+                    onPressed: () => Navigator.pop(context),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.white.withValues(alpha: 0.2),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.6,
                 ),
-                IconButton(
-                  icon: Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
+                child: bookings.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.calendar_today_rounded,
+                                size: 56, color: Colors.grey.shade400),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No bookings yet',
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Book a consultation to see it here',
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+                        itemCount: bookings.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 14),
+                        itemBuilder: (context, i) => _BookingCardModal(
+                          bookings[i],
+                          onCancel: onCancelBooking,
+                        ),
+                      ),
+            ),
+            ),
+            if (bookings.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                child: TextButton.icon(
+                  onPressed: onClear,
+                  icon: Icon(Icons.delete_outline_rounded, size: 18, color: Colors.red.shade600),
+                  label: Text(
+                    'Clear all from device',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.red.shade600,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red.shade600,
+                  ),
                 ),
-              ],
-            ),
-            Divider(height: 1),
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.6,
               ),
-              child: ListView.separated(
-                shrinkWrap: true,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                itemCount: bookings.length,
-                separatorBuilder: (_, __) => SizedBox(height: 12),
-                itemBuilder: (context, i) => _BookingCardModal(bookings[i]),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16, top: 8),
-              child: TextButton(
-                onPressed: onClear,
-                child: Text('Clear All', style: TextStyle(color: Colors.red)),
-              ),
-            ),
           ],
         ),
       ),
@@ -5895,131 +6143,299 @@ class BookingsListSheet extends StatelessWidget {
 
 class _BookingCardModal extends StatelessWidget {
   final Map<String, dynamic> b;
-  const _BookingCardModal(this.b);
+  final Future<bool> Function(Map<String, dynamic> booking)? onCancel;
+  const _BookingCardModal(this.b, {this.onCancel});
   @override
   Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      elevation: 1,
-      margin: EdgeInsets.symmetric(horizontal: 16),
+    final hasId = b['id'] != null;
+    final isUpcoming = getBookingStatus(b) == 'Upcoming';
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: 4,
+                decoration: BoxDecoration(
+                  color: isUpcoming ? Colors.green.shade500 : Colors.grey.shade400,
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${bookingDisplayDate(b)} · ${bookingDisplayTime(b)}',
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade800,
+                                letterSpacing: -0.2,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isUpcoming
+                                  ? Colors.green.shade50
+                                  : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              getBookingStatus(b),
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isUpcoming
+                                    ? Colors.green.shade700
+                                    : Colors.grey.shade700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _detailRow(Icons.person_outline_rounded, bookingDisplayName(b)),
+                            const SizedBox(height: 8),
+                            _detailRow(Icons.phone_outlined, b['phone'] ?? ''),
+                            const SizedBox(height: 8),
+                            _detailRow(Icons.email_outlined, b['email'] ?? ''),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Icon(Icons.videocam_outlined, size: 16, color: Colors.grey.shade600),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '${bookingDisplayConsultationType(b)} · ${bookingDisplayPlatform(b)}',
+                                    style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade700),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (bookingDisplaySymptoms(b).isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          bookingDisplaySymptoms(b),
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                            height: 1.35,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      if (hasId && isUpcoming && onCancel != null) ...[
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => _buildCancelBookingConfirmDialog(ctx),
+                                );
+                                if (confirm == true) {
+                                  final ok = await onCancel!(b);
+                                  if (context.mounted && ok) Navigator.pop(context);
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.cancel_outlined, size: 16, color: Colors.red.shade600),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Cancel booking',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.red.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(IconData icon, String text) {
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: Colors.grey.shade600),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade800),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Redesigned cancel-booking confirmation popup.
+Widget _buildCancelBookingConfirmDialog(BuildContext context) {
+  return Dialog(
+    backgroundColor: Colors.transparent,
+    elevation: 0,
+    child: Container(
+      constraints: const BoxConstraints(maxWidth: 340),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.event_busy_rounded,
+                size: 40,
+                color: Colors.red.shade600,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Cancel this appointment?',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade800,
+                letterSpacing: -0.3,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This consultation will be cancelled. You can book a new one anytime.',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: Colors.grey.shade600,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 22),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.calendar_today,
-                        color: Colors.green[700], size: 15),
-                    SizedBox(width: 6),
-                    Text(
-                      '${b['date']} at ${b['time']}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green[800],
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.green.shade700,
+                      side: BorderSide(color: Colors.green.shade300),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                  ],
-                ),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: getBookingStatus(b) == 'Upcoming'
-                        ? Colors.green[100]
-                        : Colors.grey[300],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    getBookingStatus(b),
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: getBookingStatus(b) == 'Upcoming'
-                          ? Colors.green[800]
-                          : Colors.grey[700],
+                    child: Text(
+                      'Keep appointment',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
-              ],
-            ),
-            Row(
-              children: [
-                Icon(Icons.person, color: Colors.green[400], size: 13),
-                SizedBox(width: 4),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    b['name'] ?? '',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade500,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Icon(Icons.phone, color: Colors.green[400], size: 13),
-                SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    b['phone'] ?? '',
-                    style: GoogleFonts.poppins(fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Icon(Icons.video_call, color: Colors.green[400], size: 13),
-                SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    b['consultationType'] ?? '',
-                    style: GoogleFonts.poppins(fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Icon(Icons.computer, color: Colors.green[400], size: 13),
-                SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    'Platform: ${b['preferredPlatform'] ?? 'Not specified'}',
-                    style: GoogleFonts.poppins(fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.medical_services,
-                    color: Colors.green[400], size: 13),
-                SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    b['symptoms'] ?? '',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: Colors.grey[700],
+                    child: Text(
+                      'Yes, cancel',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -6027,25 +6443,76 @@ class _BookingCardModal extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
-// Helper to determine booking status (move to top-level for global access)
+// Helpers so booking cards work with both local shape (date, time, name, ...) and API history shape (session_date, start_time, end_time, full_name, type, platform, reason).
+String bookingDisplayDate(Map<String, dynamic> b) {
+  final d = b['date'];
+  if (d != null && d.toString().isNotEmpty) return d.toString();
+  final sd = b['session_date'];
+  if (sd != null && sd.toString().isNotEmpty) return sd.toString();
+  return '';
+}
+
+String bookingDisplayTime(Map<String, dynamic> b) {
+  final t = b['time'];
+  if (t != null && t.toString().isNotEmpty) return t.toString();
+  final start = b['start_time']?.toString() ?? '';
+  final end = b['end_time']?.toString() ?? '';
+  if (start.isEmpty && end.isEmpty) return '';
+  String s = start.split(':').take(2).join(':');
+  String e = end.split(':').take(2).join(':');
+  return e.isEmpty ? s : '$s - $e';
+}
+
+String bookingDisplayName(Map<String, dynamic> b) =>
+    (b['name'] ?? b['full_name'] ?? '').toString();
+
+String bookingDisplayConsultationType(Map<String, dynamic> b) =>
+    (b['consultationType'] ?? b['type'] ?? '').toString();
+
+String bookingDisplayPlatform(Map<String, dynamic> b) =>
+    (b['preferredPlatform'] ?? b['platform'] ?? 'Not specified').toString();
+
+String bookingDisplaySymptoms(Map<String, dynamic> b) =>
+    (b['symptoms'] ?? b['reason'] ?? '').toString();
+
+// Helper to determine booking status (supports local and API history format).
 String getBookingStatus(Map<String, dynamic> b) {
   try {
-    final parts = (b['date'] ?? '').split('/');
-    final timeStr = b['time'] ?? '';
+    final now = DateTime.now();
+    // API history format: session_date "2026-01-27", start_time "09:00:00"
+    final sessionDate = b['session_date']?.toString();
+    final startTime = b['start_time']?.toString();
+    if (sessionDate != null &&
+        sessionDate.isNotEmpty &&
+        startTime != null &&
+        startTime.isNotEmpty) {
+      final dateParts = sessionDate.split('-');
+      final timeParts = startTime.split(':');
+      if (dateParts.length >= 3 && timeParts.length >= 2) {
+        final year = int.tryParse(dateParts[0]) ?? now.year;
+        final month = int.tryParse(dateParts[1]) ?? 1;
+        final day = int.tryParse(dateParts[2]) ?? 1;
+        final hour = int.tryParse(timeParts[0]) ?? 0;
+        final minute = int.tryParse(timeParts[1]) ?? 0;
+        final bookingDate = DateTime(year, month, day, hour, minute);
+        return bookingDate.isAfter(now) ? 'Upcoming' : 'Completed';
+      }
+    }
+    // Local format: date "d/m/y", time "2:30 PM" or "14:30"
+    final parts = (b['date'] ?? '').toString().split('/');
+    final timeStr = (b['time'] ?? '').toString();
     if (parts.length == 3 && timeStr.isNotEmpty) {
       final day = int.tryParse(parts[0]) ?? 1;
       final month = int.tryParse(parts[1]) ?? 1;
       final year = int.tryParse(parts[2]) ?? 2000;
-      final now = DateTime.now();
-      // Parse time (e.g., "2:30 PM")
       final timeParts = timeStr.split(' ');
       final hm = timeParts[0].split(':');
       int hour = int.tryParse(hm[0]) ?? 0;
-      int minute = int.tryParse(hm[1]) ?? 0;
+      int minute = hm.length > 1 ? (int.tryParse(hm[1]) ?? 0) : 0;
       if (timeParts.length > 1 &&
           timeParts[1].toUpperCase() == 'PM' &&
           hour < 12) {
@@ -6057,8 +6524,7 @@ String getBookingStatus(Map<String, dynamic> b) {
         hour = 0;
       }
       final bookingDate = DateTime(year, month, day, hour, minute);
-      if (bookingDate.isAfter(now)) return 'Upcoming';
-      return 'Completed';
+      return bookingDate.isAfter(now) ? 'Upcoming' : 'Completed';
     }
   } catch (_) {
     // ignore errors and fall through to default

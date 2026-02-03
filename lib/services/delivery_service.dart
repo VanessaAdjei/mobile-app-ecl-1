@@ -313,6 +313,88 @@ class DeliveryService {
     }
   }
 
+  /// Call /calculate-delivery-fee API with distance_text (e.g. "1.9 km").
+  /// Returns { distance: num, delivery_fee: double } or null on failure.
+  /// API response format: { "distance": 4, "delivery_fee": "44.00" }
+  static Future<Map<String, dynamic>?> fetchDeliveryFeeFromApi({
+    required String distanceText,
+  }) async {
+    try {
+      if (distanceText.trim().isEmpty) {
+        debugPrint('calculate-delivery-fee: distance_text is empty');
+        return null;
+      }
+      final isLoggedIn = await AuthService.isLoggedIn();
+      String? token;
+      String? guestId;
+      if (isLoggedIn) {
+        token = await AuthService.getToken();
+      } else {
+        final prefs = await SharedPreferences.getInstance();
+        guestId = prefs.getString('guest_id');
+      }
+      if (!isLoggedIn && (guestId == null || guestId.isEmpty)) {
+        debugPrint('calculate-delivery-fee: Guest auth required');
+        return null;
+      }
+      if (isLoggedIn && (token == null || token.isEmpty)) {
+        debugPrint('calculate-delivery-fee: Auth required');
+        return null;
+      }
+
+      final url = ApiConfig.getEndpointUrl(ApiConfig.calculateDeliveryFee);
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        if (isLoggedIn) 'Authorization': 'Bearer $token',
+        if (!isLoggedIn && guestId != null) 'Authorization': 'Guest $guestId',
+      };
+      final body = json.encode({'distance_text': distanceText});
+
+      print('📤 [CALCULATE-DELIVERY-FEE] Calling API: $url');
+      print('📤 [CALCULATE-DELIVERY-FEE] Request body: $body');
+
+      final response = await http
+          .post(Uri.parse(url), headers: headers, body: body)
+          .timeout(const Duration(seconds: 10));
+
+      print('📥 [CALCULATE-DELIVERY-FEE] Response status: ${response.statusCode}');
+      print('📥 [CALCULATE-DELIVERY-FEE] Response body: ${response.body}');
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        print('❌ [CALCULATE-DELIVERY-FEE] Non-success status, using fallback');
+        return null;
+      }
+      final data = json.decode(response.body) as Map<String, dynamic>?;
+      if (data == null) {
+        print('❌ [CALCULATE-DELIVERY-FEE] Response body could not be parsed, using fallback');
+        return null;
+      }
+
+      final distance = data['distance'];
+      final deliveryFeeRaw = data['delivery_fee'] ?? data['deliveryFee'] ?? data['fee'];
+      if (deliveryFeeRaw == null) {
+        print('❌ [CALCULATE-DELIVERY-FEE] No delivery_fee in response, using fallback');
+        return null;
+      }
+
+      final feeValue = deliveryFeeRaw is num
+          ? deliveryFeeRaw.toDouble()
+          : (double.tryParse(deliveryFeeRaw.toString()) ?? 0.0);
+      final distanceKm = distance is num
+          ? distance.toDouble()
+          : (distance != null ? double.tryParse(distance.toString()) : null);
+
+      return {
+        'distance': distanceKm,
+        'delivery_fee': feeValue,
+      };
+    } catch (e) {
+      print('❌ [CALCULATE-DELIVERY-FEE] Error: $e');
+      return null;
+    }
+  }
+
   /// Calculate delivery fee based on region and city
   static double calculateDeliveryFee(String region, String city) {
     if (region.toLowerCase().contains('accra') ||
@@ -324,6 +406,34 @@ class DeliveryService {
     } else {
       return 00.00;
     }
+  }
+
+  /// Parse Google-style distance_text (e.g. "4.2 km", "500 m") to distance in km.
+  /// Returns null if parsing fails.
+  static double? parseDistanceTextToKm(String? distanceText) {
+    if (distanceText == null || distanceText.trim().isEmpty) return null;
+    final trimmed = distanceText.trim().toLowerCase();
+    // Match number: digits, optional decimal (. or ,), optional more digits
+    final match = RegExp(r'([\d\s]+[.,]?\d*)').firstMatch(trimmed);
+    if (match == null) return null;
+    final numStr = match.group(1)!.replaceAll(' ', '').replaceAll(',', '.');
+    final value = double.tryParse(numStr);
+    if (value == null) return null;
+    if (trimmed.contains('km')) return value;
+    if (trimmed.contains('m') && !trimmed.contains('km')) return value / 1000.0;
+    return value;
+  }
+
+  /// Calculate delivery fee from distance_text (e.g. "4.2 km", "500 m").
+  /// Returns map with 'fee' and 'distanceKm', or null if parsing fails.
+  static Map<String, double>? calculateDeliveryFeeFromDistanceText(
+    String? distanceText, {
+    double? ratePerKm,
+  }) {
+    final distanceKm = parseDistanceTextToKm(distanceText);
+    if (distanceKm == null) return null;
+    final fee = calculateDeliveryFeeByDistance(distanceKm, ratePerKm: ratePerKm);
+    return {'fee': fee, 'distanceKm': distanceKm};
   }
 
   /// Calculate delivery fee based purely on distance in km.
