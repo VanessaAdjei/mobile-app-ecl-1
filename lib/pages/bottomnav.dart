@@ -434,8 +434,8 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                   center: const Alignment(0, -0.4),
                   radius: 1.1,
                   colors: [
-                    color.withOpacity(0.18),
-                    color.withOpacity(0.05),
+                    color.withValues(alpha: 0.18),
+                    color.withValues(alpha: 0.05),
                   ],
                 ),
               ),
@@ -614,8 +614,8 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                   center: const Alignment(0, -0.4),
                   radius: 1.1,
                   colors: [
-                    color.withOpacity(0.18),
-                    color.withOpacity(0.05),
+                    color.withValues(alpha: 0.18),
+                    color.withValues(alpha: 0.05),
                   ],
                 ),
               ),
@@ -930,7 +930,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                   type: BottomNavigationBarType.fixed,
                   backgroundColor: Colors.transparent,
                   selectedItemColor: Colors.white,
-                  unselectedItemColor: Colors.white.withOpacity(0.7),
+                  unselectedItemColor: Colors.white.withValues(alpha: 0.7),
                   elevation: 0,
                   currentIndex: _selectedIndex,
                   onTap: _onItemTapped,
@@ -948,7 +948,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                   unselectedLabelStyle: TextStyle(
                     fontSize: finalFontSize,
                     height: 0.5,
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                     fontWeight: FontWeight.w400,
                   ),
                   items: [
@@ -980,7 +980,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.red.withOpacity(0.5),
+                                        color: Colors.red.withValues(alpha: 0.5),
                                         blurRadius: 4,
                                         offset: const Offset(0, 2),
                                       ),
@@ -1049,7 +1049,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                                         0
                                                     ? Colors.blue
                                                     : Colors.orange)
-                                                .withOpacity(0.5),
+                                                .withValues(alpha: 0.5),
                                             blurRadius: 4,
                                             offset: const Offset(0, 2),
                                           ),
@@ -1131,7 +1131,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                 end: Alignment.bottomRight,
                                 colors: [
                                   Colors.white,
-                                  Colors.white.withOpacity(0.98),
+                                  Colors.white.withValues(alpha: 0.98),
                                 ],
                               ),
                               shape: BoxShape.circle,
@@ -1159,8 +1159,8 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                   colors: [
-                                    const Color(0xFF20AF67).withOpacity(0.1),
-                                    const Color(0xFF20AF67).withOpacity(0.05),
+                                    const Color(0xFF20AF67).withValues(alpha: 0.1),
+                                    const Color(0xFF20AF67).withValues(alpha: 0.05),
                                   ],
                                 ),
                               ),

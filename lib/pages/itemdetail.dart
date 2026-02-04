@@ -216,14 +216,16 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
       cartProvider.addToCart(cartItem);
 
-      if (mounted) {
+      if (context.mounted) {
         await _flyToCartAnimation(context);
-        _showSuccessSnackBar(context,
-            '${originalQuantity}x ${product.name} has been added to cart');
-        _scaleController.forward().then((_) => _scaleController.reverse());
+        if (context.mounted) {
+          _showSuccessSnackBar(context,
+              '${originalQuantity}x ${product.name} has been added to cart');
+          _scaleController.forward().then((_) => _scaleController.reverse());
+        }
       }
     } catch (e) {
-      if (mounted) {
+      if (context.mounted) {
         // check if the error is about stock/quantity
         final errorMessage = e.toString();
         String displayMessage;
@@ -1576,6 +1578,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                           debugPrint('🔍 ItemDetail: Price: ${product.price}');
                           debugPrint(
                               '🔍 ItemDetail: Batch No: ${product.batch_no}');
+
+                          if (!context.mounted) return;
 
                           _showSignInRequiredDialog(context);
                           return;

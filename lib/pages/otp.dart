@@ -186,6 +186,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
 
               // Update AuthProvider state
               try {
+                if (!context.mounted) return;
                 final authProvider =
                     Provider.of<AuthProvider>(context, listen: false);
                 await authProvider.login();
@@ -197,6 +198,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
 
               // Get the current AuthState using the of() pattern
               try {
+                if (!context.mounted) return;
                 final authState = main_app.AuthState.of(context);
                 if (authState != null) {
                   authState.refreshAuthState();
@@ -211,6 +213,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
               try {
                 final userId = await AuthService.getCurrentUserID();
                 if (userId != null) {
+                  if (!context.mounted) return;
                   await Provider.of<CartProvider>(context, listen: false)
                       .handleUserLogin(userId);
                   debugPrint('✅ Cart synced successfully for user: $userId');
@@ -280,6 +283,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
         } else {
           // No credentials provided (probably just OTP verification, not signup)
           debugPrint('ℹ️ No credentials provided, redirecting to sign in');
+          if (!context.mounted) return;
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const SignInScreen()),

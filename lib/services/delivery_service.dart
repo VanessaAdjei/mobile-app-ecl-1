@@ -356,7 +356,7 @@ class DeliveryService {
 
       final response = await http
           .post(Uri.parse(url), headers: headers, body: body)
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 5));
 
       print('📥 [CALCULATE-DELIVERY-FEE] Response status: ${response.statusCode}');
       print('📥 [CALCULATE-DELIVERY-FEE] Response body: ${response.body}');

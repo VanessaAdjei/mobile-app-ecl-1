@@ -214,6 +214,8 @@ class PaymentWebViewState extends State<PaymentWebView> {
 
           debugPrint('🔍 Showing cancel payment dialog from PopScope');
 
+          if (!context.mounted) return;
+
           // show confirmation dialog with error handling
           final shouldPop = await showDialog<bool>(
             context: context,
@@ -296,7 +298,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
             // wait a tiny bit to prevent navigation conflicts
             await Future.delayed(const Duration(milliseconds: 100));
 
-            if (mounted) {
+            if (context.mounted) {
               try {
                 if (Navigator.canPop(context)) {
                   Navigator.pop(context, false);
@@ -487,7 +489,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
                                       await Future.delayed(
                                           const Duration(milliseconds: 100));
 
-                                      if (mounted &&
+                                      if (context.mounted &&
                                           Navigator.canPop(context)) {
                                         try {
                                           Navigator.pop(context, false);

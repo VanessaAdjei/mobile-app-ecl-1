@@ -29,6 +29,8 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   bool _isLoading = true;
   double? _actualTotalAmount; // Store actual total fetched from API if needed
   double? _actualDeliveryFee; // Store actual delivery fee fetched from API if needed
+  /// Current order status for timeline; updated from API so progression can move.
+  String? _orderStatus;
 
   @override
   void initState() {
@@ -53,7 +55,6 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     if (!hasDeliveryFee) {
       debugPrint('🔍 Delivery fee missing - trying to retrieve from stored data...');
       _loadStoredDeliveryFee();
-      _fetchOrderDetailsFromAPI();
     }
   }
 
@@ -206,8 +207,14 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         _deliveryOption = notificationDeliveryOption ??
             prefs.getString('delivery_option') ??
             'Standard Delivery';
+        _orderStatus = widget.orderDetails['status']?.toString() ?? 'Processing';
         _isLoading = false;
       });
+
+      // Fetch latest order status from API so delivery progression timeline can move
+      if (isLoggedIn) {
+        await _fetchOrderDetailsFromAPI();
+      }
 
       debugPrint('🔍 Final delivery info loaded:');
       debugPrint('🔍 Address: $_deliveryAddress');
@@ -219,6 +226,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         _deliveryAddress = 'Address not available';
         _contactNumber = 'Contact not available';
         _deliveryOption = 'Standard Delivery';
+        _orderStatus = widget.orderDetails['status']?.toString() ?? 'Processing';
         _isLoading = false;
       });
     }
@@ -602,6 +610,15 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
               });
             }
 
+            // Update order status from API so the delivery progression timeline can move
+            final apiStatus = targetOrder['status']?.toString();
+            if (apiStatus != null && apiStatus.isNotEmpty && mounted) {
+              setState(() {
+                _orderStatus = apiStatus;
+              });
+              debugPrint('🔍 Updated order status from API: $apiStatus');
+            }
+
             // if we still dont have delivery info, show a message
             if (_deliveryAddress == 'Address not available' &&
                 _contactNumber == 'Contact not available') {
@@ -776,12 +793,15 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
 
       final orderDate =
           DateTime.tryParse(widget.orderDetails['created_at'] ?? '');
-      final status = widget.orderDetails['status'] ?? 'Processing';
+      final status = _orderStatus ?? widget.orderDetails['status'] ?? 'Processing';
       final orderItems = getOrderItems();
       final totalQuantity = getTotalQuantity();
       final totalAmount = getTotalAmount();
-      final orderNumber = widget.orderDetails['order_number'] ??
-          widget.orderDetails['delivery_id'] ??
+      final orderNumber = widget.orderDetails['order_number']?.toString() ??
+          widget.orderDetails['delivery_id']?.toString() ??
+          widget.orderDetails['transaction_id']?.toString() ??
+          widget.orderDetails['order_id']?.toString() ??
+          widget.orderDetails['id']?.toString() ??
           'N/A';
 
       debugPrint('🔍 Order date: $orderDate');
@@ -996,7 +1016,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       case 'shipped':
       case 'out for delivery':
         statusColor = Colors.blue.shade600;
-        statusText = 'Shipped';
+        statusText = 'Out for Delivery';
         break;
       case 'processing':
       case 'confirmed':
@@ -1004,9 +1024,18 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         statusColor = Colors.orange.shade600;
         statusText = 'Processing';
         break;
+      case 'pending confirmation':
+        statusColor = Colors.orange.shade600;
+        statusText = 'Pending Confirmation';
+        break;
+      case 'order placed':
+      case 'pending':
+        statusColor = Colors.grey.shade600;
+        statusText = 'Order Placed';
+        break;
       default:
         statusColor = Colors.grey.shade600;
-        statusText = 'Pending';
+        statusText = status.isNotEmpty ? status : 'Pending';
     }
 
     return Container(
@@ -1341,11 +1370,19 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     ];
 
     final normalizedStatus = currentStatus.toLowerCase().trim();
-    // Map 'paid' and 'confirmed' to 'processing' for timeline display
-    final timelineStatus = normalizedStatus == 'paid' || 
-                          normalizedStatus == 'confirmed'
-        ? 'processing'
-        : normalizedStatus;
+    // Map API statuses to timeline steps: Order Placed, Paid, Pending Confirmation, Out for Delivery, Delivered
+    String timelineStatus;
+    if (normalizedStatus == 'order placed') {
+      timelineStatus = 'pending';
+    } else if (normalizedStatus == 'paid' || normalizedStatus == 'confirmed' || normalizedStatus == 'pending confirmation') {
+      timelineStatus = 'processing';
+    } else if (normalizedStatus == 'out for delivery') {
+      timelineStatus = 'shipped';
+    } else if (normalizedStatus == 'delivered') {
+      timelineStatus = 'delivered';
+    } else {
+      timelineStatus = normalizedStatus;
+    }
 
     return Column(
       children: List.generate(statuses.length, (index) {
@@ -1422,12 +1459,20 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   bool _isStatusCompleted(String status, String currentStatus) {
     final statusOrder = ['pending', 'processing', 'shipped', 'delivered'];
     
-    // Normalize status: map 'paid' and 'confirmed' to 'processing'
+    // Normalize status: Order Placed->pending, Paid/Pending Confirmation->processing, Out for Delivery->shipped, Delivered->delivered
     final normalizedCurrentStatus = currentStatus.toLowerCase().trim();
-    final normalizedStatus = normalizedCurrentStatus == 'paid' || 
-                             normalizedCurrentStatus == 'confirmed'
-        ? 'processing'
-        : normalizedCurrentStatus;
+    String normalizedStatus;
+    if (normalizedCurrentStatus == 'order placed') {
+      normalizedStatus = 'pending';
+    } else if (normalizedCurrentStatus == 'paid' || normalizedCurrentStatus == 'confirmed' || normalizedCurrentStatus == 'pending confirmation') {
+      normalizedStatus = 'processing';
+    } else if (normalizedCurrentStatus == 'out for delivery') {
+      normalizedStatus = 'shipped';
+    } else if (normalizedCurrentStatus == 'delivered') {
+      normalizedStatus = 'delivered';
+    } else {
+      normalizedStatus = normalizedCurrentStatus;
+    }
     
     final currentIndex = statusOrder.indexOf(normalizedStatus);
     final statusIndex = statusOrder.indexOf(status);

@@ -204,12 +204,14 @@ class SignInScreenState extends State<SignInScreen> {
 
         // Try to update AuthProvider first
         try {
+          if (!context.mounted) return;
           final authProvider =
               Provider.of<AuthProvider>(context, listen: false);
           await authProvider.refreshAuthState();
         } catch (e) {}
 
         // get the current auth state
+        if (!context.mounted) return;
         final authState = AuthState.of(context);
         if (authState != null) {
           await authState.refreshAuthState();
@@ -218,6 +220,7 @@ class SignInScreenState extends State<SignInScreen> {
         // sync cart for the logged in user
         final userId = await AuthService.getCurrentUserID();
         if (userId != null) {
+          if (!context.mounted) return;
           await Provider.of<CartProvider>(context, listen: false)
               .handleUserLogin(userId);
         } else {}
@@ -278,10 +281,12 @@ class SignInScreenState extends State<SignInScreen> {
               // Don't clear the flag here - let main.dart handle it after retrieving data
 
               // Navigate to a special route that will handle the prescription upload
+              if (!context.mounted) return;
               Navigator.pushReplacementNamed(context, '/prescription-upload');
             } else {
               debugPrint(
                   '🔍 SignIn: No pending prescription, navigating to HomePage');
+              if (!context.mounted) return;
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const HomePage()),

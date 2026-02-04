@@ -357,10 +357,22 @@ class NativeNotificationService {
 
       if (status.isPermanentlyDenied) {
         // Show dialog to go to settings
+        if (!context.mounted) {
+          return {
+            'granted': false,
+            'message': 'Context not mounted during permission check'
+          };
+        }
         return await _showPermissionSettingsDialog(context);
       }
 
       // Show custom permission dialog first
+      if (!context.mounted) {
+        return {
+          'granted': false,
+          'message': 'Context not mounted during permission check'
+        };
+      }
       final userWantsPermission = await _showPermissionDialog(context);
       if (!userWantsPermission) {
         return {

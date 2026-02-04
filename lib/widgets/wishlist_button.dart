@@ -51,6 +51,8 @@ class _WishlistButtonState extends State<WishlistButton> {
 
     // Check if user is logged in
     final isLoggedIn = await AuthService.isLoggedIn();
+    if (!mounted) return;
+    
     if (!isLoggedIn) {
       // Show login prompt
       final shouldLogin = await showDialog<bool>(

@@ -221,20 +221,22 @@ class PaymentPageState extends State<PaymentPage> {
     try {
       // Get only selected items
       final selectedItems = cart.getSelectedItems();
-      
+
       // make sure cart has selected items
       if (selectedItems.isEmpty) {
         debugPrint('[DEBUG] Returning early: no items selected');
         throw Exception(
             'Please select at least one item to proceed with payment.');
       }
-      debugPrint('[DEBUG] Passed selected items check (${selectedItems.length} items selected)');
+      debugPrint(
+          '[DEBUG] Passed selected items check (${selectedItems.length} items selected)');
 
       // add up the total price (only for selected items)
       final subtotal = cart.calculateSubtotal();
       if (subtotal <= 0) {
         debugPrint('[DEBUG] Returning early: subtotal <= 0');
-        throw Exception('Invalid order amount. Please check your selected items.');
+        throw Exception(
+            'Invalid order amount. Please check your selected items.');
       }
       debugPrint('[DEBUG] Passed subtotal check');
 
@@ -285,7 +287,7 @@ class PaymentPageState extends State<PaymentPage> {
         'request': 'submit',
         'order_id': 'ORDER_${DateTime.now().millisecondsSinceEpoch}',
         'currency': 'GHS',
-        'amount': total.toString(),
+        'amount': total,
         'order_desc': orderDesc,
         'user_name': _userEmail,
         'first_name': firstName,
@@ -928,7 +930,7 @@ class PaymentPageState extends State<PaymentPage> {
   Widget _buildOrderItems(CartProvider cart) {
     // Get only selected items
     final selectedItems = cart.getSelectedItems();
-    
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
@@ -2015,46 +2017,50 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
       }
 
       // Calculate delivery fee from paymentParams (same as in build method)
-      final subtotal = widget.purchasedItems.fold<double>(
-          0, (sum, item) => sum + (item.price * item.quantity));
+      final subtotal = widget.purchasedItems
+          .fold<double>(0, (sum, item) => sum + (item.price * item.quantity));
       final totalAmountStr = widget.paymentParams['amount']?.toString() ?? '';
       final total = totalAmountStr.isNotEmpty
           ? (double.tryParse(totalAmountStr) ?? 0.0)
           : subtotal;
-      final deliveryFeeStr = widget.paymentParams['delivery_fee']?.toString() ?? 
-                             widget.paymentParams['deliveryFee']?.toString();
+      final deliveryFeeStr = widget.paymentParams['delivery_fee']?.toString() ??
+          widget.paymentParams['deliveryFee']?.toString();
       final deliveryFee = deliveryFeeStr != null && deliveryFeeStr.isNotEmpty
           ? (double.tryParse(deliveryFeeStr) ?? 0.0)
-          : (total > subtotal ? (total - subtotal) : 0.0).clamp(0.0, double.infinity);
+          : (total > subtotal ? (total - subtotal) : 0.0)
+              .clamp(0.0, double.infinity);
 
       if (deliveryFee > 0) {
         final prefs = await SharedPreferences.getInstance();
-        
+
         // Get the original transaction ID (ORDER_ prefix) from initialTransactionId
         final originalTransactionId = widget.initialTransactionId;
-        
+
         // Store with the current transaction_id (which should be ECL format after payment response)
         final key = 'order_delivery_fee_$_transactionId';
         await prefs.setDouble(key, deliveryFee);
-        debugPrint('🔍 Stored delivery fee for order $_transactionId: $deliveryFee');
-        
+        debugPrint(
+            '🔍 Stored delivery fee for order $_transactionId: $deliveryFee');
+
         // Also store total amount for reference
         final totalKey = 'order_total_$_transactionId';
         await prefs.setDouble(totalKey, total);
         debugPrint('🔍 Stored total amount for order $_transactionId: $total');
-        
+
         // Also store with the original ORDER_ prefix if it's different (for backward compatibility)
-        if (originalTransactionId != null && 
-            originalTransactionId.isNotEmpty && 
+        if (originalTransactionId != null &&
+            originalTransactionId.isNotEmpty &&
             originalTransactionId != _transactionId &&
             originalTransactionId.startsWith('ORDER_')) {
           final originalKey = 'order_delivery_fee_$originalTransactionId';
           await prefs.setDouble(originalKey, deliveryFee);
-          debugPrint('🔍 Also stored delivery fee with original ORDER_ prefix $originalTransactionId: $deliveryFee');
-          
+          debugPrint(
+              '🔍 Also stored delivery fee with original ORDER_ prefix $originalTransactionId: $deliveryFee');
+
           final originalTotalKey = 'order_total_$originalTransactionId';
           await prefs.setDouble(originalTotalKey, total);
-          debugPrint('🔍 Also stored total with original ORDER_ prefix $originalTransactionId: $total');
+          debugPrint(
+              '🔍 Also stored total with original ORDER_ prefix $originalTransactionId: $total');
         }
       }
     } catch (e) {
@@ -2146,7 +2152,7 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
         // Only keep failed status if server returns pending/error/null
         String? updatedStatus = _status;
         String? updatedMessage = _statusMessage;
-        
+
         if (currentStatus == 'failed' &&
             (newStatus == 'pending' ||
                 newStatus == 'error' ||
@@ -2184,9 +2190,11 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
           if (actualTransactionId != null && actualTransactionId.isNotEmpty) {
             final oldTransactionId = _transactionId;
             _transactionId = actualTransactionId;
-            debugPrint('[DEBUG] Updated _transactionId from payment response: $oldTransactionId -> $actualTransactionId');
+            debugPrint(
+                '[DEBUG] Updated _transactionId from payment response: $oldTransactionId -> $actualTransactionId');
           } else {
-            debugPrint('[DEBUG] No transaction_id in payment response, keeping: $_transactionId');
+            debugPrint(
+                '[DEBUG] No transaction_id in payment response, keeping: $_transactionId');
           }
 
           // Clear cart after successful payment verification
@@ -2195,7 +2203,8 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
           cartProvider.clearCart();
 
           // Store delivery fee for later retrieval (now using the correct transaction_id)
-          debugPrint('[DEBUG] About to store delivery fee with transaction_id: $_transactionId');
+          debugPrint(
+              '[DEBUG] About to store delivery fee with transaction_id: $_transactionId');
           await _storeDeliveryFeeForOrder();
 
           // Create notification only after payment is verified as successful
@@ -2231,30 +2240,31 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
   @override
   Widget build(BuildContext context) {
     // Calculate subtotal from items
-    final subtotal = widget.purchasedItems.fold<double>(
-        0, (sum, item) => sum + (item.price * item.quantity));
-    
+    final subtotal = widget.purchasedItems
+        .fold<double>(0, (sum, item) => sum + (item.price * item.quantity));
+
     // Use the actual amount from paymentParams (includes delivery fee and discount)
     // Fallback to calculating from items if amount is not available
     final totalAmountStr = widget.paymentParams['amount']?.toString() ?? '';
     final total = totalAmountStr.isNotEmpty
         ? (double.tryParse(totalAmountStr) ?? 0.0)
         : subtotal;
-    
+
     // Get delivery fee from paymentParams or estimate from difference
-    final deliveryFeeStr = widget.paymentParams['delivery_fee']?.toString() ?? 
-                           widget.paymentParams['deliveryFee']?.toString();
+    final deliveryFeeStr = widget.paymentParams['delivery_fee']?.toString() ??
+        widget.paymentParams['deliveryFee']?.toString();
     final deliveryFee = deliveryFeeStr != null && deliveryFeeStr.isNotEmpty
         ? (double.tryParse(deliveryFeeStr) ?? 0.0)
-        : (total > subtotal ? (total - subtotal) : 0.0).clamp(0.0, double.infinity);
-    
+        : (total > subtotal ? (total - subtotal) : 0.0)
+            .clamp(0.0, double.infinity);
+
     // Get discount if any
-    final discountStr = widget.paymentParams['discount']?.toString() ?? 
-                       widget.paymentParams['discount_amount']?.toString();
+    final discountStr = widget.paymentParams['discount']?.toString() ??
+        widget.paymentParams['discount_amount']?.toString();
     final discount = discountStr != null && discountStr.isNotEmpty
         ? (double.tryParse(discountStr) ?? 0.0)
         : 0.0;
-    
+
     final topPadding = MediaQuery.of(context).padding.top;
 
     return Scaffold(
@@ -2298,7 +2308,7 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       // Header with back button and title
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
+                            horizontal: 12, vertical: 6),
                         child: Row(
                           children: [
                             AppBackButton(
@@ -2336,7 +2346,7 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       // Enhanced progress indicator
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            vertical: 16, horizontal: 8),
+                            vertical: 10, horizontal: 6),
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: Row(
@@ -2370,678 +2380,463 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       setState(() {
                         _status = result['status'];
                         _statusMessage = result['message'];
+                        if (_status?.toLowerCase() == 'success') {
+                          _paymentSuccess = true;
+                        }
                       });
                     } finally {
                       setState(() => _isLoading = false);
                     }
                   },
-                  child: SingleChildScrollView(
-                    physics: AlwaysScrollableScrollPhysics(),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Status Banner
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 16, horizontal: 16),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: _status?.toLowerCase() == 'success'
-                                  ? [
-                                      Colors.green.shade50,
-                                      Colors.green.shade100
-                                    ]
-                                  : _status?.toLowerCase() == 'failed'
-                                      ? [
-                                          Colors.red.shade50,
-                                          Colors.red.shade100
-                                        ]
-                                      : [
-                                          Colors.orange.shade50,
-                                          Colors.orange.shade100
-                                        ],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildStatusSection(),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: _buildOrderItemsList(),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(24)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, -4),
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
-                                blurRadius: 10,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color:
-                                          Colors.black.withValues(alpha: 0.1),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Icon(
-                                  _status?.toLowerCase() == 'success'
-                                      ? Icons.check_circle
-                                      : _status?.toLowerCase() == 'failed'
-                                          ? Icons.error
-                                          : Icons.pending,
-                                  color: _getStatusColor(_status),
-                                  size: 40,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                _getStatusLabel(_status),
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: _getStatusColor(_status),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                _getStatusMessage(_status),
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: _getStatusColor(_status)
-                                      .withValues(alpha: 0.8),
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(20),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.05),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.payment,
-                                          size: 18,
-                                          color: _getStatusColor(_status),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          widget.paymentMethod,
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                            color: _getStatusColor(_status),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  if (_showCheckStatusButton) ...[
-                                    SizedBox(width: 12),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(20),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black
-                                                .withValues(alpha: 0.05),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      child: InkWell(
-                                        onTap: () {
-                                          debugPrint(
-                                              '[DEBUG] Check Status button pressed');
-                                          _checkPaymentStatus();
-                                        },
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            _isLoading
-                                                ? SizedBox(
-                                                    width: 18,
-                                                    height: 18,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      valueColor:
-                                                          AlwaysStoppedAnimation<
-                                                                  Color>(
-                                                              _getStatusColor(
-                                                                  _status)),
-                                                    ),
-                                                  )
-                                                : Icon(
-                                                    Icons.refresh,
-                                                    size: 18,
-                                                    color: _getStatusColor(
-                                                        _status),
-                                                  ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              'Check Status',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w500,
-                                                color: _getStatusColor(_status),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ],
-                          ),
+                          ],
                         ),
-                        Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Order Items
-                              Card(
-                                elevation: 2,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Order Items',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      ...widget.purchasedItems.map((item) =>
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                                bottom: 12),
-                                            child: Row(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                // Product Image
-                                                ClipRRect(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                  child: Image.network(
-                                                    getImageUrl(item.image),
-                                                    width: 60,
-                                                    height: 60,
-                                                    fit: BoxFit.cover,
-                                                    loadingBuilder: (context,
-                                                        child,
-                                                        loadingProgress) {
-                                                      if (loadingProgress ==
-                                                          null) {
-                                                        return child;
-                                                      }
-                                                      return Container(
-                                                        width: 60,
-                                                        height: 60,
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          color:
-                                                              Colors.grey[200],
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(8),
-                                                        ),
-                                                        child: Center(
-                                                          child:
-                                                              CircularProgressIndicator(
-                                                            value: loadingProgress
-                                                                        .expectedTotalBytes !=
-                                                                    null
-                                                                ? loadingProgress
-                                                                        .cumulativeBytesLoaded /
-                                                                    loadingProgress
-                                                                        .expectedTotalBytes!
-                                                                : null,
-                                                            strokeWidth: 2,
-                                                          ),
-                                                        ),
-                                                      );
-                                                    },
-                                                    errorBuilder: (context,
-                                                        error, stackTrace) {
-                                                      return Container(
-                                                        width: 60,
-                                                        height: 60,
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          color:
-                                                              Colors.grey[200],
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(8),
-                                                        ),
-                                                        child: Column(
-                                                          mainAxisAlignment:
-                                                              MainAxisAlignment
-                                                                  .center,
-                                                          children: [
-                                                            Icon(
-                                                                Icons
-                                                                    .image_not_supported,
-                                                                color: Colors
-                                                                    .grey[400],
-                                                                size: 20),
-                                                            Text(
-                                                              'No Image',
-                                                              style: TextStyle(
-                                                                color: Colors
-                                                                    .grey[400],
-                                                                fontSize: 10,
-                                                              ),
-                                                              textAlign:
-                                                                  TextAlign
-                                                                      .center,
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      );
-                                                    },
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 12),
-                                                // Product Details
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Text(
-                                                        item.name,
-                                                        style: const TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.w500,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(height: 4),
-                                                      Text(
-                                                        'GHS ${item.price.toStringAsFixed(2)} x ${item.quantity}',
-                                                        style: TextStyle(
-                                                          color:
-                                                              Colors.grey[600],
-                                                          fontSize: 12,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                // Item Total
-                                                Text(
-                                                  'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          )),
-                                      const Divider(height: 24),
-                                      // Price Breakdown
-                                      // Subtotal
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            'Subtotal',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.grey[700],
-                                            ),
-                                          ),
-                                          Text(
-                                            'GHS ${subtotal.toStringAsFixed(2)}',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.grey[700],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      // Delivery Fee
-                                      if (deliveryFee > 0) ...[
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              'Delivery Fee',
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.grey[700],
-                                              ),
-                                            ),
-                                            Text(
-                                              'GHS ${deliveryFee.toStringAsFixed(2)}',
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.grey[700],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                      ],
-                                      // Discount (if any)
-                                      if (discount > 0) ...[
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              'Discount',
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.green[700],
-                                              ),
-                                            ),
-                                            Text(
-                                              '-GHS ${discount.toStringAsFixed(2)}',
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.green[700],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                      ],
-                                      const Divider(height: 24),
-                                      // Total
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          const Text(
-                                            'Total Amount',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          Text(
-                                            'GHS ${total.toStringAsFixed(2)}',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                              color: Colors.green.shade700,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-
-                              // Action Buttons
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  if (_status?.toLowerCase() == 'failed') ...[
-                                    const SizedBox(height: 16),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        ElevatedButton.icon(
-                                          onPressed: () {
-                                            Navigator.pushAndRemoveUntil(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    const HomePage(),
-                                              ),
-                                              (route) => false,
-                                            );
-                                          },
-                                          icon: const Icon(Icons.shopping_cart,
-                                              size: 18),
-                                          label: const Text('Continue Shopping',
-                                              style: TextStyle(fontSize: 13)),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                Colors.green.shade700,
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 8,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        ElevatedButton.icon(
-                                          onPressed: () {
-                                            Navigator.pushAndRemoveUntil(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    const Cart(),
-                                              ),
-                                              (route) => false,
-                                            );
-                                          },
-                                          icon: const Icon(Icons.refresh,
-                                              size: 18),
-                                          label: const Text('Try Again',
-                                              style: TextStyle(fontSize: 13)),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                Colors.orange.shade700,
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 8,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-
-                                  // Only show Track Order button for successful payments
-                                  if (_paymentSuccess) ...[
-                                    const SizedBox(height: 16),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        ElevatedButton.icon(
-                                          onPressed: () {
-                                            Navigator.pushAndRemoveUntil(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    const HomePage(),
-                                              ),
-                                              (route) => false,
-                                            );
-                                          },
-                                          icon: const Icon(Icons.shopping_cart,
-                                              size: 18),
-                                          label: const Text('Continue Shopping',
-                                              style: TextStyle(fontSize: 13)),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                Colors.green.shade700,
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 8,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        ElevatedButton.icon(
-                                          onPressed: () {
-                                            // Calculate delivery fee from paymentParams (same as in build method)
-                                            final subtotal = widget.purchasedItems.fold<double>(
-                                                0, (sum, item) => sum + (item.price * item.quantity));
-                                            final totalAmountStr = widget.paymentParams['amount']?.toString() ?? '';
-                                            final total = totalAmountStr.isNotEmpty
-                                                ? (double.tryParse(totalAmountStr) ?? 0.0)
-                                                : subtotal;
-                                            final deliveryFeeStr = widget.paymentParams['delivery_fee']?.toString() ?? 
-                                                                   widget.paymentParams['deliveryFee']?.toString();
-                                            final deliveryFee = deliveryFeeStr != null && deliveryFeeStr.isNotEmpty
-                                                ? (double.tryParse(deliveryFeeStr) ?? 0.0)
-                                                : (total > subtotal ? (total - subtotal) : 0.0).clamp(0.0, double.infinity);
-                                            final discountStr = widget.paymentParams['discount']?.toString() ?? 
-                                                               widget.paymentParams['discount_amount']?.toString();
-                                            final discount = discountStr != null && discountStr.isNotEmpty
-                                                ? (double.tryParse(discountStr) ?? 0.0)
-                                                : 0.0;
-                                            
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    OrderTrackingPage(
-                                                  orderDetails: {
-                                                    'id': _transactionId,
-                                                    'order_id': _transactionId,
-                                                    'order_number':
-                                                        _transactionId,
-                                                    'delivery_id':
-                                                        _transactionId,
-                                                    'transaction_id':
-                                                        _transactionId,
-                                                    'status': _status,
-                                                    'created_at': DateTime.now()
-                                                        .toIso8601String(),
-                                                    'estimated_delivery_time': widget
-                                                            .estimatedDeliveryTime ??
-                                                        'Location not specified',
-                                                    'product_name': widget
-                                                            .purchasedItems
-                                                            .isNotEmpty
-                                                        ? widget.purchasedItems
-                                                            .first.name
-                                                        : 'Unknown Product',
-                                                    'product_img': widget
-                                                            .purchasedItems
-                                                            .isNotEmpty
-                                                        ? widget.purchasedItems
-                                                            .first.image
-                                                        : '',
-                                                    'qty': widget.purchasedItems
-                                                        .fold(
-                                                            0,
-                                                            (sum, item) =>
-                                                                sum +
-                                                                item.quantity),
-                                                    'price': widget
-                                                            .purchasedItems
-                                                            .isNotEmpty
-                                                        ? widget.purchasedItems
-                                                            .first.price
-                                                        : 0,
-                                                    // Use total from paymentParams (includes delivery fee and discount)
-                                                    'total_price': total,
-                                                    // Include delivery fee explicitly
-                                                    'delivery_fee': deliveryFee,
-                                                    'deliveryFee': deliveryFee,
-                                                    // Include discount if any
-                                                    'discount': discount > 0 ? discount : null,
-                                                    'discount_amount': discount > 0 ? discount : null,
-                                                    'order_items': widget
-                                                        .purchasedItems
-                                                        .map((item) => {
-                                                              'product_name':
-                                                                  item.name,
-                                                              'product_img':
-                                                                  item.image,
-                                                              'qty':
-                                                                  item.quantity,
-                                                              'price':
-                                                                  item.price,
-                                                              'batch_no':
-                                                                  item.batchNo,
-                                                            })
-                                                        .toList(),
-                                                    'is_multi_item': widget
-                                                            .purchasedItems
-                                                            .length >
-                                                        1,
-                                                    'item_count': widget
-                                                        .purchasedItems.length,
-                                                  },
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                          icon: const Icon(Icons.local_shipping,
-                                              size: 18),
-                                          label: const Text('Track Order',
-                                              style: TextStyle(fontSize: 13)),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                Colors.blue.shade700,
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 8,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ],
-                          ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildPaymentSummary(
+                                subtotal, deliveryFee, discount, total),
+                            const SizedBox(height: 8),
+                            _buildBottomActions(deliveryFee, discount, total),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
+              )
             ],
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildStatusSection() {
+    final statusColor = _getStatusColor(_status);
+    final icon = _status?.toLowerCase() == 'success'
+        ? Icons.check_circle_rounded
+        : _status?.toLowerCase() == 'failed'
+            ? Icons.error_rounded
+            : Icons.pending_rounded;
+
+    return Animate(
+      effects: [
+        FadeEffect(duration: 500.ms),
+        ScaleEffect(begin: Offset(0.9, 0.9))
+      ],
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              size: 48,
+              color: statusColor,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _getStatusLabel(_status),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: statusColor,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            _getStatusMessage(_status),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[600],
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Check Status Button (only loop if needed)
+          if (_showCheckStatusButton)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  _checkPaymentStatus();
+                },
+                icon: _isLoading
+                    ? SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: statusColor,
+                        ),
+                      )
+                    : Icon(Icons.refresh, size: 14),
+                label: Text(_isLoading ? 'Checking...' : 'Check Status',
+                    style: const TextStyle(fontSize: 13)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: statusColor,
+                  side: BorderSide(color: statusColor),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderItemsList() {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      itemCount: widget.purchasedItems.length + 1, // +1 for header
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(
+              children: [
+                Icon(Icons.shopping_bag_outlined,
+                    color: Colors.grey[700], size: 18),
+                const SizedBox(width: 6),
+                Text(
+                  'Order Items',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[900],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final item = widget.purchasedItems[index - 1];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Card(
+            elevation: 0,
+            color: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: BorderSide(color: Colors.grey.shade200),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: Image.network(
+                      getImageUrl(item.image),
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      errorBuilder: (c, o, s) => Container(
+                        width: 48,
+                        height: 48,
+                        color: Colors.grey[100],
+                        child: Icon(Icons.image_not_supported,
+                            color: Colors.grey[400]),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Qty: ${item.quantity}  •  GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPaymentSummary(
+      double subtotal, double deliveryFee, double discount, double total) {
+    return Column(
+      children: [
+        _buildSummaryRow('Subtotal', subtotal),
+        if (deliveryFee > 0) ...[
+          const SizedBox(height: 4),
+          _buildSummaryRow('Delivery Fee', deliveryFee),
+        ],
+        if (discount > 0) ...[
+          const SizedBox(height: 4),
+          _buildSummaryRow('Discount', -discount, isDiscount: true),
+        ],
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 4),
+          child: Divider(),
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Total Amount',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  'GHS ${total.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    color: Colors.green.shade700,
+                  ),
+                ),
+              ],
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.credit_card,
+                      size: 14, color: Colors.grey.shade600),
+                  const SizedBox(width: 8),
+                  Text(widget.paymentMethod,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 12)),
+                ],
+              ),
+            )
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryRow(String label, double amount,
+      {bool isDiscount = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey[600],
+          ),
+        ),
+        Text(
+          '${isDiscount ? '' : 'GHS '}${amount.toStringAsFixed(2)}',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: isDiscount ? Colors.green[700] : Colors.grey[900],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBottomActions(
+      double deliveryFee, double discount, double total) {
+    if (_status?.toLowerCase() == 'failed') {
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const HomePage()),
+                  (route) => false,
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.grey[800],
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                side: BorderSide(color: Colors.grey.shade300),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Home',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const Cart()),
+                  (route) => false,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange.shade600,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+                elevation: 0,
+              ),
+              child: const Text('Try Again',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_paymentSuccess) {
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const HomePage()),
+                  (route) => false,
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.grey[800],
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                side: BorderSide(color: Colors.grey.shade300),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Continue',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () {
+                final totalVal =
+                    _status?.toLowerCase() == 'success' ? total : 0.0;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => OrderTrackingPage(
+                      orderDetails: {
+                        'id': _transactionId,
+                        'order_id': _transactionId, // Ensure order_id is set
+                        'transaction_id': _transactionId,
+                        'status': _status,
+                        'created_at': DateTime.now().toIso8601String(),
+                        'estimated_delivery_time':
+                            widget.estimatedDeliveryTime ??
+                                'Location not specified',
+                        'product_name': widget.purchasedItems.isNotEmpty
+                            ? widget.purchasedItems.first.name
+                            : 'Unknown Product',
+                        'product_img': widget.purchasedItems.isNotEmpty
+                            ? widget.purchasedItems.first.image
+                            : '',
+                        'qty': widget.purchasedItems
+                            .fold(0, (sum, item) => sum + item.quantity),
+                        'price': widget.purchasedItems.isNotEmpty
+                            ? widget.purchasedItems.first.price
+                            : 0,
+                        'total_price': totalVal,
+                        'delivery_fee': deliveryFee,
+                        'deliveryFee': deliveryFee,
+                        'discount': discount > 0 ? discount : null,
+                        'discount_amount': discount > 0 ? discount : null,
+                        'order_items': widget.purchasedItems
+                            .map((item) => {
+                                  'product_name': item.name,
+                                  'product_img': item.image,
+                                  'qty': item.quantity,
+                                  'price': item.price,
+                                  'batch_no': item.batchNo,
+                                })
+                            .toList(),
+                        'is_multi_item': widget.purchasedItems.length > 1,
+                        'item_count': widget.purchasedItems.length,
+                      },
+                    ),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green.shade700,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+                elevation: 2,
+                shadowColor: Colors.green.withValues(alpha: 0.4),
+              ),
+              child: const Text('Track Order',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 
   Color _getStatusColor(String? status) {

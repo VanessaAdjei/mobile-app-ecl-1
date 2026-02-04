@@ -263,7 +263,9 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                 }
                 if (!mounted) return;
 
-                Navigator.of(dialogContext, rootNavigator: true).pop();
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext, rootNavigator: true).pop();
+                }
 
                 await Future.delayed(Duration(milliseconds: 100));
 

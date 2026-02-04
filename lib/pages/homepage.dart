@@ -541,6 +541,8 @@ class HomePageState extends State<HomePage>
   Future<bool> requireAuth(BuildContext context) async {
     if (await AuthService.isLoggedIn()) return true;
 
+    if (!context.mounted) return false;
+
     final result = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -568,6 +570,7 @@ class HomePageState extends State<HomePage>
     if (await canLaunchUrl(Uri.parse(whatsappUrl))) {
       await launchUrl(Uri.parse(whatsappUrl));
     } else {
+      if (!context.mounted) return;
       showTopSnackBar(
           context, 'Could not open WhatsApp. Please ensure it is installed.');
     }

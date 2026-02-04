@@ -444,16 +444,24 @@ class DeliveryPageState extends State<DeliveryPage> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 _buildProgressStep('Cart',
-                                    isActive: false, isCompleted: true, step: 1),
+                                    isActive: false,
+                                    isCompleted: true,
+                                    step: 1),
                                 _buildProgressLine(isActive: false),
                                 _buildProgressStep('Delivery',
-                                    isActive: true, isCompleted: false, step: 2),
+                                    isActive: true,
+                                    isCompleted: false,
+                                    step: 2),
                                 _buildProgressLine(isActive: false),
                                 _buildProgressStep('Payment',
-                                    isActive: false, isCompleted: false, step: 3),
+                                    isActive: false,
+                                    isCompleted: false,
+                                    step: 3),
                                 _buildProgressLine(isActive: false),
                                 _buildProgressStep('Confirmation',
-                                    isActive: false, isCompleted: false, step: 4),
+                                    isActive: false,
+                                    isCompleted: false,
+                                    step: 4),
                               ],
                             ),
                           ),
@@ -768,15 +776,43 @@ class DeliveryPageState extends State<DeliveryPage> {
         children: [
           _buildSectionLabel('Pickup location'),
           const SizedBox(height: 14),
-            // region dropdown
+          // region dropdown
+          _buildPickupDropdown(
+            label: 'Select Region',
+            value: selectedRegion,
+            items: regions.map((region) {
+              return DropdownMenuItem(
+                value: region,
+                child: Text(
+                  region['description'] ?? '',
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                selectedRegion = value;
+                selectedCity = null;
+                selectedPickupSite = null;
+              });
+              if (value != null) {
+                _loadCities(value['id']);
+              }
+            },
+            isLoading: isLoadingRegions,
+          ),
+          if (selectedRegion != null) ...[
+            const SizedBox(height: 16),
+            // city dropdown
             _buildPickupDropdown(
-              label: 'Select Region',
-              value: selectedRegion,
-              items: regions.map((region) {
+              label: 'Select City',
+              value: selectedCity,
+              items: cities.map((city) {
                 return DropdownMenuItem(
-                  value: region,
+                  value: city,
                   child: Text(
-                    region['description'] ?? '',
+                    city['description'] ?? '',
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                   ),
@@ -784,131 +820,103 @@ class DeliveryPageState extends State<DeliveryPage> {
               }).toList(),
               onChanged: (value) {
                 setState(() {
-                  selectedRegion = value;
-                  selectedCity = null;
+                  selectedCity = value;
                   selectedPickupSite = null;
                 });
                 if (value != null) {
-                  _loadCities(value['id']);
+                  _loadStores(value['id']);
                 }
               },
-              isLoading: isLoadingRegions,
+              isLoading: isLoadingCities,
             ),
-            if (selectedRegion != null) ...[
-              const SizedBox(height: 16),
-              // city dropdown
-              _buildPickupDropdown(
-                label: 'Select City',
-                value: selectedCity,
-                items: cities.map((city) {
-                  return DropdownMenuItem(
-                    value: city,
-                    child: Text(
-                      city['description'] ?? '',
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedCity = value;
-                    selectedPickupSite = null;
-                  });
-                  if (value != null) {
-                    _loadStores(value['id']);
-                  }
-                },
-                isLoading: isLoadingCities,
-              ),
-            ],
-            if (selectedCity != null) ...[
-              const SizedBox(height: 16),
-              // pickup site dropdown
-              _buildPickupDropdown(
-                label: 'Select Pickup Site',
-                value: selectedPickupSite,
-                items: stores.map((store) {
-                  return DropdownMenuItem(
-                    value: store,
-                    child: Text(
-                      store['description'] ?? '',
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedPickupSite = value;
-                  });
-                },
-                isLoading: isLoadingStores,
-              ),
-            ],
+          ],
+          if (selectedCity != null) ...[
             const SizedBox(height: 16),
-            if (_highlightPickupField) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(_fieldRadius),
-                  border: Border.all(color: Colors.red.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.error_outline_rounded,
-                      color: Colors.red.shade600,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Please select region, city and pickup site',
-                        style: TextStyle(
-                          color: Colors.red.shade700,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-            ],
+            // pickup site dropdown
+            _buildPickupDropdown(
+              label: 'Select Pickup Site',
+              value: selectedPickupSite,
+              items: stores.map((store) {
+                return DropdownMenuItem(
+                  value: store,
+                  child: Text(
+                    store['description'] ?? '',
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  selectedPickupSite = value;
+                });
+              },
+              isLoading: isLoadingStores,
+            ),
+          ],
+          const SizedBox(height: 16),
+          if (_highlightPickupField) ...[
             Container(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: Colors.red.shade50,
                 borderRadius: BorderRadius.circular(_fieldRadius),
-                border: Border.all(color: Colors.blue.shade100),
+                border: Border.all(color: Colors.red.shade200),
               ),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(
-                    Icons.info_outline_rounded,
-                    color: Colors.blue.shade600,
+                    Icons.error_outline_rounded,
+                    color: Colors.red.shade600,
                     size: 18,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Pickup stations are open Mon–Sat, 9am–6pm. Bring a valid ID for collection.',
+                      'Please select region, city and pickup site',
                       style: TextStyle(
-                        color: Colors.blue.shade800,
-                        fontSize: 12,
-                        height: 1.35,
+                        color: Colors.red.shade700,
+                        fontSize: 13,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 14),
           ],
-        ),
-      );
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(_fieldRadius),
+              border: Border.all(color: Colors.blue.shade100),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  color: Colors.blue.shade600,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Pickup stations are open Mon–Sat, 9am–6pm. Bring a valid ID for collection.',
+                    style: TextStyle(
+                      color: Colors.blue.shade800,
+                      fontSize: 12,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildPickupDropdown({
@@ -928,7 +936,8 @@ class DeliveryPageState extends State<DeliveryPage> {
               style: TextStyle(
                 fontWeight: FontWeight.w500,
                 fontSize: 14,
-                color: _highlightPickupField ? Colors.red : Colors.grey.shade700,
+                color:
+                    _highlightPickupField ? Colors.red : Colors.grey.shade700,
               ),
             ),
             Text(
@@ -949,7 +958,9 @@ class DeliveryPageState extends State<DeliveryPage> {
               width: _highlightPickupField ? 2 : 1,
             ),
             borderRadius: BorderRadius.circular(_fieldRadius),
-            color: _highlightPickupField ? Colors.red.shade50 : Colors.grey.shade50,
+            color: _highlightPickupField
+                ? Colors.red.shade50
+                : Colors.grey.shade50,
           ),
           child: DropdownButtonFormField<Map<String, dynamic>>(
             value: value,
@@ -972,8 +983,9 @@ class DeliveryPageState extends State<DeliveryPage> {
                     )
                   : Icon(
                       Icons.location_on_rounded,
-                      color:
-                          _highlightPickupField ? Colors.red : Colors.grey.shade600,
+                      color: _highlightPickupField
+                          ? Colors.red
+                          : Colors.grey.shade600,
                       size: 22,
                     ),
               border: InputBorder.none,
@@ -1064,173 +1076,171 @@ class DeliveryPageState extends State<DeliveryPage> {
 
                 // name input field
                 _buildFormField(
-                    key: nameSectionKey,
-                    controller: _nameController,
-                    label: 'Full Name',
-                    icon: Icons.person_outline,
-                    isRequired: true,
-                    isHighlighted: _highlightNameField,
-                    onChanged: (value) {
-                      setState(() {
-                        _highlightNameField = false;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
+                  key: nameSectionKey,
+                  controller: _nameController,
+                  label: 'Full Name',
+                  icon: Icons.person_outline,
+                  isRequired: true,
+                  isHighlighted: _highlightNameField,
+                  onChanged: (value) {
+                    setState(() {
+                      _highlightNameField = false;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
 
-                  // Email Field
-                  _buildFormField(
-                    key: emailSectionKey,
-                    controller: _emailController,
-                    label: 'Email Address',
-                    icon: Icons.email_outlined,
-                    isRequired: true,
-                    isHighlighted: _highlightEmailField,
-                    keyboardType: TextInputType.emailAddress,
-                    onChanged: (value) {
-                      setState(() {
-                        _highlightEmailField = false;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
+                // Email Field
+                _buildFormField(
+                  key: emailSectionKey,
+                  controller: _emailController,
+                  label: 'Email Address',
+                  icon: Icons.email_outlined,
+                  isRequired: true,
+                  isHighlighted: _highlightEmailField,
+                  keyboardType: TextInputType.emailAddress,
+                  onChanged: (value) {
+                    setState(() {
+                      _highlightEmailField = false;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
 
-                  // Phone Field
-                  _buildPhoneField(isPhoneValid),
-                ],
+                // Phone Field
+                _buildPhoneField(isPhoneValid),
+              ],
+            ),
+          ),
+
+          // Only show location section for delivery option
+          if (deliveryOption == 'delivery') ...[
+            const SizedBox(height: 16),
+            Text(
+              'Delivery location',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+                color: Colors.grey.shade600,
+                letterSpacing: 0.3,
               ),
             ),
-
-            // Only show location section for delivery option
-            if (deliveryOption == 'delivery') ...[
-              const SizedBox(height: 16),
-              Text(
-                'Delivery location',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                  letterSpacing: 0.3,
-                ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(_fieldRadius),
+                border: Border.all(color: Colors.grey.shade200),
               ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(_fieldRadius),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Column(
-                  children: [
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () => _showMapPicker(),
-                        borderRadius: BorderRadius.circular(_fieldRadius),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 18, vertical: 14),
-                          decoration: BoxDecoration(
-                            color: _accent,
-                            borderRadius:
-                                BorderRadius.circular(_fieldRadius),
-                            boxShadow: [
-                              BoxShadow(
-                                color: _accent.withValues(alpha: 0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.map_rounded,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                'Pick location on map',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Icon(
-                                Icons.arrow_forward_rounded,
-                                color: Colors.white.withValues(alpha: 0.85),
-                                size: 16,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    if (_addressController.text.isNotEmpty) ...[
-                      const SizedBox(height: 14),
-                      Container(
-                        padding: const EdgeInsets.all(14),
+              child: Column(
+                children: [
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _showMapPicker(),
+                      borderRadius: BorderRadius.circular(_fieldRadius),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 14),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: _accent,
                           borderRadius: BorderRadius.circular(_fieldRadius),
-                          border: Border.all(
-                            color: _accent.withValues(alpha: 0.4),
-                            width: 1,
-                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _accent.withValues(alpha: 0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              Icons.check_circle_rounded,
-                              color: _accent,
+                              Icons.map_rounded,
+                              color: Colors.white,
                               size: 20,
                             ),
                             const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    'Location confirmed',
-                                    style: TextStyle(
-                                      color: _accent,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _addressController.text,
-                                    style: TextStyle(
-                                      color: Colors.grey.shade800,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                      height: 1.3,
-                                    ),
-                                  ),
-                                ],
+                            Text(
+                              'Pick location on map',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
                               ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white.withValues(alpha: 0.85),
+                              size: 16,
                             ),
                           ],
                         ),
                       ),
-                    ],
+                    ),
+                  ),
+                  if (_addressController.text.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(_fieldRadius),
+                        border: Border.all(
+                          color: _accent.withValues(alpha: 0.4),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.check_circle_rounded,
+                            color: _accent,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Location confirmed',
+                                  style: TextStyle(
+                                    color: _accent,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _addressController.text,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade800,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
-                ),
+                ],
               ),
-            ],
+            ),
           ],
-        ),
-      );
+        ],
+      ),
+    );
   }
 
   Widget _buildFormField({
@@ -1428,9 +1438,8 @@ class DeliveryPageState extends State<DeliveryPage> {
       final closestStore = result['closest_store'];
       final distanceText = closestStore?['distance_text']?.toString();
 
-      // Use /calculate-delivery-fee API with distance_text; response: { "distance": 4, "delivery_fee": "44.00" }
+      // Use only the API for delivery fee (no manual calculation).
       if (distanceText != null && distanceText.isNotEmpty) {
-        print('📤 [DELIVERY] Calling /calculate-delivery-fee with distance_text: "$distanceText"');
         final feeResult = await DeliveryService.fetchDeliveryFeeFromApi(
           distanceText: distanceText,
         );
@@ -1441,20 +1450,8 @@ class DeliveryPageState extends State<DeliveryPage> {
             deliveryFee = feeValue;
             _distanceKm = distanceKm;
           });
-          print('📦 Delivery fee from /calculate-delivery-fee API: distance=$distanceKm km, delivery_fee=GHS ${feeValue.toStringAsFixed(2)}');
-        } else if (mounted) {
-          // Fallback: calculate from distance_text when /calculate-delivery-fee fails
-          print('📦 [DELIVERY] /calculate-delivery-fee returned null, using local calculation (fallback)');
-          final fallbackResult =
-              DeliveryService.calculateDeliveryFeeFromDistanceText(distanceText);
-          if (fallbackResult != null) {
-            setState(() {
-              deliveryFee = fallbackResult['fee']!;
-              _distanceKm = fallbackResult['distanceKm'];
-            });
-            print(
-                '📦 Delivery fee from distance_text (fallback) "$distanceText" → ${fallbackResult['distanceKm']} km → GHS ${fallbackResult['fee']?.toStringAsFixed(2)}');
-          }
+          print(
+              '📦 Delivery fee from API: distance=$distanceKm km, delivery_fee=GHS ${feeValue.toStringAsFixed(2)}');
         }
       }
 
@@ -1510,9 +1507,8 @@ class DeliveryPageState extends State<DeliveryPage> {
             return Text(
               '$currentLength/$maxLength',
               style: TextStyle(
-                color: currentLength == maxLength
-                    ? _accent
-                    : Colors.grey.shade500,
+                color:
+                    currentLength == maxLength ? _accent : Colors.grey.shade500,
                 fontSize: 12,
               ),
             );
@@ -1556,9 +1552,8 @@ class DeliveryPageState extends State<DeliveryPage> {
               ),
             ),
             filled: true,
-            fillColor: _highlightPhoneField
-                ? Colors.red.shade50
-                : Colors.grey.shade50,
+            fillColor:
+                _highlightPhoneField ? Colors.red.shade50 : Colors.grey.shade50,
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             errorText: isPhoneValid ? null : 'Phone number must be 10 digits',
@@ -1612,8 +1607,7 @@ class DeliveryPageState extends State<DeliveryPage> {
           TextField(
             controller: _notesController,
             decoration: InputDecoration(
-              hintText:
-                  'e.g. gate code, landmarks, or special instructions',
+              hintText: 'e.g. gate code, landmarks, or special instructions',
               hintStyle: TextStyle(
                 color: Colors.grey.shade500,
                 fontSize: 14,
@@ -1679,10 +1673,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                 const SizedBox(height: 12),
                 _buildSummaryRow('Delivery fee', deliveryFee,
                     icon: Icons.local_shipping_rounded),
-                Divider(
-                    height: 28,
-                    thickness: 1,
-                    color: Colors.grey.shade300),
+                Divider(height: 28, thickness: 1, color: Colors.grey.shade300),
                 _buildSummaryRow('Total', total,
                     isHighlighted: true, icon: Icons.payment_rounded),
               ],
@@ -1711,9 +1702,8 @@ class DeliveryPageState extends State<DeliveryPage> {
             style: TextStyle(
               fontWeight: isHighlighted ? FontWeight.w600 : FontWeight.w500,
               fontSize: isHighlighted ? 15 : 14,
-              color: isHighlighted
-                  ? Colors.grey.shade800
-                  : Colors.grey.shade700,
+              color:
+                  isHighlighted ? Colors.grey.shade800 : Colors.grey.shade700,
             ),
           ),
         ),
@@ -1750,252 +1740,251 @@ class DeliveryPageState extends State<DeliveryPage> {
         child: InkWell(
           borderRadius: BorderRadius.circular(_fieldRadius),
           onTap: () async {
-              bool isValid = true;
+            bool isValid = true;
 
-              // Validate name
-              if (_nameController.text.trim().isEmpty) {
+            // Validate name
+            if (_nameController.text.trim().isEmpty) {
+              setState(() {
+                _highlightNameField = true;
+                isValid = false;
+              });
+              _scrollToError(nameSectionKey, errorType: 'name');
+            }
+
+            // Validate email
+            if (_emailController.text.trim().isEmpty) {
+              setState(() {
+                _highlightEmailField = true;
+                isValid = false;
+              });
+              _scrollToError(emailSectionKey, errorType: 'email');
+            } else if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                .hasMatch(_emailController.text.trim())) {
+              setState(() {
+                _highlightEmailField = true;
+                isValid = false;
+              });
+              _scrollToError(emailSectionKey, errorType: 'email');
+            }
+
+            // Validate region
+            if (deliveryOption == 'delivery' &&
+                _regionController.text.trim().isEmpty) {
+              setState(() {
+                _highlightRegionField = true;
+                isValid = false;
+              });
+              _scrollToError(regionSectionKey, errorType: 'region');
+            }
+
+            // Validate city
+            if (deliveryOption == 'delivery' &&
+                _cityController.text.trim().isEmpty) {
+              setState(() {
+                _highlightCityField = true;
+                isValid = false;
+              });
+              _scrollToError(citySectionKey, errorType: 'city');
+            }
+
+            // Validate address
+            if (deliveryOption == 'delivery' &&
+                _addressController.text.trim().isEmpty) {
+              setState(() {
+                _highlightAddressField = true;
+                isValid = false;
+              });
+              _scrollToError(addressSectionKey, errorType: 'address');
+            }
+
+            // Validate phone number
+            if (_phoneController.text.isEmpty) {
+              setState(() {
+                _highlightPhoneField = true;
+                isValid = false;
+              });
+              _scrollToError(phoneSectionKey, errorType: 'phone');
+            } else if (_phoneController.text.length != 10) {
+              setState(() {
+                _highlightPhoneField = true;
+                isValid = false;
+              });
+              _scrollToError(phoneSectionKey, errorType: 'phone');
+            }
+
+            // Validate pickup fields
+            if (deliveryOption == 'pickup') {
+              if (selectedRegion == null ||
+                  selectedCity == null ||
+                  selectedPickupSite == null) {
                 setState(() {
-                  _highlightNameField = true;
+                  _highlightPickupField = true;
                   isValid = false;
                 });
-                _scrollToError(nameSectionKey, errorType: 'name');
+                _scrollToError(pickupSectionKey, errorType: 'pickup');
               }
+            }
 
-              // Validate email
-              if (_emailController.text.trim().isEmpty) {
-                setState(() {
-                  _highlightEmailField = true;
-                  isValid = false;
-                });
-                _scrollToError(emailSectionKey, errorType: 'email');
-              } else if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                  .hasMatch(_emailController.text.trim())) {
-                setState(() {
-                  _highlightEmailField = true;
-                  isValid = false;
-                });
-                _scrollToError(emailSectionKey, errorType: 'email');
-              }
-
-              // Validate region
-              if (deliveryOption == 'delivery' &&
-                  _regionController.text.trim().isEmpty) {
-                setState(() {
-                  _highlightRegionField = true;
-                  isValid = false;
-                });
-                _scrollToError(regionSectionKey, errorType: 'region');
-              }
-
-              // Validate city
-              if (deliveryOption == 'delivery' &&
-                  _cityController.text.trim().isEmpty) {
-                setState(() {
-                  _highlightCityField = true;
-                  isValid = false;
-                });
-                _scrollToError(citySectionKey, errorType: 'city');
-              }
-
-              // Validate address
-              if (deliveryOption == 'delivery' &&
-                  _addressController.text.trim().isEmpty) {
-                setState(() {
-                  _highlightAddressField = true;
-                  isValid = false;
-                });
-                _scrollToError(addressSectionKey, errorType: 'address');
-              }
-
-              // Validate phone number
-              if (_phoneController.text.isEmpty) {
-                setState(() {
-                  _highlightPhoneField = true;
-                  isValid = false;
-                });
-                _scrollToError(phoneSectionKey, errorType: 'phone');
-              } else if (_phoneController.text.length != 10) {
-                setState(() {
-                  _highlightPhoneField = true;
-                  isValid = false;
-                });
-                _scrollToError(phoneSectionKey, errorType: 'phone');
-              }
-
-              // Validate pickup fields
-              if (deliveryOption == 'pickup') {
-                if (selectedRegion == null ||
-                    selectedCity == null ||
-                    selectedPickupSite == null) {
-                  setState(() {
-                    _highlightPickupField = true;
-                    isValid = false;
-                  });
-                  _scrollToError(pickupSectionKey, errorType: 'pickup');
-                }
-              }
-
-              if (!isValid) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        Icon(Icons.error_outline, color: Colors.white),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child:
-                              Text('Please fill all required fields correctly'),
-                        ),
-                      ],
-                    ),
-                    backgroundColor: Colors.red[600],
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    margin: EdgeInsets.all(16),
+            if (!isValid) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.white),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child:
+                            Text('Please fill all required fields correctly'),
+                      ),
+                    ],
                   ),
-                );
+                  backgroundColor: Colors.red[600],
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  margin: EdgeInsets.all(16),
+                ),
+              );
+              return;
+            }
+
+            try {
+              // Always save delivery information to API, even for guests
+              final saveResult = await DeliveryService.saveDeliveryInfo(
+                name: _nameController.text.trim(),
+                email: _emailController.text.trim(),
+                phone: _phoneController.text,
+                deliveryOption: deliveryOption,
+                region: deliveryOption == 'delivery'
+                    ? _regionController.text.trim()
+                    : null,
+                city: deliveryOption == 'delivery'
+                    ? _cityController.text.trim()
+                    : null,
+                address: deliveryOption == 'delivery'
+                    ? _addressController.text.trim()
+                    : null,
+                notes: _notesController.text.trim(),
+                pickupRegion:
+                    (deliveryOption == 'pickup' && selectedRegion != null)
+                        ? selectedRegion!['description']
+                        : null,
+                pickupCity: (deliveryOption == 'pickup' && selectedCity != null)
+                    ? selectedCity!['description']
+                    : null,
+                pickupSite:
+                    (deliveryOption == 'pickup' && selectedPickupSite != null)
+                        ? selectedPickupSite!['description']
+                        : null,
+                lat: _latitude,
+                lng: _longitude,
+              );
+
+              if (!saveResult['success']) {
+                // Continue with order even if API save fails (removed warning SnackBar)
+                _proceedToPayment();
                 return;
               }
 
-              try {
-                // Always save delivery information to API, even for guests
-                final saveResult = await DeliveryService.saveDeliveryInfo(
-                  name: _nameController.text.trim(),
-                  email: _emailController.text.trim(),
-                  phone: _phoneController.text,
-                  deliveryOption: deliveryOption,
-                  region: deliveryOption == 'delivery'
-                      ? _regionController.text.trim()
-                      : null,
-                  city: deliveryOption == 'delivery'
-                      ? _cityController.text.trim()
-                      : null,
-                  address: deliveryOption == 'delivery'
-                      ? _addressController.text.trim()
-                      : null,
-                  notes: _notesController.text.trim(),
-                  pickupRegion:
-                      (deliveryOption == 'pickup' && selectedRegion != null)
-                          ? selectedRegion!['description']
-                          : null,
-                  pickupCity:
-                      (deliveryOption == 'pickup' && selectedCity != null)
-                          ? selectedCity!['description']
-                          : null,
-                  pickupSite:
-                      (deliveryOption == 'pickup' && selectedPickupSite != null)
-                          ? selectedPickupSite!['description']
-                          : null,
-                  lat: _latitude,
-                  lng: _longitude,
-                );
+              // Extract delivery time from API response if available
+              if (saveResult['closest_store'] != null &&
+                  saveResult['closest_store']['duration_text'] != null) {
+                _apiDeliveryTime = saveResult['closest_store']['duration_text'];
+                print(
+                    '🚀 [DELIVERY] API delivery time extracted: $_apiDeliveryTime');
+              } else {
+                print('⚠️ [DELIVERY] No duration_text found in API response');
+                _apiDeliveryTime = null;
+              }
 
-                if (!saveResult['success']) {
-                  // Continue with order even if API save fails (removed warning SnackBar)
-                  _proceedToPayment();
-                  return;
-                }
-
-                // Extract delivery time from API response if available
-                if (saveResult['closest_store'] != null &&
-                    saveResult['closest_store']['duration_text'] != null) {
-                  _apiDeliveryTime =
-                      saveResult['closest_store']['duration_text'];
-                  print(
-                      '🚀 [DELIVERY] API delivery time extracted: $_apiDeliveryTime');
-                } else {
-                  print('⚠️ [DELIVERY] No duration_text found in API response');
-                  _apiDeliveryTime = null;
-                }
-
-                // Show success message at the top of the screen
-                if (mounted) {
-                  OverlayEntry overlayEntry = OverlayEntry(
-                    builder: (context) => Positioned(
-                      top: MediaQuery.of(context).padding.top +
-                          16, // Top with safe area padding
-                      left: 16,
-                      right: 16,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: _accent,
-                            borderRadius: BorderRadius.circular(8),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.2),
-                                blurRadius: 8,
-                                offset: Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.check_circle_rounded, color: Colors.white),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Delivery information saved successfully',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+              // Show success message at the top of the screen
+              if (mounted) {
+                OverlayEntry overlayEntry = OverlayEntry(
+                  builder: (context) => Positioned(
+                    top: MediaQuery.of(context).padding.top +
+                        16, // Top with safe area padding
+                    left: 16,
+                    right: 16,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _accent,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.check_circle_rounded,
+                                color: Colors.white),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Delivery information saved successfully',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  );
+                  ),
+                );
 
-                  Overlay.of(context).insert(overlayEntry);
+                Overlay.of(context).insert(overlayEntry);
 
-                  // Remove the overlay after 2 seconds
-                  Future.delayed(Duration(seconds: 2), () {
-                    if (mounted) {
-                      overlayEntry.remove();
-                    }
-                  });
-                }
-
-                // Navigate to payment page with delivery details
-                _proceedToPayment();
-              } catch (e) {
-                // Continue with order even if there's an exception
-                _proceedToPayment();
+                // Remove the overlay after 2 seconds
+                Future.delayed(Duration(seconds: 2), () {
+                  if (mounted) {
+                    overlayEntry.remove();
+                  }
+                });
               }
-            },
-            child: Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.payment_rounded,
+
+              // Navigate to payment page with delivery details
+              _proceedToPayment();
+            } catch (e) {
+              // Continue with order even if there's an exception
+              _proceedToPayment();
+            }
+          },
+          child: Center(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.payment_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Continue to payment',
+                  style: TextStyle(
                     color: Colors.white,
-                    size: 22,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
                   ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Continue to payment',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
+      ),
     );
   }
 

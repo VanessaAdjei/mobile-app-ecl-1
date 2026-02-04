@@ -1,0 +1,759 @@
+Analyzing mobile-app-ecl-1...                                   
+
+warning • Unused import: 'services/app_optimization_service.dart' • lib/main.dart:15:8 • unused_import
+warning • The value of the field '_navigatorKey' isn't used • lib/main.dart:359:35 • unused_field
+   info • Unnecessary braces in a string interpolation • lib/main.dart:417:49 • unnecessary_brace_in_string_interps
+warning • The declaration '_isRecentlyInstalled' isn't referenced • lib/main.dart:449:16 • unused_element
+   info • Unnecessary braces in a string interpolation • lib/models/promotional_event.dart:241:19 • unnecessary_brace_in_string_interps
+   info • Unnecessary braces in a string interpolation • lib/models/promotional_event.dart:243:20 • unnecessary_brace_in_string_interps
+   info • Unnecessary braces in a string interpolation • lib/models/promotional_event.dart:247:21 • unnecessary_brace_in_string_interps
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre • lib/pages/addpayment.dart:576:7 • deprecated_member_use
+   info • Empty catch block • lib/pages/auth_service.dart:672:17 • empty_catches
+   info • The import of 'package:flutter/scheduler.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart' • lib/pages/bottomnav.dart:3:8 • unnecessary_import
+   info • Empty catch block • lib/pages/bottomnav.dart:409:19 • empty_catches
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/cart.dart:298:15 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/cart.dart:488:55 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/cart.dart:493:49 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/cart.dart:504:49 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/cart.dart:656:43 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/cart.dart:834:69 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/cart.dart:848:45 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/cart.dart:866:55 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/cart.dart:881:45 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/cart.dart:895:43 • use_build_context_synchronously
+   info • The import of 'package:flutter/foundation.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart' • lib/pages/categories.dart:17:8 • unnecessary_import
+warning • Unused import: 'package:flutter_animate/flutter_animate.dart' • lib/pages/categories.dart:19:8 • unused_import
+warning • The value of the field '_allProducts' isn't used • lib/pages/categories.dart:123:17 • unused_field
+warning • The value of the field '_isLoadingProducts' isn't used • lib/pages/categories.dart:124:14 • unused_field
+   info • Don't use 'BuildContext's across async gaps • lib/pages/categories.dart:175:11 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/categories.dart:234:46 • use_build_context_synchronously
+warning • The declaration '_getAllProductsFromCategories' isn't referenced • lib/pages/categories.dart:307:25 • unused_element
+warning • The operand can't be 'null', so the condition is always 'true' • lib/pages/categories.dart:743:67 • unnecessary_null_comparison
+   info • Statements in an if should be enclosed in a block • lib/pages/categories.dart:791:9 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/pages/categories.dart:793:9 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/pages/categories.dart:797:62 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/pages/categories.dart:799:61 • curly_braces_in_flow_control_structures
+warning • The declaration '_filterProducts' isn't referenced • lib/pages/categories.dart:875:24 • unused_element
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/categories.dart:1262:63 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/categories.dart:1263:63 • deprecated_member_use
+   info • Don't use 'BuildContext's across async gaps • lib/pages/categories.dart:1698:28 • use_build_context_synchronously
+warning • The value of the local variable 'foundSubcategoryName' isn't used • lib/pages/categories.dart:1705:15 • unused_local_variable
+   info • Don't use 'BuildContext's across async gaps • lib/pages/categories.dart:1713:13 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/categories.dart:1726:13 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/categories.dart:1738:30 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/categories.dart:1747:28 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/categories.dart:1748:28 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/changepassword.dart:66:32 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/changepassword.dart:78:30 • use_build_context_synchronously
+   info • Parameter 'key' could be a super parameter • lib/pages/clearance_admin_page.dart:8:9 • use_super_parameters
+   info • Don't use 'BuildContext's across async gaps • lib/pages/clearance_admin_page.dart:206:62 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/clearance_admin_page.dart:215:62 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/clearance_admin_page.dart:268:62 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/clearance_admin_page.dart:277:62 • use_build_context_synchronously
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:46:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:151:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:152:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:154:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:220:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:222:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:224:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:225:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:243:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:256:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:257:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:259:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:262:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:263:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:264:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:265:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:266:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:267:13 • avoid_print
+   info • Empty catch block • lib/pages/clearance_homepage.dart:280:21 • empty_catches
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:289:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:290:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:291:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:292:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:301:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:316:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:317:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:318:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:319:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:320:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:321:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:322:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:326:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:330:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:331:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:332:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:333:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:334:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:372:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:374:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:380:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:388:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:393:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:394:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:395:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:402:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:403:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:405:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:407:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:409:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:592:5 • avoid_print
+   info • Use a 'SizedBox' to add whitespace to a layout • lib/pages/clearance_homepage.dart:1470:11 • sized_box_for_whitespace
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:1481:19 • avoid_print
+   info • Use a 'SizedBox' to add whitespace to a layout • lib/pages/clearance_homepage.dart:1533:24 • sized_box_for_whitespace
+   info • Use a 'SizedBox' to add whitespace to a layout • lib/pages/clearance_homepage.dart:1668:11 • sized_box_for_whitespace
+   info • Use a 'SizedBox' to add whitespace to a layout • lib/pages/clearance_homepage.dart:1741:13 • sized_box_for_whitespace
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:1748:19 • avoid_print
+   info • Use a 'SizedBox' to add whitespace to a layout • lib/pages/clearance_homepage.dart:1989:25 • sized_box_for_whitespace
+   info • Don't invoke 'print' in production code • lib/pages/clearance_homepage.dart:2019:31 • avoid_print
+   info • Don't use 'BuildContext's across async gaps • lib/pages/clearance_item_detail.dart:146:7 • use_build_context_synchronously
+   info • Unnecessary 'this.' qualifier • lib/pages/clearance_item_detail.dart:176:29 • unnecessary_this
+   info • Unnecessary 'this.' qualifier • lib/pages/clearance_item_detail.dart:187:19 • unnecessary_this
+   info • Unnecessary 'this.' qualifier • lib/pages/clearance_item_detail.dart:191:46 • unnecessary_this
+   info • Unnecessary 'this.' qualifier • lib/pages/clearance_item_detail.dart:201:32 • unnecessary_this
+   info • Don't use 'BuildContext's across async gaps • lib/pages/clearance_item_detail.dart:215:30 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/clearance_item_detail.dart:238:28 • use_build_context_synchronously
+   info • Unnecessary braces in a string interpolation • lib/pages/clearance_item_detail.dart:1017:49 • unnecessary_brace_in_string_interps
+warning • The declaration '_buildRelatedProductsSkeleton' isn't referenced • lib/pages/clearance_item_detail.dart:1488:8 • unused_element
+warning • The declaration '_buildEmptyState' isn't referenced • lib/pages/clearance_item_detail.dart:1513:8 • unused_element
+warning • The declaration '_buildRelatedProductCard' isn't referenced • lib/pages/clearance_item_detail.dart:1554:8 • unused_element
+   info • Don't use 'BuildContext's across async gaps • lib/pages/createaccount.dart:66:11 • use_build_context_synchronously
+warning • Unused import: 'package:geolocator/geolocator.dart' • lib/pages/delivery_page.dart:14:8 • unused_import
+warning • Unused import: 'package:google_maps_flutter/google_maps_flutter.dart' • lib/pages/delivery_page.dart:15:8 • unused_import
+warning • The value of the field '_isGeocoding' isn't used • lib/pages/delivery_page.dart:40:8 • unused_field
+warning • The value of the field '_highlightRegionField' isn't used • lib/pages/delivery_page.dart:49:8 • unused_field
+warning • The value of the field '_highlightCityField' isn't used • lib/pages/delivery_page.dart:50:8 • unused_field
+warning • The value of the field '_highlightAddressField' isn't used • lib/pages/delivery_page.dart:51:8 • unused_field
+   info • Unnecessary braces in a string interpolation • lib/pages/delivery_page.dart:118:12 • unnecessary_brace_in_string_interps
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:120:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:121:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:122:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:123:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:124:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:125:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:126:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:141:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:142:9 • avoid_print
+   info • Unnecessary braces in a string interpolation • lib/pages/delivery_page.dart:142:36 • unnecessary_brace_in_string_interps
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:143:9 • avoid_print
+   info • Unnecessary braces in a string interpolation • lib/pages/delivery_page.dart:143:37 • unnecessary_brace_in_string_interps
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:144:9 • avoid_print
+   info • Unnecessary braces in a string interpolation • lib/pages/delivery_page.dart:144:40 • unnecessary_brace_in_string_interps
+   info • Unnecessary braces in a string interpolation • lib/pages/delivery_page.dart:144:54 • unnecessary_brace_in_string_interps
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:147:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:148:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:149:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:150:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:151:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:160:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:161:11 • avoid_print
+   info • Unnecessary braces in a string interpolation • lib/pages/delivery_page.dart:167:43 • unnecessary_brace_in_string_interps
+   info • Unnecessary braces in a string interpolation • lib/pages/delivery_page.dart:167:62 • unnecessary_brace_in_string_interps
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:169:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:173:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:185:13 • avoid_print
+   info • Unnecessary braces in a string interpolation • lib/pages/delivery_page.dart:186:82 • unnecessary_brace_in_string_interps
+   info • Unnecessary braces in a string interpolation • lib/pages/delivery_page.dart:186:96 • unnecessary_brace_in_string_interps
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:191:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:194:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:200:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:201:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:204:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:216:11 • avoid_print
+   info • Unnecessary braces in a string interpolation • lib/pages/delivery_page.dart:217:80 • unnecessary_brace_in_string_interps
+   info • Unnecessary braces in a string interpolation • lib/pages/delivery_page.dart:217:94 • unnecessary_brace_in_string_interps
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:223:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:231:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:278:17 • avoid_print
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre • lib/pages/delivery_page.dart:955:13 • deprecated_member_use
+warning • The declaration '_buildReadOnlyField' isn't referenced • lib/pages/delivery_page.dart:1313:10 • unused_element
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1390:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1391:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1410:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1411:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1412:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1414:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1416:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1418:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1419:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1420:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1422:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1425:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1440:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1451:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1465:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1901:19 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:1904:19 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2024:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2026:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2027:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2028:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2029:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2030:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2032:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2034:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2036:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2064:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2065:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2067:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2068:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2069:7 • avoid_print
+   info • Unnecessary braces in a string interpolation • lib/pages/delivery_page.dart:2093:14 • unnecessary_brace_in_string_interps
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2094:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2096:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2097:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2106:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2115:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2124:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2127:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2129:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2134:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2139:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2140:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2145:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2154:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2157:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2162:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2163:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2165:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2168:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2169:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2170:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2171:5 • avoid_print
+   info • Don't use 'BuildContext's across async gaps • lib/pages/delivery_page.dart:2175:7 • use_build_context_synchronously
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2186:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2188:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2189:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2190:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2191:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2192:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2193:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2195:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2197:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2198:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2199:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2200:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2201:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2213:15 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2227:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2233:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2234:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2235:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2251:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2252:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2253:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2255:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2257:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2259:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2260:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2262:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2264:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2265:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2267:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2273:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2274:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2284:15 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2291:15 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2297:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2304:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2306:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2310:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2311:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2312:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2430:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2439:19 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2443:17 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2465:17 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2468:17 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2476:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2478:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2489:17 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2495:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2551:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2560:19 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2564:17 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2570:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2582:17 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2588:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2640:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2649:19 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2653:17 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2659:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2671:17 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/delivery_page.dart:2677:11 • avoid_print
+   info • Parameter 'key' could be a super parameter • lib/pages/ernest_friday_page.dart:14:9 • use_super_parameters
+warning • Unused import: 'package:eclapp/pages/pharmacists.dart' • lib/pages/homepage.dart:3:8 • unused_import
+warning • Unused import: 'package:eclapp/pages/storelocation.dart' • lib/pages/homepage.dart:5:8 • unused_import
+   info • The import of 'package:flutter/foundation.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart' • lib/pages/homepage.dart:18:8 • unnecessary_import
+   info • The import of 'package:flutter/cupertino.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart' • lib/pages/homepage.dart:33:8 • unnecessary_import
+warning • Unused import: 'package:provider/provider.dart' • lib/pages/homepage.dart:34:8 • unused_import
+warning • Unused import: '../providers/promotional_event_provider.dart' • lib/pages/homepage.dart:36:8 • unused_import
+warning • Unused import: '../providers/clearance_sale_provider.dart' • lib/pages/homepage.dart:37:8 • unused_import
+warning • Unused import: '../widgets/ernest_friday_banner.dart' • lib/pages/homepage.dart:38:8 • unused_import
+warning • Unused import: '../widgets/ernest_friday_notification.dart' • lib/pages/homepage.dart:39:8 • unused_import
+warning • Unused import: 'ernest_friday_page.dart' • lib/pages/homepage.dart:41:8 • unused_import
+warning • Unused import: 'wishlist_page.dart' • lib/pages/homepage.dart:42:8 • unused_import
+warning • Unused import: '../services/wishlist_service.dart' • lib/pages/homepage.dart:43:8 • unused_import
+warning • The value of the field '_shuffledPopularProductsKey' isn't used • lib/pages/homepage.dart:101:23 • unused_field
+   info • The private field _highlightedPopularIndex could be 'final' • lib/pages/homepage.dart:509:7 • prefer_final_fields
+warning • The value of the field '_highlightedPopularIndex' isn't used • lib/pages/homepage.dart:509:7 • unused_field
+   info • The private field _popularBaseIndex could be 'final' • lib/pages/homepage.dart:512:7 • prefer_final_fields
+warning • The value of the field '_popularBaseIndex' isn't used • lib/pages/homepage.dart:512:7 • unused_field
+   info • The private field _popularCurrentIndex could be 'final' • lib/pages/homepage.dart:513:7 • prefer_final_fields
+warning • The value of the field '_popularCurrentIndex' isn't used • lib/pages/homepage.dart:513:7 • unused_field
+warning • The value of the field '_popularRepeatCount' isn't used • lib/pages/homepage.dart:514:13 • unused_field
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/homepage.dart:575:11 • use_build_context_synchronously
+warning • The declaration '_loadSectionShuffleTime' isn't referenced • lib/pages/homepage.dart:869:16 • unused_element
+   info • Empty catch block • lib/pages/homepage.dart:878:17 • empty_catches
+warning • The declaration '_resetSectionShuffleTimestamp' isn't referenced • lib/pages/homepage.dart:890:16 • unused_element
+   info • Empty catch block • lib/pages/homepage.dart:895:17 • empty_catches
+warning • The declaration '_showContactOptions' isn't referenced • lib/pages/homepage.dart:1020:8 • unused_element
+warning • The value of the local variable 'scrollPercentage' isn't used • lib/pages/homepage.dart:1481:17 • unused_local_variable
+warning • The declaration '_initializeOptimizationService' isn't referenced • lib/pages/homepage.dart:1509:16 • unused_element
+warning • The declaration '_getCategoryIcon' isn't referenced • lib/pages/homepage.dart:1998:12 • unused_element
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/homepage.dart:2238:51 • deprecated_member_use
+warning • The declaration '_buildActionCard' isn't referenced • lib/pages/homepage.dart:2266:10 • unused_element
+warning • The value of the local variable 'gridColumns' isn't used • lib/pages/homepage.dart:2502:15 • unused_local_variable
+warning • The value of the local variable 'baseIndex' isn't used • lib/pages/homepage.dart:2778:23 • unused_local_variable
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/homepage.dart:3563:40 • deprecated_member_use
+   info • Unnecessary 'this.' qualifier • lib/pages/itemdetail.dart:182:29 • unnecessary_this
+   info • Unnecessary 'this.' qualifier • lib/pages/itemdetail.dart:193:19 • unnecessary_this
+   info • Unnecessary 'this.' qualifier • lib/pages/itemdetail.dart:197:63 • unnecessary_this
+   info • Unnecessary 'this.' qualifier • lib/pages/itemdetail.dart:207:32 • unnecessary_this
+   info • Don't use 'BuildContext's across async gaps • lib/pages/itemdetail.dart:1588:27 • use_build_context_synchronously
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:51:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:52:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:54:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:56:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:58:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:161:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:286:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:294:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:298:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:311:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:315:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:337:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:345:15 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:373:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:379:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:383:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:392:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:419:15 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:426:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:442:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:457:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:458:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:459:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:463:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:464:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:465:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:475:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:483:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:486:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:502:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:507:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:529:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:535:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:542:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:552:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:569:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:570:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:571:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:572:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:582:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:583:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:590:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:591:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:595:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:596:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:603:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:616:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:619:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:622:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:628:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:649:15 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:650:15 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:651:15 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:659:15 • avoid_print
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/map_picker_page.dart:692:34 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/map_picker_page.dart:693:34 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/map_picker_page.dart:709:51 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/map_picker_page.dart:713:55 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/map_picker_page.dart:739:53 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/map_picker_page.dart:743:57 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/map_picker_page.dart:768:47 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/map_picker_page.dart:772:51 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/map_picker_page.dart:869:61 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/map_picker_page.dart:908:41 • deprecated_member_use
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:986:29 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:987:29 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:989:29 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:991:29 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:993:29 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:995:29 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:1004:29 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:1070:23 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:1102:19 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:1104:19 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:1105:19 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:1106:19 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/map_picker_page.dart:1108:19 • avoid_print
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/notification_settings_page.dart:151:28 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/notification_settings_page.dart:177:28 • use_build_context_synchronously
+   info • 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre • lib/pages/notification_settings_page.dart:343:27 • deprecated_member_use
+   info • Unnecessary braces in a string interpolation • lib/pages/notifications.dart:696:36 • unnecessary_brace_in_string_interps
+   info • Don't use 'BuildContext's across async gaps • lib/pages/notifications.dart:774:45 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/notifications.dart:901:43 • use_build_context_synchronously
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/onboarding_splash_page.dart:283:46 • deprecated_member_use
+   info • Unnecessary 'const' keyword • lib/pages/onboarding_splash_page.dart:377:38 • unnecessary_const
+   info • Don't use 'BuildContext's across async gaps • lib/pages/optimized_profile.dart:390:9 • use_build_context_synchronously
+   info • Statements in an if should be enclosed in a block • lib/pages/order_tracking_page.dart:156:17 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/pages/order_tracking_page.dart:158:17 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/pages/order_tracking_page.dart:160:17 • curly_braces_in_flow_control_structures
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/otp.dart:191:47 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/otp.dart:202:57 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/otp.dart:217:51 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/otp.dart:288:13 • use_build_context_synchronously
+warning • Unused import: '../providers/wallet_provider.dart' • lib/pages/payment_page.dart:20:8 • unused_import
+warning • Unused import: '../services/notification_service.dart' • lib/pages/payment_page.dart:21:8 • unused_import
+warning • The value of the local variable 'progress' isn't used • lib/pages/payment_page.dart:765:18 • unused_local_variable
+warning • The value of the local variable 'hasData' isn't used • lib/pages/payment_page.dart:1492:11 • unused_local_variable
+   info • Empty catch block • lib/pages/paymentwebview.dart:48:17 • empty_catches
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/paymentwebview.dart:324:36 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/paymentwebview.dart:325:31 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/paymentwebview.dart:327:30 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/paymentwebview.dart:333:30 • use_build_context_synchronously
+warning • Unused import: 'package:font_awesome_flutter/font_awesome_flutter.dart' • lib/pages/pharmacists.dart:5:8 • unused_import
+warning • Unused import: 'app_back_button.dart' • lib/pages/pharmacists.dart:8:8 • unused_import
+warning • Unused import: '../widgets/cart_icon_button.dart' • lib/pages/pharmacists.dart:9:8 • unused_import
+warning • The value of the field '_isCheckingAuth' isn't used • lib/pages/pharmacists.dart:79:8 • unused_field
+warning • The declaration '_buildLoginRequiredButton' isn't referenced • lib/pages/pharmacists.dart:559:10 • unused_element
+   info • Don't use 'BuildContext's across async gaps • lib/pages/pharmacists.dart:654:28 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/pharmacists.dart:664:28 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/pharmacists.dart:937:30 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/pharmacists.dart:948:28 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/pharmacists.dart:966:7 • use_build_context_synchronously
+warning • The declaration '_buildProgressIndicator' isn't referenced • lib/pages/pharmacists.dart:1664:10 • unused_element
+warning • The declaration '_buildFormSection' isn't referenced • lib/pages/pharmacists.dart:1714:10 • unused_element
+warning • The declaration '_buildEnhancedDropdownField' isn't referenced • lib/pages/pharmacists.dart:1792:10 • unused_element
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre • lib/pages/pharmacists.dart:1838:13 • deprecated_member_use
+warning • The declaration '_buildEnhancedTextField' isn't referenced • lib/pages/pharmacists.dart:1872:10 • unused_element
+warning • The declaration '_buildEnhancedDatePicker' isn't referenced • lib/pages/pharmacists.dart:1946:10 • unused_element
+warning • The declaration '_buildEnhancedTimePicker' isn't referenced • lib/pages/pharmacists.dart:2029:10 • unused_element
+warning • The declaration '_buildEnhancedSubmitButton' isn't referenced • lib/pages/pharmacists.dart:2109:10 • unused_element
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre • lib/pages/pharmacists.dart:2221:13 • deprecated_member_use
+warning • The declaration '_buildSimpleDatePicker' isn't referenced • lib/pages/pharmacists.dart:2308:10 • unused_element
+warning • The declaration '_buildSimpleTimePicker' isn't referenced • lib/pages/pharmacists.dart:2361:10 • unused_element
+warning • The declaration '_buildModernDropdownField' isn't referenced • lib/pages/pharmacists.dart:2699:10 • unused_element
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre • lib/pages/pharmacists.dart:2732:13 • deprecated_member_use
+warning • The declaration '_buildModernTextField' isn't referenced • lib/pages/pharmacists.dart:2756:10 • unused_element
+warning • The declaration '_buildModernDatePicker' isn't referenced • lib/pages/pharmacists.dart:2809:10 • unused_element
+warning • The declaration '_buildModernTimePicker' isn't referenced • lib/pages/pharmacists.dart:2880:10 • unused_element
+warning • The declaration '_buildGradientButton' isn't referenced • lib/pages/pharmacists.dart:2954:10 • unused_element
+warning • The value of the local variable 'theme' isn't used • lib/pages/pharmacists.dart:3004:11 • unused_local_variable
+warning • The value of the local variable 'topPadding' isn't used • lib/pages/pharmacists.dart:3005:11 • unused_local_variable
+warning • The declaration '_buildModernSectionHeader' isn't referenced • lib/pages/pharmacists.dart:3266:10 • unused_element
+warning • The declaration '_buildModernSectionHeaderWithRefresh' isn't referenced • lib/pages/pharmacists.dart:3338:10 • unused_element
+warning • The declaration '_buildModernVirtualAssistantCard' isn't referenced • lib/pages/pharmacists.dart:3434:10 • unused_element
+warning • The declaration '_testErnestConnection' isn't referenced • lib/pages/pharmacists.dart:3676:8 • unused_element
+   info • Don't use 'BuildContext's across async gaps • lib/pages/pharmacists.dart:3681:30 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/pharmacists.dart:3688:30 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/pharmacists.dart:3696:28 • use_build_context_synchronously
+warning • The declaration '_testAlternativeModels' isn't referenced • lib/pages/pharmacists.dart:3705:8 • unused_element
+   info • Don't use 'BuildContext's across async gaps • lib/pages/pharmacists.dart:3710:30 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/pharmacists.dart:3717:30 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/pharmacists.dart:3725:28 • use_build_context_synchronously
+warning • The declaration '_showErnestChat' isn't referenced • lib/pages/pharmacists.dart:3734:8 • unused_element
+warning • The declaration '_buildModernPlatformSelection' isn't referenced • lib/pages/pharmacists.dart:3743:10 • unused_element
+warning • The declaration '_buildSimplifiedHealthInsightsCard' isn't referenced • lib/pages/pharmacists.dart:4180:10 • unused_element
+warning • The declaration '_buildSimpleHealthTipItem' isn't referenced • lib/pages/pharmacists.dart:4616:10 • unused_element
+warning • The declaration '_buildModernHealthTipCard' isn't referenced • lib/pages/pharmacists.dart:5064:10 • unused_element
+warning • The declaration '_buildEnhancedBookingCard' isn't referenced • lib/pages/pharmacists.dart:5471:10 • unused_element
+warning • The declaration '_buildBookingCard' isn't referenced • lib/pages/pharmacists.dart:5701:10 • unused_element
+   info • Constructors for public widgets should have a named 'key' parameter • lib/pages/pharmacists.dart:6538:7 • use_key_in_widget_constructors
+   info • Invalid use of a private type in a public API • lib/pages/pharmacists.dart:6540:3 • library_private_types_in_public_api
+   info • Don't use 'BuildContext's across async gaps • lib/pages/pharmacists.dart:6724:23 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/pharmacists.dart:6725:30 • use_build_context_synchronously
+   info • Constructors for public widgets should have a named 'key' parameter • lib/pages/pharmacists.dart:6755:7 • use_key_in_widget_constructors
+   info • Invalid use of a private type in a public API • lib/pages/pharmacists.dart:6757:3 • library_private_types_in_public_api
+   info • Don't use 'BuildContext's across async gaps • lib/pages/pharmacists.dart:7112:21 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/pages/pharmacists.dart:7113:28 • use_build_context_synchronously
+   info • Constructors for public widgets should have a named 'key' parameter • lib/pages/pharmacists.dart:7130:7 • use_key_in_widget_constructors
+   info • Invalid use of a private type in a public API • lib/pages/pharmacists.dart:7132:3 • library_private_types_in_public_api
+warning • The declaration '_showCashbackNotification' isn't referenced • lib/pages/pharmacists.dart:7253:8 • unused_element
+   info • The variable name 'batch_no' isn't a lowerCamelCase identifier • lib/pages/product_model.dart:12:16 • non_constant_identifier_names
+   info • The variable name 'batch_no' isn't a lowerCamelCase identifier • lib/pages/product_model.dart:35:19 • non_constant_identifier_names
+   info • The import of 'package:flutter/services.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart' • lib/pages/profile.dart:16:8 • unnecessary_import
+warning • Unused import: 'package:flutter_secure_storage/flutter_secure_storage.dart' • lib/pages/profile.dart:17:8 • unused_import
+warning • Unused import: 'package:flutter_animate/flutter_animate.dart' • lib/pages/profile.dart:18:8 • unused_import
+warning • Unused import: 'app_back_button.dart' • lib/pages/profile.dart:26:8 • unused_import
+warning • Unused import: '../widgets/cart_icon_button.dart' • lib/pages/profile.dart:31:8 • unused_import
+   info • Don't use 'BuildContext's across async gaps • lib/pages/refill_page.dart:627:30 • use_build_context_synchronously
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/refill_page.dart:811:39 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/refill_page.dart:1000:39 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/refill_page.dart:1093:33 • deprecated_member_use
+   info • Don't use 'BuildContext's across async gaps • lib/pages/settings.dart:152:19 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/signinpage.dart:209:41 • use_build_context_synchronously
+   info • Empty catch block • lib/pages/signinpage.dart:211:21 • empty_catches
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/signinpage.dart:215:40 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/signinpage.dart:224:43 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/signinpage.dart:285:46 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/pages/signinpage.dart:291:17 • use_build_context_synchronously
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/splashscreen.dart:45:39 • deprecated_member_use
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:58:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:65:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:70:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:94:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:95:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:96:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:97:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:98:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:99:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:114:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:129:13 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:139:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:190:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:348:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:350:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:362:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:370:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:380:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:392:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:400:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:404:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:408:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:413:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:418:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:422:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:429:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:433:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:437:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:442:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:447:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:451:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:456:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:460:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:464:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:468:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:473:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:478:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:482:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:486:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:491:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:495:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:499:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:504:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:509:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:514:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:518:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:523:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:527:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:532:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:536:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:538:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:580:15 • avoid_print
+   info • Don't invoke 'print' in production code • lib/pages/store_map_page.dart:583:17 • avoid_print
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/pages/store_map_page.dart:614:41 • deprecated_member_use
+warning • Dead code • lib/pages/storelocation.dart:285:5 • dead_code
+warning • The declaration '_getEstimatedCoordinates' isn't referenced • lib/pages/storelocation.dart:359:23 • unused_element
+warning • The declaration '_loadCities' isn't referenced • lib/pages/storelocation.dart:617:16 • unused_element
+   info • The 'child' argument should be last in widget constructor invocations • lib/pages/storelocation.dart:861:17 • sort_child_properties_last
+   info • Don't invoke 'print' in production code • lib/pages/storelocation.dart:953:25 • avoid_print
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre • lib/pages/storelocation.dart:1574:7 • deprecated_member_use
+warning • The declaration '_isStoreOpen' isn't referenced • lib/pages/storelocation.dart:2123:8 • unused_element
+warning • The declaration '_getStoresWithValidCoords' isn't referenced • lib/pages/storelocation.dart:2162:17 • unused_element
+warning • The declaration '_buildCityCard' isn't referenced • lib/pages/storelocation.dart:2179:10 • unused_element
+   info • The file name 'clearance_sale_provider 2.dart' isn't a lower_case_with_underscores identifier • lib/providers/clearance_sale_provider 2.dart:1:1 • file_names
+   info • Unnecessary override • lib/providers/clearance_sale_provider 2.dart:255:8 • unnecessary_overrides
+   info • Unnecessary override • lib/providers/clearance_sale_provider.dart:255:8 • unnecessary_overrides
+   info • The file name 'promotional_event_provider 2.dart' isn't a lower_case_with_underscores identifier • lib/providers/promotional_event_provider 2.dart:1:1 • file_names
+   info • Unnecessary override • lib/providers/promotional_event_provider 2.dart:258:8 • unnecessary_overrides
+   info • Unnecessary override • lib/providers/promotional_event_provider.dart:258:8 • unnecessary_overrides
+   info • The file name 'wallet_provider 2.dart' isn't a lower_case_with_underscores identifier • lib/providers/wallet_provider 2.dart:1:1 • file_names
+warning • The value of the local variable 'cartItems' isn't used • lib/services/background_cart_checker.dart:95:13 • unused_local_variable
+   info • Empty catch block • lib/services/background_cart_checker.dart:98:17 • empty_catches
+   info • Empty catch block • lib/services/background_cart_checker.dart:118:17 • empty_catches
+warning • The declaration '_checkInventory' isn't referenced • lib/services/background_cart_sync_service.dart:165:23 • unused_element
+   info • Empty catch block • lib/services/background_inventory_monitor_service.dart:117:17 • empty_catches
+   info • Empty catch block • lib/services/background_inventory_monitor_service.dart:151:17 • empty_catches
+   info • Empty catch block • lib/services/background_inventory_monitor_service.dart:180:17 • empty_catches
+   info • Empty catch block • lib/services/background_inventory_monitor_service.dart:208:17 • empty_catches
+   info • Empty catch block • lib/services/background_inventory_monitor_service.dart:221:17 • empty_catches
+   info • Empty catch block • lib/services/background_inventory_monitor_service.dart:235:17 • empty_catches
+warning • The declaration '_preloadPopularProductStock' isn't referenced • lib/services/background_inventory_monitor_service.dart:267:23 • unused_element
+   info • Empty catch block • lib/services/background_inventory_monitor_service.dart:280:17 • empty_catches
+   info • The private field _orderCache could be 'final' • lib/services/background_order_tracking_service.dart:16:31 • prefer_final_fields
+warning • The value of the field '_orderCache' isn't used • lib/services/background_order_tracking_service.dart:16:31 • unused_field
+   info • Empty catch block • lib/services/background_order_tracking_service.dart:78:17 • empty_catches
+   info • Empty catch block • lib/services/background_order_tracking_service.dart:109:17 • empty_catches
+   info • Empty catch block • lib/services/background_order_tracking_service.dart:132:17 • empty_catches
+   info • Empty catch block • lib/services/background_order_tracking_service.dart:143:17 • empty_catches
+   info • Empty catch block • lib/services/background_order_tracking_service.dart:185:17 • empty_catches
+warning • The declaration '_checkDeliveryUpdates' isn't referenced • lib/services/background_order_tracking_service.dart:199:23 • unused_element
+   info • Empty catch block • lib/services/background_order_tracking_service.dart:210:17 • empty_catches
+   info • Empty catch block • lib/services/background_order_tracking_service.dart:232:17 • empty_catches
+   info • Empty catch block • lib/services/background_order_tracking_service.dart:256:17 • empty_catches
+warning • Unused import: 'package:http/http.dart' • lib/services/background_store_data_service.dart:4:8 • unused_import
+warning • Unused import: 'package:flutter/foundation.dart' • lib/services/background_store_data_service.dart:5:8 • unused_import
+   info • Empty catch block • lib/services/background_store_data_service.dart:64:17 • empty_catches
+   info • Empty catch block • lib/services/background_store_data_service.dart:77:17 • empty_catches
+   info • Empty catch block • lib/services/background_store_data_service.dart:111:17 • empty_catches
+warning • The declaration '_preloadPopularStores' isn't referenced • lib/services/background_store_data_service.dart:118:23 • unused_element
+   info • Empty catch block • lib/services/background_store_data_service.dart:142:17 • empty_catches
+   info • Empty catch block • lib/services/background_store_data_service.dart:187:17 • empty_catches
+warning • The declaration '_preloadRegionStores' isn't referenced • lib/services/background_store_data_service.dart:194:23 • unused_element
+   info • Empty catch block • lib/services/background_store_data_service.dart:210:17 • empty_catches
+   info • Empty catch block • lib/services/background_store_data_service.dart:226:17 • empty_catches
+   info • Don't use 'BuildContext's across async gaps • lib/services/banner_cache_service.dart:186:41 • use_build_context_synchronously
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:37:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:38:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:39:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:40:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:44:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:45:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:46:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:69:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:82:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:83:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:84:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:85:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:86:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:94:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:95:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:96:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:106:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:119:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:120:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:121:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:122:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:126:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:127:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:128:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:151:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:162:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:163:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:164:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:165:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:169:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:170:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:171:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/booking_service.dart:181:7 • avoid_print
+warning • The declaration '_enhanceProductsWithOtcpom' isn't referenced • lib/services/category_optimization_service.dart:539:16 • unused_element
+warning • The declaration '_loadAllFromStorage' isn't referenced • lib/services/comprehensive_optimization_service.dart:419:16 • unused_element
+warning • The value of the local variable 'billingAddr' isn't used • lib/services/delivery_service.dart:223:17 • unused_local_variable
+   info • Don't invoke 'print' in production code • lib/services/delivery_service.dart:354:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/delivery_service.dart:355:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/delivery_service.dart:361:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/delivery_service.dart:362:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/delivery_service.dart:365:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/delivery_service.dart:370:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/delivery_service.dart:377:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/delivery_service.dart:393:7 • avoid_print
+   info • The import of 'package:flutter/foundation.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart' • lib/services/homepage_optimization_service.dart:16:8 • unnecessary_import
+   info • Don't use 'BuildContext's across async gaps • lib/services/item_detail_optimization_service.dart:218:63 • use_build_context_synchronously
+   info • The import of 'package:flutter/foundation.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart' • lib/services/notification_service.dart:3:8 • unnecessary_import
+warning • The declaration '_navigateToWallet' isn't referenced • lib/services/notification_service.dart:133:15 • unused_element
+   info • Don't use 'BuildContext's across async gaps • lib/services/performance_monitoring_dashboard.dart:515:28 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/services/performance_monitoring_dashboard.dart:523:28 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/services/performance_monitoring_dashboard.dart:534:26 • use_build_context_synchronously
+warning • The value of the local variable 'isFriday' isn't used • lib/services/promotional_event_service.dart:230:13 • unused_local_variable
+warning • Unused import: 'dart:convert' • lib/services/realtime_cart_sync_service.dart:3:8 • unused_import
+warning • Unused import: 'package:http/http.dart' • lib/services/realtime_cart_sync_service.dart:4:8 • unused_import
+warning • Unused import: 'package:flutter/foundation.dart' • lib/services/realtime_cart_sync_service.dart:5:8 • unused_import
+warning • Unused import: 'package:shared_preferences/shared_preferences.dart' • lib/services/realtime_cart_sync_service.dart:6:8 • unused_import
+warning • The value of the field '_syncTimeout' isn't used • lib/services/realtime_cart_sync_service.dart:26:25 • unused_field
+   info • Empty catch block • lib/services/realtime_cart_sync_service.dart:87:17 • empty_catches
+   info • Empty catch block • lib/services/realtime_cart_sync_service.dart:103:17 • empty_catches
+warning • Unused import: 'dart:developer' • lib/services/stock_utility_service.dart:2:8 • unused_import
+   info • Unnecessary braces in a string interpolation • lib/services/stock_utility_service.dart:104:20 • unnecessary_brace_in_string_interps
+   info • Unnecessary braces in a string interpolation • lib/services/stock_utility_service.dart:106:15 • unnecessary_brace_in_string_interps
+   info • Unnecessary braces in a string interpolation • lib/services/stock_utility_service.dart:115:20 • unnecessary_brace_in_string_interps
+   info • Unnecessary braces in a string interpolation • lib/services/stock_utility_service.dart:117:15 • unnecessary_brace_in_string_interps
+warning • Unused import: 'package:shared_preferences/shared_preferences.dart' • lib/services/stock_validation_service.dart:7:8 • unused_import
+   info • The 'child' argument should be last in widget constructor invocations • lib/widgets/animated_fab.dart:206:15 • sort_child_properties_last
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/animated_map_pin.dart:151:48 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/animated_map_pin.dart:170:48 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/animated_map_pin.dart:211:33 • deprecated_member_use
+   info • 'fromBytes' is deprecated and shouldn't be used. Use BitmapDescriptor.bytes method instead • lib/widgets/animated_map_pin.dart:257:29 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/animated_map_pin.dart:359:46 • deprecated_member_use
+   info • The file name 'cart_icon_button 2.dart' isn't a lower_case_with_underscores identifier • lib/widgets/cart_icon_button 2.dart:1:1 • file_names
+   info • The file name 'cart_icon_button 3.dart' isn't a lower_case_with_underscores identifier • lib/widgets/cart_icon_button 3.dart:1:1 • file_names
+   info • The file name 'cart_icon_button 4.dart' isn't a lower_case_with_underscores identifier • lib/widgets/cart_icon_button 4.dart:1:1 • file_names
+   info • Parameter 'key' could be a super parameter • lib/widgets/clearance_sale_banner.dart:10:9 • use_super_parameters
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/clearance_sale_banner.dart:96:49 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/clearance_sale_banner.dart:119:55 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/clearance_sale_banner.dart:148:55 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/clearance_sale_banner.dart:178:64 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/clearance_sale_banner.dart:184:64 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/clearance_sale_banner.dart:202:64 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/clearance_sale_banner.dart:222:56 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/clearance_sale_banner.dart:264:61 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/clearance_sale_banner.dart:269:61 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/clearance_sale_banner.dart:341:53 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/clearance_sale_banner.dart:344:55 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/clearance_sale_banner.dart:397:30 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/clearance_sale_banner.dart:415:30 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/ecard_widget.dart:59:33 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/ecard_widget.dart:64:44 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/ecard_widget.dart:90:34 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/ecard_widget.dart:108:45 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/ecard_widget.dart:143:60 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/ecard_widget.dart:165:41 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/ecard_widget.dart:168:43 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/ecard_widget.dart:173:45 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/ecard_widget.dart:188:47 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/ecard_widget.dart:211:51 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/ecard_widget.dart:242:62 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/ecard_widget.dart:261:62 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/ecard_widget.dart:303:30 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/ecard_widget.dart:327:30 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/ecard_widget.dart:346:41 • deprecated_member_use
+warning • Unused import: '../providers/promotional_event_provider.dart' • lib/widgets/ernest_friday_banner.dart:9:8 • unused_import
+   info • Parameter 'key' could be a super parameter • lib/widgets/ernest_friday_banner.dart:18:9 • use_super_parameters
+warning • The value of the local variable 'primaryColor' isn't used • lib/widgets/ernest_friday_banner.dart:89:11 • unused_local_variable
+warning • The value of the local variable 'cardColor' isn't used • lib/widgets/ernest_friday_banner.dart:90:11 • unused_local_variable
+warning • The value of the local variable 'textColor' isn't used • lib/widgets/ernest_friday_banner.dart:91:11 • unused_local_variable
+   info • Parameter 'key' could be a super parameter • lib/widgets/ernest_friday_banner.dart:300:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/widgets/ernest_friday_notification.dart:13:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/widgets/ernest_friday_notification.dart:198:9 • use_super_parameters
+   info • The file name 'error_display 2.dart' isn't a lower_case_with_underscores identifier • lib/widgets/error_display 2.dart:1:1 • file_names
+   info • The file name 'error_display 3.dart' isn't a lower_case_with_underscores identifier • lib/widgets/error_display 3.dart:1:1 • file_names
+warning • The method doesn't override an inherited method • lib/widgets/error_display 3.dart:507:8 • override_on_non_overriding_member
+   info • The file name 'error_display 4.dart' isn't a lower_case_with_underscores identifier • lib/widgets/error_display 4.dart:1:1 • file_names
+warning • The method doesn't override an inherited method • lib/widgets/error_display.dart:507:8 • override_on_non_overriding_member
+   info • Don't use 'BuildContext's across async gaps • lib/widgets/optimized_item_detail_widget.dart:94:47 • use_build_context_synchronously
+   info • The file name 'optimized_quantity_button 2.dart' isn't a lower_case_with_underscores identifier • lib/widgets/optimized_quantity_button 2.dart:1:1 • file_names
+   info • The file name 'optimized_quantity_button 3.dart' isn't a lower_case_with_underscores identifier • lib/widgets/optimized_quantity_button 3.dart:1:1 • file_names
+   info • Parameter 'key' could be a super parameter • lib/widgets/promotional_code_input.dart:16:9 • use_super_parameters
+warning • The declaration '_handleDeliveryAction' isn't referenced • lib/widgets/smart_tips.dart:252:8 • unused_element
+warning • The declaration '_handleSafetyAction' isn't referenced • lib/widgets/smart_tips.dart:262:8 • unused_element
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:310:37 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:315:39 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:320:39 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:338:49 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:363:46 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:403:48 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:418:49 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:419:49 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:424:54 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:463:53 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:469:60 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:509:53 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:510:53 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:515:58 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:569:57 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:570:57 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:576:62 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:581:64 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:625:63 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:626:63 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:630:58 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:632:58 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:639:61 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:640:63 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/smart_tips.dart:648:52 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/wishlist_button.dart:190:33 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/widgets/wishlist_button.dart:195:35 • deprecated_member_use
+

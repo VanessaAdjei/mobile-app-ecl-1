@@ -435,6 +435,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
             if (mounted) {
               await _checkLoginStatus();
 
+              if (!context.mounted) return;
+
               // show success message
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -644,7 +646,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       return true;
     }
     final result = await BookingService.cancel(id.toString());
-    if (!mounted) return false;
+    if (!context.mounted) return false;
     if (result['success'] == true) {
       setState(() =>
           _bookings.removeWhere((e) => e['id'] == id || identical(e, booking)));

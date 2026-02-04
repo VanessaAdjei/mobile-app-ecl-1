@@ -1196,6 +1196,7 @@ class AuthService {
   static Future<void> checkAuthAndRedirect(BuildContext context,
       {VoidCallback? onSuccess}) async {
     final isLoggedIn = await AuthService.isLoggedIn();
+    if (!context.mounted) return;
 
     if (!isLoggedIn) {
       final currentRoute = ModalRoute.of(context)?.settings.name ?? '/';
@@ -1242,6 +1243,8 @@ class AuthService {
 
   Future<bool> requireAuth(BuildContext context) async {
     if (await AuthService.isLoggedIn()) return true;
+
+    if (!context.mounted) return false;
 
     final result = await Navigator.push<bool>(
       context,

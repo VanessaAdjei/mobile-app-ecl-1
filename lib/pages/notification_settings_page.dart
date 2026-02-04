@@ -146,6 +146,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     try {
       await NativeNotificationService.testNotification();
 
+      if (!context.mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -171,6 +173,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
         ),
       );
     } catch (e) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error sending test notification: $e'),
