@@ -9,11 +9,12 @@ import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'cart_item.dart';
-import 'package:eclapp/pages/product_model.dart';
-import 'package:eclapp/pages/auth_service.dart';
+import '../models/cart_item.dart';
+import 'package:eclapp/models/product_model.dart';
+import 'package:eclapp/config/app_routes.dart';
+import 'package:eclapp/services/auth_service.dart';
 import 'bottomnav.dart';
-import 'cartprovider.dart';
+import '../providers/cart_provider.dart';
 import 'package:html/parser.dart' show parse;
 import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -1880,14 +1881,13 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
     return GestureDetector(
       onTap: () {
-        Navigator.pushReplacement(
+        Navigator.pushReplacementNamed(
           context,
-          MaterialPageRoute(
-            builder: (context) => ItemPage(
-              urlName: product.urlName,
-              isPrescribed: product.otcpom?.toLowerCase() == 'pom',
-            ),
-          ),
+          AppRoutes.itemDetail,
+          arguments: {
+            'urlName': product.urlName,
+            'isPrescribed': product.otcpom?.toLowerCase() == 'pom',
+          },
         );
       },
       child: Animate(
@@ -2108,11 +2108,9 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                       child: ElevatedButton(
                         onPressed: () {
                           Navigator.of(context).pop();
-                          Navigator.push(
+                          Navigator.pushNamed(
                             context,
-                            MaterialPageRoute(
-                              builder: (context) => SignInScreen(),
-                            ),
+                            AppRoutes.signIn,
                           );
                         },
                         style: ElevatedButton.styleFrom(

@@ -4,8 +4,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../pages/cartprovider.dart';
-import '../pages/auth_service.dart';
+import '../providers/cart_provider.dart';
+import 'auth_service.dart';
 
 class RealtimeCartSyncService {
   static final RealtimeCartSyncService _instance =

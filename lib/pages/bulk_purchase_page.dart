@@ -4,10 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'homepage.dart';
-import 'cartprovider.dart';
-import 'cart_item.dart';
-import 'itemdetail.dart';
+import '../config/app_routes.dart';
+import '../providers/cart_provider.dart';
+import '../models/cart_item.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class BulkPurchasePage extends StatefulWidget {
@@ -236,12 +235,7 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
               ),
               child: InkWell(
                 onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => HomePage(),
-                    ),
-                  );
+                  Navigator.pushReplacementNamed(context, AppRoutes.home);
                 },
                 child: Container(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -379,19 +373,18 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
                                 final product = filteredProducts[index];
                                 return InkWell(
                                   onTap: () {
-                                    Navigator.push(
+                                    Navigator.pushNamed(
                                       context,
-                                      MaterialPageRoute(
-                                        builder: (context) => ItemPage(
-                                          urlName: product['product']
-                                              ['url_name'],
-                                          isPrescribed: product['product']
-                                                      ['otcpom']
-                                                  ?.toString()
+                                      AppRoutes.itemDetail,
+                                      arguments: {
+                                        'urlName': product['product']
+                                            ['url_name'],
+                                        'isPrescribed': product['product']
+                                                    ['otcpom']
+                                                ?.toString()
                                                   .toLowerCase() ==
                                               'pom',
-                                        ),
-                                      ),
+                                      },
                                     );
                                   },
                                   child: Container(

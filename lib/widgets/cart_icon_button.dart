@@ -1,8 +1,8 @@
 // widgets/cart_icon_button.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../pages/cart.dart';
-import '../pages/cartprovider.dart';
+import '../config/app_routes.dart';
+import '../providers/cart_provider.dart';
 
 class CartIconButton extends StatefulWidget {
   final Color? iconColor;
@@ -86,10 +86,7 @@ class _CartIconButtonState extends State<CartIconButton> {
           ],
         ),
         padding: widget.padding,
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const Cart()),
-        ),
+        onPressed: () => Navigator.pushNamed(context, AppRoutes.cart),
       ),
     );
   }

@@ -1,7 +1,6 @@
 // main.dart
-// main.dart - this is where the app starts i think
-import 'package:eclapp/pages/auth_service.dart';
-import 'package:eclapp/pages/authprovider.dart';
+import 'package:eclapp/services/auth_service.dart';
+import 'package:eclapp/providers/auth_provider.dart';
 import 'package:eclapp/pages/profile.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
@@ -10,9 +9,8 @@ import 'package:flutter/foundation.dart';
 import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/pages/wallet_page.dart';
 import 'package:provider/provider.dart';
-import 'pages/cartprovider.dart';
-import 'pages/theme_provider.dart';
-import 'services/app_optimization_service.dart';
+import 'providers/cart_provider.dart';
+import 'providers/theme_provider.dart';
 import 'services/optimized_api_service.dart';
 import 'services/banner_cache_service.dart';
 import 'services/advanced_performance_service.dart';
@@ -26,7 +24,7 @@ import 'pages/onboarding_splash_page.dart';
 import 'pages/prescription.dart';
 import 'pages/notification_permission_page.dart';
 import 'pages/clearance_admin_page.dart';
-import 'pages/notification_provider.dart';
+import 'providers/notification_provider.dart';
 import 'services/background_order_checker.dart';
 
 import 'services/order_notification_service.dart';
@@ -43,123 +41,42 @@ import 'providers/clearance_sale_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'services/notification_service.dart';
 import 'services/http_client_service.dart';
+import 'config/app_routes.dart';
+
+bool _isKeychainError(dynamic e) {
+  final s = e.toString().toLowerCase();
+  return s.contains('34018') ||
+      s.contains('entitlement') ||
+      s.contains('required entitlement') ||
+      s.contains('unexpected security result code') ||
+      s.contains('security result code');
+}
 
 void main() async {
-  // wrap everything in a zone so we can catch errors that would normally crash the app
   runZonedGuarded(() async {
-    final appStartTime = DateTime.now();
-    debugPrint('🚀 Main: App starting at ${appStartTime.toIso8601String()}');
-
     WidgetsFlutterBinding.ensureInitialized();
 
-    // hide those annoying keychain errors that keep showing up
-    ErrorWidget.builder = (FlutterErrorDetails details) {
-      final exception = details.exception;
-      final errorString = exception.toString().toLowerCase();
-
-      // Suppress -34018 keychain entitlement errors
-      if (exception is PlatformException) {
-        if (exception.code == '-34018' ||
-            exception.message?.contains('34018') == true ||
-            exception.message?.contains('entitlement') == true) {
-          // just return nothing instead of showing an error
-          return const SizedBox.shrink();
-        }
-      }
-
-      if (errorString.contains('34018') ||
-          errorString.contains('entitlement') ||
-          errorString.contains('required entitlement') ||
-          errorString.contains('unexpected security result code')) {
-        // Return empty widget instead of error widget
+    ErrorWidget.builder = (FlutterErrorDetails d) {
+      if (d.exception is PlatformException && _isKeychainError(d.exception)) {
         return const SizedBox.shrink();
       }
-
-      // for everything else, show the normal error thing
-      return ErrorWidget(details.exception);
+      if (_isKeychainError(d.exception.toString())) {
+        return const SizedBox.shrink();
+      }
+      return ErrorWidget(d.exception);
     };
 
-    // catch keychain errors globally so they dont show up everywhere
-    // IMPORTANT: do this before we use FlutterSecureStorage or it wont work
-    FlutterError.onError = (FlutterErrorDetails details) {
-      // Suppress -34018 keychain entitlement errors silently
-      final exception = details.exception;
-      final errorString = exception.toString().toLowerCase();
-      final contextString = details.context?.toString().toLowerCase() ?? '';
-      final libraryString = details.library ?? '';
-
-      if (exception is PlatformException) {
-        final platformException = exception;
-        if (platformException.code == '-34018' ||
-            platformException.message?.contains('34018') == true ||
-            platformException.message?.contains('entitlement') == true ||
-            platformException.message?.contains('required entitlement') ==
-                true ||
-            platformException.message
-                    ?.contains('Unexpected security result code') ==
-                true) {
-          // just ignore it, users dont need to see this
-          return; // skip showing the error
-        }
-      }
-
-      // also check if the error message itself has those keywords
-      if (errorString.contains('34018') ||
-          errorString.contains('entitlement') ||
-          errorString.contains('required entitlement') ||
-          errorString.contains('unexpected security result code') ||
-          errorString.contains('security result code') ||
-          contextString.contains('34018') ||
-          contextString.contains('entitlement') ||
-          libraryString.contains('dart_vm_initializer')) {
-        // Silently suppress this error - don't show it to users
-        return; // Don't show the error
-      }
-
-      // if we still havent caught it, check the stack trace too
-      final stackString = details.stack?.toString().toLowerCase() ?? '';
-      if (stackString.contains('34018') ||
-          stackString.contains('entitlement') ||
-          stackString.contains('flutter_secure_storage')) {
-        // catch it here if we missed it before
+    FlutterError.onError = (FlutterErrorDetails d) {
+      if (_isKeychainError(d.exception) ||
+          d.stack?.toString().toLowerCase().contains('flutter_secure_storage') == true) {
         return;
       }
-
-      // everything else just show normally
-      FlutterError.presentError(details);
+      FlutterError.presentError(d);
     };
 
-    // catch errors that happen in async functions
     PlatformDispatcher.instance.onError = (error, stack) {
-      // Suppress -34018 keychain entitlement errors silently
-      final errorString = error.toString().toLowerCase();
-
-      if (error is PlatformException) {
-        final platformException = error;
-        if (platformException.code == '-34018' ||
-            platformException.message?.contains('34018') == true ||
-            platformException.message?.contains('entitlement') == true ||
-            platformException.message?.contains('required entitlement') ==
-                true ||
-            platformException.message
-                    ?.contains('Unexpected security result code') ==
-                true) {
-          // hide it from users
-          return true; // we handled it, dont show anything
-        }
-      }
-
-      // check the error message text too
-      if (errorString.contains('34018') ||
-          errorString.contains('entitlement') ||
-          errorString.contains('required entitlement') ||
-          errorString.contains('unexpected security result code') ||
-          errorString.contains('security result code')) {
-        // Silently suppress this error - don't show it to users
-        return true; // Error handled, don't show it
-      }
-
-      // let other errors through normally
+      if (error is PlatformException && _isKeychainError(error)) return true;
+      if (_isKeychainError(error.toString())) return true;
       return false;
     };
 
@@ -170,76 +87,16 @@ void main() async {
     PaintingBinding.instance.imageCache.maximumSize = 1000;
     PaintingBinding.instance.imageCache.maximumSizeBytes = 100 << 20; // 100 MB
 
-    // check if the app was just restarted (can skip some stuff)
-    final prefs = await SharedPreferences.getInstance();
-    final isRestart = prefs.getBool('app_was_running') ?? false;
-
-    if (isRestart) {
-      debugPrint('🚀 Main: App restart detected, using optimized path');
-      // if its a restart we can skip some things to make it faster
-      await _fastRestart();
-    } else {
-      debugPrint('🚀 Main: Cold start detected, full initialization');
-      await _coldStart();
-    }
-
-    // remember that the app is running now
-    await prefs.setBool('app_was_running', true);
-
-    final totalStartupTime = DateTime.now().difference(appStartTime);
-    debugPrint(
-        '🚀 Main: Total startup time: ${totalStartupTime.inMilliseconds}ms');
-
+    await _initializeApp();
     runApp(const MyApp());
   }, (error, stack) {
-    // catch any errors that slip through, including platform errors
-    if (error is PlatformException) {
-      if (error.code == '-34018' ||
-          error.message?.contains('34018') == true ||
-          error.message?.contains('entitlement') == true ||
-          error.message?.contains('required entitlement') == true ||
-          error.message?.contains('Unexpected security result code') == true) {
-        // hide keychain errors again here
-        debugPrint(
-            'Keychain entitlement error suppressed in zone: ${error.message}');
-        return;
-      }
-    }
-
-    // Check error string
-    final errorString = error.toString().toLowerCase();
-    if (errorString.contains('34018') ||
-        errorString.contains('entitlement') ||
-        errorString.contains('required entitlement') ||
-        errorString.contains('unexpected security result code') ||
-        errorString.contains('security result code')) {
-      // Silently suppress this error
-      debugPrint('Keychain entitlement error suppressed in zone: $errorString');
-      return;
-    }
-
-    // other errors just log them, dont crash the whole app
-    debugPrint('Unhandled error in zone: $error');
-    debugPrint('Stack trace: $stack');
+    if (_isKeychainError(error)) return;
+    debugPrint('Unhandled error: $error');
+    debugPrint('Stack: $stack');
   });
 }
 
-// if the app was just running, we can do less stuff to start faster
-Future<void> _fastRestart() async {
-  debugPrint('🚀 Main: Fast restart - minimal initialization');
-
-  // only do the important stuff, skip the rest
-  await BannerCacheService().initialize();
-
-  // do other stuff in the background so it doesnt slow us down
-  unawaited(_initializeNonCriticalServices());
-  unawaited(_startBackgroundServices());
-
-  debugPrint('🚀 Main: Fast restart completed');
-}
-
-// when the app starts fresh, do everything but try to be fast about it
-Future<void> _coldStart() async {
+Future<void> _initializeApp() async {
   debugPrint('🚀 Main: Cold start - optimized for fast onboarding');
 
   await AuthService.clearAllGuestIds();
@@ -259,11 +116,9 @@ Future<void> _coldStart() async {
       '🚀 Main: Critical services initialized in ${criticalInitTime.inMilliseconds}ms');
 
   // do other stuff in background, dont wait for it
-  unawaited(_initializeNonCriticalServices());
+  unawaited(_initBackground());
 
-  // Prefetch only essential data (blocking with very aggressive timeout for onboarding)
-  debugPrint(
-      '🚀 Main: Starting essential data prefetching (fast for onboarding)...');
+  debugPrint('Prefetch...');
   final prefetchStartTime = DateTime.now();
 
   try {
@@ -285,13 +140,12 @@ Future<void> _coldStart() async {
       '🚀 Main: Essential data prefetched in ${prefetchTime.inMilliseconds}ms');
 
   // start background stuff right away, dont wait
-  unawaited(_startBackgroundServices());
+  unawaited(_initBackground());
 
   debugPrint('🚀 Main: Cold start completed');
 }
 
-// set up services that arent super important in the background
-Future<void> _initializeNonCriticalServices() async {
+Future<void> _initBackground() async {
   debugPrint('🚀 Main: Starting non-critical service initialization...');
   final startTime = DateTime.now();
 
@@ -318,31 +172,18 @@ Future<void> _initializeNonCriticalServices() async {
   unawaited(AuthService.init().catchError((e) {
     debugPrint('Background auth initialization error: $e');
   }));
-}
 
-// start all the background services
-Future<void> _startBackgroundServices() async {
-  try {
-    debugPrint('🚀 Main: Starting background services...');
+  BackgroundOrderChecker.startPeriodicChecking();
+  HealthTipsService.startBackgroundService();
+  BackgroundCartSyncService.startBackgroundSync();
+  BackgroundOrderTrackingService.startBackgroundTracking();
+  BackgroundStoreDataService.startBackgroundPreloading();
+  BackgroundInventoryMonitorService.startBackgroundMonitoring();
 
-    // start the services that dont return anything first
-    BackgroundOrderChecker.startPeriodicChecking();
-    HealthTipsService.startBackgroundService();
-    BackgroundCartSyncService.startBackgroundSync();
-    BackgroundOrderTrackingService.startBackgroundTracking();
-    BackgroundStoreDataService.startBackgroundPreloading();
-    BackgroundInventoryMonitorService.startBackgroundMonitoring();
-
-    // start the async ones at the same time
-    await Future.wait([
-      OrderNotificationService.initializeNotifications(),
-      NativeNotificationService.initialize(),
-    ]);
-
-    debugPrint('🚀 Main: All background services started successfully');
-  } catch (e) {
-    debugPrint('❌ Main: Error starting background services: $e');
-  }
+  await Future.wait([
+    OrderNotificationService.initializeNotifications(),
+    NativeNotificationService.initialize(),
+  ]);
 }
 
 class MyApp extends StatefulWidget {
@@ -819,9 +660,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       },
                     )
                   : const HomePage(),
+              onGenerateRoute: (settings) =>
+                  AppRouteGenerator.generate(settings) ??
+                  MaterialPageRoute(
+                    builder: (_) => const HomePage(),
+                  ),
               routes: {
-                '/profile': (context) => Profile(),
-                '/wallet': (context) => WalletPage(),
                 '/clearance-admin': (context) => const ClearanceAdminPage(),
                 '/prescription-upload': (context) =>
                     FutureBuilder<Map<String, dynamic>>(

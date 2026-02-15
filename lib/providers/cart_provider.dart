@@ -1,10 +1,10 @@
 // pages/cartprovider.dart
 import 'package:flutter/foundation.dart';
-import 'cart_item.dart';
+import '../models/cart_item.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'auth_service.dart';
+import '../services/auth_service.dart';
 import 'package:http/http.dart' as http;
 import '../services/background_cart_checker.dart';
 import '../services/realtime_cart_sync_service.dart';

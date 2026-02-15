@@ -1,9 +1,9 @@
 // pages/profilescreen.dart
-import 'package:eclapp/pages/theme_provider.dart';
+import 'package:eclapp/providers/theme_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'auth_service.dart';
+import '../services/auth_service.dart';
 import 'bottomnav.dart';
 import 'loggedout.dart';
 import 'homepage.dart';

@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:eclapp/pages/privacypolicy.dart';
 import 'package:eclapp/pages/profile.dart';
 import 'package:eclapp/pages/tandc.dart';
-import 'package:eclapp/pages/theme_provider.dart';
+import 'package:eclapp/providers/theme_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -18,7 +18,7 @@ import 'loggedout.dart';
 import 'notifications.dart';
 
 import 'app_back_button.dart';
-import 'package:eclapp/pages/auth_service.dart';
+import 'package:eclapp/services/auth_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/cart_icon_button.dart';
 

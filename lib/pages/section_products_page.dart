@@ -1,6 +1,6 @@
 // pages/section_products_page.dart
 import 'package:flutter/material.dart';
-import 'product_model.dart';
+import '../models/product_model.dart';
 import 'app_back_button.dart';
 import 'itemdetail.dart';
 

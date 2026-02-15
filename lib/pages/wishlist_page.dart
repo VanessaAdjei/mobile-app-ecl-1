@@ -3,13 +3,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:provider/provider.dart';
 import '../models/wishlist_item.dart';
+import '../providers/cart_provider.dart';
+import '../config/app_routes.dart';
 import '../services/wishlist_service.dart';
 import '../services/homepage_optimization_service.dart';
-import 'itemdetail.dart';
-import 'homepage.dart';
-import 'auth_service.dart';
-import 'signinpage.dart';
+import '../services/auth_service.dart';
 
 class WishlistPage extends StatefulWidget {
   const WishlistPage({super.key});
@@ -152,7 +152,8 @@ class _WishlistPageState extends State<WishlistPage> {
 
   Future<void> _moveToCart(int productId) async {
     try {
-      final success = await _wishlistService.moveToCart(productId);
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
+      final success = await _wishlistService.moveToCart(productId, cartProvider);
       if (success) {
         await _removeFromWishlist(productId);
         if (mounted) {
@@ -167,14 +168,13 @@ class _WishlistPageState extends State<WishlistPage> {
   }
 
   void _navigateToProductDetail(WishlistItem item) {
-    Navigator.push(
+    Navigator.pushNamed(
       context,
-      MaterialPageRoute(
-        builder: (context) => ItemPage(
-          urlName: item.product.urlName,
-          isPrescribed: item.product.otcpom?.toLowerCase() == 'pom',
-        ),
-      ),
+      AppRoutes.itemDetail,
+      arguments: {
+        'urlName': item.product.urlName,
+        'isPrescribed': item.product.otcpom?.toLowerCase() == 'pom',
+      },
     );
   }
 
@@ -250,13 +250,12 @@ class _WishlistPageState extends State<WishlistPage> {
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: () async {
-                  final result = await Navigator.push(
+                  final result = await Navigator.pushNamed(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => SignInScreen(
-                        returnTo: ModalRoute.of(context)?.settings.name,
-                      ),
-                    ),
+                    AppRoutes.signIn,
+                    arguments: {
+                      'returnTo': ModalRoute.of(context)?.settings.name,
+                    },
                   );
                   if (result == true || await AuthService.isLoggedIn()) {
                     _loadWishlistItems();
@@ -456,12 +455,7 @@ class _WishlistPageState extends State<WishlistPage> {
             const SizedBox(height: 32),
             ElevatedButton(
               onPressed: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => HomePage(),
-                  ),
-                );
+                Navigator.pushReplacementNamed(context, AppRoutes.home);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green.shade600,

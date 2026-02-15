@@ -1,10 +1,8 @@
 // pages/privacypolicy.dart
 import 'package:flutter/material.dart';
+import '../config/app_routes.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-import 'cart.dart';
-
 import 'app_back_button.dart';
 
 class PrivacyPolicyScreen extends StatelessWidget {
@@ -84,12 +82,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                         icon: const Icon(Icons.shopping_cart,
                             color: Colors.white),
                         onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const Cart(),
-                            ),
-                          );
+                          Navigator.pushNamed(context, AppRoutes.cart);
                         },
                       ),
                     ),

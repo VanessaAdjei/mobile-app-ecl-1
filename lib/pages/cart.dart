@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 
 import 'package:provider/provider.dart';
 import 'package:eclapp/pages/homepage.dart';
-import 'cartprovider.dart';
+import '../providers/cart_provider.dart';
 import 'delivery_page.dart';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'app_back_button.dart';
-import 'auth_service.dart';
+import '../services/auth_service.dart';
 import 'signinpage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/optimized_quantity_button.dart';

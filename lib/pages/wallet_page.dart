@@ -9,7 +9,7 @@ import '../providers/wallet_provider.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/ecard_widget.dart';
 import 'app_back_button.dart';
-import 'auth_service.dart';
+import '../services/auth_service.dart';
 
 class WalletPage extends StatefulWidget {
   const WalletPage({super.key});

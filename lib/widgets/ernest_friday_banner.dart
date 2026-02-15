@@ -7,7 +7,7 @@ import 'dart:async';
 import 'package:provider/provider.dart';
 import '../models/promotional_event.dart';
 import '../providers/promotional_event_provider.dart';
-import '../pages/theme_provider.dart';
+import '../providers/theme_provider.dart';
 
 class ErnestFridayBanner extends StatefulWidget {
   final PromotionalEvent event;

@@ -11,12 +11,12 @@ import 'package:provider/provider.dart';
 import '../providers/clearance_sale_provider.dart';
 import '../services/clearance_sale_api_service.dart';
 import '../widgets/cart_icon_button.dart';
-import 'cartprovider.dart';
-import 'cart_item.dart';
-import 'cart.dart';
+import '../config/app_routes.dart';
+import '../providers/cart_provider.dart';
+import '../models/cart_item.dart';
 import 'clearance_item_detail.dart';
 import 'search_results_page.dart';
-import 'product_model.dart';
+import '../models/product_model.dart';
 
 class ClearanceHomePage extends StatefulWidget {
   const ClearanceHomePage({super.key});
@@ -548,10 +548,7 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
               label: 'View Cart',
               textColor: Colors.white,
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => Cart()),
-                );
+                Navigator.pushNamed(context, AppRoutes.cart);
               },
             ),
           ),

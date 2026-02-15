@@ -2,8 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'payment_page.dart';
-import 'cart_item.dart';
-import 'auth_service.dart';
+import '../models/cart_item.dart';
+import '../services/auth_service.dart';
 
 class PaymentWebView extends StatefulWidget {
   final String url;

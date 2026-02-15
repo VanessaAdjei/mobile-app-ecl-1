@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../models/refill_medicine.dart';
 import 'api_service.dart';
-import '../pages/auth_service.dart';
+import 'auth_service.dart';
 
 class RefillApiService {
   static const String baseUrl = 'https://eclcommerce.ernestchemists.com.gh/api';

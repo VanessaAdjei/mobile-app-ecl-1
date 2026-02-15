@@ -1,6 +1,6 @@
 // pages/aboutus.dart
 import 'package:flutter/material.dart';
-import 'cart.dart';
+import '../config/app_routes.dart';
 import 'app_back_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -77,12 +77,7 @@ class AboutUsScreen extends StatelessWidget {
                   child: IconButton(
                     icon: const Icon(Icons.shopping_cart, color: Colors.white),
                     onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const Cart(),
-                        ),
-                      );
+                      Navigator.pushNamed(context, AppRoutes.cart);
                     },
                   ),
                 ),

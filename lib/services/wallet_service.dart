@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/wallet.dart';
-import '../pages/auth_service.dart';
+import 'auth_service.dart';
 
 class WalletService {
   static const String _baseUrl =

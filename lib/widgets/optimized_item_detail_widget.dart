@@ -5,11 +5,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
-import '../pages/product_model.dart';
-import '../pages/cartprovider.dart';
-import '../pages/cart_item.dart';
+import '../config/app_routes.dart';
+import '../models/product_model.dart';
+import '../providers/cart_provider.dart';
 import '../services/item_detail_optimization_service.dart';
 import '../services/performance_service.dart';
+import '../viewmodels/item_detail_view_model.dart';
 import 'error_display.dart';
 
 class OptimizedItemDetailWidget extends StatefulWidget {
@@ -33,32 +34,23 @@ class OptimizedItemDetailWidget extends StatefulWidget {
 
 class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
     with TickerProviderStateMixin {
-  late final ItemDetailOptimizationService _itemDetailService;
+  late final ItemDetailViewModel _viewModel;
   late final PerformanceService _performanceService;
 
-  Future<Product>? _productFuture;
-  Future<List<Product>>? _relatedProductsFuture;
-  Future<List<String>>? _imagesFuture;
-
-  int quantity = 1;
-  bool isDescriptionExpanded = false;
   PageController? _imagePageController;
   int _currentImageIndex = 0;
 
-  // Animation controllers
   late AnimationController _fadeController;
   late AnimationController _scaleController;
   late AnimationController _quantityController;
-
-  // Loading states
-
-  bool _isAddingToCart = false;
 
   @override
   void initState() {
     super.initState();
 
-    _itemDetailService = ItemDetailOptimizationService();
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    _viewModel = ItemDetailViewModel(urlName: widget.urlName, cartProvider: cartProvider);
+    _viewModel.addListener(_onViewModelChanged);
     _performanceService = PerformanceService();
 
     _imagePageController = PageController();
@@ -78,21 +70,19 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
     _initializeData();
   }
 
+  void _onViewModelChanged() {
+    if (mounted) setState(() {});
+  }
+
   Future<void> _initializeData() async {
     _performanceService.startTimer('item_detail_widget_init');
 
     try {
-      await _itemDetailService.initialize();
+      await _viewModel.load();
 
-      // Load data concurrently
-      _productFuture = _itemDetailService.getProductDetails(widget.urlName);
-      _relatedProductsFuture =
-          _itemDetailService.getRelatedProducts(widget.urlName);
-      _imagesFuture = _itemDetailService.getProductImages(widget.urlName);
-
-      // Preload images for better UX
-      _itemDetailService.preloadProductImages(context, widget.urlName);
-
+      if (mounted) {
+        _itemDetailService.preloadProductImages(context, widget.urlName);
+      }
       _performanceService.stopTimer('item_detail_widget_init');
     } catch (e) {
       _performanceService.stopTimer('item_detail_widget_init');
@@ -101,8 +91,12 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
     }
   }
 
+  ItemDetailOptimizationService get _itemDetailService =>
+      ItemDetailOptimizationService();
+
   @override
   void dispose() {
+    _viewModel.removeListener(_onViewModelChanged);
     _imagePageController?.dispose();
     _fadeController.dispose();
     _scaleController.dispose();
@@ -111,48 +105,14 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
   }
 
   Future<void> _refreshData() async {
-    setState(() {
-      _productFuture = _itemDetailService.getProductDetails(widget.urlName,
-          forceRefresh: true);
-      _relatedProductsFuture = _itemDetailService
-          .getRelatedProducts(widget.urlName, forceRefresh: true);
-      _imagesFuture = _itemDetailService.getProductImages(widget.urlName,
-          forceRefresh: true);
-    });
-
-    if (_productFuture != null &&
-        _relatedProductsFuture != null &&
-        _imagesFuture != null) {
-      await Future.wait(
-          [_productFuture!, _relatedProductsFuture!, _imagesFuture!]);
-    }
+    await _viewModel.refresh();
   }
 
-  void _addToCart(BuildContext context, Product product) async {
-    if (_isAddingToCart) return;
-
-    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+  Future<void> _addToCart(BuildContext context, Product product) async {
     _performanceService.startTimer('add_to_cart');
 
-    setState(() {
-      _isAddingToCart = true;
-    });
-
     try {
-      final cartItem = CartItem(
-        // Use server cart ID only; start with empty and update after server response
-        id: '',
-        productId: product.id.toString(),
-        name: product.name,
-        price: double.tryParse(product.price) ?? 0.0,
-        quantity: quantity,
-        image: product.thumbnail,
-        batchNo: product.batch_no,
-        urlName: product.urlName,
-        totalPrice: (double.tryParse(product.price) ?? 0.0) * quantity,
-      );
-
-      cartProvider.addToCart(cartItem);
+      await _viewModel.addToCart();
       _performanceService.trackUserInteraction('product_added_to_cart');
 
       if (mounted) {
@@ -163,32 +123,10 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
       _performanceService.trackError('add_to_cart_error',
           context: e.toString());
       if (mounted) {
-        final errorMessage = e.toString();
-        String displayMessage;
-
-        if (errorMessage.contains('out of stock') ||
-            errorMessage.contains('unavailable') ||
-            errorMessage.contains('only has') ||
-            errorMessage.contains('units available') ||
-            errorMessage.contains('Unable to verify stock')) {
-          // Clean up the error message for display
-          displayMessage = errorMessage
-              .replaceAll('Exception: ', '')
-              .replaceAll('Error: ', '')
-              .trim();
-        } else {
-          displayMessage = 'Error adding item to cart. Please try again.';
-        }
-
-        _showErrorSnackBar(displayMessage);
+        _showErrorSnackBar(ItemDetailViewModel.formatAddToCartError(e.toString()));
       }
     } finally {
       _performanceService.stopTimer('add_to_cart');
-      if (mounted) {
-        setState(() {
-          _isAddingToCart = false;
-        });
-      }
     }
   }
 
@@ -229,21 +167,13 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
   }
 
   void _incrementQuantity() {
-    if (quantity < 99) {
-      setState(() {
-        quantity++;
-      });
-      _quantityController.forward().then((_) => _quantityController.reverse());
-    }
+    _viewModel.incrementQuantity();
+    _quantityController.forward().then((_) => _quantityController.reverse());
   }
 
   void _decrementQuantity() {
-    if (quantity > 1) {
-      setState(() {
-        quantity--;
-      });
-      _quantityController.forward().then((_) => _quantityController.reverse());
-    }
+    _viewModel.decrementQuantity();
+    _quantityController.forward().then((_) => _quantityController.reverse());
   }
 
   void _shareProduct(Product product) {
@@ -255,46 +185,38 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
 
   @override
   Widget build(BuildContext context) {
+    if (_viewModel.isLoading && _viewModel.product == null) {
+      return Scaffold(
+        appBar: _buildAppBar(),
+        body: _buildLoadingSkeleton(),
+      );
+    }
+
+    if (_viewModel.error != null) {
+      return Scaffold(
+        appBar: _buildAppBar(),
+        body: _buildErrorState(_viewModel.error!),
+      );
+    }
+
+    final product = _viewModel.product!;
     return Scaffold(
       appBar: _buildAppBar(),
       body: RefreshIndicator(
         onRefresh: _refreshData,
-        child: FutureBuilder<Product>(
-          future: _productFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return _buildLoadingSkeleton();
-            }
-
-            if (snapshot.hasError) {
-              return _buildErrorState(snapshot.error.toString());
-            }
-
-            final product = snapshot.data!;
-            return SingleChildScrollView(
-              physics: AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.only(bottom: 60),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Product Image Gallery
-                  _buildProductImageGallery(product),
-
-                  // Product Info Card
-                  _buildProductInfoCard(product),
-
-                  // Quantity Selector
-                  _buildQuantitySelector(product),
-
-                  // Action Buttons
-                  _buildActionButtons(product),
-
-                  // Related Products
-                  _buildRelatedProductsSection(product),
-                ],
-              ),
-            );
-          },
+        child: SingleChildScrollView(
+          physics: AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.only(bottom: 60),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildProductImageGallery(product),
+              _buildProductInfoCard(product),
+              _buildQuantitySelector(product),
+              _buildActionButtons(product),
+              _buildRelatedProductsSection(product),
+            ],
+          ),
         ),
       ),
     );
@@ -328,43 +250,17 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
         icon: Icon(Icons.arrow_back, color: Colors.white),
         onPressed: widget.onBackPressed ?? () => Navigator.pop(context),
       ),
-      title: _productFuture != null
-          ? FutureBuilder<Product>(
-              future: _productFuture!,
-              builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  return Text(
-                    snapshot.data!.name,
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                      letterSpacing: 0.3,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  );
-                }
-                return Text(
-                  'Product Details',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                    letterSpacing: 0.3,
-                  ),
-                );
-              },
-            )
-          : Text(
-              'Product Details',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-                letterSpacing: 0.3,
-              ),
-            ),
+      title: Text(
+        _viewModel.product?.name ?? 'Product Details',
+        style: GoogleFonts.poppins(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+          letterSpacing: 0.3,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
       actions: [
         IconButton(
           icon: Icon(Icons.shopping_cart, color: Colors.white),
@@ -449,12 +345,11 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
   }
 
   Widget _buildProductImageGallery(Product product) {
-    return FutureBuilder<List<String>>(
-      future: _imagesFuture ?? Future.value([]),
-      builder: (context, snapshot) {
-        final images = snapshot.data ?? [product.thumbnail];
+    final images = _viewModel.images.isNotEmpty
+        ? _viewModel.images
+        : [product.thumbnail];
 
-        return Animate(
+    return Animate(
           effects: [
             FadeEffect(duration: 400.ms),
             SlideEffect(
@@ -565,8 +460,6 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
             ),
           ),
         );
-      },
-    );
   }
 
   Widget _buildProductInfoCard(Product product) {
@@ -661,18 +554,14 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
                   color: Colors.grey[600],
                   height: 1.5,
                 ),
-                maxLines: isDescriptionExpanded ? null : 3,
-                overflow: isDescriptionExpanded ? null : TextOverflow.ellipsis,
+                maxLines: _viewModel.isDescriptionExpanded ? null : 3,
+                overflow: _viewModel.isDescriptionExpanded ? null : TextOverflow.ellipsis,
               ),
               if (product.description.length > 100)
                 TextButton(
-                  onPressed: () {
-                    setState(() {
-                      isDescriptionExpanded = !isDescriptionExpanded;
-                    });
-                  },
+                  onPressed: _viewModel.toggleDescriptionExpanded,
                   child: Text(
-                    isDescriptionExpanded ? 'Show less' : 'Show more',
+                    _viewModel.isDescriptionExpanded ? 'Show less' : 'Show more',
                     style: GoogleFonts.poppins(
                       color: Colors.green.shade600,
                       fontWeight: FontWeight.w500,
@@ -793,7 +682,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
                     width: 50,
                     child: Center(
                       child: Text(
-                        quantity.toString(),
+                        _viewModel.quantity.toString(),
                         style: GoogleFonts.poppins(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -830,42 +719,16 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
         child: Column(
           children: [
             // Add to cart button - hide if item is already in cart
-            Consumer<CartProvider>(
-              builder: (context, cartProvider, child) {
-                // Check if product is already in cart (use normalized name so "E-Panol" matches "E Panol")
-                final cartItems = cartProvider.cartItems;
-                final productNameNorm = CartProvider.normalizeProductName(product.name);
-                final existingItem = cartItems.firstWhere(
-                  (item) =>
-                      CartProvider.normalizeProductName(item.name) == productNameNorm &&
-                      item.batchNo == product.batch_no,
-                  orElse: () => CartItem(
-                    id: '',
-                    productId: '',
-                    name: '',
-                    price: 0.0,
-                    quantity: 0,
-                    image: '',
-                    batchNo: '',
-                    urlName: '',
-                    totalPrice: 0.0,
-                  ),
-                );
-
-                final isInCart = existingItem.id.isNotEmpty;
-
-                // Hide the button if item is already in cart
-                if (isInCart) {
-                  return SizedBox.shrink();
-                }
-
-                return SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _isAddingToCart
-                        ? null
-                        : () => _addToCart(context, product),
+            if (_viewModel.isProductInCart)
+              SizedBox.shrink()
+            else
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _viewModel.isAddingToCart
+                      ? null
+                      : () => _addToCart(context, product),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green.shade600,
                       foregroundColor: Colors.white,
@@ -874,7 +737,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
                       ),
                       elevation: 2,
                     ),
-                    child: _isAddingToCart
+                    child: _viewModel.isAddingToCart
                         ? Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -912,9 +775,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
                             ],
                           ),
                   ),
-                );
-              },
-            ),
+                ),
             SizedBox(height: 12),
 
             // Share button
@@ -947,19 +808,12 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
   }
 
   Widget _buildRelatedProductsSection(Product product) {
-    return FutureBuilder<List<Product>>(
-      future: _relatedProductsFuture ?? Future.value([]),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildRelatedProductsSkeleton();
-        }
+    final relatedProducts = _viewModel.relatedProducts;
+    if (relatedProducts.isEmpty) {
+      return SizedBox.shrink();
+    }
 
-        final relatedProducts = snapshot.data ?? [];
-        if (relatedProducts.isEmpty) {
-          return SizedBox.shrink();
-        }
-
-        return Animate(
+    return Animate(
           effects: [
             FadeEffect(duration: 400.ms, delay: 400.ms),
             SlideEffect(
@@ -1001,21 +855,18 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
             ),
           ),
         );
-      },
-    );
   }
 
   Widget _buildRelatedProductCard(Product product) {
     return GestureDetector(
       onTap: () {
-        Navigator.pushReplacement(
+        Navigator.pushReplacementNamed(
           context,
-          MaterialPageRoute(
-            builder: (context) => OptimizedItemDetailWidget(
-              urlName: product.urlName,
-              isPrescribed: product.otcpom?.toLowerCase() == 'pom',
-            ),
-          ),
+          AppRoutes.itemDetail,
+          arguments: {
+            'urlName': product.urlName,
+            'isPrescribed': product.otcpom?.toLowerCase() == 'pom',
+          },
         );
       },
       child: Container(

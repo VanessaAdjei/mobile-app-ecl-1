@@ -2,8 +2,8 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
-import '../pages/cartprovider.dart';
-import '../pages/auth_service.dart';
+import '../providers/cart_provider.dart';
+import 'auth_service.dart';
 
 class BackgroundCartChecker {
   static final BackgroundCartChecker _instance =

@@ -1,6 +1,6 @@
 // widgets/optimized_product_card.dart
 import 'package:flutter/material.dart';
-import '../pages/product_model.dart';
+import '../models/product_model.dart';
 import '../pages/itemdetail.dart';
 import '../services/advanced_performance_service.dart';
 import '../services/stock_utility_service.dart';

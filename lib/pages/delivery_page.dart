@@ -1,12 +1,12 @@
 // pages/delivery_page.dart
 import 'dart:convert';
 import 'package:eclapp/pages/payment_page.dart';
-import 'package:eclapp/pages/auth_service.dart';
+import 'package:eclapp/services/auth_service.dart';
 import 'package:eclapp/services/delivery_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'bottomnav.dart';
-import 'cartprovider.dart';
+import '../providers/cart_provider.dart';
 import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter/services.dart';

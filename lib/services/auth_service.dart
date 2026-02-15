@@ -1,4 +1,4 @@
-// pages/auth_service.dart
+// services/auth_service.dart
 // handles login, logout, tokens, and all that auth stuff
 import 'dart:async';
 import 'package:eclapp/pages/signinpage.dart';
@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
-import 'product_model.dart';
+import '../models/product_model.dart';
 import 'dart:io';
 import '../services/http_client_service.dart';
 

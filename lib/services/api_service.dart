@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:eclapp/pages/auth_service.dart';
+import 'package:eclapp/services/auth_service.dart';
 import '../config/api_config.dart';
 
 // class to store cached data with a timestamp

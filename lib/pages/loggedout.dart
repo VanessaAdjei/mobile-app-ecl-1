@@ -2,7 +2,7 @@
 import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
-import 'auth_service.dart';
+import '../services/auth_service.dart';
 
 class LoggedOutScreen extends StatefulWidget {
   const LoggedOutScreen({super.key});

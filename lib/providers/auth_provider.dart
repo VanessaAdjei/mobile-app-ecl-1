@@ -1,6 +1,6 @@
 // pages/authprovider.dart
 import 'package:flutter/material.dart';
-import 'package:eclapp/pages/auth_service.dart';
+import 'package:eclapp/services/auth_service.dart';
 
 class AuthProvider with ChangeNotifier {
   bool _isLoggedIn = false;

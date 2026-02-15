@@ -9,18 +9,16 @@
 // pages/optimized_cart.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:eclapp/pages/homepage.dart';
-import 'cartprovider.dart';
-import 'delivery_page.dart';
 import 'dart:async';
 
+import '../config/app_routes.dart';
+import '../providers/cart_provider.dart';
 import 'app_back_button.dart';
-import 'auth_service.dart';
-import 'signinpage.dart';
+import '../services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/universal_page_optimization_service.dart';
 
-import 'cart_item.dart';
+import '../models/cart_item.dart';
 
 class OptimizedCart extends StatefulWidget {
   const OptimizedCart({super.key});
@@ -255,10 +253,8 @@ class OptimizedCartState extends State<OptimizedCart> {
           return _optimizationService.buildEmptyStateWidget(
             message: 'Your cart is empty',
             icon: Icons.shopping_cart_outlined,
-            onAction: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const HomePage()),
-            ),
+            onAction: () =>
+                Navigator.pushReplacementNamed(context, AppRoutes.home),
             actionText: 'Start Shopping',
           );
         }
@@ -546,15 +542,9 @@ class OptimizedCartState extends State<OptimizedCart> {
 
   void _proceedToCheckout() {
     if (!_isLoggedIn) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const SignInScreen()),
-      );
+      Navigator.pushNamed(context, AppRoutes.signIn);
     } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const DeliveryPage()),
-      );
+      Navigator.pushNamed(context, AppRoutes.delivery);
     }
   }
 

@@ -4,7 +4,7 @@ import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/promotional_event.dart';
-import '../pages/auth_service.dart';
+import 'auth_service.dart';
 
 class PromotionalEventService {
   static const String _baseUrl =

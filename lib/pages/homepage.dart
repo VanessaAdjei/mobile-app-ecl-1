@@ -9,8 +9,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'product_model.dart';
-import 'auth_service.dart';
+import '../config/app_routes.dart';
+import '../models/product_model.dart';
+import '../services/auth_service.dart';
 import 'bottomnav.dart';
 import 'itemdetail.dart';
 import 'package:shimmer/shimmer.dart';
@@ -2103,11 +2104,9 @@ class HomePageState extends State<HomePage>
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: () {
-                          Navigator.push(
+                          Navigator.pushNamed(
                             context,
-                            MaterialPageRoute(
-                              builder: (context) => const CategoryPage(),
-                            ),
+                            AppRoutes.categoryPage,
                           );
                         },
                         borderRadius: BorderRadius.circular(4),

@@ -1,5 +1,6 @@
 // pages/onboarding_splash_page.dart
 import 'package:flutter/material.dart';
+import 'package:eclapp/config/app_colors.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:video_player/video_player.dart';
@@ -92,7 +93,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       'title': 'Welcome to Enerst Chemists',
       'desc': 'Your trusted pharmacy for health, wellness, and convenience.',
       'button': 'Continue',
-      'iconColor': const Color(0xFF20AF67), // Base green
+      'iconColor': AppColors.primary, // Base green
     },
     {
       'icon': Icons.delivery_dining,
@@ -130,7 +131,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       'title': 'Why Sign Up?',
       'desc': '',
       'button': 'Get Started',
-      'iconColor': const Color(0xFF20AF67),
+      'iconColor': AppColors.primary,
     },
   ];
 
@@ -278,9 +279,8 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                                   height: 8,
                                   decoration: BoxDecoration(
                                     color: _currentPage == dotIndex
-                                        ? const Color(0xFF20AF67)
-                                        : const Color(0xFF20AF67)
-                                            .withOpacity(0.3),
+                                        ? AppColors.primary
+                                        : AppColors.primary.withOpacity(0.3),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                 ),
@@ -311,7 +311,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                                           child: ElevatedButton(
                                             style: ElevatedButton.styleFrom(
                                               backgroundColor:
-                                                  const Color(0xFF20AF67),
+                                                  AppColors.primary,
                                               shape: RoundedRectangleBorder(
                                                 borderRadius:
                                                     BorderRadius.circular(28),
@@ -351,7 +351,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                                   "Let's get started on your health journey!",
                                   style: const TextStyle(
                                     fontSize: 16,
-                                    color: Color(0xFF20AF67),
+                                    color: AppColors.primary,
                                     fontWeight: FontWeight.w600,
                                   ),
                                   textAlign: TextAlign.center,
@@ -374,7 +374,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                           child: const Text(
                             'Skip',
                             style: TextStyle(
-                              color: const Color(0xFF20AF67),
+                              color: AppColors.primary,
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                             ),
@@ -579,7 +579,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                 _benefitRow(
                     Icons.medical_services, 'Order prescriptions easily',
                     center: true,
-                    iconColor: const Color(0xFF20AF67), // Green
+                    iconColor: AppColors.primary, // Green
                     dense: true),
                 _benefitRow(Icons.local_shipping, 'Track your orders',
                     center: true,
@@ -587,7 +587,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                     dense: true),
                 _benefitRow(Icons.flash_on, 'Faster checkout',
                     center: true,
-                    iconColor: const Color(0xFF20AF67), // Green
+                    iconColor: AppColors.primary, // Green
                     dense: true),
                 _benefitRow(Icons.card_giftcard, 'Exclusive offers & rewards',
                     center: true,
@@ -615,7 +615,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(icon, color: iconColor ?? const Color(0xFF20AF67), size: 28),
+            Icon(icon, color: iconColor ?? AppColors.primary, size: 28),
             SizedBox(height: dense ? 3 : 6),
             Text(
               text,
@@ -634,7 +634,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            Icon(icon, color: iconColor ?? const Color(0xFF20AF67), size: 22),
+            Icon(icon, color: iconColor ?? AppColors.primary, size: 22),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -662,7 +662,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
           width: 8,
           height: 8,
           decoration: BoxDecoration(
-            color: const Color(0xFF20AF67),
+            color: AppColors.primary,
             shape: BoxShape.circle,
           ),
         ),

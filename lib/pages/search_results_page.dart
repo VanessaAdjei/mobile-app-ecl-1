@@ -1,7 +1,7 @@
 // pages/search_results_page.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'product_model.dart';
+import '../models/product_model.dart';
 import 'itemdetail.dart';
 import '../widgets/product_card.dart';
 

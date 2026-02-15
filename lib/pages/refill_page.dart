@@ -10,9 +10,9 @@ import '../widgets/cart_icon_button.dart';
 import 'bottomnav.dart';
 import '../models/refill_medicine.dart';
 import '../models/product.dart';
-import 'auth_service.dart';
+import '../services/auth_service.dart';
 import 'package:provider/provider.dart';
-import 'cartprovider.dart';
+import '../providers/cart_provider.dart';
 
 class RefillPage extends StatefulWidget {
   const RefillPage({super.key});

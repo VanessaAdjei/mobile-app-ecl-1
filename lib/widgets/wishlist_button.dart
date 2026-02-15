@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import '../services/wishlist_service.dart';
 import '../models/product.dart';
-import '../pages/auth_service.dart';
+import '../services/auth_service.dart';
 import '../pages/signinpage.dart';
 
 class WishlistButton extends StatefulWidget {

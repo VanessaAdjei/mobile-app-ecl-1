@@ -1,9 +1,9 @@
 // widgets/product_card.dart
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../pages/product_model.dart';
+import '../config/app_routes.dart';
+import '../models/product_model.dart';
 import '../models/product.dart' as models;
-import '../pages/itemdetail.dart';
 import '../services/homepage_optimization_service.dart';
 import '../services/stock_utility_service.dart';
 import 'wishlist_button.dart';
@@ -74,15 +74,14 @@ class HomeProductCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                       onTap: onTap ??
                           () {
-                            Navigator.push(
+                            Navigator.pushNamed(
                               context,
-                              MaterialPageRoute(
-                                builder: (context) => ItemPage(
-                                  urlName: product.urlName,
-                                  isPrescribed:
-                                      product.otcpom?.toLowerCase() == 'pom',
-                                ),
-                              ),
+                              AppRoutes.itemDetail,
+                              arguments: {
+                                'urlName': product.urlName,
+                                'isPrescribed':
+                                    product.otcpom?.toLowerCase() == 'pom',
+                              },
                             );
                           },
                       child: ClipRRect(
@@ -341,14 +340,13 @@ class GenericProductCard extends StatelessWidget {
                 borderRadius: BorderRadius.zero,
                 onTap: onTap ??
                     () {
-                      Navigator.push(
+                      Navigator.pushNamed(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => ItemPage(
-                            urlName: urlName,
-                            isPrescribed: isPrescribed,
-                          ),
-                        ),
+                        AppRoutes.itemDetail,
+                        arguments: {
+                          'urlName': urlName,
+                          'isPrescribed': isPrescribed,
+                        },
                       );
                     },
                 child: ClipRRect(

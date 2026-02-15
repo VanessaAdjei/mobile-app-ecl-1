@@ -6,13 +6,13 @@ import 'package:eclapp/pages/paymentwebview.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
-import 'auth_service.dart';
-import 'cartprovider.dart';
-import 'homepage.dart';
+import '../config/app_routes.dart';
+import '../services/auth_service.dart';
+import '../providers/cart_provider.dart';
 import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter/services.dart';
-import 'cart_item.dart';
+import '../models/cart_item.dart';
 import 'order_tracking_page.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'cart.dart';
@@ -2316,11 +2316,9 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                   Colors.white.withValues(alpha: 0.2),
                               onPressed: () {
                                 // Navigate back to home page using a more direct approach
-                                Navigator.pushAndRemoveUntil(
+                                Navigator.pushNamedAndRemoveUntil(
                                   context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const HomePage(),
-                                  ),
+                                  AppRoutes.home,
                                   (route) => false,
                                 );
                               },
@@ -2700,9 +2698,9 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
           Expanded(
             child: OutlinedButton(
               onPressed: () {
-                Navigator.pushAndRemoveUntil(
+                Navigator.pushNamedAndRemoveUntil(
                   context,
-                  MaterialPageRoute(builder: (context) => const HomePage()),
+                  AppRoutes.home,
                   (route) => false,
                 );
               },
@@ -2722,9 +2720,9 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
           Expanded(
             child: ElevatedButton(
               onPressed: () {
-                Navigator.pushAndRemoveUntil(
+                Navigator.pushNamedAndRemoveUntil(
                   context,
-                  MaterialPageRoute(builder: (context) => const Cart()),
+                  AppRoutes.cart,
                   (route) => false,
                 );
               },
@@ -2750,9 +2748,9 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
           Expanded(
             child: OutlinedButton(
               onPressed: () {
-                Navigator.pushAndRemoveUntil(
+                Navigator.pushNamedAndRemoveUntil(
                   context,
-                  MaterialPageRoute(builder: (context) => const HomePage()),
+                  AppRoutes.home,
                   (route) => false,
                 );
               },

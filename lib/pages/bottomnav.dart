@@ -4,14 +4,15 @@ import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'cartprovider.dart';
+import '../config/app_routes.dart';
+import '../providers/cart_provider.dart';
 import 'homepage.dart' as home;
 import 'categories.dart';
 import 'cart.dart';
 import 'profile.dart';
 import 'pharmacists.dart';
 import 'storelocation.dart';
-import 'notification_provider.dart';
+import '../providers/notification_provider.dart';
 import '../services/order_notification_service.dart';
 import 'notifications.dart';
 
@@ -269,13 +270,10 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                     notificationProvider.resetOnNotificationsRead();
 
                     // go directly to notifications page and scroll to top
-                    Navigator.push(
+                    Navigator.pushNamed(
                       context,
-                      MaterialPageRoute(
-                        builder: (context) => const NotificationsScreen(
-                          scrollToTop: true,
-                        ),
-                      ),
+                      AppRoutes.notifications,
+                      arguments: {'scrollToTop': true},
                     );
                   }
                 },
@@ -357,12 +355,9 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                               color: Colors.green.shade600,
                               onTap: () {
                                 Navigator.pop(context);
-                                Navigator.push(
+                                Navigator.pushNamed(
                                   context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const PharmacistsPage(),
-                                  ),
+                                  AppRoutes.pharmacists,
                                 );
                               },
                             ),
@@ -375,12 +370,9 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                               color: Colors.blue.shade600,
                               onTap: () {
                                 Navigator.pop(context);
-                                Navigator.push(
+                                Navigator.pushNamed(
                                   context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const StoreSelectionPage(),
-                                  ),
+                                  AppRoutes.storeSelection,
                                 );
                               },
                             ),
@@ -834,41 +826,32 @@ class _CustomBottomNavState extends State<CustomBottomNav>
             debugPrint('🔍 HOME BUTTON PRESSED ===');
 
             if (ModalRoute.of(context)?.settings.name != '/home') {
-              Navigator.pushReplacement(
+              Navigator.pushReplacementNamed(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const home.HomePage(),
-                  settings: const RouteSettings(name: '/home'),
-                ),
+                AppRoutes.home,
               );
             } else {
               debugPrint('Already on home page, staying put');
             }
             break;
           case 1:
-            Navigator.pushReplacement(
+            Navigator.pushReplacementNamed(
               context,
-              MaterialPageRoute(
-                builder: (context) => const Cart(),
-              ),
+              AppRoutes.cart,
             );
             break;
           case 2:
             break;
           case 3:
-            Navigator.pushReplacement(
+            Navigator.pushReplacementNamed(
               context,
-              MaterialPageRoute(
-                builder: (context) => const CategoryPage(),
-              ),
+              AppRoutes.categoryPage,
             );
             break;
           case 4:
-            Navigator.pushReplacement(
+            Navigator.pushReplacementNamed(
               context,
-              MaterialPageRoute(
-                builder: (context) => const Profile(),
-              ),
+              AppRoutes.profile,
             );
             break;
         }

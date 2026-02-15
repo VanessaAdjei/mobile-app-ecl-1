@@ -8,7 +8,7 @@ import 'package:shimmer/shimmer.dart';
 
 import 'bottomnav.dart';
 import 'app_back_button.dart';
-import 'auth_service.dart';
+import '../services/auth_service.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/error_display.dart';
 import 'order_tracking_page.dart';

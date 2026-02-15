@@ -6,9 +6,9 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-import '../pages/auth_service.dart';
-import '../pages/cartprovider.dart';
-import '../pages/cart_item.dart';
+import 'auth_service.dart';
+import '../providers/cart_provider.dart';
+import '../models/cart_item.dart';
 import 'performance_service.dart';
 
 class PaymentOptimizationService {

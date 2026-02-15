@@ -6,7 +6,7 @@ import 'package:eclapp/pages/privacypolicy.dart';
 import 'package:eclapp/pages/profilescreen.dart';
 import 'package:eclapp/pages/purchases.dart';
 import 'package:eclapp/pages/tandc.dart';
-import 'package:eclapp/pages/theme_provider.dart';
+import 'package:eclapp/providers/theme_provider.dart';
 import 'package:eclapp/pages/wallet_page.dart';
 import 'package:eclapp/pages/homepage.dart' as home;
 import 'package:eclapp/pages/refill_page.dart';
@@ -18,19 +18,20 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'auth_service.dart';
+import '../services/auth_service.dart';
 import 'bottomnav.dart';
 import 'notifications.dart';
 import '../widgets/app_header_bar.dart';
 
 import 'app_back_button.dart';
-import 'cartprovider.dart';
+import '../config/app_routes.dart';
+import '../providers/cart_provider.dart';
 import '../main.dart';
 import 'package:eclapp/pages/prescription_history.dart';
 import 'package:eclapp/pages/signinpage.dart';
 import '../widgets/cart_icon_button.dart';
-import 'authprovider.dart';
-import 'notification_provider.dart';
+import '../providers/auth_provider.dart';
+import '../providers/notification_provider.dart';
 
 class Profile extends StatefulWidget {
   const Profile({super.key});
@@ -129,13 +130,9 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
     }
   }
 
-  void _navigateTo(Widget screen) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => screen),
-    ).then((_) {
-      // Refresh wishlist count when returning from wishlist page
-      if (screen is WishlistPage && mounted) {
+  void _navigateTo(String routeName, {Map<String, dynamic>? arguments}) {
+    Navigator.pushNamed(context, routeName, arguments: arguments).then((_) {
+      if (routeName == AppRoutes.wishlist && mounted) {
         _refreshWishlistCount();
       }
     });
@@ -157,10 +154,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
   }
 
   void _navigateToRefillPage() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const RefillPage()),
-    );
+    Navigator.pushNamed(context, AppRoutes.refill);
   }
 
   void _showLogoutDialog() {
@@ -316,13 +310,10 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
 
   // go to login page
   void _handleLogin() {
-    Navigator.push(
+    Navigator.pushNamed(
       context,
-      MaterialPageRoute(
-        builder: (context) => SignInScreen(
-          returnTo: '/profile',
-        ),
-      ),
+      AppRoutes.signIn,
+      arguments: {'returnTo': '/profile'},
     );
   }
 
@@ -408,11 +399,9 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                       child: ElevatedButton(
                         onPressed: () {
                           Navigator.of(context).pop();
-                          Navigator.push(
+                          Navigator.pushNamed(
                             context,
-                            MaterialPageRoute(
-                              builder: (context) => SignInScreen(),
-                            ),
+                            AppRoutes.signIn,
                           );
                         },
                         style: ElevatedButton.styleFrom(
@@ -467,10 +456,9 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                 if (Navigator.canPop(context)) {
                   Navigator.pop(context);
                 } else {
-                  Navigator.pushReplacement(
+                  Navigator.pushReplacementNamed(
                     context,
-                    MaterialPageRoute(
-                        builder: (context) => const home.HomePage()),
+                    AppRoutes.home,
                   );
                 }
               },
@@ -549,11 +537,9 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                               )
                             : GestureDetector(
                                 onTap: () {
-                                  Navigator.push(
+                                  Navigator.pushNamed(
                                     context,
-                                    MaterialPageRoute(
-                                      builder: (context) => SignInScreen(),
-                                    ),
+                                    AppRoutes.signIn,
                                   );
                                 },
                                 child: Container(
@@ -614,7 +600,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     "Profile Information",
                     "View your profile details",
                     _userLoggedIn
-                        ? () => _navigateTo(ProfileScreen())
+                        ? () => _navigateTo(AppRoutes.profileScreen)
                         : () => _showSignInRequiredDialog(context,
                             feature: 'profile information'),
                     primaryColor,
@@ -638,7 +624,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         _userLoggedIn
                             ? () {
                                 // dont mark all as read, let them read notifications themselves
-                                _navigateTo(NotificationsScreen());
+                                _navigateTo(AppRoutes.notifications);
                               }
                             : () => _showSignInRequiredDialog(context,
                                 feature: 'notifications'),
@@ -672,7 +658,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         Icons.favorite_outline,
                         "My Wishlist",
                         "View your saved products",
-                        () => _navigateTo(const WishlistPage()),
+                        () => _navigateTo(AppRoutes.wishlist),
                         primaryColor,
                         cardColor,
                         textColor,
@@ -690,7 +676,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     "Uploaded Prescriptions",
                     "View your uploaded prescriptions",
                     _userLoggedIn
-                        ? () => _navigateTo(PrescriptionHistoryScreen())
+                        ? () => _navigateTo(AppRoutes.prescriptionHistory)
                         : () => _showSignInRequiredDialog(context,
                             feature: 'uploaded prescriptions'),
                     primaryColor,
@@ -722,7 +708,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     "Purchases",
                     "View your order history",
                     _userLoggedIn
-                        ? () => _navigateTo(PurchaseScreen())
+                        ? () => _navigateTo(AppRoutes.purchases)
                         : () => _showSignInRequiredDialog(context,
                             feature: 'order tracking and purchases'),
                     primaryColor,
@@ -738,7 +724,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     "My Wallet",
                     "Manage your wallet and transactions",
                     _userLoggedIn
-                        ? () => _navigateTo(const WalletPage())
+                        ? () => _navigateTo(AppRoutes.wallet)
                         : () => _showSignInRequiredDialog(context,
                             feature: 'wallet'),
                     primaryColor,
@@ -808,7 +794,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     Icons.info_outline,
                     "About Us",
                     "Learn more about our company",
-                    () => _navigateTo(AboutUsScreen()),
+                    () => _navigateTo(AppRoutes.aboutUs),
                     primaryColor,
                     cardColor,
                     textColor,
@@ -821,7 +807,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     Icons.privacy_tip_outlined,
                     "Privacy Statement",
                     "Read our privacy statement",
-                    () => _navigateTo(PrivacyPolicyScreen()),
+                    () => _navigateTo(AppRoutes.privacyPolicy),
                     primaryColor,
                     cardColor,
                     textColor,
@@ -834,7 +820,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     Icons.description_outlined,
                     "Terms and Conditions",
                     "Read our terms of service",
-                    () => _navigateTo(TermsAndConditionsScreen()),
+                    () => _navigateTo(AppRoutes.termsAndConditions),
                     primaryColor,
                     cardColor,
                     textColor,

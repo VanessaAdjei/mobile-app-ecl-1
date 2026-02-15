@@ -4,9 +4,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:eclapp/pages/forgot_password.dart';
 import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/pages/createaccount.dart';
-import 'package:eclapp/pages/auth_service.dart';
-import 'package:eclapp/pages/authprovider.dart';
-import 'package:eclapp/pages/cartprovider.dart';
+import 'package:eclapp/services/auth_service.dart';
+import 'package:eclapp/providers/auth_provider.dart';
+import 'package:eclapp/providers/cart_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

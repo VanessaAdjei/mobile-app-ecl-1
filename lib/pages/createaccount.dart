@@ -1,6 +1,6 @@
 // pages/createaccount.dart
 import 'package:flutter/material.dart';
-import 'auth_service.dart';
+import '../services/auth_service.dart';
 import 'otp.dart';
 import 'signinpage.dart';
 import 'package:flutter/services.dart';

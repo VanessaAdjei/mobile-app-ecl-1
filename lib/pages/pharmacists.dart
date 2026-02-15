@@ -14,7 +14,7 @@ import 'dart:convert';
 import '../services/health_tips_service.dart';
 import '../models/health_tip.dart';
 import '../services/ernest_ai_service.dart';
-import 'auth_service.dart';
+import '../services/auth_service.dart';
 import 'signinpage.dart';
 import '../services/booking_service.dart';
 

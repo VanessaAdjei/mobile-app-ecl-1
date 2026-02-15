@@ -3,12 +3,12 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/wishlist_item.dart';
 import '../models/product.dart';
-import '../pages/cart_item.dart';
-import '../pages/cartprovider.dart';
+import '../models/cart_item.dart';
+import '../providers/cart_provider.dart';
 import 'package:flutter/material.dart';
 import 'api_service.dart';
 import '../config/api_config.dart';
-import '../pages/auth_service.dart';
+import 'auth_service.dart';
 
 class WishlistService {
   static const String _wishlistKey = 'wishlist_items';
@@ -622,8 +622,10 @@ class WishlistService {
     }
   }
 
-  // Move item to cart (remove from wishlist and add to cart)
-  Future<bool> moveToCart(int productId) async {
+  /// Move item to cart (remove from wishlist and add to cart).
+  /// [cartProvider] must be the app's CartProvider from Provider.of - do not
+  /// instantiate a new CartProvider.
+  Future<bool> moveToCart(int productId, CartProvider cartProvider) async {
     try {
       final wishlistItems = await getWishlistItems();
       final itemToMove = wishlistItems.firstWhere(
@@ -644,8 +646,6 @@ class WishlistService {
         totalPrice: double.tryParse(itemToMove.product.price) ?? 0.0,
       );
 
-      // get the cart provider and add it to cart
-      final cartProvider = CartProvider();
       await cartProvider.addToCart(cartItem);
 
       // remove it from wishlist after we add it to cart

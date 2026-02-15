@@ -1,6 +1,6 @@
 // pages/completeregistration.dart
-import 'package:eclapp/pages/cart.dart';
 import 'package:flutter/material.dart';
+import '../config/app_routes.dart';
 
 class GetStartedScreen extends StatelessWidget {
   const GetStartedScreen({super.key});
@@ -39,12 +39,7 @@ class GetStartedScreen extends StatelessWidget {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const Cart(),
-                      ),
-                    );
+                    Navigator.pushNamed(context, AppRoutes.cart);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,

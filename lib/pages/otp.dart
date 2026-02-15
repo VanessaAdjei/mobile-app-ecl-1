@@ -2,14 +2,14 @@
 import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:eclapp/pages/auth_service.dart';
+import 'package:eclapp/services/auth_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
 import 'dart:async';
 import 'package:provider/provider.dart';
-import 'authprovider.dart';
-import 'cartprovider.dart';
+import '../providers/auth_provider.dart';
+import '../providers/cart_provider.dart';
 import '../main.dart' as main_app;
 import 'package:eclapp/widgets/error_display.dart';
 import 'package:sms_autofill/sms_autofill.dart';

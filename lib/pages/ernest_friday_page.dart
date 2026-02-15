@@ -8,7 +8,7 @@ import '../providers/promotional_event_provider.dart';
 import '../widgets/ernest_friday_banner.dart';
 import '../widgets/promotional_code_input.dart';
 import '../pages/bottomnav.dart';
-import '../pages/theme_provider.dart';
+import '../providers/theme_provider.dart';
 
 class ErnestFridayPage extends StatefulWidget {
   const ErnestFridayPage({Key? key}) : super(key: key);

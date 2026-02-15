@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import '../pages/product_model.dart';
+import '../models/product_model.dart';
 import 'advanced_performance_service.dart';
 
 class OptimizedHomepageService {

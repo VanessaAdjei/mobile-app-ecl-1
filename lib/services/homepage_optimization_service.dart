@@ -9,7 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'app_optimization_service.dart';
-import '../pages/product_model.dart';
+import '../models/product_model.dart';
 import '../models/health_tip.dart';
 import 'health_tips_service.dart';
 import 'banner_cache_service.dart';

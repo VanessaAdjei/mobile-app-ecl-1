@@ -2,7 +2,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'auth_service.dart';
+import '../services/auth_service.dart';
 
 import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';

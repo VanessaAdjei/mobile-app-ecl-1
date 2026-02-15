@@ -5,7 +5,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
-import 'package:eclapp/pages/auth_service.dart';
+import 'package:eclapp/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 

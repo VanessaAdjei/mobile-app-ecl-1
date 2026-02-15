@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
-import 'auth_service.dart';
+import '../services/auth_service.dart';
 import 'signinpage.dart';
 import 'settings.dart';
 import 'purchases.dart';

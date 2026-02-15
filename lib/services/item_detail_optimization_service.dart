@@ -8,10 +8,11 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
-import '../pages/product_model.dart';
+import '../models/product_model.dart';
+import 'item_detail_service_interface.dart';
 import 'performance_service.dart';
 
-class ItemDetailOptimizationService {
+class ItemDetailOptimizationService implements ItemDetailServiceInterface {
   static final ItemDetailOptimizationService _instance =
       ItemDetailOptimizationService._internal();
   factory ItemDetailOptimizationService() => _instance;
