@@ -69,6 +69,33 @@ class OrderNotificationService {
         _onBadgeUpdate!(await getUnreadCount());
       }
 
+      // Save to user_orders so background tracking can start immediately
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final existingJson = prefs.getString('user_orders');
+        final List<Map<String, dynamic>> existing = [];
+        if (existingJson != null) {
+          final list = json.decode(existingJson) as List<dynamic>?;
+          if (list != null) {
+            for (final o in list) {
+              existing.add(Map<String, dynamic>.from(o));
+            }
+          }
+        }
+        final orderMap = Map<String, dynamic>.from(orderData);
+        final id = orderMap['id']?.toString() ?? orderMap['transaction_id']?.toString() ?? '';
+        if (id.isNotEmpty) {
+          orderMap['delivery_id'] = id;
+          final byId = <String, Map<String, dynamic>>{};
+          for (final o in existing) {
+            final k = o['delivery_id']?.toString() ?? o['transaction_id']?.toString() ?? o['id']?.toString() ?? '';
+            if (k.isNotEmpty) byId[k] = o;
+          }
+          byId[id] = orderMap;
+          await prefs.setString('user_orders', json.encode(byId.values.toList()));
+        }
+      } catch (_) {}
+
       // Show system notification
       try {
         await NativeNotificationService.showNotification(
@@ -95,6 +122,83 @@ class OrderNotificationService {
     } catch (e) {
       debugPrint('Error creating order placed notification: $e');
     }
+  }
+
+  /// Create a notification for order status/tracking stage changes.
+  /// Call this for every stage: Order Placed, Confirmed, Processing, Shipped, Out for Delivery, Delivered, Cancelled.
+  static Future<void> createOrderStatusNotification({
+    required String orderId,
+    required String orderNumber,
+    required String status,
+    required String title,
+    required String message,
+    String? totalAmount,
+    List<dynamic>? items,
+  }) async {
+    try {
+      final notification = {
+        'id': DateTime.now().millisecondsSinceEpoch.toString(),
+        'type': 'order_status',
+        'title': title,
+        'message': message,
+        'order_id': orderId,
+        'order_number': orderNumber,
+        'status': status,
+        'total_amount': totalAmount != null ? _formatAmount(totalAmount) : '',
+        'timestamp': DateTime.now().toIso8601String(),
+        'is_read': false,
+        'icon': _getStatusIcon(status),
+        'color': _getStatusColor(status),
+        'items': items ?? [],
+      };
+
+      await _addNotificationOptimized(notification);
+
+      if (_onBadgeUpdate != null) {
+        _onBadgeUpdate!(await getUnreadCount());
+      }
+
+      try {
+        await NativeNotificationService.showNotification(
+          title: title,
+          body: message,
+          payload: json.encode({
+            'type': 'order_status',
+            'order_id': orderId,
+            'order_number': orderNumber,
+            'status': status,
+          }),
+        );
+      } catch (e) {
+        debugPrint('Error showing order status system notification: $e');
+      }
+
+      debugPrint('📱 Order status notification created: $status');
+    } catch (e) {
+      debugPrint('Error creating order status notification: $e');
+    }
+  }
+
+  static String _getStatusIcon(String status) {
+    final s = status.toLowerCase();
+    if (s.contains('placed') || s.contains('pending')) return 'shopping_cart';
+    if (s.contains('confirm') || s.contains('paid') || s.contains('process')) {
+      return 'verified';
+    }
+    if (s.contains('ship') || s.contains('delivery') || s.contains('out for')) {
+      return 'local_shipping';
+    }
+    if (s.contains('delivered')) return 'check_circle';
+    if (s.contains('cancel')) return 'cancel';
+    return 'info';
+  }
+
+  static String _getStatusColor(String status) {
+    final s = status.toLowerCase();
+    if (s.contains('delivered')) return 'green';
+    if (s.contains('cancel')) return 'red';
+    if (s.contains('ship') || s.contains('delivery')) return 'blue';
+    return 'orange';
   }
 
   /// Get all notifications

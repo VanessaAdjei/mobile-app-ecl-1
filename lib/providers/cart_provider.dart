@@ -1,4 +1,4 @@
-// pages/cartprovider.dart
+// providers/cart_provider.dart
 import 'package:flutter/foundation.dart';
 import '../models/cart_item.dart';
 import 'dart:convert';
@@ -30,8 +30,10 @@ class CartProvider with ChangeNotifier {
   /// Public helper so item detail and others can match cart items by name (e.g. "E-Panol" vs "E Panol").
   static String normalizeProductName(String name) {
     final normalized = name.toLowerCase().trim().replaceAll('-', ' ');
-    final words =
-        normalized.split(RegExp(r'\s+')).where((word) => word.isNotEmpty).toList();
+    final words = normalized
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .toList();
     return words.join(' ').toLowerCase();
   }
 
@@ -80,10 +82,7 @@ class CartProvider with ChangeNotifier {
       _loadCurrentUserCart();
     } else {
       _currentUserId = null;
-
-      if (_cartItems.isEmpty) {
-        _cartItems = [];
-      }
+      _loadCurrentUserCart(); // Load guest cart when not logged in
     }
     notifyListeners();
   }
@@ -379,7 +378,7 @@ class CartProvider with ChangeNotifier {
         // Fallback to local cart if no token
         debugPrint(
             'Cannot add to cart - missing auth token, adding to local cart');
-        _addToLocalCart(item);
+        await _addToLocalCart(item);
         return;
       }
 
@@ -444,11 +443,9 @@ class CartProvider with ChangeNotifier {
         await _saveUserCarts();
         notifyListeners();
 
-        // Try to sync with server in background
+        // Try to sync with server in background (do NOT trigger immediate sync -
+        // it would fetch server cart before our add completes and overwrite local cart)
         _syncAddToServer(item);
-
-        // Trigger immediate real-time sync
-        RealtimeCartSyncService().triggerImmediateSync();
       } else {
         _cartItems.add(item);
 
@@ -463,16 +460,14 @@ class CartProvider with ChangeNotifier {
         await _saveUserCarts();
         notifyListeners();
 
-        // Try to sync with server in background
+        // Try to sync with server in background (do NOT trigger immediate sync -
+        // it would fetch server cart before our add completes and overwrite local cart)
         _syncAddToServer(item);
-
-        // Trigger immediate real-time sync
-        RealtimeCartSyncService().triggerImmediateSync();
       }
     } catch (e) {
       // Any exception, fallback to local cart
       debugPrint('Error adding to cart: $e, adding to local cart');
-      _addToLocalCart(item);
+      await _addToLocalCart(item);
     }
   }
 
@@ -491,6 +486,7 @@ class CartProvider with ChangeNotifier {
           debugPrint('[CartProvider] Using Bearer token for cart sync: $token');
         } else if (token.startsWith('guest')) {
           headers['Authorization'] = 'Guest $token';
+          headers['X-Guest-ID'] = token;
           debugPrint('[CartProvider] Using Guest token for cart sync: $token');
         } else {
           debugPrint('Token present but not logged in and not a guest_id.');
@@ -525,10 +521,13 @@ class CartProvider with ChangeNotifier {
         return;
       }
 
-      final requestBody = {
+      final requestBody = <String, dynamic>{
         'productID': productIdToUse,
         'quantity': item.quantity,
       };
+      if (item.batchNo.isNotEmpty) {
+        requestBody['batch_no'] = item.batchNo;
+      }
 
       final url = 'https://eclcommerce.ernestchemists.com.gh/api/check-auth';
 
@@ -692,7 +691,7 @@ class CartProvider with ChangeNotifier {
   }
 
   // Helper method to add item to local cart with proper quantity handling
-  void _addToLocalCart(CartItem item) async {
+  Future<void> _addToLocalCart(CartItem item) async {
     // Check if item already exists in local cart by product ID, batch number, and name
     final existingIndex = _cartItems.indexWhere((cartItem) =>
         (cartItem.productId == item.productId &&
@@ -732,7 +731,7 @@ class CartProvider with ChangeNotifier {
     // Only add selected items to purchased items
     final selectedItems = _cartItems.where((item) => item.isSelected).toList();
     _purchasedItems.addAll(selectedItems);
-    
+
     // Remove selected items from cart (keep unselected items)
     _cartItems.removeWhere((item) => item.isSelected);
 
@@ -1380,12 +1379,17 @@ class CartProvider with ChangeNotifier {
 
   double calculateTotal() {
     return _cartItems.fold(
-        0, (total, item) => item.isSelected ? total + (item.price * item.quantity) : total);
+        0,
+        (total, item) =>
+            item.isSelected ? total + (item.price * item.quantity) : total);
   }
 
   double calculateSubtotal() {
     return _cartItems.fold(
-        0, (subtotal, item) => item.isSelected ? subtotal + (item.price * item.quantity) : subtotal);
+        0,
+        (subtotal, item) => item.isSelected
+            ? subtotal + (item.price * item.quantity)
+            : subtotal);
   }
 
   // Toggle selection for a cart item
@@ -1396,7 +1400,8 @@ class CartProvider with ChangeNotifier {
         isSelected: !_cartItems[index].isSelected,
       );
       notifyListeners();
-      debugPrint('🛒 CartProvider: Toggled selection for item ${_cartItems[index].name}: ${_cartItems[index].isSelected}');
+      debugPrint(
+          '🛒 CartProvider: Toggled selection for item ${_cartItems[index].name}: ${_cartItems[index].isSelected}');
     }
   }
 
@@ -1407,7 +1412,9 @@ class CartProvider with ChangeNotifier {
 
   // Get count of selected items
   int get selectedItemsCount {
-    return _cartItems.where((item) => item.isSelected).fold(0, (sum, item) => sum + item.quantity);
+    return _cartItems
+        .where((item) => item.isSelected)
+        .fold(0, (sum, item) => sum + item.quantity);
   }
 
   Future<void> _savePurchasedItems() async {

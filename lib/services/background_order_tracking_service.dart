@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'native_notification_service.dart';
+import 'order_notification_service.dart';
 
 class BackgroundOrderTrackingService {
   static Timer? _trackingTimer;
@@ -84,8 +85,12 @@ class BackgroundOrderTrackingService {
   // Track individual order status
   static Future<void> _trackOrderStatus(Map<String, dynamic> order) async {
     try {
-      final orderId = order['id'];
-      final lastStatus = order['status'];
+      final orderId = order['delivery_id']?.toString() ??
+          order['transaction_id']?.toString() ??
+          order['id']?.toString() ??
+          '';
+      final lastStatus = order['status']?.toString();
+      if (orderId.isEmpty) return;
 
       // Get current status from server
       final currentStatus = await _getOrderStatusFromServer(orderId);
@@ -104,7 +109,7 @@ class BackgroundOrderTrackingService {
         await _saveUserOrders([order]);
 
         // Send notification for status change
-        await _sendStatusChangeNotification(order, lastStatus, currentStatus);
+        await _sendStatusChangeNotification(order, lastStatus ?? 'unknown', currentStatus);
       }
     } catch (e) {
 
@@ -135,61 +140,82 @@ class BackgroundOrderTrackingService {
     return null;
   }
 
-  // Save user orders to local storage
-  static Future<void> _saveUserOrders(List<Map<String, dynamic>> orders) async {
+  // Save user orders to local storage (merge updated order with existing)
+  static Future<void> _saveUserOrders(List<Map<String, dynamic>> updatedOrders) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user_orders', json.encode(orders));
+      final existing = await _getUserOrders();
+      final byId = <String, Map<String, dynamic>>{};
+      for (final o in existing) {
+        final id = o['id']?.toString() ?? o['transaction_id']?.toString() ?? '';
+        if (id.isNotEmpty) byId[id] = Map<String, dynamic>.from(o);
+      }
+      for (final o in updatedOrders) {
+        final id = o['id']?.toString() ?? o['transaction_id']?.toString() ?? '';
+        if (id.isNotEmpty) byId[id] = Map<String, dynamic>.from(o);
+      }
+      await prefs.setString('user_orders', json.encode(byId.values.toList()));
     } catch (e) {}
   }
 
-  // Send status change notification
+  // Send status change notification for every tracking stage
   static Future<void> _sendStatusChangeNotification(
     Map<String, dynamic> order,
     String oldStatus,
     String newStatus,
   ) async {
     try {
-      final orderId = order['id'];
-      final orderNumber = order['order_number'] ?? orderId;
+      final orderId = order['id']?.toString() ?? '';
+      final orderNumber = order['order_number']?.toString() ?? orderId;
+      final totalAmount = order['total_amount']?.toString() ?? order['total']?.toString();
+      final items = order['items'] as List<dynamic>?;
 
       String title = 'Order Update';
-      String body = 'Your order #$orderNumber status has been updated';
+      String message = 'Your order #$orderNumber status has been updated';
 
-      // Customize message based on status
-      switch (newStatus.toLowerCase()) {
-        case 'confirmed':
-          body =
-              'Your order #$orderNumber has been confirmed and is being processed';
-          break;
-        case 'processing':
-          body = 'Your order #$orderNumber is now being processed';
-          break;
-        case 'shipped':
-          body = 'Your order #$orderNumber has been shipped!';
-          break;
-        case 'delivered':
-          body = 'Your order #$orderNumber has been delivered!';
-          break;
-        case 'cancelled':
-          body = 'Your order #$orderNumber has been cancelled';
-          break;
+      final s = newStatus.toLowerCase();
+      if (s.contains('order placed') || s == 'pending' || s == 'placed') {
+        title = 'Order Placed';
+        message = 'Your order #$orderNumber has been placed and is being processed.';
+      } else if (s.contains('paid') || s.contains('payment')) {
+        title = 'Payment Received';
+        message = 'Payment for order #$orderNumber has been received. Your order is being confirmed.';
+      } else if (s.contains('confirm') || s.contains('processing')) {
+        title = 'Order Confirmed';
+        message = 'Your order #$orderNumber has been confirmed and is being prepared.';
+      } else if (s.contains('ship') && !s.contains('out for')) {
+        title = 'Order Shipped';
+        message = 'Your order #$orderNumber has been shipped and is on its way!';
+      } else if (s.contains('out for delivery') || s.contains('out for')) {
+        title = 'Out for Delivery';
+        message = 'Your order #$orderNumber is out for delivery. It will arrive soon!';
+      } else if (s.contains('delivered')) {
+        title = 'Order Delivered';
+        message = 'Your order #$orderNumber has been delivered. Thank you for shopping with us!';
+      } else if (s.contains('cancel')) {
+        title = 'Order Cancelled';
+        message = 'Your order #$orderNumber has been cancelled.';
       }
 
-      // Send local notification
-      await NativeNotificationService.showNotification(
+      await OrderNotificationService.createOrderStatusNotification(
+        orderId: orderId,
+        orderNumber: orderNumber,
+        status: newStatus,
         title: title,
-        body: body,
-        payload: 'order_$orderId',
+        message: message,
+        totalAmount: totalAmount,
+        items: items,
       );
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('📦 Error sending status notification: $e');
+    }
   }
 
   // Get authentication token
   static Future<String?> _getAuthToken() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('auth_token');
+      return prefs.getString('token') ?? prefs.getString('auth_token');
     } catch (e) {
       return null;
     }

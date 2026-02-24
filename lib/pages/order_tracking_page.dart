@@ -1,12 +1,13 @@
 // pages/order_tracking_page.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/delivery_service.dart';
-import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../services/auth_service.dart';
 import 'app_back_button.dart';
 
@@ -32,6 +33,10 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   /// Current order status for timeline; updated from API so progression can move.
   String? _orderStatus;
 
+  /// Timer for periodic order status refresh while page is open
+  Timer? _refreshTimer;
+  static const Duration _refreshInterval = Duration(seconds: 30);
+
   @override
   void initState() {
     super.initState();
@@ -56,6 +61,18 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       debugPrint('🔍 Delivery fee missing - trying to retrieve from stored data...');
       _loadStoredDeliveryFee();
     }
+
+    // Start periodic refresh so order status updates automatically while page is open
+    _refreshTimer = Timer.periodic(_refreshInterval, (_) {
+      if (mounted) _loadDeliveryInfo();
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+    super.dispose();
   }
 
   Future<void> _loadDeliveryInfo() async {
@@ -337,6 +354,27 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     }
   }
 
+  /// Fallback: fetch status directly from /api/orders/{id}/status when order not in list
+  Future<String?> _fetchStatusDirectly(String? orderId) async {
+    if (orderId == null || orderId.isEmpty) return null;
+    try {
+      final token = await AuthService.getToken();
+      if (token == null) return null;
+      final response = await http.get(
+        Uri.parse(
+            'https://eclcommerce.ernestchemists.com.gh/api/orders/$orderId/status'),
+        headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'},
+      ).timeout(const Duration(seconds: 8));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['status']?.toString() ?? data['data']?['status']?.toString();
+      }
+    } catch (e) {
+      debugPrint('🔍 Direct status API error: $e');
+    }
+    return null;
+  }
+
   // try to get order details from api to find delivery info
   Future<void> _fetchOrderDetailsFromAPI() async {
     try {
@@ -351,153 +389,73 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       debugPrint(
           '🔍 Fetching order details from API for order: $orderId / $orderNumber');
 
-      // get auth token using auth service
-      final token = await AuthService.getToken();
+      debugPrint('🔍 Fetching orders via AuthService...');
+      final result = await AuthService.getOrders();
 
-      if (token == null) {
-        debugPrint('🔍 No auth token available for API call');
-        debugPrint('🔍 User might not be logged in or token expired');
-        return;
-      }
+      if (result['status'] == 'success' && result['data'] is List) {
+        final orders = result['data'] as List;
+        final notificationDeliveryId =
+            widget.orderDetails['delivery_id']?.toString() ??
+            widget.orderDetails['transaction_id']?.toString() ??
+            widget.orderDetails['id']?.toString() ??
+            widget.orderDetails['order_number']?.toString();
 
-      debugPrint(
-          '🔍 Auth token retrieved successfully: ${token.substring(0, 20)}...');
+        debugPrint('🔍 Orders API response received, ${orders.length} orders');
 
-      // get all orders and find the one we need
-      try {
-        debugPrint('🔍 Trying to get all orders to find delivery info...');
-        final ordersResponse = await http.get(
-          Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/orders'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Accept': 'application/json',
-          },
-        ).timeout(const Duration(seconds: 10));
+        // Try direct status API first (most reliable for notification flow)
+        final directStatus = await _fetchStatusDirectly(
+            notificationDeliveryId ?? orderId ?? orderNumber);
+        if (directStatus != null && directStatus.isNotEmpty && mounted) {
+          setState(() => _orderStatus = directStatus);
+          debugPrint('🔍 Status from direct API: $directStatus');
+        }
 
-        if (ordersResponse.statusCode == 200) {
-          final ordersData = json.decode(ordersResponse.body);
-          debugPrint(
-              '🔍 Orders API response received, looking for order $orderId');
-          debugPrint('🔍 Complete API response: $ordersData');
+        // print what we're looking for
+        debugPrint('🔍 Looking for order with:');
+        debugPrint('🔍   - orderId: $orderId');
+        debugPrint('🔍   - orderNumber: $orderNumber');
+        debugPrint('🔍   - delivery_id: $notificationDeliveryId');
 
-          // check if api says it worked
-          final apiStatus = ordersData['status']?.toString();
-          if (apiStatus != 'success') {
-            debugPrint('🔍 API response status is not success: $apiStatus');
-            return;
-          }
-
-          // use 'data' field instead of 'orders' (thats how the api actually works)
-          final orders = ordersData['data'] ?? [];
-          debugPrint('🔍 Total orders received: ${orders.length}');
-
-          // check if orders are in a different field (fallback)
-          if (orders.isEmpty) {
+        if (orders.isNotEmpty) {
+          debugPrint('🔍 Sample orders from API:');
+          for (int i = 0; i < orders.length && i < 5; i++) {
+            final order = orders[i];
             debugPrint(
-                '🔍 No orders in "data" field, checking other possible fields...');
-            final possibleFields = ['orders', 'items', 'results', 'list'];
-            for (final field in possibleFields) {
-              final fieldData = ordersData[field];
-              if (fieldData != null) {
-                debugPrint('🔍 Found data in "$field" field: $fieldData');
-                if (fieldData is List) {
-                  debugPrint('🔍 "$field" contains ${fieldData.length} items');
-                }
-              }
+                '🔍 Order ${i + 1}: ID=${order['id']}, Delivery ID=${order['delivery_id']}, status=${order['status']}');
+          }
+        }
+
+        // try different ways to find the order (use toString() for type-safe comparison)
+        Map<String, dynamic>? targetOrder;
+
+          for (final order in orders) {
+            final dId = order['delivery_id']?.toString();
+            final tId = order['transaction_id']?.toString();
+            final oId = order['id']?.toString();
+            final ordNum = order['order_number']?.toString();
+            final match = (dId != null && (dId == notificationDeliveryId || dId == orderNumber)) ||
+                (tId != null && (tId == notificationDeliveryId || tId == orderNumber)) ||
+                (oId != null && (oId == orderId || oId == notificationDeliveryId)) ||
+                (ordNum != null && (ordNum == orderId || ordNum == orderNumber));
+            if (match) {
+              targetOrder = Map<String, dynamic>.from(order);
+              debugPrint('🔍 Found order (delivery_id=$dId, status=${order['status']})');
+              break;
             }
           }
 
-          // print what we're looking for
-          debugPrint('🔍 Looking for order with:');
-          debugPrint('🔍   - orderId: $orderId');
-          debugPrint('🔍   - orderNumber: $orderNumber');
-          debugPrint(
-              '🔍   - notification delivery_id: ${widget.orderDetails['delivery_id']}');
-
-          // print first few orders so we can see the structure
-          if (orders.isNotEmpty) {
-            debugPrint('🔍 Sample orders from API:');
-            for (int i = 0; i < orders.length && i < 5; i++) {
-              final order = orders[i];
-              debugPrint(
-                  '🔍 Order ${i + 1}: ID=${order['id']}, Delivery ID=${order['delivery_id']}, User ID=${order['user_id']}');
-            }
-          }
-
-          // try different ways to find the order
-          Map<String, dynamic>? targetOrder;
-
-          // first try matching by delivery_id (most reliable for notifications)
-          final notificationDeliveryId =
-              widget.orderDetails['delivery_id']?.toString() ??
-              widget.orderDetails['transaction_id']?.toString();
-          if (notificationDeliveryId != null &&
-              notificationDeliveryId.isNotEmpty) {
-            debugPrint(
-                '🔍 Trying to match by delivery_id/transaction_id: $notificationDeliveryId');
-            try {
-              targetOrder = orders.firstWhere(
-                (order) => order['delivery_id'] == notificationDeliveryId,
-                orElse: () => null,
-              );
-              if (targetOrder != null) {
-                debugPrint(
-                    '🔍 Found order by delivery_id: ${targetOrder['delivery_id']}');
-              }
-            } catch (e) {
-              debugPrint('🔍 Error finding order by delivery_id: $e');
-            }
-          }
-
-          // if that didnt work, try matching by order number
-          if (targetOrder == null &&
-              orderNumber != null &&
-              orderNumber != notificationDeliveryId) {
-            debugPrint('🔍 Trying to match by order number: $orderNumber');
-            targetOrder = orders.firstWhere(
-              (order) => order['delivery_id'] == orderNumber,
-              orElse: () => null,
-            );
-            if (targetOrder != null) {
-              debugPrint(
-                  '🔍 Found order by order number: ${targetOrder['delivery_id']}');
-            }
-          }
-
-          // if that didnt work, try matching by numeric id (extract from ORDER_ prefix) - less reliable
-          if (targetOrder == null &&
-              orderId != null &&
-              orderId.startsWith('ORDER_')) {
+          if (targetOrder == null && orderId != null && orderId.startsWith('ORDER_')) {
             final numericId = orderId.replaceFirst('ORDER_', '');
-            debugPrint('🔍 Trying to match by numeric ID: $numericId');
-            try {
-              final numericIdInt = int.tryParse(numericId);
-              if (numericIdInt != null) {
-                targetOrder = orders.firstWhere(
-                  (order) => order['id'] == numericIdInt,
-                  orElse: () => null,
-                );
-                if (targetOrder != null) {
-                  debugPrint(
-                      '🔍 Found order by numeric ID: ${targetOrder['id']}');
+            final numericIdInt = int.tryParse(numericId);
+            if (numericIdInt != null) {
+              for (final order in orders) {
+                if (order['id'] == numericIdInt ||
+                    order['id'].toString() == numericId) {
+                  targetOrder = Map<String, dynamic>.from(order);
+                  debugPrint('🔍 Found order by numeric ID');
+                  break;
                 }
               }
-            } catch (e) {
-              debugPrint('🔍 Error parsing numeric ID: $e');
-            }
-          }
-
-          // last try: match by order id as string (fallback)
-          if (targetOrder == null && orderId != null) {
-            debugPrint('🔍 Trying to match by order ID string: $orderId');
-            targetOrder = orders.firstWhere(
-              (order) =>
-                  order['id'].toString() == orderId ||
-                  order['delivery_id'] == orderId,
-              orElse: () => null,
-            );
-            if (targetOrder != null) {
-              debugPrint('🔍 Found order by ID string: ${targetOrder['id']}');
             }
           }
 
@@ -611,7 +569,22 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
             }
 
             // Update order status from API so the delivery progression timeline can move
-            final apiStatus = targetOrder['status']?.toString();
+            String? apiStatus = targetOrder['status']?.toString() ??
+                targetOrder['order_status']?.toString();
+            if (apiStatus == null || apiStatus.isEmpty) {
+              final dId = targetOrder['delivery_id']?.toString();
+              if (dId != null) {
+                final group = orders.where((o) =>
+                    o['delivery_id']?.toString() == dId).toList();
+                for (final o in group) {
+                  final s = o['status']?.toString() ?? o['order_status']?.toString();
+                  if (s != null && s.isNotEmpty) {
+                    apiStatus = s;
+                    break;
+                  }
+                }
+              }
+            }
             if (apiStatus != null && apiStatus.isNotEmpty && mounted) {
               setState(() {
                 _orderStatus = apiStatus;
@@ -626,20 +599,10 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                   '🔍 No delivery info found in orders API - this appears to be a limitation of the current API');
             }
           } else {
-            debugPrint('🔍 Target order not found using any matching strategy');
-            debugPrint('🔍 Available order IDs in response:');
-            for (int i = 0; i < orders.length && i < 5; i++) {
-              final order = orders[i];
-              debugPrint(
-                  '🔍 Order ${i + 1}: ID=${order['id']}, Number=${order['order_number']}');
-            }
+            debugPrint('🔍 Target order not found in list (direct API already tried)');
           }
-        } else {
-          debugPrint(
-              '🔍 Orders API returned status: ${ordersResponse.statusCode}');
-        }
-      } catch (e) {
-        debugPrint('🔍 Error calling orders API: $e');
+      } else {
+        debugPrint('🔍 Orders API did not return success: ${result['status']}');
       }
     } catch (e) {
       debugPrint('🔍 Error fetching order details from API: $e');
@@ -1008,34 +971,23 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     Color statusColor;
     String statusText;
 
-    switch (status.toLowerCase()) {
-      case 'delivered':
-        statusColor = Colors.green.shade600;
-        statusText = 'Delivered';
-        break;
-      case 'shipped':
-      case 'out for delivery':
-        statusColor = Colors.blue.shade600;
-        statusText = 'Out for Delivery';
-        break;
-      case 'processing':
-      case 'confirmed':
-      case 'paid':
-        statusColor = Colors.orange.shade600;
-        statusText = 'Processing';
-        break;
-      case 'pending confirmation':
-        statusColor = Colors.orange.shade600;
-        statusText = 'Pending Confirmation';
-        break;
-      case 'order placed':
-      case 'pending':
-        statusColor = Colors.grey.shade600;
-        statusText = 'Order Placed';
-        break;
-      default:
-        statusColor = Colors.grey.shade600;
-        statusText = status.isNotEmpty ? status : 'Pending';
+    final s = status.toLowerCase();
+    if (s.contains('deliver') || s == 'completed') {
+      statusColor = Colors.green.shade600;
+      statusText = 'Delivered';
+    } else if (s.contains('ship') || s == 'out for delivery') {
+      statusColor = Colors.blue.shade600;
+      statusText = 'Shipped';
+    } else if (s.contains('paid') || s.contains('confirm') || s == 'processing' ||
+        s == 'payment received' || s == 'payment verified' || s == 'pending confirmation') {
+      statusColor = Colors.orange.shade600;
+      statusText = 'Confirmed';
+    } else if (s == 'order placed' || s == 'pending') {
+      statusColor = Colors.grey.shade600;
+      statusText = 'Order Placed';
+    } else {
+      statusColor = Colors.grey.shade600;
+      statusText = status.isNotEmpty ? status : 'Pending';
     }
 
     return Container(
@@ -1370,15 +1322,17 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     ];
 
     final normalizedStatus = currentStatus.toLowerCase().trim();
-    // Map API statuses to timeline steps: Order Placed, Paid, Pending Confirmation, Out for Delivery, Delivered
+    // Map API statuses to timeline steps: Order Placed, Paid, Confirmed, Shipped, Delivered
     String timelineStatus;
-    if (normalizedStatus == 'order placed') {
+    if (normalizedStatus == 'order placed' || normalizedStatus == 'pending') {
       timelineStatus = 'pending';
-    } else if (normalizedStatus == 'paid' || normalizedStatus == 'confirmed' || normalizedStatus == 'pending confirmation') {
+    } else if (normalizedStatus.contains('paid') || normalizedStatus.contains('confirm') ||
+        normalizedStatus == 'processing' || normalizedStatus == 'payment received' ||
+        normalizedStatus == 'payment verified' || normalizedStatus == 'pending confirmation') {
       timelineStatus = 'processing';
-    } else if (normalizedStatus == 'out for delivery') {
+    } else if (normalizedStatus.contains('ship') || normalizedStatus == 'out for delivery') {
       timelineStatus = 'shipped';
-    } else if (normalizedStatus == 'delivered') {
+    } else if (normalizedStatus.contains('deliver') || normalizedStatus == 'completed') {
       timelineStatus = 'delivered';
     } else {
       timelineStatus = normalizedStatus;
@@ -1459,16 +1413,18 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   bool _isStatusCompleted(String status, String currentStatus) {
     final statusOrder = ['pending', 'processing', 'shipped', 'delivered'];
     
-    // Normalize status: Order Placed->pending, Paid/Pending Confirmation->processing, Out for Delivery->shipped, Delivered->delivered
+    // Normalize status: Order Placed->pending, Paid/Confirmed->processing, Shipped->shipped, Delivered->delivered
     final normalizedCurrentStatus = currentStatus.toLowerCase().trim();
     String normalizedStatus;
-    if (normalizedCurrentStatus == 'order placed') {
+    if (normalizedCurrentStatus == 'order placed' || normalizedCurrentStatus == 'pending') {
       normalizedStatus = 'pending';
-    } else if (normalizedCurrentStatus == 'paid' || normalizedCurrentStatus == 'confirmed' || normalizedCurrentStatus == 'pending confirmation') {
+    } else if (normalizedCurrentStatus.contains('paid') || normalizedCurrentStatus.contains('confirm') ||
+        normalizedCurrentStatus == 'processing' || normalizedCurrentStatus == 'payment received' ||
+        normalizedCurrentStatus == 'payment verified' || normalizedCurrentStatus == 'pending confirmation') {
       normalizedStatus = 'processing';
-    } else if (normalizedCurrentStatus == 'out for delivery') {
+    } else if (normalizedCurrentStatus.contains('ship') || normalizedCurrentStatus == 'out for delivery') {
       normalizedStatus = 'shipped';
-    } else if (normalizedCurrentStatus == 'delivered') {
+    } else if (normalizedCurrentStatus.contains('deliver') || normalizedCurrentStatus == 'completed') {
       normalizedStatus = 'delivered';
     } else {
       normalizedStatus = normalizedCurrentStatus;

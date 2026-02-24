@@ -1,4 +1,5 @@
 // pages/purchases.dart
+import 'dart:async';
 import 'package:eclapp/pages/profile.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +10,7 @@ import 'package:shimmer/shimmer.dart';
 import 'bottomnav.dart';
 import 'app_back_button.dart';
 import '../services/auth_service.dart';
+import '../services/background_order_checker.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/error_display.dart';
 import 'order_tracking_page.dart';
@@ -119,13 +121,8 @@ class PurchaseScreenState extends State<PurchaseScreen> {
             _hasMoreData = processedOrders.length >= _pageSize;
           });
 
-          // track order status changes for notifications
-          // try {
-          //   await OrderNotificationService.trackOrderStatusChanges(
-          //       processedOrders.cast<Map<String, dynamic>>());
-          // } catch (e) {
-          //   debugPrint('Error tracking order status changes: $e');
-          // }
+          // Trigger order status check for notifications (runs in background)
+          unawaited(BackgroundOrderChecker.checkNow());
         }
       } else {
         throw Exception(result['message'] ?? 'Failed to load orders');

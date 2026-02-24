@@ -93,8 +93,8 @@ class ProductCache {
   static const Duration _cacheValidDuration = Duration(hours: 2);
   // we can use old data for up to 6 hours while refreshing
   static const Duration _staleWhileRevalidateDuration = Duration(hours: 6);
-  // shuffle popular products every 24 hours
-  static const Duration _shuffleInterval = Duration(hours: 24);
+  // shuffle popular products every 1 hour (reduced from 24h to fix stagnation)
+  static const Duration _shuffleInterval = Duration(hours: 1);
   // keys for saving to storage
   static const String _popularProductsKey = 'cached_popular_products';
   static const String _lastCacheTimeKey = 'last_cache_time';
@@ -516,7 +516,8 @@ class HomePageState extends State<HomePage>
 
   // remember when we last shuffled product sections
   DateTime? _lastSectionShuffleTime;
-  static const Duration _sectionShuffleInterval = Duration(hours: 24);
+  // shuffle sections every 1 hour (reduced from 24h to fix stagnation)
+  static const Duration _sectionShuffleInterval = Duration(hours: 1);
 
   // remember if we already loaded the page so we dont reload it
   bool _hasBeenLoaded = false;

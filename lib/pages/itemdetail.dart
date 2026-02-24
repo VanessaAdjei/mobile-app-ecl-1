@@ -18,7 +18,6 @@ import '../providers/cart_provider.dart';
 import 'package:html/parser.dart' show parse;
 import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:eclapp/pages/signinpage.dart';
 import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/cart_icon_button.dart';
@@ -1270,24 +1269,25 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         // Check if product is in cart
         final cartItems = cartProvider.cartItems;
         final productNameNorm = CartProvider.normalizeProductName(product.name);
-        final existingItem = cartItems.firstWhere(
-          (item) =>
-              CartProvider.normalizeProductName(item.name) == productNameNorm &&
-              item.batchNo == product.batch_no,
-          orElse: () => CartItem(
-            id: '',
-            productId: '',
-            name: '',
-            price: 0.0,
-            quantity: 0,
-            image: '',
-            batchNo: '',
-            urlName: '',
-            totalPrice: 0.0,
-          ),
-        );
+        final matches = cartItems
+            .cast<CartItem>()
+            .where(
+              (item) =>
+                  CartProvider.normalizeProductName(item.name) ==
+                      productNameNorm &&
+                  item.batchNo == product.batch_no,
+            )
+            .toList();
+        final existingItem = matches.isNotEmpty ? matches.first : null;
+        final itemIndex = existingItem != null
+            ? cartItems.indexWhere((item) =>
+                CartProvider.normalizeProductName(item.name) ==
+                    productNameNorm &&
+                item.batchNo == product.batch_no)
+            : -1;
 
-        final isInCart = existingItem.id.isNotEmpty;
+        // In cart if we have a matching item (by name+batch) - don't rely on id
+        final isInCart = existingItem != null;
         final cartQuantity = isInCart ? existingItem.quantity : 0;
 
         // Only show quantity selector if item is in cart
@@ -1375,9 +1375,14 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                     }
                                     _lastQuantityUpdateTime = now;
 
-                                    // Remove one from cart
-                                    cartProvider.updateQuantityById(
-                                        existingItem.id, cartQuantity - 1);
+                                    // Remove one from cart (use index when id empty)
+                                    if (existingItem.id.isNotEmpty) {
+                                      cartProvider.updateQuantityById(
+                                          existingItem.id, cartQuantity - 1);
+                                    } else if (itemIndex >= 0) {
+                                      cartProvider.updateQuantity(
+                                          itemIndex, cartQuantity - 1);
+                                    }
                                   }
                                 : null,
                             isEnabled: cartQuantity > 1 &&
@@ -1419,9 +1424,14 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                     // Add haptic feedback
                                     HapticFeedback.mediumImpact();
 
-                                    // Add one more to cart
-                                    cartProvider.updateQuantityById(
-                                        existingItem.id, cartQuantity + 1);
+                                    // Add one more to cart (use index when id empty)
+                                    if (existingItem.id.isNotEmpty) {
+                                      cartProvider.updateQuantityById(
+                                          existingItem.id, cartQuantity + 1);
+                                    } else if (itemIndex >= 0) {
+                                      cartProvider.updateQuantity(
+                                          itemIndex, cartQuantity + 1);
+                                    }
 
                                     // Play cart animation
                                     if (mounted) {
@@ -1489,26 +1499,23 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   'Cart Item $i: Name=${cartItems[i].name}, ID=${cartItems[i].productId}, Batch=${cartItems[i].batchNo}, Qty=${cartItems[i].quantity}');
             }
 
-            final productNameNorm = CartProvider.normalizeProductName(product.name);
-            final existingItem = cartItems.firstWhere(
-              (item) =>
-                  CartProvider.normalizeProductName(item.name) == productNameNorm &&
-                  item.batchNo == product.batch_no,
-              orElse: () => CartItem(
-                id: '',
-                productId: '',
-                name: '',
-                price: 0.0,
-                quantity: 0,
-                image: '',
-                batchNo: '',
-                urlName: '',
-                totalPrice: 0.0,
-              ),
-            );
+            final productNameNorm =
+                CartProvider.normalizeProductName(product.name);
+            final existingItem = cartItems
+                .cast<CartItem>()
+                .where(
+                  (item) =>
+                      CartProvider.normalizeProductName(item.name) ==
+                          productNameNorm &&
+                      item.batchNo == product.batch_no,
+                )
+                .toList();
+            final match = existingItem.isNotEmpty ? existingItem.first : null;
 
-            final isInCart = existingItem.id.isNotEmpty;
-            final cartQuantity = isInCart ? existingItem.quantity : 0;
+            // In cart if we have a matching item (by name+batch) - don't rely on id
+            // since newly added items have id: '' until server sync completes
+            final isInCart = match != null;
+            final cartQuantity = isInCart ? match.quantity : 0;
 
             debugPrint('Is In Cart: $isInCart');
             debugPrint('Cart Quantity: $cartQuantity');

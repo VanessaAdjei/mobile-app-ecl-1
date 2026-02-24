@@ -1,17 +1,12 @@
 // services/native_notification_service.dart
-//
-// This service handles notification permissions and displays using a hybrid approach:
-// 1. Uses permission_handler package for permission management (fully functional)
-// 2. Falls back to logging when native notification display is not available
-// 3. Automatically detects if native platform channels are implemented
-//
-// TODO: Implement native Android/iOS notification display when platform channels are ready
-// Current status: Permission handling works, native notifications fall back to logging
+
 //
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'notification_handler_service.dart';
 import '../pages/order_tracking_page.dart';
@@ -22,6 +17,9 @@ class NativeNotificationService {
       GlobalKey<NavigatorState>();
   static String? _pendingNotificationPayload;
   static bool _nativeChannelAvailable = false;
+  static final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
+  static bool _localNotificationsInitialized = false;
 
   /// Initialize the notification service
   static Future<void> initialize() async {
@@ -38,7 +36,11 @@ class NativeNotificationService {
       } catch (e) {
         debugPrint('📱 Native: Method channel test failed (expected): $e');
         _nativeChannelAvailable = false;
-        debugPrint('📱 Native: Continuing with permission_handler only...');
+        debugPrint('📱 Native: Continuing with flutter_local_notifications...');
+      }
+
+      if (!_nativeChannelAvailable) {
+        await _initializeLocalNotifications();
       }
 
       // Check if notifications are enabled
@@ -150,6 +152,81 @@ class NativeNotificationService {
     }
   }
 
+  static Future<void> _initializeLocalNotifications() async {
+    if (_localNotificationsInitialized) return;
+    try {
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const iosSettings = DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      );
+      const initSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      );
+      await _localNotifications.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: (NotificationResponse response) {
+          if (response.payload != null && response.payload!.isNotEmpty) {
+            _pendingNotificationPayload = response.payload;
+            Future.microtask(() => _handleNotificationImmediately(
+                response.payload!, null));
+          }
+        },
+      );
+      if (Platform.isAndroid) {
+        await _localNotifications
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.requestNotificationsPermission();
+      }
+      if (Platform.isIOS) {
+        await _localNotifications
+            .resolvePlatformSpecificImplementation<
+                IOSFlutterLocalNotificationsPlugin>()
+            ?.requestPermissions(alert: true, badge: true, sound: true);
+      }
+      _localNotificationsInitialized = true;
+      debugPrint('📱 Native: flutter_local_notifications initialized');
+    } catch (e) {
+      debugPrint('📱 Native: Failed to init flutter_local_notifications: $e');
+    }
+  }
+
+  static Future<void> _showViaLocalNotifications(
+    int id,
+    String title,
+    String body,
+    String? payload,
+  ) async {
+    if (!_localNotificationsInitialized) {
+      await _initializeLocalNotifications();
+    }
+    try {
+      const androidDetails = AndroidNotificationDetails(
+        'ecl_order_channel',
+        'Order Updates',
+        channelDescription: 'Notifications for order status and updates',
+        importance: Importance.high,
+        priority: Priority.high,
+      );
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+      const details = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+      await _localNotifications.show(id, title, body, details, payload: payload);
+      debugPrint('📱 Native: Notification shown via flutter_local_notifications');
+    } catch (e) {
+      debugPrint('📱 Native: flutter_local_notifications show failed: $e');
+    }
+  }
+
   /// Show a system notification
   static Future<void> showNotification({
     required String title,
@@ -192,16 +269,21 @@ class NativeNotificationService {
               '📱 Native: Notification sent successfully via native channel!');
         } catch (e) {
           debugPrint(
-              '📱 Native: Native notification failed, falling back to logging: $e');
-          debugPrint(
-              '📱 Native: Would show notification: ID=$notificationId, Title="$title", Body="$body"');
+              '📱 Native: Native notification failed, trying flutter_local_notifications: $e');
+          await _showViaLocalNotifications(
+            notificationId,
+            title,
+            body,
+            payload,
+          );
         }
       } else {
-        // Fallback to logging when native channel is not available
-        debugPrint(
-            '📱 Native: Would show notification: ID=$notificationId, Title="$title", Body="$body"');
-        debugPrint(
-            '📱 Native: Notification logged successfully (native display not implemented yet)');
+        await _showViaLocalNotifications(
+          notificationId,
+          title,
+          body,
+          payload,
+        );
       }
     } catch (e) {
       debugPrint('Error showing native notification: $e');

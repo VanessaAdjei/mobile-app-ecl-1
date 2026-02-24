@@ -4,6 +4,8 @@ PODS:
   - Flutter (1.0.0)
   - flutter_keyboard_visibility (0.0.1):
     - Flutter
+  - flutter_local_notifications (0.0.1):
+    - Flutter
   - flutter_secure_storage (6.0.0):
     - Flutter
   - geocoding_ios (1.0.5):
@@ -24,9 +26,6 @@ PODS:
     - GoogleMaps/Base
   - image_picker_ios (0.0.1):
     - Flutter
-  - path_provider_foundation (0.0.1):
-    - Flutter
-    - FlutterMacOS
   - permission_handler_apple (9.3.0):
     - Flutter
   - share_plus (0.0.1):
@@ -52,12 +51,12 @@ DEPENDENCIES:
   - audioplayers_darwin (from `.symlinks/plugins/audioplayers_darwin/ios`)
   - Flutter (from `Flutter`)
   - flutter_keyboard_visibility (from `.symlinks/plugins/flutter_keyboard_visibility/ios`)
+  - flutter_local_notifications (from `.symlinks/plugins/flutter_local_notifications/ios`)
   - flutter_secure_storage (from `.symlinks/plugins/flutter_secure_storage/ios`)
   - geocoding_ios (from `.symlinks/plugins/geocoding_ios/ios`)
   - geolocator_apple (from `.symlinks/plugins/geolocator_apple/darwin`)
   - google_maps_flutter_ios (from `.symlinks/plugins/google_maps_flutter_ios/ios`)
   - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
-  - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
   - share_plus (from `.symlinks/plugins/share_plus/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
@@ -79,6 +78,8 @@ EXTERNAL SOURCES:
     :path: Flutter
   flutter_keyboard_visibility:
     :path: ".symlinks/plugins/flutter_keyboard_visibility/ios"
+  flutter_local_notifications:
+    :path: ".symlinks/plugins/flutter_local_notifications/ios"
   flutter_secure_storage:
     :path: ".symlinks/plugins/flutter_secure_storage/ios"
   geocoding_ios:
@@ -89,8 +90,6 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/google_maps_flutter_ios/ios"
   image_picker_ios:
     :path: ".symlinks/plugins/image_picker_ios/ios"
-  path_provider_foundation:
-    :path: ".symlinks/plugins/path_provider_foundation/darwin"
   permission_handler_apple:
     :path: ".symlinks/plugins/permission_handler_apple/ios"
   share_plus:
@@ -112,14 +111,14 @@ SPEC CHECKSUMS:
   audioplayers_darwin: ccf9c770ee768abb07e26d90af093f7bab1c12ab
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_keyboard_visibility: 4625131e43015dbbe759d9b20daaf77e0e3f6619
+  flutter_local_notifications: ad39620c743ea4c15127860f4b5641649a988100
   flutter_secure_storage: 1ed9476fba7e7a782b22888f956cce43e2c62f13
   geocoding_ios: 86f1c479822f07a2f79f7094f2b753d1e9e20215
   geolocator_apple: ab36aa0e8b7d7a2d7639b3b4e48308394e8cef5e
   Google-Maps-iOS-Utils: 66d6de12be1ce6d3742a54661e7a79cb317a9321
-  google_maps_flutter_ios: 3213e1e5f5588b6134935cb8fc59acb4e6d88377
+  google_maps_flutter_ios: 0cf046caf50b00d95071f79e8031fcd5ef902beb
   GoogleMaps: 8939898920281c649150e0af74aa291c60f2e77d
   image_picker_ios: e0ece4aa2a75771a7de3fa735d26d90817041326
-  path_provider_foundation: bb55f6dbba17d0dccd6737fe6f7f34fbd0376880
   permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
   share_plus: de6030e33b4e106470e09322d87cf2a4258d2d1d
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb

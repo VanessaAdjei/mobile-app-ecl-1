@@ -2390,14 +2390,18 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _buildStatusSection(),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 6),
                       Expanded(
                         child: _buildOrderItemsList(),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 4),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 14),
+                        padding: EdgeInsets.only(
+                          left: 12,
+                          right: 12,
+                          top: 10,
+                          bottom: 10 + MediaQuery.of(context).padding.bottom,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: const BorderRadius.vertical(
@@ -2415,7 +2419,7 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
                           children: [
                             _buildPaymentSummary(
                                 subtotal, deliveryFee, discount, total),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             _buildBottomActions(deliveryFee, discount, total),
                           ],
                         ),
@@ -2447,18 +2451,18 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: statusColor.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
               icon,
-              size: 48,
+              size: 42,
               color: statusColor,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             _getStatusLabel(_status),
             textAlign: TextAlign.center,
@@ -2468,7 +2472,7 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
               color: statusColor,
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 1),
           Text(
             _getStatusMessage(_status),
             textAlign: TextAlign.center,
@@ -2478,7 +2482,7 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
               height: 1.3,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           // Check Status Button (only loop if needed)
           if (_showCheckStatusButton)
             Padding(

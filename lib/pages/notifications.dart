@@ -619,7 +619,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  void _handleNotificationAction(Map<String, dynamic> notification) {
+  Future<void> _handleNotificationAction(Map<String, dynamic> notification) async {
     debugPrint('🔍 _handleNotificationAction called');
     debugPrint('🔍 Full notification: $notification');
 
@@ -633,12 +633,14 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     // Check if we have the required data
     if (orderId.isEmpty && orderNumber.isEmpty) {
       debugPrint('📱 No order ID or order number found in notification');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('No order information found in this notification'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No order information found in this notification'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
       return;
     }
 
@@ -657,9 +659,11 @@ class NotificationsScreenState extends State<NotificationsScreen> {
             })
         .toList();
 
-    final orderDetails = {
+    Map<String, dynamic> orderDetails = {
       'id': orderId,
       'order_number': orderNumber,
+      'delivery_id': orderId,
+      'transaction_id': orderId,
       'total_amount': notification['total_amount'],
       'order_items': mappedItems,
       'status': notification['status'] ?? 'pending',
@@ -675,60 +679,93 @@ class NotificationsScreenState extends State<NotificationsScreen> {
           notification['delivery_method'],
     };
 
+    // Fetch latest order from API to get actual status before navigating (critical for notification page)
+    try {
+      final result = await AuthService.getOrders();
+      if (result['status'] == 'success' && result['data'] is List) {
+        final rawOrders = result['data'] as List;
+        Map<String, dynamic>? matchedOrder;
+        String? bestDeliveryId;
+
+        for (final o in rawOrders) {
+          final ord = Map<String, dynamic>.from(o);
+          final dId = ord['delivery_id']?.toString();
+          final tId = ord['transaction_id']?.toString();
+          final oId = ord['id']?.toString();
+          final ordNum = ord['order_number']?.toString();
+
+          final matches = (dId != null && (dId == orderId || dId == orderNumber)) ||
+              (tId != null && (tId == orderId || tId == orderNumber)) ||
+              (oId != null && (oId == orderId || oId == orderNumber)) ||
+              (ordNum != null && (ordNum == orderId || ordNum == orderNumber));
+
+          if (matches) {
+            matchedOrder = ord;
+            bestDeliveryId = dId ?? tId ?? oId ?? orderId;
+            break;
+          }
+        }
+
+        if (matchedOrder != null && bestDeliveryId != null) {
+          String? apiStatus = matchedOrder['status']?.toString() ??
+              matchedOrder['order_status']?.toString();
+          if (apiStatus == null || apiStatus.isEmpty) {
+            final dId = matchedOrder['delivery_id']?.toString();
+            if (dId != null) {
+              for (final o in rawOrders) {
+                final ord = Map<String, dynamic>.from(o);
+                if (ord['delivery_id']?.toString() == dId) {
+                  final s = ord['status']?.toString() ?? ord['order_status']?.toString();
+                  if (s != null && s.isNotEmpty) {
+                    apiStatus = s;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+          if (apiStatus != null && apiStatus.isNotEmpty) {
+            orderDetails['status'] = apiStatus;
+            debugPrint('📱 Got actual status from API for notification: $apiStatus');
+          }
+          orderDetails['delivery_id'] = bestDeliveryId;
+          orderDetails['transaction_id'] = bestDeliveryId;
+          orderDetails['id'] = bestDeliveryId;
+        }
+      }
+    } catch (e) {
+      debugPrint('📱 Could not fetch latest order status: $e');
+    }
+
     debugPrint('📱 Navigating to OrderTrackingPage...');
     debugPrint('📱 Order details: $orderDetails');
 
-    // Debug: Log available delivery fields in notification
-    debugPrint('🔍 Available delivery fields in notification:');
-    debugPrint('🔍 delivery_address: ${notification['delivery_address']}');
-    debugPrint('🔍 shipping_address: ${notification['shipping_address']}');
-    debugPrint('🔍 address: ${notification['address']}');
-    debugPrint('🔍 contact_number: ${notification['contact_number']}');
-    debugPrint('🔍 phone: ${notification['phone']}');
-    debugPrint('🔍 user_phone: ${notification['user_phone']}');
-    debugPrint('🔍 delivery_option: ${notification['delivery_option']}');
-    debugPrint('🔍 shipping_method: ${notification['shipping_method']}');
-    debugPrint('🔍 delivery_method: ${notification['delivery_method']}');
+    if (!mounted) return;
 
-    // go to order tracking page with proper navigation
     try {
-      debugPrint('About to navigate to OrderTrackingPage');
-      debugPrint('Context mounted: ${mounted}');
-      debugPrint(
-          '📱 Current navigation stack depth: ${Navigator.of(context).widget.observers.length}');
-      debugPrint('📱 Can pop current context: ${Navigator.canPop(context)}');
-
-      if (!mounted) {
-        debugPrint('📱 Context not mounted, cannot navigate');
-        return;
-      }
-
-      debugPrint(
-          'Navigating to OrderTrackingPage with proper navigation stack...');
-
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => OrderTrackingPage(
             orderDetails: orderDetails,
           ),
-          // Ensure proper back button behavior
           fullscreenDialog: false,
         ),
       );
-
       debugPrint('📱 OrderTrackingPage navigation successful!');
     } catch (e) {
       debugPrint('📱 Navigation error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error navigating to tracking page: $e'),
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-          margin:
-              EdgeInsets.only(bottom: MediaQuery.of(context).size.height - 100),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error navigating to tracking page: $e'),
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            margin:
+                EdgeInsets.only(bottom: MediaQuery.of(context).size.height - 100),
+          ),
+        );
+      }
     }
   }
 
@@ -1007,9 +1044,9 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: () {
+                              onPressed: () async {
                                 Navigator.pop(context);
-                                _handleNotificationAction(notification);
+                                await _handleNotificationAction(notification);
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.green.shade600,
@@ -1119,6 +1156,14 @@ class NotificationsScreenState extends State<NotificationsScreen> {
         return Icons.receipt;
       case 'local_shipping':
         return Icons.local_shipping;
+      case 'verified':
+        return Icons.verified;
+      case 'check_circle':
+        return Icons.check_circle;
+      case 'cancel':
+        return Icons.cancel;
+      case 'info':
+        return Icons.info;
       case 'star':
         return Icons.star;
       default:
@@ -1137,6 +1182,8 @@ class NotificationsScreenState extends State<NotificationsScreen> {
         return Colors.orange;
       case 'purple':
         return Colors.purple;
+      case 'red':
+        return Colors.red;
       default:
         return Colors.blue;
     }
