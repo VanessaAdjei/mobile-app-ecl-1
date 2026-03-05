@@ -1,0 +1,35 @@
+---
+description: Project architecture - Route → Controller → Service → Repository → Model → Database
+globs: lib/**/*.dart
+alwaysApply: true
+---
+
+# Architecture: Route → Controller → Service → Repository → Model → Database
+
+Follow this flow for all features. See `ARCHITECTURE.md` for full details.
+
+## Data flow (no skipping layers)
+
+- **Route** (pages/screens): UI only. Calls Controller, no Service/Repository.
+- **Controller** (providers/ or controllers/): State + user actions. Calls **Service** only.
+- **Service** (services/): Use cases. Calls **Repository** only.
+- **Repository** (repositories/): Data access. Uses **Database** + **Model** only.
+- **Model** (models/): Plain data/DTOs.
+- **Database** (database/): API clients, local storage. Used only by Repository.
+
+## Where to put code
+
+| Layer | Folder | Example |
+|-------|--------|--------|
+| Route | `lib/pages/` | `signinpage.dart` |
+| Controller | `lib/providers/` or `lib/controllers/` | `theme_provider.dart` |
+| Service | `lib/services/` | `theme_service.dart` |
+| Repository | `lib/repositories/` | `theme_repository.dart` |
+| Model | `lib/models/` | `theme_preference.dart` |
+| Database | `lib/database/<feature>/` | `theme_local_storage.dart` |
+
+## Reference implementation
+
+Theme flow is the reference: Route uses ThemeProvider (Controller) → ThemeService → ThemeRepository → ThemePreference (Model) + ThemeLocalStorage (Database).
+
+New features: add Database and Model first, then Repository, then Service, then Controller, then Route.

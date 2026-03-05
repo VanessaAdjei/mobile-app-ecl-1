@@ -1,5 +1,6 @@
 // pages/signinpage.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:eclapp/pages/forgot_password.dart';
 import 'package:eclapp/pages/homepage.dart';
@@ -586,6 +587,7 @@ class SignInScreenState extends State<SignInScreen> {
                           const SizedBox(height: 3),
                           TextFormField(
                             controller: _emailController,
+                            autofillHints: const [AutofillHints.email],
                             decoration: InputDecoration(
                               hintText: 'Enter your email address',
                               hintStyle: TextStyle(

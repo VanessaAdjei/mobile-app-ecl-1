@@ -579,6 +579,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
       validator: validator,
       inputFormatters: inputFormatters,
       onChanged: onChanged,
+      autofillHints: keyboardType == TextInputType.emailAddress
+          ? const [AutofillHints.email]
+          : null,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: Colors.green.shade600),

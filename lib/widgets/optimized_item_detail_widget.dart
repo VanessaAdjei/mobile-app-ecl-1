@@ -12,6 +12,7 @@ import '../services/item_detail_optimization_service.dart';
 import '../services/performance_service.dart';
 import '../viewmodels/item_detail_view_model.dart';
 import 'error_display.dart';
+import 'full_screen_image_viewer.dart';
 
 class OptimizedItemDetailWidget extends StatefulWidget {
   final String urlName;
@@ -349,7 +350,13 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
         ? _viewModel.images
         : [product.thumbnail];
 
-    return Animate(
+    return GestureDetector(
+      onTap: () => FullScreenImageViewer.show(
+        context,
+        imageUrls: images,
+        initialIndex: _currentImageIndex,
+      ),
+      child: Animate(
           effects: [
             FadeEffect(duration: 400.ms),
             SlideEffect(
@@ -459,7 +466,8 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
               ],
             ),
           ),
-        );
+        ),
+    );
   }
 
   Widget _buildProductInfoCard(Product product) {

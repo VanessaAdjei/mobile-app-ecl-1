@@ -191,12 +191,11 @@ class PaymentPageState extends State<PaymentPage> {
   Future<String?> getAuthHeader() async {
     final isLoggedIn = await AuthService.isLoggedIn();
     String? token = await AuthService.getToken();
-    if (isLoggedIn &&
-        token != null &&
-        token.isNotEmpty &&
-        !token.startsWith('guest_')) {
+    if (isLoggedIn && token != null && token.isNotEmpty) {
+      // Logged-in: use Bearer (token is auth token, not guest_id)
       return 'Bearer $token';
-    } else if (!isLoggedIn && token != null && token.startsWith('guest_')) {
+    } else if (!isLoggedIn && token != null && token.isNotEmpty) {
+      // Guest: use Guest header (token is guest_id from SharedPreferences)
       return 'Guest $token';
     }
     return null;
@@ -313,12 +312,9 @@ class PaymentPageState extends State<PaymentPage> {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
       };
-      if (isLoggedIn &&
-          token != null &&
-          token.isNotEmpty &&
-          !token.startsWith('guest_')) {
+      if (isLoggedIn && token != null && token.isNotEmpty) {
         headers['Authorization'] = 'Bearer $token';
-      } else if (!isLoggedIn && token != null && token.startsWith('guest_')) {
+      } else if (!isLoggedIn && token != null && token.isNotEmpty) {
         final guestId = token;
         headers['Authorization'] = 'Guest $guestId';
         headers['X-Guest-ID'] = guestId;
@@ -1705,14 +1701,11 @@ class PaymentPageState extends State<PaymentPage> {
       };
 
       // Add authentication headers and guest_id if needed
-      if (isLoggedIn &&
-          token != null &&
-          token.isNotEmpty &&
-          !token.startsWith('guest_')) {
+      if (isLoggedIn && token != null && token.isNotEmpty) {
         // Logged-in user: only send coupon code
         headers['Authorization'] = 'Bearer $token';
         debugPrint('[DEBUG] Applying coupon as logged-in user');
-      } else if (!isLoggedIn && token != null && token.startsWith('guest_')) {
+      } else if (!isLoggedIn && token != null && token.isNotEmpty) {
         // Guest user: send coupon code and guest_id
         final guestId = token;
         headers['Authorization'] = 'Guest $guestId';
@@ -1813,112 +1806,111 @@ class PaymentPageState extends State<PaymentPage> {
   }
 
   void _showPaymentFailureDialog(String error) {
+    final displayMessage = error
+        .replaceFirst(RegExp(r'^Exception:\s*'), '')
+        .trim();
+    final message = displayMessage.isNotEmpty && displayMessage != 'Payment Failed, try again'
+        ? displayMessage
+        : 'Something went wrong. Please check your details and try again.';
+
     showDialog(
       context: context,
       barrierDismissible: false,
+      barrierColor: Colors.black54,
       builder: (BuildContext context) {
         return Dialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(24),
           ),
           elevation: 0,
           backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 28),
           child: Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
+                ),
+                BoxShadow(
+                  color: const Color(0xFFE53935).withValues(alpha: 0.06),
+                  blurRadius: 32,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Error Icon
+                // Icon with soft gradient background
                 Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.error_outline,
-                    size: 30,
-                    color: Colors.red.shade600,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Title
-                Text(
-                  'Payment Failed',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // Message
-                Text(
-                  'Payment Failed, try again',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                    height: 1.3,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-
-                // Action Button
-                Container(
-                  width: double.infinity,
-                  height: 40,
+                  width: 72,
+                  height: 72,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Colors.red.shade500,
-                        Colors.red.shade600,
+                        const Color(0xFFEF5350).withValues(alpha: 0.15),
+                        const Color(0xFFE53935).withValues(alpha: 0.08),
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.red.withValues(alpha: 0.3),
-                        blurRadius: 6,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
+                    shape: BoxShape.circle,
                   ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(20),
-                      onTap: () {
-                        Navigator.pop(context);
-                      },
-                      child: Center(
-                        child: Text(
-                          'OK',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
+                  child: const Icon(
+                    Icons.credit_card_off_rounded,
+                    size: 36,
+                    color: Color(0xFFD32F2F),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Title
+                Text(
+                  'Payment didn’t go through',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey.shade900,
+                    letterSpacing: -0.3,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+
+                // Message
+                Text(
+                  message,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Colors.grey.shade600,
+                    height: 1.4,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 28),
+
+                // Primary button
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFD32F2F),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
+                    child: const Text('Got it'),
                   ),
                 ),
               ],
@@ -2887,10 +2879,7 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
       debugPrint(
           '[DEBUG] Auth check - isLoggedIn: $isLoggedIn, tokenRaw: ${tokenRaw?.substring(0, 10)}..., userId: $userId');
 
-      if (isLoggedIn &&
-          tokenRaw != null &&
-          tokenRaw.isNotEmpty &&
-          !tokenRaw.startsWith('guest_')) {
+      if (isLoggedIn && tokenRaw != null && tokenRaw.isNotEmpty) {
         // Logged-in user: ONLY use Bearer token, never guest_id
         authHeader = 'Bearer $tokenRaw';
         if (userId == null) {
@@ -2899,10 +2888,8 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
         }
         requestBody = {'user_id': userId};
         debugPrint('[DEBUG] Using logged-in user flow');
-      } else if (!isLoggedIn &&
-          tokenRaw != null &&
-          tokenRaw.startsWith('guest_')) {
-        // Guest user: ONLY use guest_id if not logged in
+      } else if (!isLoggedIn && tokenRaw != null && tokenRaw.isNotEmpty) {
+        // Guest user: token is guest_id from getToken()
         final guestId = tokenRaw;
         authHeader = 'Guest $guestId';
         requestBody = {'guest_id': guestId};
@@ -2918,7 +2905,7 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
         'Content-Type': 'application/json',
       };
       headers['Authorization'] = authHeader;
-      if (!isLoggedIn && tokenRaw.startsWith('guest_')) {
+      if (!isLoggedIn) {
         headers['X-Guest-ID'] = tokenRaw;
       }
       debugPrint('[DEBUG] Payment Status Check - Request Headers: $headers');

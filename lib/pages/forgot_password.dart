@@ -1,5 +1,6 @@
 // pages/forgot_password.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
@@ -309,6 +310,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
+                    autofillHints: const [AutofillHints.email],
                     decoration: InputDecoration(
                       labelText: 'Email address',
                       hintText: 'you@example.com',

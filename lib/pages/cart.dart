@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:eclapp/pages/homepage.dart';
 import '../providers/cart_provider.dart';
+import '../providers/auth_provider.dart';
 import 'delivery_page.dart';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -302,8 +303,10 @@ class CartState extends State<Cart> {
           }
         }
       },
-      child: Consumer<CartProvider>(
-        builder: (context, cart, child) {
+      child: Consumer2<CartProvider, AuthProvider>(
+        builder: (context, cart, auth, child) {
+          // Sync local _isLoggedIn with AuthProvider status
+          _isLoggedIn = auth.isLoggedIn;
           return Scaffold(
             backgroundColor: Colors.grey[50],
             body: Stack(
@@ -478,6 +481,13 @@ class CartState extends State<Cart> {
                                             _isLoggedIn = isNowLoggedIn;
                                           });
 
+                                          // Sync AuthProvider so app-wide auth state is correct
+                                          try {
+                                            await Provider.of<AuthProvider>(
+                                                    context, listen: false)
+                                                .refreshAuthState();
+                                          } catch (_) {}
+
                                           // If user successfully logged in, merge guest cart
                                           if (isNowLoggedIn) {
                                             final userId = await AuthService
@@ -641,7 +651,10 @@ class CartState extends State<Cart> {
                                     cart.getSelectedItems().isEmpty)
                                 ? null
                                 : () async {
-                                    if (!_isLoggedIn) {
+                                    // Fresh check from AuthService to avoid stale state issues
+                                    final actuallyLoggedIn = await AuthService.isLoggedIn();
+                                    
+                                    if (!actuallyLoggedIn) {
                                       final prefs =
                                           await SharedPreferences.getInstance();
                                       final guestId =
@@ -857,6 +870,12 @@ class CartState extends State<Cart> {
                                           setState(() {
                                             _isLoggedIn = isNowLoggedIn;
                                           });
+                                          // Sync AuthProvider so delivery/payment pages see correct auth
+                                          try {
+                                            await Provider.of<AuthProvider>(
+                                                    context, listen: false)
+                                                .refreshAuthState();
+                                          } catch (_) {}
                                           // Sync cart with backend after login
                                           if (isNowLoggedIn) {
                                             final userId = await AuthService
@@ -1248,8 +1267,8 @@ class CartState extends State<Cart> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Loading indicator when item is being updated
-                            if (cart.isItemUpdating(item.id))
+                            // Loading indicator when item is being updated (index = only this row)
+                            if (cart.isItemUpdating(item.id, index))
                               Container(
                                 padding:
                                     const EdgeInsets.symmetric(horizontal: 6),
@@ -1259,14 +1278,14 @@ class CartState extends State<Cart> {
                                   child: CircularProgressIndicator(
                                     strokeWidth: 1.5,
                                     valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.green.shade600,
+                                        Colors.green.shade600,
                                     ),
                                   ),
                                 ),
                               ),
                             item.quantity > 1
                                 ? OptimizedRemoveButton(
-                                    onPressed: cart.isItemUpdating(item.id)
+                                    onPressed: cart.isItemUpdating(item.id, index)
                                         ? null
                                         : () {
                                             debugPrint(
@@ -1280,11 +1299,11 @@ class CartState extends State<Cart> {
                                             debugPrint(
                                                 '🔍 Cart: Item ID: ${item.id}');
 
-                                            // Use item ID instead of index for reliable updates
+                                            // Use item ID + row index so only this row shows loader
                                             cart.updateQuantityById(
-                                                item.id, item.quantity - 1);
+                                                item.id, item.quantity - 1, rowIndex: index);
                                           },
-                                    isEnabled: !cart.isItemUpdating(item.id),
+                                    isEnabled: !cart.isItemUpdating(item.id, index),
                                     size: 28.0,
                                   )
                                 : OptimizedDeleteButton(
@@ -1314,13 +1333,13 @@ class CartState extends State<Cart> {
                               ),
                             ),
                             OptimizedAddButton(
-                              onPressed: cart.isItemUpdating(item.id)
+                              onPressed: cart.isItemUpdating(item.id, index)
                                   ? null
                                   : () {
                                       cart.updateQuantityById(
-                                          item.id, item.quantity + 1);
+                                          item.id, item.quantity + 1, rowIndex: index);
                                     },
-                              isEnabled: !cart.isItemUpdating(item.id),
+                              isEnabled: !cart.isItemUpdating(item.id, index),
                               size: 28.0,
                             ),
                           ],

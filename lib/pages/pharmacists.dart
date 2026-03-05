@@ -1,5 +1,6 @@
 // pages/pharmacists.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -1576,6 +1577,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                     return null;
                   },
                   fieldKey: _emailFieldKey,
+                  autofillHints: const [AutofillHints.email],
                 ),
               ],
             ),
@@ -2259,6 +2261,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     String? Function(String?)? validator,
     int maxLines = 1,
     GlobalKey<FormFieldState<dynamic>>? fieldKey,
+    List<String>? autofillHints,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2282,6 +2285,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
             controller: controller,
             maxLines: maxLines,
             validator: validator,
+            autofillHints: autofillHints,
             decoration: InputDecoration(
               border: InputBorder.none,
               contentPadding:

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:eclapp/services/auth_service.dart';
 
 class BackgroundCartSyncService {
   static Timer? _syncTimer;
@@ -122,20 +123,29 @@ class BackgroundCartSyncService {
   // Sync cart data with server
   static Future<bool> _syncWithServer(Map<String, dynamic> cartData) async {
     try {
-      final token = await _getAuthToken();
-      if (token == null) {
-        debugPrint('🛒 BackgroundCartSyncService: No auth token for sync');
+      final isLoggedIn = await AuthService.isLoggedIn();
+      final token = await AuthService.getToken();
+      if (token == null || token.isEmpty) {
+        debugPrint('🛒 BackgroundCartSyncService: No auth token or guest_id for sync');
         return false;
+      }
+
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+      if (isLoggedIn) {
+        headers['Authorization'] = 'Bearer $token';
+      } else {
+        headers['Authorization'] = 'Guest $token';
+        headers['X-Guest-ID'] = token;
       }
 
       final response = await http
           .post(
             Uri.parse(
                 'https://eclcommerce.ernestchemists.com.gh/api/sync-cart'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
+            headers: headers,
             body: json.encode(cartData),
           )
           .timeout(Duration(seconds: 10));
@@ -150,16 +160,6 @@ class BackgroundCartSyncService {
     return false;
   }
 
-  // Get authentication token
-  static Future<String?> _getAuthToken() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('auth_token');
-    } catch (e) {
-      debugPrint('🛒 BackgroundCartSyncService: Error getting auth token: $e');
-      return null;
-    }
-  }
 
   // Check inventory for cart items
   static Future<void> _checkInventory() async {

@@ -79,6 +79,51 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
     }
   }
 
+  /// Scan prescription using the camera (with optional scan tips).
+  void _scanPrescription() async {
+    if (!mounted) return;
+    _showScanTipsThenCamera();
+  }
+
+  void _showScanTipsThenCamera() async {
+    final shouldOpen = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.document_scanner_rounded, color: Colors.green.shade700),
+            const SizedBox(width: 8),
+            const Text('Scan tips'),
+          ],
+        ),
+        content: const Text(
+          'For a clear scan:\n\n'
+          '• Place the prescription on a flat surface\n'
+          '• Use good lighting and avoid shadows\n'
+          '• Keep the whole prescription within the frame\n'
+          '• Hold your phone steady',
+          style: TextStyle(height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.green.shade700,
+            ),
+            child: const Text('Open camera'),
+          ),
+        ],
+      ),
+    );
+    if (shouldOpen == true && mounted) {
+      _chooseFromCamera();
+    }
+  }
+
   // take a photo with the camera
   void _chooseFromCamera() async {
     setState(() => _isLoading = true);
@@ -684,20 +729,22 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildUploadOption(
-                      icon: Icons.photo_library_rounded,
-                      title: 'Choose from Gallery',
+                      icon: Icons.document_scanner_rounded,
+                      title: 'Scan prescription',
+                      subtitle: 'Use camera to capture your prescription',
                       onTap: () {
                         Navigator.pop(context);
-                        _chooseFromGallery();
+                        _scanPrescription();
                       },
                     ),
                     const Divider(height: 1),
                     _buildUploadOption(
-                      icon: Icons.camera_alt_rounded,
-                      title: 'Take a Photo',
+                      icon: Icons.photo_library_rounded,
+                      title: 'Choose from Gallery',
+                      subtitle: 'Pick an existing photo',
                       onTap: () {
                         Navigator.pop(context);
-                        _chooseFromCamera();
+                        _chooseFromGallery();
                       },
                     ),
                   ],
@@ -714,6 +761,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
   Widget _buildUploadOption({
     required IconData icon,
     required String title,
+    String? subtitle,
     required VoidCallback onTap,
   }) {
     return InkWell(
@@ -729,18 +777,35 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
                 color: Colors.green.shade100,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: Colors.green.shade800, size: 20),
+              child: Icon(icon, color: Colors.green.shade800, size: 22),
             ),
             const SizedBox(width: 12),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey.shade900,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade900,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-            const Spacer(),
             Icon(Icons.chevron_right_rounded,
                 color: Colors.grey.shade400, size: 20),
           ],

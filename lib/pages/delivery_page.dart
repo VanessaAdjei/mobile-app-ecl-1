@@ -236,14 +236,8 @@ class DeliveryPageState extends State<DeliveryPage> {
     try {
       // load basic user data first so the ui shows up fast
       await _loadBasicUserData();
-      // check if theyre logged in
-      final isLoggedIn = await AuthService.isLoggedIn();
-      if (!isLoggedIn) {
-        return;
-      }
 
-      // if theyre logged in, get their saved address from the api
-      // use a short timeout so it doesnt hang
+      // Get saved address from API (works for both logged-in and guest users)
       try {
         final deliveryResult = await DeliveryService.getLastDeliveryInfo()
             .timeout(const Duration(
@@ -1099,6 +1093,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                   isRequired: true,
                   isHighlighted: _highlightEmailField,
                   keyboardType: TextInputType.emailAddress,
+                  autofillHints: const [AutofillHints.email],
                   onChanged: (value) {
                     setState(() {
                       _highlightEmailField = false;
@@ -1127,11 +1122,27 @@ class DeliveryPageState extends State<DeliveryPage> {
             ),
             const SizedBox(height: 10),
             Container(
+              key: addressSectionKey,
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                color: (_highlightRegionField ||
+                        _highlightCityField ||
+                        _highlightAddressField)
+                    ? Colors.red.shade50
+                    : Colors.grey.shade50,
                 borderRadius: BorderRadius.circular(_fieldRadius),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(
+                  color: (_highlightRegionField ||
+                          _highlightCityField ||
+                          _highlightAddressField)
+                      ? Colors.red.shade300
+                      : Colors.grey.shade200,
+                  width: (_highlightRegionField ||
+                          _highlightCityField ||
+                          _highlightAddressField)
+                      ? 2
+                      : 1,
+                ),
               ),
               child: Column(
                 children: [
@@ -1252,6 +1263,7 @@ class DeliveryPageState extends State<DeliveryPage> {
     required bool isHighlighted,
     required Function(String) onChanged,
     TextInputType? keyboardType,
+    List<String>? autofillHints,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1282,6 +1294,7 @@ class DeliveryPageState extends State<DeliveryPage> {
           key: key,
           controller: controller,
           keyboardType: keyboardType,
+          autofillHints: autofillHints,
           decoration: InputDecoration(
             prefixIcon: Icon(
               icon,
@@ -1435,11 +1448,13 @@ class DeliveryPageState extends State<DeliveryPage> {
         print('data: ${result['data']}');
       }
 
-      final closestStore = result['closest_store'];
-      final distanceText = closestStore?['distance_text']?.toString();
+      final closestStore = result['closest_store'] ?? result['data']?['closest_store'];
+      final distanceText = closestStore?['distance_text']?.toString() ??
+          result['distance_text']?.toString() ??
+          result['data']?['distance_text']?.toString();
 
-      // Use only the API for delivery fee (no manual calculation).
-      if (distanceText != null && distanceText.isNotEmpty) {
+      // Fetch delivery fee from API, with local fallback if API fails
+      if (distanceText != null && distanceText.isNotEmpty && mounted) {
         final feeResult = await DeliveryService.fetchDeliveryFeeFromApi(
           distanceText: distanceText,
         );
@@ -1452,6 +1467,19 @@ class DeliveryPageState extends State<DeliveryPage> {
           });
           print(
               '📦 Delivery fee from API: distance=$distanceKm km, delivery_fee=GHS ${feeValue.toStringAsFixed(2)}');
+        } else {
+          // API failed (auth, timeout, etc.) - use local calculation as fallback
+          final fallback = DeliveryService.calculateDeliveryFeeFromDistanceText(
+            distanceText,
+          );
+          if (fallback != null && mounted) {
+            setState(() {
+              deliveryFee = fallback['fee']!;
+              _distanceKm = fallback['distanceKm'];
+            });
+            print(
+                '📦 Delivery fee (local fallback): distance=${fallback['distanceKm']} km, fee=GHS ${fallback['fee']?.toStringAsFixed(2)}');
+          }
         }
       }
 
@@ -1758,7 +1786,8 @@ class DeliveryPageState extends State<DeliveryPage> {
                 isValid = false;
               });
               _scrollToError(emailSectionKey, errorType: 'email');
-            } else if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+            } else if (!RegExp(
+                    r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
                 .hasMatch(_emailController.text.trim())) {
               setState(() {
                 _highlightEmailField = true;
@@ -1767,34 +1796,18 @@ class DeliveryPageState extends State<DeliveryPage> {
               _scrollToError(emailSectionKey, errorType: 'email');
             }
 
-            // Validate region
+            // Validate delivery location (region, city, address - all from map picker)
             if (deliveryOption == 'delivery' &&
-                _regionController.text.trim().isEmpty) {
+                (_regionController.text.trim().isEmpty ||
+                    _cityController.text.trim().isEmpty ||
+                    _addressController.text.trim().isEmpty)) {
               setState(() {
                 _highlightRegionField = true;
-                isValid = false;
-              });
-              _scrollToError(regionSectionKey, errorType: 'region');
-            }
-
-            // Validate city
-            if (deliveryOption == 'delivery' &&
-                _cityController.text.trim().isEmpty) {
-              setState(() {
                 _highlightCityField = true;
-                isValid = false;
-              });
-              _scrollToError(citySectionKey, errorType: 'city');
-            }
-
-            // Validate address
-            if (deliveryOption == 'delivery' &&
-                _addressController.text.trim().isEmpty) {
-              setState(() {
                 _highlightAddressField = true;
                 isValid = false;
               });
-              _scrollToError(addressSectionKey, errorType: 'address');
+              _scrollToError(addressSectionKey, errorType: 'delivery location');
             }
 
             // Validate phone number
@@ -1826,20 +1839,46 @@ class DeliveryPageState extends State<DeliveryPage> {
             }
 
             if (!isValid) {
+              // Build specific message so user knows what to fix
+              String message = 'Please fix the following: ';
+              final missing = <String>[];
+              if (_nameController.text.trim().isEmpty) missing.add('name');
+              if (_emailController.text.trim().isEmpty ||
+                  !RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+                      .hasMatch(_emailController.text.trim())) {
+                missing.add('email');
+              }
+              if (_phoneController.text.isEmpty ||
+                  _phoneController.text.length != 10) {
+                missing.add('phone (10 digits)');
+              }
+              if (deliveryOption == 'delivery') {
+                if (_addressController.text.trim().isEmpty ||
+                    _regionController.text.trim().isEmpty ||
+                    _cityController.text.trim().isEmpty) {
+                  missing.add('delivery address (tap "Pick location on map")');
+                }
+              }
+              if (deliveryOption == 'pickup' &&
+                  (selectedRegion == null ||
+                      selectedCity == null ||
+                      selectedPickupSite == null)) {
+                missing.add('pickup location');
+              }
+              message += missing.join(', ');
+
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Row(
                     children: [
                       Icon(Icons.error_outline, color: Colors.white),
                       SizedBox(width: 8),
-                      Expanded(
-                        child:
-                            Text('Please fill all required fields correctly'),
-                      ),
+                      Expanded(child: Text(message)),
                     ],
                   ),
                   backgroundColor: Colors.red[600],
                   behavior: SnackBarBehavior.floating,
+                  duration: Duration(seconds: 4),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -2194,29 +2233,25 @@ class DeliveryPageState extends State<DeliveryPage> {
             print('   📍 Stored coordinates: ($_latitude, $_longitude)');
             print('🗺️ [MAP PICKER] ======================================');
 
-            // If address was provided from map picker (from Places API), use it
-            // Otherwise, do reverse geocoding
-            if (address != null &&
-                address.isNotEmpty &&
-                address != 'Unknown location' &&
-                address != 'Address not found') {
-              // Use the address from map picker (which includes the place name from Places API)
-              setState(() {
-                _addressController.text = address;
-              });
-              print('🗺️ [MAP PICKER] Using address from map picker: $address');
-            } else {
-              // Fallback to reverse geocoding if no address provided
-              _getAddressFromCoordinates(lat, lng);
-            }
+            // Always run reverse geocoding to populate region and city (required for validation).
+            // If Places API gave us an address, pass it so we use it for the address field.
+            final preferredAddress = (address != null &&
+                    address.isNotEmpty &&
+                    address != 'Unknown location' &&
+                    address != 'Address not found')
+                ? address
+                : null;
+            _getAddressFromCoordinates(lat, lng, preferredAddress: preferredAddress);
           },
         ),
       ),
     );
   }
 
-  /// Get address from coordinates using reverse geocoding
-  Future<void> _getAddressFromCoordinates(double lat, double lng) async {
+  /// Get address from coordinates using reverse geocoding.
+  /// [preferredAddress] if provided, is used for the address field instead of the placemark-built address.
+  Future<void> _getAddressFromCoordinates(double lat, double lng,
+      {String? preferredAddress}) async {
     try {
       print(
           '🔄 [REVERSE GEOCODING] Getting address from coordinates: ($lat, $lng)');
@@ -2286,9 +2321,15 @@ class DeliveryPageState extends State<DeliveryPage> {
                   '🗺️ [REVERSE GEOCODING] Updated city: ${placemark.locality}');
             }
 
-            // Update address field with the readable address
-            _addressController.text = address.trim();
-            print('🗺️ [REVERSE GEOCODING] Updated address: $address');
+            // Update address field: use preferred (e.g. from Places) or placemark-built
+            _addressController.text =
+                (preferredAddress ?? address).trim();
+            print('🗺️ [REVERSE GEOCODING] Updated address: ${preferredAddress ?? address}');
+
+            // Clear validation highlights since user picked a valid location
+            _highlightRegionField = false;
+            _highlightCityField = false;
+            _highlightAddressField = false;
 
             // Update delivery fee since region/city changed
             _updateDeliveryFee();
@@ -2473,15 +2514,17 @@ class DeliveryPageState extends State<DeliveryPage> {
                 '📋 [REGIONS] Allowed regions: ${regions.map((r) => r['description']).toList()}');
             isLoadingRegions = false;
 
-            // Validate pre-filled region value after regions are loaded
+            // Validate pre-filled region value - use flexible matching
             if (_regionController.text.isNotEmpty) {
-              final regionExists = regions
-                  .any((r) => r['description'] == _regionController.text);
+              final regionVal = _regionController.text.trim().toLowerCase();
+              final regionExists = regions.any((r) {
+                final desc = (r['description'] ?? '').toString().toLowerCase();
+                return desc == regionVal || desc.contains(regionVal) || regionVal.contains(desc);
+              });
               if (!regionExists) {
-                // Clear invalid region value to prevent dropdown errors
                 _regionController.clear();
                 print(
-                    '⚠️ [REGIONS] Pre-filled region "${_regionController.text}" not found in regions list, cleared');
+                    '⚠️ [REGIONS] Pre-filled region not in allowed list, cleared');
               }
             }
           });
@@ -2566,15 +2609,17 @@ class DeliveryPageState extends State<DeliveryPage> {
                 uniqueCities.values.toList(); // Cache the deduplicated result
             isLoadingCities = false;
 
-            // Validate pre-filled city value after cities are loaded
+            // Validate pre-filled city value - use flexible matching
             if (_cityController.text.isNotEmpty) {
-              final cityExists =
-                  cities.any((c) => c['description'] == _cityController.text);
+              final cityVal = _cityController.text.trim().toLowerCase();
+              final cityExists = cities.any((c) {
+                final desc = (c['description'] ?? '').toString().toLowerCase();
+                return desc == cityVal || desc.contains(cityVal) || cityVal.contains(desc);
+              });
               if (!cityExists) {
-                // Clear invalid city value to prevent dropdown errors
                 _cityController.clear();
                 print(
-                    '⚠️ [CITIES] Pre-filled city "${_cityController.text}" not found in cities list, cleared');
+                    '⚠️ [CITIES] Pre-filled city not in cities list, cleared');
               }
             }
           });

@@ -1907,7 +1907,9 @@ class CODPaymentService {
 
       // Add authorization header if token is provided
       if (authToken != null && authToken.isNotEmpty) {
-        if (authToken.startsWith('guest_')) {
+        // Use isLoggedIn context: if passed token looks like guest_id, use Guest header
+        // For guests, any token from getToken() is guest_id
+        if (authToken.startsWith('guest_') || authToken.startsWith('0|')) {
           headers['Authorization'] = 'Guest $authToken';
           headers['X-Guest-ID'] = authToken;
         } else {

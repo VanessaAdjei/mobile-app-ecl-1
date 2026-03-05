@@ -20,6 +20,7 @@ import 'homepage.dart';
 import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/cart_icon_button.dart';
+import '../widgets/full_screen_image_viewer.dart';
 import '../widgets/optimized_quantity_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/universal_page_optimization_service.dart';
@@ -583,17 +584,26 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
   }
 
   Widget _buildProductImageGallery() {
-    return Animate(
-      effects: [
-        FadeEffect(duration: 400.ms),
-        SlideEffect(duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
-      ],
-      child: Container(
-        height: 220,
-        margin: EdgeInsets.symmetric(vertical: 2),
-        child: Stack(
-          children: [
-            PageView.builder(
+    final imageUrls = _productImages.isNotEmpty
+        ? _productImages
+        : [widget.product.thumbnail];
+    return GestureDetector(
+      onTap: () => FullScreenImageViewer.show(
+        context,
+        imageUrls: imageUrls,
+        initialIndex: _currentImageIndex,
+      ),
+      child: Animate(
+        effects: [
+          FadeEffect(duration: 400.ms),
+          SlideEffect(duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
+        ],
+        child: Container(
+          height: 220,
+          margin: EdgeInsets.symmetric(vertical: 2),
+          child: Stack(
+            children: [
+              PageView.builder(
               controller: _imagePageController,
               onPageChanged: (index) {
                 setState(() {
@@ -681,7 +691,8 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
                   ),
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );

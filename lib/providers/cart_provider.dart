@@ -336,10 +336,14 @@ class CartProvider with ChangeNotifier {
           // Save to local storage after UI update
           await _saveUserCarts();
         } else {
-          debugPrint('Cart sync condition not met');
+          debugPrint('⚠️ Cart sync failed: Missing "cart_items" in server response');
+          debugPrint('Response body: ${response.body}');
         }
       } else {
-        debugPrint('Cart sync condition not met');
+        debugPrint('⚠️ Cart sync failed: Server returned status code ${response.statusCode}');
+        if (response.statusCode >= 400) {
+          debugPrint('Response body: ${response.body}');
+        }
       }
     } catch (e) {
       debugPrint('Cart sync error: $e');
@@ -976,8 +980,12 @@ class CartProvider with ChangeNotifier {
   // Track ongoing quantity updates - using Set for automatic cleanup
   final Set<String> _updatingItemIds = {};
 
-  // Method to check if an item is currently being updated
-  bool isItemUpdating(String itemId) {
+  // Method to check if an item is currently being updated.
+  // Pass [rowIndex] so only that row shows the loader when multiple items share the same id.
+  bool isItemUpdating(String itemId, [int? rowIndex]) {
+    if (rowIndex != null) {
+      return _updatingItemIds.contains('${itemId}_$rowIndex');
+    }
     return _updatingItemIds.contains(itemId);
   }
 
@@ -1019,8 +1027,9 @@ class CartProvider with ChangeNotifier {
     }
   }
 
-  // New method that uses item ID instead of index
-  Future<void> updateQuantityById(String itemId, int newQuantity) async {
+  // New method that uses item ID instead of index.
+  // Pass [rowIndex] so only that row shows the loader (avoids loader on other items when ids duplicate).
+  Future<void> updateQuantityById(String itemId, int newQuantity, {int? rowIndex}) async {
     debugPrint('🔍🔍🔍 QUANTITY UPDATE REQUESTED 🔍🔍🔍');
     debugPrint('🔍 CartProvider: updateQuantityById called');
     debugPrint('🔍 CartProvider: Item ID: $itemId');
@@ -1054,6 +1063,9 @@ class CartProvider with ChangeNotifier {
 
     debugPrint('✅ Quantity updated locally - will sync with server');
 
+    // Loader key: use row index so only this row shows loader, not others with same id
+    final loaderKey = rowIndex != null ? '${itemId}_$rowIndex' : itemId;
+
     // Use _withLoader to automatically manage loader lifecycle
     // Check if user is logged in OR has a guest_id
     final isLoggedIn = await AuthService.isLoggedIn();
@@ -1069,7 +1081,7 @@ class CartProvider with ChangeNotifier {
       debugPrint(
           '✅ Token found (${isLoggedIn ? "logged in" : "guest"}), proceeding with API sync');
       try {
-        await _withLoader(itemId, () async {
+        await _withLoader(loaderKey, () async {
           await _simpleQuantityUpdate(item, newQuantity);
         });
       } catch (e) {

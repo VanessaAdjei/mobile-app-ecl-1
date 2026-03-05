@@ -139,9 +139,6 @@ Future<void> _initializeApp() async {
   debugPrint(
       '🚀 Main: Essential data prefetched in ${prefetchTime.inMilliseconds}ms');
 
-  // start background stuff right away, dont wait
-  unawaited(_initBackground());
-
   debugPrint('🚀 Main: Cold start completed');
 }
 

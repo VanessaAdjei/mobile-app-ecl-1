@@ -109,7 +109,10 @@ class DeliveryService {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
         if (isLoggedIn) 'Authorization': 'Bearer $token',
-        if (!isLoggedIn && guestId != null) 'Authorization': 'Guest $guestId',
+        if (!isLoggedIn && guestId != null) ...{
+          'Authorization': 'Guest $guestId',
+          'X-Guest-ID': guestId,
+        },
       };
 
       final response = await http
@@ -136,13 +139,15 @@ class DeliveryService {
         final closestStore = data['closest_store'];
         final selectedStoreDescription = data['selected_store_description'];
 
-        if (closestStore != null) {
+        // Also check nested data.data (some APIs wrap response)
+        final resolvedStore = closestStore ?? data['data']?['closest_store'];
+        if (resolvedStore != null) {
           debugPrint('Closest store found:');
-          debugPrint('  - ID: ${closestStore['id']}');
-          debugPrint('  - Lat: ${closestStore['lat']}');
-          debugPrint('  - Lng: ${closestStore['lng']}');
-          debugPrint('  - Distance: ${closestStore['distance_text']}');
-          debugPrint('  - Duration: ${closestStore['duration_text']}');
+          debugPrint('  - ID: ${resolvedStore['id']}');
+          debugPrint('  - Lat: ${resolvedStore['lat']}');
+          debugPrint('  - Lng: ${resolvedStore['lng']}');
+          debugPrint('  - distance_text: ${resolvedStore['distance_text']}');
+          debugPrint('  - Duration: ${resolvedStore['duration_text']}');
         }
 
         if (selectedStoreDescription != null) {
@@ -156,7 +161,7 @@ class DeliveryService {
           'message':
               data['message'] ?? 'Delivery information saved successfully',
           'status': data['status'] ?? 'success',
-          'closest_store': closestStore,
+          'closest_store': resolvedStore,
           'selected_store_description': selectedStoreDescription,
           'data': data, // keep the original data just in case we need it later
         };
@@ -185,12 +190,34 @@ class DeliveryService {
   // get the last address they saved
   static Future<Map<String, dynamic>> getLastDeliveryInfo() async {
     try {
-      final token = await AuthService.getToken();
-      if (token == null) {
-        return {
-          'success': false,
-          'message': 'Authentication required. Please log in again.',
-        };
+      final isLoggedIn = await AuthService.isLoggedIn();
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      };
+
+      if (isLoggedIn) {
+        // Use getAuthHeaders for consistent auth - prefers in-memory token (avoids keychain/SharedPreferences sync issues)
+        final authHeaders = await AuthService.getAuthHeaders();
+        final authHeader = authHeaders['Authorization'];
+        if (authHeader == null || authHeader.isEmpty) {
+          return {
+            'success': false,
+            'message': 'Authentication required. Please log in again.',
+          };
+        }
+        headers['Authorization'] = authHeader;
+      } else {
+        final prefs = await SharedPreferences.getInstance();
+        final guestId = prefs.getString('guest_id');
+        if (guestId == null || guestId.isEmpty) {
+          return {
+            'success': false,
+            'message': 'Guest session required. Please try again.',
+          };
+        }
+        headers['X-Guest-ID'] = guestId;
+        headers['Authorization'] = 'Guest $guestId';
       }
 
       debugPrint('Fetching last delivery info from API...');
@@ -198,14 +225,13 @@ class DeliveryService {
           'API URL: https://eclcommerce.ernestchemists.com.gh/api/get-billing-add');
 
       // call the api to get their saved address
-      final response = await http.get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/get-billing-add'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse(
+                'https://eclcommerce.ernestchemists.com.gh/api/get-billing-add'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -291,6 +317,14 @@ class DeliveryService {
           'data': null,
           'message': 'No previous delivery information found',
         };
+      } else if (response.statusCode == 401) {
+        // Unauthorized (expired token or invalid guest_id) - treat as no saved address
+        debugPrint('=== API GET - UNAUTHORIZED (treating as no saved address) ===');
+        return {
+          'success': true,
+          'data': null,
+          'message': 'No previous delivery information found',
+        };
       } else {
         final errorData = json.decode(response.body);
         debugPrint('=== API GET ERROR ===');
@@ -347,16 +381,32 @@ class DeliveryService {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
         if (isLoggedIn) 'Authorization': 'Bearer $token',
-        if (!isLoggedIn && guestId != null) 'Authorization': 'Guest $guestId',
+        if (!isLoggedIn && guestId != null) ...{
+          'Authorization': 'Guest $guestId',
+          'X-Guest-ID': guestId,
+        },
       };
-      final body = json.encode({'distance_text': distanceText});
+      // API expects "distance_text" - try JSON body first
+      final jsonBody = json.encode({'distance_text': distanceText.trim()});
+      final formBody = 'distance_text=${Uri.encodeComponent(distanceText.trim())}';
 
       print('📤 [CALCULATE-DELIVERY-FEE] Calling API: $url');
-      print('📤 [CALCULATE-DELIVERY-FEE] Request body: $body');
+      print('📤 [CALCULATE-DELIVERY-FEE] distance_text: "$distanceText"');
 
-      final response = await http
-          .post(Uri.parse(url), headers: headers, body: body)
-          .timeout(const Duration(seconds: 5));
+      var response = await http
+          .post(Uri.parse(url), headers: headers, body: jsonBody)
+          .timeout(const Duration(seconds: 10));
+
+      // If JSON fails (401, 422, etc), try form-urlencoded
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        final formHeaders = <String, String>{
+          ...headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        };
+        response = await http
+            .post(Uri.parse(url), headers: formHeaders, body: formBody)
+            .timeout(const Duration(seconds: 10));
+      }
 
       print('📥 [CALCULATE-DELIVERY-FEE] Response status: ${response.statusCode}');
       print('📥 [CALCULATE-DELIVERY-FEE] Response body: ${response.body}');

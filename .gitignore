@@ -1,3 +1,8 @@
+# Environment / secrets (do not commit)
+.env
+.env.*
+!.env.example
+
 # Miscellaneous
 *.class
 *.log

@@ -13,8 +13,9 @@ class OptimizedApiService {
   OptimizedApiService._internal();
 
   // HTTP client with optimized settings
-  late final http.Client _httpClient;
-  late final Dio _dioClient;
+  http.Client? _httpClient;
+  Dio? _dioClient;
+  bool _initialized = false;
 
   // Base URL
   static const String _baseUrl =
@@ -23,12 +24,11 @@ class OptimizedApiService {
   // Request timeout
   static const Duration _timeout = Duration(seconds: 15);
 
-  // Retry configuration
-
-  // Initialize the service
+  // Initialize the service (idempotent - safe to call multiple times)
   Future<void> initialize() async {
+    if (_initialized) return;
+    _initialized = true;
     _httpClient = http.Client();
-
     _dioClient = Dio(BaseOptions(
       baseUrl: _baseUrl,
       connectTimeout: _timeout,
@@ -37,7 +37,7 @@ class OptimizedApiService {
     ));
 
     // Add interceptors for logging and error handling
-    _dioClient.interceptors.add(LogInterceptor(
+    _dioClient!.interceptors.add(LogInterceptor(
       requestBody: false,
       responseBody: false,
       logPrint: (obj) => debugPrint(obj.toString()),
@@ -61,7 +61,7 @@ class OptimizedApiService {
       final response = await optimizationService.getCachedResponse(
         requestKey,
         () async {
-          final response = await _httpClient
+          final response = await _httpClient!
               .get(
                 Uri.parse('$_baseUrl$endpoint'),
                 headers: headers,
@@ -102,7 +102,7 @@ class OptimizedApiService {
     optimizationService.startTimer('API_POST_$endpoint');
 
     try {
-      final response = await _httpClient
+      final response = await _httpClient!
           .post(
             Uri.parse('$_baseUrl$endpoint'),
             headers: {
@@ -143,7 +143,7 @@ class OptimizedApiService {
     optimizationService.startTimer('API_PUT_$endpoint');
 
     try {
-      final response = await _httpClient
+      final response = await _httpClient!
           .put(
             Uri.parse('$_baseUrl$endpoint'),
             headers: {
@@ -183,7 +183,7 @@ class OptimizedApiService {
     optimizationService.startTimer('API_DELETE_$endpoint');
 
     try {
-      final response = await _httpClient
+      final response = await _httpClient!
           .delete(
             Uri.parse('$_baseUrl$endpoint'),
             headers: headers,
@@ -226,8 +226,8 @@ class OptimizedApiService {
 
   // Dispose resources
   void dispose() {
-    _httpClient.close();
-    _dioClient.close();
+    _httpClient?.close();
+    _dioClient?.close();
   }
 }
 
