@@ -1,8 +1,8 @@
 // pages/paymentwebview.dart
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'payment_page.dart';
 import '../models/cart_item.dart';
+import 'post_checkout_order_page.dart';
 import '../services/auth_service.dart';
 
 class PaymentWebView extends StatefulWidget {
@@ -11,6 +11,12 @@ class PaymentWebView extends StatefulWidget {
   final Map<String, dynamic> paymentParams;
   final List<CartItem> purchasedItems;
   final String paymentMethod;
+  final String deliveryAddress;
+  final String contactNumber;
+  final String deliveryOption;
+  final String estimatedDeliveryTime;
+  final double deliveryFee;
+  final double discount;
 
   const PaymentWebView({
     super.key,
@@ -18,6 +24,12 @@ class PaymentWebView extends StatefulWidget {
     required this.paymentParams,
     required this.purchasedItems,
     required this.paymentMethod,
+    required this.deliveryAddress,
+    required this.contactNumber,
+    required this.deliveryOption,
+    required this.estimatedDeliveryTime,
+    required this.deliveryFee,
+    required this.discount,
     this.onPaymentComplete,
   });
 
@@ -45,7 +57,9 @@ class PaymentWebViewState extends State<PaymentWebView> {
           Navigator.pop(context, false);
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Auth refresh check failed: $e');
+    }
   }
 
   void _navigateToConfirmation(bool success) async {
@@ -54,25 +68,26 @@ class PaymentWebViewState extends State<PaymentWebView> {
 
     if (!mounted) return;
 
-    // dont create notification here, wait for actual payment verification
-    // notification will be created in OrderConfirmationPage after verification
-
     // first close the webview
     Navigator.pop(context);
 
-    // then go to the confirmation page
+    // then go to the unified post-checkout order page
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => OrderConfirmationPage(
+        builder: (context) => PostCheckoutOrderPage(
           paymentParams: widget.paymentParams,
           purchasedItems: widget.purchasedItems,
-          initialStatus: success ? 'pending' : 'error',
-          initialTransactionId: widget.paymentParams['order_id'],
-          paymentSuccess: success,
-          paymentVerified: false,
-          paymentToken: null,
+          initialTransactionId:
+              widget.paymentParams['order_id']?.toString() ?? '',
           paymentMethod: widget.paymentMethod,
+          deliveryAddress: widget.deliveryAddress,
+          contactNumber: widget.contactNumber,
+          deliveryOption: widget.deliveryOption,
+          estimatedDeliveryTime: widget.estimatedDeliveryTime,
+          deliveryFee: widget.deliveryFee,
+          discount: widget.discount,
+          initialStatus: success ? 'pending' : 'failed',
         ),
       ),
     );
@@ -319,7 +334,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
         } catch (e) {
           debugPrint('Error showing cancel dialog: $e');
           // if dialog fails, just go back with safety checks
-          if (mounted) {
+          if (context.mounted) {
             try {
               if (Navigator.canPop(context)) {
                 Navigator.pop(context, false);

@@ -12,6 +12,13 @@ import 'package:flutter/foundation.dart';
 class DeliveryService {
   static const String baseUrl = ApiConfig.baseUrl;
 
+  /// Timeout for delivery API calls. Shorter = fail fast and use local fallback.
+  static const Duration _apiTimeout = Duration(seconds: 5);
+
+  /// In-memory cache for delivery fee by distance_text to avoid repeated slow API calls.
+  static final Map<String, Map<String, dynamic>> _feeCache = {};
+  static const int _feeCacheMaxEntries = 20;
+
   // Delivery pricing constants
   // Base fee = 20
   // Base distance = 3 km
@@ -122,7 +129,7 @@ class DeliveryService {
             headers: headers,
             body: json.encode(requestBody),
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(_apiTimeout);
 
       debugPrint('Save delivery info response status: ${response.statusCode}');
       debugPrint('Save delivery info response headers: ${response.headers}');
@@ -231,7 +238,7 @@ class DeliveryService {
                 'https://eclcommerce.ernestchemists.com.gh/api/get-billing-add'),
             headers: headers,
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(_apiTimeout);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -349,14 +356,19 @@ class DeliveryService {
 
   /// Call /calculate-delivery-fee API with distance_text (e.g. "1.9 km").
   /// Returns { distance: num, delivery_fee: double } or null on failure.
-  /// API response format: { "distance": 4, "delivery_fee": "44.00" }
+  /// Results are cached by distance_text to avoid repeated slow API calls.
   static Future<Map<String, dynamic>?> fetchDeliveryFeeFromApi({
     required String distanceText,
   }) async {
     try {
-      if (distanceText.trim().isEmpty) {
+      final key = distanceText.trim();
+      if (key.isEmpty) {
         debugPrint('calculate-delivery-fee: distance_text is empty');
         return null;
+      }
+      if (_feeCache.containsKey(key)) {
+        debugPrint('calculate-delivery-fee: cache hit for "$key"');
+        return Map<String, dynamic>.from(_feeCache[key]!);
       }
       final isLoggedIn = await AuthService.isLoggedIn();
       String? token;
@@ -395,7 +407,7 @@ class DeliveryService {
 
       var response = await http
           .post(Uri.parse(url), headers: headers, body: jsonBody)
-          .timeout(const Duration(seconds: 10));
+          .timeout(_apiTimeout);
 
       // If JSON fails (401, 422, etc), try form-urlencoded
       if (response.statusCode != 200 && response.statusCode != 201) {
@@ -405,7 +417,7 @@ class DeliveryService {
         };
         response = await http
             .post(Uri.parse(url), headers: formHeaders, body: formBody)
-            .timeout(const Duration(seconds: 10));
+            .timeout(_apiTimeout);
       }
 
       print('📥 [CALCULATE-DELIVERY-FEE] Response status: ${response.statusCode}');
@@ -435,10 +447,15 @@ class DeliveryService {
           ? distance.toDouble()
           : (distance != null ? double.tryParse(distance.toString()) : null);
 
-      return {
+      final result = <String, dynamic>{
         'distance': distanceKm,
         'delivery_fee': feeValue,
       };
+      if (_feeCache.length >= _feeCacheMaxEntries) {
+        _feeCache.remove(_feeCache.keys.first);
+      }
+      _feeCache[key] = result;
+      return result;
     } catch (e) {
       print('❌ [CALCULATE-DELIVERY-FEE] Error: $e');
       return null;
@@ -524,7 +541,7 @@ class DeliveryService {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(_apiTimeout);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);

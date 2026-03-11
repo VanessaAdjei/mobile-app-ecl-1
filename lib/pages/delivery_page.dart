@@ -1453,42 +1453,40 @@ class DeliveryPageState extends State<DeliveryPage> {
           result['distance_text']?.toString() ??
           result['data']?['distance_text']?.toString();
 
-      // Fetch delivery fee from API, with local fallback if API fails
-      if (distanceText != null && distanceText.isNotEmpty && mounted) {
-        final feeResult = await DeliveryService.fetchDeliveryFeeFromApi(
-          distanceText: distanceText,
-        );
-        if (feeResult != null && mounted) {
-          final feeValue = feeResult['delivery_fee'] as double;
-          final distanceKm = feeResult['distance'] as double?;
-          setState(() {
-            deliveryFee = feeValue;
-            _distanceKm = distanceKm;
-          });
-          print(
-              '📦 Delivery fee from API: distance=$distanceKm km, delivery_fee=GHS ${feeValue.toStringAsFixed(2)}');
-        } else {
-          // API failed (auth, timeout, etc.) - use local calculation as fallback
-          final fallback = DeliveryService.calculateDeliveryFeeFromDistanceText(
-            distanceText,
-          );
-          if (fallback != null && mounted) {
-            setState(() {
-              deliveryFee = fallback['fee']!;
-              _distanceKm = fallback['distanceKm'];
-            });
-            print(
-                '📦 Delivery fee (local fallback): distance=${fallback['distanceKm']} km, fee=GHS ${fallback['fee']?.toStringAsFixed(2)}');
-          }
-        }
+      // Update ETA immediately when we have it
+      if (closestStore != null && closestStore['duration_text'] != null && mounted) {
+        setState(() {
+          _apiDeliveryTime = closestStore['duration_text'];
+        });
       }
 
-      if (result['estimated_delivery_time'] != null &&
-          closestStore != null &&
-          closestStore['duration_text'] != null) {
-        final durationText = closestStore['duration_text'];
-        setState(() {
-          _apiDeliveryTime = durationText;
+      // Show local fee immediately so UI doesn't wait for the (slow) fee API
+      if (distanceText != null && distanceText.isNotEmpty && mounted) {
+        final localFallback = DeliveryService.calculateDeliveryFeeFromDistanceText(
+          distanceText,
+        );
+        if (localFallback != null) {
+          setState(() {
+            deliveryFee = localFallback['fee']!;
+            _distanceKm = localFallback['distanceKm'];
+          });
+          print(
+              '📦 Delivery fee (local, instant): distance=${localFallback['distanceKm']} km, fee=GHS ${localFallback['fee']?.toStringAsFixed(2)}');
+        }
+
+        // Refine with API in background (cache or network); update UI when it returns
+        DeliveryService.fetchDeliveryFeeFromApi(distanceText: distanceText)
+            .then((feeResult) {
+          if (feeResult != null && mounted) {
+            final feeValue = feeResult['delivery_fee'] as double;
+            final distanceKm = feeResult['distance'] as double?;
+            setState(() {
+              deliveryFee = feeValue;
+              _distanceKm = distanceKm;
+            });
+            print(
+                '📦 Delivery fee (API): distance=$distanceKm km, delivery_fee=GHS ${feeValue.toStringAsFixed(2)}');
+          }
         });
       }
     } catch (e) {

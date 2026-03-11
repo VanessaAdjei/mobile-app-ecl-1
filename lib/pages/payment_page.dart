@@ -15,10 +15,7 @@ import 'package:flutter/services.dart';
 import '../models/cart_item.dart';
 import 'order_tracking_page.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'cart.dart';
 import '../services/order_notification_service.dart';
-import '../providers/wallet_provider.dart';
-import '../services/notification_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config/api_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -364,6 +361,13 @@ class PaymentPageState extends State<PaymentPage> {
               paymentParams: params,
               purchasedItems: purchasedItems,
               paymentMethod: selectedPaymentMethod,
+              deliveryAddress: widget.deliveryAddress ?? '',
+              contactNumber: widget.contactNumber ?? _phoneNumber,
+              deliveryOption: widget.deliveryOption,
+              estimatedDeliveryTime:
+                  widget.estimatedDeliveryTime ?? 'Calculating ETA',
+              deliveryFee: deliveryFee,
+              discount: _discountAmount,
               onPaymentComplete: (success, token) async {
                 if (success && token != null) {
                   try {
@@ -760,8 +764,6 @@ class PaymentPageState extends State<PaymentPage> {
     final bool isCompleted = _slidePosition >= threshold;
     final bool wasCompleted =
         _slidePosition >= threshold - 10; // For haptic feedback
-    final double progress = (_slidePosition / maxSlideDistance).clamp(0.0, 1.0);
-
     return GestureDetector(
       onHorizontalDragStart: (_) {
         if (!_isProcessingPayment && cart.getSelectedItems().isNotEmpty) {
@@ -1487,12 +1489,6 @@ class PaymentPageState extends State<PaymentPage> {
   /// Build delivery information box
   Widget _buildDeliveryInfo() {
     // Force the delivery info to show even if data is missing (for debugging)
-    final hasData = (widget.deliveryAddress != null &&
-            widget.deliveryAddress!.isNotEmpty) ||
-        (widget.contactNumber != null && widget.contactNumber!.isNotEmpty) ||
-        (widget.estimatedDeliveryTime != null &&
-            widget.estimatedDeliveryTime!.isNotEmpty);
-
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
@@ -1806,10 +1802,10 @@ class PaymentPageState extends State<PaymentPage> {
   }
 
   void _showPaymentFailureDialog(String error) {
-    final displayMessage = error
-        .replaceFirst(RegExp(r'^Exception:\s*'), '')
-        .trim();
-    final message = displayMessage.isNotEmpty && displayMessage != 'Payment Failed, try again'
+    final displayMessage =
+        error.replaceFirst(RegExp(r'^Exception:\s*'), '').trim();
+    final message = displayMessage.isNotEmpty &&
+            displayMessage != 'Payment Failed, try again'
         ? displayMessage
         : 'Something went wrong. Please check your details and try again.';
 
@@ -2498,7 +2494,8 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: statusColor,
                   side: BorderSide(color: statusColor),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8)),
                 ),

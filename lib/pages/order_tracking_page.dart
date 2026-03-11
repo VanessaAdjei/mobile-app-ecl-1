@@ -971,13 +971,18 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     Color statusColor;
     String statusText;
 
-    final s = status.toLowerCase();
-    if (s.contains('deliver') || s == 'completed') {
+    final s = status.toLowerCase().trim();
+    // Check "out for delivery" / "shipped" BEFORE "delivered" (since "out for delivery" contains "deliver")
+    if (s.contains('out for delivery') || s.contains('out_for_delivery') ||
+        s.contains('shipped') || s == 'shipped' || s.contains('out for')) {
+      statusColor = Colors.blue.shade600;
+      statusText = 'Out for Delivery';
+    } else if (s.contains('delivered') || s == 'delivered' || s == 'completed') {
       statusColor = Colors.green.shade600;
       statusText = 'Delivered';
-    } else if (s.contains('ship') || s == 'out for delivery') {
+    } else if (s.contains('ship')) {
       statusColor = Colors.blue.shade600;
-      statusText = 'Shipped';
+      statusText = 'Out for Delivery';
     } else if (s.contains('paid') || s.contains('confirm') || s == 'processing' ||
         s == 'payment received' || s == 'payment verified' || s == 'pending confirmation') {
       statusColor = Colors.orange.shade600;
@@ -1310,9 +1315,9 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         'icon': Icons.verified_rounded
       },
       {
-        'title': 'Shipped',
+        'title': 'Out for Delivery',
         'status': 'shipped',
-        'icon': Icons.local_shipping_rounded
+        'icon': Icons.delivery_dining_rounded
       },
       {
         'title': 'Delivered',
@@ -1330,9 +1335,12 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         normalizedStatus == 'processing' || normalizedStatus == 'payment received' ||
         normalizedStatus == 'payment verified' || normalizedStatus == 'pending confirmation') {
       timelineStatus = 'processing';
-    } else if (normalizedStatus.contains('ship') || normalizedStatus == 'out for delivery') {
+    } else if (normalizedStatus.contains('out for delivery') || normalizedStatus.contains('out_for_delivery') ||
+        normalizedStatus.contains('shipped') || normalizedStatus == 'shipped' || normalizedStatus.contains('out for')) {
       timelineStatus = 'shipped';
-    } else if (normalizedStatus.contains('deliver') || normalizedStatus == 'completed') {
+    } else if (normalizedStatus.contains('ship')) {
+      timelineStatus = 'shipped';
+    } else if (normalizedStatus.contains('delivered') || normalizedStatus == 'delivered' || normalizedStatus == 'completed') {
       timelineStatus = 'delivered';
     } else {
       timelineStatus = normalizedStatus;
@@ -1422,9 +1430,12 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         normalizedCurrentStatus == 'processing' || normalizedCurrentStatus == 'payment received' ||
         normalizedCurrentStatus == 'payment verified' || normalizedCurrentStatus == 'pending confirmation') {
       normalizedStatus = 'processing';
-    } else if (normalizedCurrentStatus.contains('ship') || normalizedCurrentStatus == 'out for delivery') {
+    } else if (normalizedCurrentStatus.contains('out for delivery') || normalizedCurrentStatus.contains('out_for_delivery') ||
+        normalizedCurrentStatus.contains('shipped') || normalizedCurrentStatus == 'shipped' || normalizedCurrentStatus.contains('out for')) {
       normalizedStatus = 'shipped';
-    } else if (normalizedCurrentStatus.contains('deliver') || normalizedCurrentStatus == 'completed') {
+    } else if (normalizedCurrentStatus.contains('ship')) {
+      normalizedStatus = 'shipped';
+    } else if (normalizedCurrentStatus.contains('delivered') || normalizedCurrentStatus == 'delivered' || normalizedCurrentStatus == 'completed') {
       normalizedStatus = 'delivered';
     } else {
       normalizedStatus = normalizedCurrentStatus;

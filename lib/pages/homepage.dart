@@ -44,6 +44,7 @@ import 'wishlist_page.dart';
 import '../services/wishlist_service.dart';
 import '../services/category_optimization_service.dart';
 import 'categories.dart';
+import '../models/cart_item.dart';
 
 // class to load images before we need them so they show up faster
 class ImagePreloader {
@@ -2413,13 +2414,6 @@ class HomePageState extends State<HomePage>
         ],
       ),
       bottomNavigationBar: CustomBottomNav(initialIndex: 0),
-      // floatingActionButton: FloatingActionButton(
-      //   onPressed: () {
-      //     Navigator.pushNamed(context, '/clearance-admin');
-      //   },
-      //   backgroundColor: Colors.red[700],
-      //   child: const Icon(Icons.admin_panel_settings, color: Colors.white),
-      // ),
     );
   }
 
@@ -3019,7 +3013,8 @@ class HomePageState extends State<HomePage>
             _popularError = null;
           });
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && popularProducts.isNotEmpty) _startPopularProductsAutoScroll();
+            if (mounted && popularProducts.isNotEmpty)
+              _startPopularProductsAutoScroll();
           });
         } else {
           setState(() {
@@ -3037,7 +3032,8 @@ class HomePageState extends State<HomePage>
           _popularError = null;
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && popularProducts.isNotEmpty) _startPopularProductsAutoScroll();
+          if (mounted && popularProducts.isNotEmpty)
+            _startPopularProductsAutoScroll();
         });
       } else {
         setState(() {
@@ -3054,7 +3050,8 @@ class HomePageState extends State<HomePage>
           _popularError = null;
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && popularProducts.isNotEmpty) _startPopularProductsAutoScroll();
+          if (mounted && popularProducts.isNotEmpty)
+            _startPopularProductsAutoScroll();
         });
       } else {
         setState(() {
@@ -3071,7 +3068,8 @@ class HomePageState extends State<HomePage>
           _popularError = null;
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && popularProducts.isNotEmpty) _startPopularProductsAutoScroll();
+          if (mounted && popularProducts.isNotEmpty)
+            _startPopularProductsAutoScroll();
         });
       } else {
         setState(() {
