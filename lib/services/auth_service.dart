@@ -11,10 +11,11 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import '../models/product_model.dart';
 import 'dart:io';
+import '../config/api_config.dart';
 import '../services/http_client_service.dart';
 
 class AuthService {
-  static const String baseUrl = "https://eclcommerce.ernestchemists.com.gh/api";
+  static String get baseUrl => ApiConfig.baseUrl;
   static const String usersKey = "users";
   static const String loggedInUserKey = "loggedInUser";
   static const String isLoggedInKey = "isLoggedIn";
@@ -308,8 +309,7 @@ class AuthService {
   Future<List<Product>> fetchProducts() async {
     try {
       final response = await HttpClientService.get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'),
+        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)),
       );
 
       if (response.statusCode == 200) {
@@ -345,8 +345,7 @@ class AuthService {
   static Future<Product> fetchProductDetails(String urlName) async {
     try {
       final response = await HttpClientService.get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/product-details/$urlName'),
+        Uri.parse(ApiConfig.getProductDetailsUrl(urlName)),
       );
 
       if (response.statusCode == 200) {
@@ -523,7 +522,7 @@ class AuthService {
   // OTP
   static Future<bool> verifyOTP(String email, String otp) async {
     final url = Uri.parse(
-        'https://eclcommerce.ernestchemists.com.gh/api/otp-verification');
+        ApiConfig.getEndpointUrl(ApiConfig.otpVerification));
 
     try {
       final response = await http
@@ -560,7 +559,7 @@ class AuthService {
   // Resend OTP
   static Future<Map<String, dynamic>> resendOTP(String email) async {
     final url =
-        Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/resend-otp');
+        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.resendOtp));
 
     debugPrint('🔄 [AuthService] Resending OTP to: $url');
     debugPrint('📧 [AuthService] Email: $email');
@@ -1350,7 +1349,7 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     try {
       final response = await HttpClientService.get(
-        Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/guest-id'),
+        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.guestId)),
         headers: {'Accept': 'application/json'},
       ).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
@@ -1883,9 +1882,7 @@ class AuthState extends InheritedWidget {
 }
 
 class CODPaymentService {
-  static const String _baseUrl =
-      'https://eclcommerce.ernestchemists.com.gh/api';
-  static const String _codEndpoint = '/pay-on-delivery';
+  static String get _codUrl => ApiConfig.getEndpointUrl('/pay-on-delivery');
 
   /// Process COD payment with the provided parameters
   static Future<Map<String, dynamic>> processCODPayment({
@@ -1897,7 +1894,7 @@ class CODPaymentService {
   }) async {
     debugPrint('[DEBUG] Entered CODPaymentService.processCODPayment');
     try {
-      final url = Uri.parse('$_baseUrl$_codEndpoint');
+      final url = Uri.parse(_codUrl);
 
       // Prepare request headers
       final headers = {

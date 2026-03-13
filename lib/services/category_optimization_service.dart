@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../config/api_config.dart';
 import 'app_optimization_service.dart';
 
 class CategoryOptimizationService {
@@ -194,7 +195,7 @@ class CategoryOptimizationService {
       final response = await http
           .get(
             Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/top-categories'),
+                ApiConfig.getEndpointUrl(ApiConfig.topCategories)),
           )
           .timeout(const Duration(seconds: 8)); // Reduced from 10 to 8 seconds
 
@@ -251,7 +252,7 @@ class CategoryOptimizationService {
       final response = await http
           .get(
             Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'),
+                ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)),
           )
           .timeout(const Duration(seconds: 15));
 
@@ -441,7 +442,7 @@ class CategoryOptimizationService {
       return imagePath;
     }
 
-    return 'https://eclcommerce.ernestchemists.com.gh/storage/categories/${Uri.encodeComponent(imagePath)}';
+    return ApiConfig.getStorageUrl('categories/$imagePath');
   }
 
   // Search products with caching
@@ -550,7 +551,7 @@ class CategoryOptimizationService {
         final response = await http
             .get(
               Uri.parse(
-                  'https://eclcommerce.ernestchemists.com.gh/api/products/$productId'),
+                  ApiConfig.getProductByIdUrl(productId.toString())),
             )
             .timeout(const Duration(seconds: 3));
 

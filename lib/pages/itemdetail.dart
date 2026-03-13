@@ -11,6 +11,7 @@ import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/cart_item.dart';
 import 'package:eclapp/models/product_model.dart';
+import 'package:eclapp/config/api_config.dart';
 import 'package:eclapp/config/app_routes.dart';
 import 'package:eclapp/services/auth_service.dart';
 import 'bottomnav.dart';
@@ -353,7 +354,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       final response = await http
           .get(
         Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/product-details/$urlName'),
+            ApiConfig.getProductDetailsUrl(urlName)),
       )
           .timeout(
         const Duration(seconds: 15),
@@ -373,7 +374,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           // print the api response so we can see what we got
           debugPrint('🔍 PRODUCT DETAILS API RESPONSE ===');
           debugPrint(
-              'URL: https://eclcommerce.ernestchemists.com.gh/api/product-details/$urlName');
+              'URL: ${ApiConfig.getProductDetailsUrl(urlName)}');
           debugPrint('Response Status: ${response.statusCode}');
           debugPrint('Response Body: ${response.body}');
           debugPrint('  data keys: ${data.keys.toList()}');
@@ -598,7 +599,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       final response = await http
           .get(
         Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/related-products/$urlName'),
+            ApiConfig.getRelatedProductsUrl(urlName)),
       )
           .timeout(
         const Duration(seconds: 10),
@@ -1895,7 +1896,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   Widget _buildRelatedProductCard(Product product, BuildContext context) {
     final imageUrl = product.thumbnail.startsWith('http')
         ? product.thumbnail
-        : 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/${product.thumbnail}';
+        : ApiConfig.getProductImageUrl(product.thumbnail);
 
     return GestureDetector(
       onTap: () {

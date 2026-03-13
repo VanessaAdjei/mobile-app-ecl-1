@@ -5,10 +5,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
 
 class StockValidationService {
-  static const String _baseUrl =
-      'https://eclcommerce.ernestchemists.com.gh/api';
+  static String get _baseUrl => ApiConfig.baseUrl;
   static const Duration _cacheExpiration = Duration(minutes: 5);
 
   // Cache for stock data to avoid repeated API calls

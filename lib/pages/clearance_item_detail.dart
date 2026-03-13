@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
 import '../models/cart_item.dart';
 import 'package:eclapp/models/product_model.dart';
 import 'bottomnav.dart';
@@ -339,7 +340,7 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
       final response = await http
           .get(
         Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/related-products/$urlName'),
+            ApiConfig.getRelatedProductsUrl(urlName)),
       )
           .timeout(
         const Duration(seconds: 10),
@@ -1233,7 +1234,7 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
   Widget _buildRelatedProductCard(Product product, BuildContext context) {
     final imageUrl = product.thumbnail.startsWith('http')
         ? product.thumbnail
-        : 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/${product.thumbnail}';
+        : ApiConfig.getProductImageUrl(product.thumbnail);
 
     return GestureDetector(
       onTap: () {
@@ -1565,7 +1566,7 @@ Widget _buildEmptyState({
 Widget _buildRelatedProductCard(Product product, BuildContext context) {
   final imageUrl = product.thumbnail.startsWith('http')
       ? product.thumbnail
-      : 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/${product.thumbnail}';
+      : ApiConfig.getProductImageUrl(product.thumbnail);
 
   return GestureDetector(
     onTap: () {

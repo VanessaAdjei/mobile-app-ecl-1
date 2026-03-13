@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:eclapp/config/api_config.dart';
 import 'package:eclapp/services/auth_service.dart';
 
 class BackgroundCartSyncService {
@@ -143,8 +144,7 @@ class BackgroundCartSyncService {
 
       final response = await http
           .post(
-            Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/sync-cart'),
+            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.syncCart)),
             headers: headers,
             body: json.encode(cartData),
           )
@@ -193,8 +193,7 @@ class BackgroundCartSyncService {
     try {
       final response = await http
           .get(
-            Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/products/$productId'),
+            Uri.parse(ApiConfig.getProductByIdUrl(productId)),
           )
           .timeout(Duration(seconds: 8));
 

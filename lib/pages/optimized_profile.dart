@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 import '../services/auth_service.dart';
 import 'signinpage.dart';
 import 'settings.dart';
@@ -108,7 +109,7 @@ class OptimizedProfileState extends State<OptimizedProfile> {
       if (token == null) throw Exception('No auth token');
 
       final response = await http.get(
-        Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/user-profile'),
+        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.userProfile)),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -131,7 +132,7 @@ class OptimizedProfileState extends State<OptimizedProfile> {
       if (token == null) throw Exception('No auth token');
 
       final response = await http.get(
-        Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/orders'),
+        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.orders)),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',

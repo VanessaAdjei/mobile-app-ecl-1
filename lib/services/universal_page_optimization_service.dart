@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/api_config.dart';
 import 'advanced_performance_service.dart';
 
 class UniversalPageOptimizationService {
@@ -282,17 +283,7 @@ class UniversalPageOptimizationService {
       return imagePath;
     }
 
-    final base = baseUrl ?? 'https://adm-ecommerce.ernestchemists.com.gh';
-
-    if (imagePath.startsWith('/uploads/')) {
-      return '$base$imagePath';
-    }
-
-    if (imagePath.startsWith('/storage/')) {
-      return 'https://eclcommerce.ernestchemists.com.gh$imagePath';
-    }
-
-    return '$base/uploads/product/$imagePath';
+    return ApiConfig.getImageOrStorageUrl(imagePath);
   }
 
   /// Build loading widget

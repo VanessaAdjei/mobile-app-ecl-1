@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'auth_service.dart';
 import '../providers/cart_provider.dart';
 import '../models/cart_item.dart';
+import '../config/api_config.dart';
 import 'performance_service.dart';
 
 class PaymentOptimizationService {
@@ -26,10 +27,8 @@ class PaymentOptimizationService {
   static const Duration _userDataCacheDuration = Duration(minutes: 15);
 
   // API endpoints
-  static const String _baseUrl =
-      'https://eclcommerce.ernestchemists.com.gh/api';
-  static const String _expressPaymentEndpoint = '/expresspayment';
-  static const String _checkPaymentEndpoint = '/check-payment';
+  static String get _expressPaymentUrl => ApiConfig.getEndpointUrl(ApiConfig.expressPayment);
+  static String get _checkPaymentUrl => ApiConfig.getEndpointUrl(ApiConfig.checkPayment);
 
   // Performance tracking
   final PerformanceService _performanceService = PerformanceService();
@@ -394,7 +393,7 @@ class PaymentOptimizationService {
 
       final response = await http
           .post(
-        Uri.parse('$_baseUrl$_expressPaymentEndpoint'),
+        Uri.parse(_expressPaymentUrl),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
@@ -479,7 +478,7 @@ class PaymentOptimizationService {
 
       final response = await http
           .post(
-        Uri.parse('$_baseUrl$_checkPaymentEndpoint'),
+        Uri.parse(_checkPaymentUrl),
         headers: {
           'Authorization': 'Bearer $tokenRaw',
           'Accept': 'application/json',

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
+import '../config/api_config.dart';
 import '../models/product_model.dart';
 import 'item_detail_service_interface.dart';
 import 'performance_service.dart';
@@ -28,7 +29,7 @@ class ItemDetailOptimizationService implements ItemDetailServiceInterface {
 
   // API endpoints
   static const String _baseUrl =
-      'https://eclcommerce.ernestchemists.com.gh/api';
+      ApiConfig.baseUrl;
   static const String _productDetailsEndpoint = '/product-details';
   static const String _relatedProductsEndpoint = '/related-products';
 

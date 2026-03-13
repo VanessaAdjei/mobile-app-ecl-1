@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../config/api_config.dart';
 import '../config/app_routes.dart';
 import '../providers/cart_provider.dart';
 import '../models/cart_item.dart';
@@ -31,7 +32,7 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
     if (imagePath.startsWith('http')) {
       return imagePath;
     }
-    return 'https://eclcommerce.ernestchemists.com.gh/storage/$imagePath';
+    return ApiConfig.getStorageUrl(imagePath);
   }
 
   final List<Map<String, dynamic>> categories = const [
@@ -82,7 +83,7 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
       final response = await http
           .get(
             Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'),
+                ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)),
           )
           .timeout(const Duration(seconds: 15));
 

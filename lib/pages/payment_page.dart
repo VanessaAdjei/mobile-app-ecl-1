@@ -75,8 +75,8 @@ class PaymentPageState extends State<PaymentPage> {
   String _userEmail = "No email available";
   String _phoneNumber = "No phone number available";
   String? _paymentError;
-  String expressPaymentForm =
-      'https://eclcommerce.ernestchemists.com.gh/api/expresspayment';
+  String get expressPaymentForm =>
+      ApiConfig.getEndpointUrl(ApiConfig.expressPayment);
   bool _showAllItems = false; // Add this state variable
 
   // Promo code variables
@@ -149,8 +149,7 @@ class PaymentPageState extends State<PaymentPage> {
     try {
       final response = await http
           .post(
-            Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/check-payment'),
+            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.checkPayment)),
             headers: {
               'Authorization': 'Bearer $authToken',
               'Accept': 'application/json',
@@ -331,8 +330,7 @@ class PaymentPageState extends State<PaymentPage> {
       http.Response? response;
       try {
         response = await http.post(
-          Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/expresspayment'),
+          Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.expressPayment)),
           headers: headers,
           body: jsonEncode(params),
         );
@@ -743,15 +741,7 @@ class PaymentPageState extends State<PaymentPage> {
 
   String getImageUrl(String? url) {
     if (url == null || url.isEmpty) return '';
-    if (url.startsWith('http')) return url;
-    if (url.startsWith('/uploads/')) {
-      return 'https://adm-ecommerce.ernestchemists.com.gh$url';
-    }
-    if (url.startsWith('/storage/')) {
-      return 'https://eclcommerce.ernestchemists.com.gh$url';
-    }
-    // Otherwise, treat as filename
-    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
+    return ApiConfig.getImageOrStorageUrl(url);
   }
 
   Widget _buildSlideToPay(CartProvider cart) {
@@ -1985,15 +1975,7 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
   String getImageUrl(String? url) {
     if (url == null || url.isEmpty) return '';
-    if (url.startsWith('http')) return url;
-    if (url.startsWith('/uploads/')) {
-      return 'https://adm-ecommerce.ernestchemists.com.gh$url';
-    }
-    if (url.startsWith('/storage/')) {
-      return 'https://eclcommerce.ernestchemists.com.gh$url';
-    }
-    // Otherwise, treat as filename
-    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
+    return ApiConfig.getImageOrStorageUrl(url);
   }
 
   /// Store delivery fee for this order so it can be retrieved later
@@ -2913,7 +2895,7 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
       final response = await http
           .post(
         Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/check-payment'),
+            ApiConfig.getEndpointUrl(ApiConfig.checkPayment)),
         headers: headers,
         body: jsonEncode(requestBody),
       )
@@ -2964,8 +2946,7 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
           await Future.delayed(Duration(seconds: 2));
           final retryResponse = await http
               .post(
-            Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/check-payment'),
+            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.checkPayment)),
             headers: headers,
             body: jsonEncode(requestBody),
           )

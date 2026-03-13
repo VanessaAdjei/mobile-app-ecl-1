@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
 import 'native_notification_service.dart';
 import 'order_notification_service.dart';
 
@@ -123,8 +124,7 @@ class BackgroundOrderTrackingService {
       if (token == null) return null;
 
       final response = await http.get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/orders/$orderId/status'),
+        Uri.parse(ApiConfig.getOrderStatusUrl(orderId)),
         headers: {
           'Authorization': 'Bearer $token',
         },
@@ -268,8 +268,7 @@ class BackgroundOrderTrackingService {
       if (token == null) return null;
 
       final response = await http.get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/orders/$orderId/delivery'),
+        Uri.parse(ApiConfig.getOrderDeliveryUrl(orderId)),
         headers: {
           'Authorization': 'Bearer $token',
         },

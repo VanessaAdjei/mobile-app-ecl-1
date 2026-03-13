@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../config/api_config.dart';
 import 'app_optimization_service.dart';
 import '../models/product_model.dart';
 import '../models/health_tip.dart';
@@ -130,7 +131,7 @@ class HomepageOptimizationService {
           '🌐 [HomepageService] Making API request to get-all-products...');
       final response = await http
           .get(Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'))
+              ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
           .timeout(const Duration(seconds: 10));
 
       debugPrint(
@@ -318,7 +319,7 @@ class HomepageOptimizationService {
 
       final response = await http
           .get(Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/popular-products'))
+              ApiConfig.getEndpointUrl(ApiConfig.popularProducts)))
           .timeout(const Duration(seconds: 8)); // Reduced from 10 to 8 seconds
 
       final responseTime = DateTime.now().difference(startTime);
@@ -630,15 +631,7 @@ class HomepageOptimizationService {
   /// Helper to get a valid absolute product image URL
   String getProductImageUrl(String? url) {
     if (url == null || url.isEmpty) return '';
-    if (url.startsWith('http')) return url;
-    if (url.startsWith('/uploads/')) {
-      return 'https://adm-ecommerce.ernestchemists.com.gh$url';
-    }
-    if (url.startsWith('/storage/')) {
-      return 'https://eclcommerce.ernestchemists.com.gh$url';
-    }
-    // Otherwise, treat as filename
-    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
+    return ApiConfig.getImageOrStorageUrl(url);
   }
 
   /// Print product cache performance summary (like banners)

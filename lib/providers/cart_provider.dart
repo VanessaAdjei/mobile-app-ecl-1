@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 import '../services/background_cart_checker.dart';
 import '../services/realtime_cart_sync_service.dart';
 
@@ -168,7 +169,7 @@ class CartProvider with ChangeNotifier {
 
       final response = await http.get(
         Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/check-out/$hashedLink'),
+            ApiConfig.getCheckoutUrl(hashedLink)),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -533,7 +534,7 @@ class CartProvider with ChangeNotifier {
         requestBody['batch_no'] = item.batchNo;
       }
 
-      final url = 'https://eclcommerce.ernestchemists.com.gh/api/check-auth';
+      final url = ApiConfig.getEndpointUrl(ApiConfig.checkAuth);
 
       final response = await http.post(
         Uri.parse(url),
@@ -819,7 +820,7 @@ class CartProvider with ChangeNotifier {
             // For logged-in users, use check-out endpoint
             final cartResponse = await http.get(
               Uri.parse(
-                  'https://eclcommerce.ernestchemists.com.gh/api/check-out/$hashedLink'),
+                  ApiConfig.getCheckoutUrl(hashedLink)),
               headers: headers,
             );
 
@@ -849,7 +850,7 @@ class CartProvider with ChangeNotifier {
             // Make a dummy request to get the current cart state
             final cartResponse = await http.post(
               Uri.parse(
-                  'https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
+                  ApiConfig.getEndpointUrl(ApiConfig.checkAuth)),
               headers: headers,
               body: jsonEncode(
                   {'productID': 0, 'quantity': 0}), // Dummy request to get cart
@@ -912,7 +913,7 @@ class CartProvider with ChangeNotifier {
 
         final response = await http.post(
           Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart'),
+              ApiConfig.getEndpointUrl(ApiConfig.removeFromCart)),
           headers: {
             'Authorization': 'Bearer $token',
             'Accept': 'application/json',
@@ -925,7 +926,7 @@ class CartProvider with ChangeNotifier {
 
         debugPrint('=== REMOVE FROM CART API RESPONSE (user) ===');
         debugPrint(
-            'URL: https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart');
+            'URL: ${ApiConfig.getEndpointUrl(ApiConfig.removeFromCart)}');
         debugPrint('Request Body: ${jsonEncode({'cart_id': serverCartId})}');
         debugPrint('Request Headers: Bearer $token');
         debugPrint('Response Status: ${response.statusCode}');
@@ -950,7 +951,7 @@ class CartProvider with ChangeNotifier {
         }
         final response = await http.post(
           Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart'),
+              ApiConfig.getEndpointUrl(ApiConfig.removeFromCart)),
           headers: {
             'Authorization': 'Guest $guestId',
             'X-Guest-ID': guestId,
@@ -963,7 +964,7 @@ class CartProvider with ChangeNotifier {
         );
         debugPrint('=== REMOVE FROM CART API RESPONSE (guest) ===');
         debugPrint(
-            'URL: https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart');
+            'URL: ${ApiConfig.getEndpointUrl(ApiConfig.removeFromCart)}');
         debugPrint('Request Body: ${jsonEncode({'cart_id': cartId})}');
         debugPrint('Request Headers: Guest $guestId, X-Guest-ID: $guestId');
         debugPrint('Response Status: ${response.statusCode}');
@@ -1215,13 +1216,13 @@ class CartProvider with ChangeNotifier {
         }
         cartResponse = await http.get(
           Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/check-out/$hashedLink'),
+              ApiConfig.getCheckoutUrl(hashedLink)),
           headers: headers,
         );
       } else {
         // For guest users, use check-auth endpoint to get cart
         cartResponse = await http.post(
-          Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
+          Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.checkAuth)),
           headers: {
             ...headers,
             'Content-Type': 'application/json',
@@ -1266,7 +1267,7 @@ class CartProvider with ChangeNotifier {
 
             final removeResponse = await http.post(
               Uri.parse(
-                  'https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart'),
+                  ApiConfig.getEndpointUrl(ApiConfig.removeFromCart)),
               headers: removeHeaders,
               body: jsonEncode({'cart_id': itemId}),
             );
@@ -1274,7 +1275,7 @@ class CartProvider with ChangeNotifier {
             debugPrint(
                 '=== QUANTITY UPDATE - REMOVE INSTANCE API RESPONSE ===');
             debugPrint(
-                'URL: https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart');
+                'URL: ${ApiConfig.getEndpointUrl(ApiConfig.removeFromCart)}');
             debugPrint('Request Body: ${jsonEncode({'cart_id': itemId})}');
             debugPrint('Request Headers: $removeHeaders');
             debugPrint('Response Status: ${removeResponse.statusCode}');
@@ -1334,14 +1335,14 @@ class CartProvider with ChangeNotifier {
       }
 
       final addResponse = await http.post(
-        Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
+        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.checkAuth)),
         headers: headers,
         body: jsonEncode(addRequestBody),
       );
 
       debugPrint('=== QUANTITY UPDATE API RESPONSE ===');
       debugPrint(
-          'URL: https://eclcommerce.ernestchemists.com.gh/api/check-auth');
+          'URL: ${ApiConfig.getEndpointUrl(ApiConfig.checkAuth)}');
       debugPrint('Request Body: ${jsonEncode(addRequestBody)}');
       debugPrint('Request Headers: $headers');
       debugPrint('Response Status: ${addResponse.statusCode}');
@@ -1604,9 +1605,9 @@ class CartProvider with ChangeNotifier {
   // Clear server cart before adding merged items
   Future<void> _clearServerCart(String token) async {
     try {
+      final hashedLink = await AuthService.getHashedLink() ?? '';
       final response = await http.get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/check-out/${await AuthService.getHashedLink()}'),
+        Uri.parse(ApiConfig.getCheckoutUrl(hashedLink)),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -1634,9 +1635,9 @@ class CartProvider with ChangeNotifier {
   // Remove item from server
   Future<void> _removeFromServer(String itemId, String token) async {
     try {
+      final url = '${ApiConfig.baseUrl}${ApiConfig.checkout}/$itemId';
       await http.delete(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/check-out/$itemId'),
+        Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -1700,9 +1701,9 @@ class CartProvider with ChangeNotifier {
       if (token == null) return;
 
       // Get current cart from server
+      final hashedLink = await AuthService.getHashedLink() ?? '';
       final cartResponse = await http.get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/check-out/${await AuthService.getHashedLink()}'),
+        Uri.parse(ApiConfig.getCheckoutUrl(hashedLink)),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -1739,7 +1740,7 @@ class CartProvider with ChangeNotifier {
               if (itemId != null) {
                 await http.post(
                   Uri.parse(
-                      'https://eclcommerce.ernestchemists.com.gh/api/remove-from-cart'),
+                      ApiConfig.getEndpointUrl(ApiConfig.removeFromCart)),
                   headers: {
                     'Authorization': 'Bearer $token',
                     'Accept': 'application/json',

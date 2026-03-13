@@ -63,7 +63,7 @@ dependencies:
   jwt_decoder: ^2.0.1
 
   # Network and data
-  html: any
+  html: ^0.15.6
   dio: ^5.8.0+1
   cookie_jar: ^4.0.8
   dio_cookie_manager: ^3.2.0

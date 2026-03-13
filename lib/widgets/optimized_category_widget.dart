@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:eclapp/config/api_config.dart';
 import 'package:eclapp/widgets/error_display.dart';
 
 class OptimizedCategoryWidget extends StatelessWidget {
@@ -249,7 +250,7 @@ class OptimizedCategoryWidget extends StatelessWidget {
       return imagePath;
     }
 
-    return 'https://eclcommerce.ernestchemists.com.gh/storage/categories/${Uri.encodeComponent(imagePath)}';
+    return ApiConfig.getStorageUrl('categories/$imagePath');
   }
 }
 

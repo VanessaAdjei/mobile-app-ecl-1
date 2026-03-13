@@ -12,6 +12,7 @@ import '../models/refill_medicine.dart';
 import '../models/product.dart';
 import '../services/auth_service.dart';
 import 'package:provider/provider.dart';
+import '../config/api_config.dart';
 import '../providers/cart_provider.dart';
 
 class RefillPage extends StatefulWidget {
@@ -65,29 +66,9 @@ class RefillPageState extends State<RefillPage> {
     }
   }
 
-  // build the full url for a product image
   String _getProductImageUrl(String? imagePath) {
-    if (imagePath == null || imagePath.isEmpty) {
-      return '';
-    }
-
-    // if its already a full url, just return it
-    if (imagePath.startsWith('http')) {
-      return imagePath;
-    }
-
-    // if it starts with /uploads/ or /storage/, add the base url
-    if (imagePath.startsWith('/uploads/')) {
-      return 'https://adm-ecommerce.ernestchemists.com.gh$imagePath';
-    }
-
-    if (imagePath.startsWith('/storage/')) {
-      return 'https://eclcommerce.ernestchemists.com.gh$imagePath';
-    }
-
-    // otherwise assume its just a filename and build the full url
-    // images are at: https://adm-ecommerce.ernestchemists.com.gh/uploads/product/{filename}
-    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$imagePath';
+    if (imagePath == null || imagePath.isEmpty) return '';
+    return ApiConfig.getImageOrStorageUrl(imagePath);
   }
 
   Future<void> _loadRefillableMedicines() async {
@@ -114,7 +95,7 @@ class RefillPageState extends State<RefillPage> {
 
       try {
         final refillResponse = await http.get(
-          Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/refill'),
+          Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.refill)),
           headers: {
             'Authorization': 'Bearer $token',
             'Accept': 'application/json',
@@ -151,8 +132,7 @@ class RefillPageState extends State<RefillPage> {
         debugPrint('⚠️ /refill endpoint failed, trying /view-prescription: $e');
         // get prescriptions from api if refill endpoint didnt work
         prescriptionResponse = await http.post(
-          Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/view-prescription'),
+          Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.viewPrescription)),
           headers: {
             'Authorization': 'Bearer $token',
             'Accept': 'application/json',
@@ -336,8 +316,7 @@ class RefillPageState extends State<RefillPage> {
       List<Product> allProducts = [];
       try {
         final productsResponse = await http
-            .get(Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'))
+            .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
             .timeout(const Duration(seconds: 10));
 
         if (productsResponse.statusCode == 200) {
@@ -592,8 +571,7 @@ class RefillPageState extends State<RefillPage> {
 
       final response = await http
           .post(
-            Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/check-auth'),
+            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.checkAuth)),
             headers: {
               'Authorization': 'Bearer $token',
               'Accept': 'application/json',

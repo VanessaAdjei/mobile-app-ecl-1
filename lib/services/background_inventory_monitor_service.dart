@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
 import 'native_notification_service.dart';
 
 class BackgroundInventoryMonitorService {
@@ -127,7 +128,7 @@ class BackgroundInventoryMonitorService {
       final response = await http
           .get(
             Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/products/$productId'),
+                ApiConfig.getProductByIdUrl(productId)),
           )
           .timeout(Duration(seconds: 8));
 

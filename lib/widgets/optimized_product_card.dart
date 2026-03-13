@@ -1,5 +1,6 @@
 // widgets/optimized_product_card.dart
 import 'package:flutter/material.dart';
+import '../config/api_config.dart';
 import '../models/product_model.dart';
 import '../pages/itemdetail.dart';
 import '../services/advanced_performance_service.dart';
@@ -322,20 +323,7 @@ class _OptimizedProductCardState extends State<OptimizedProductCard>
 
   String _getProductImageUrl(String? imagePath) {
     if (imagePath == null || imagePath.isEmpty) return '';
-
-    if (imagePath.startsWith('http')) {
-      return imagePath;
-    }
-
-    if (imagePath.startsWith('/uploads/')) {
-      return 'https://adm-ecommerce.ernestchemists.com.gh$imagePath';
-    }
-
-    if (imagePath.startsWith('/storage/')) {
-      return 'https://eclcommerce.ernestchemists.com.gh$imagePath';
-    }
-
-    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$imagePath';
+    return ApiConfig.getImageOrStorageUrl(imagePath);
   }
 }
 

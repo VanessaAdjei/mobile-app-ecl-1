@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 import '../models/product_model.dart';
 import 'advanced_performance_service.dart';
 
@@ -34,10 +35,9 @@ class OptimizedHomepageService {
   static const Duration _bannersCacheDuration = Duration(minutes: 30);
 
   // API endpoints
-  static const String _baseUrl =
-      'https://eclcommerce.ernestchemists.com.gh/api';
-  static const String _productsEndpoint = '/get-all-products';
-  static const String _bannersEndpoint = '/banner';
+  static String get _baseUrl => ApiConfig.baseUrl;
+  static String get _productsUrl => ApiConfig.getEndpointUrl(ApiConfig.getAllProducts);
+  static String get _bannersUrl => ApiConfig.getEndpointUrl(ApiConfig.banners);
 
   // Loading states
   bool _isLoadingProducts = false;
@@ -159,9 +159,9 @@ class OptimizedHomepageService {
 
     try {
       final response = await _performanceService.batchRequest(
-        _productsEndpoint,
+        'get-all-products',
         () => http.get(
-          Uri.parse('$_baseUrl$_productsEndpoint'),
+          Uri.parse(_productsUrl),
           headers: {'Content-Type': 'application/json'},
         ).timeout(const Duration(seconds: 15)),
       );
@@ -300,9 +300,9 @@ class OptimizedHomepageService {
 
     try {
       final response = await _performanceService.batchRequest(
-        _bannersEndpoint,
+        'banner',
         () => http.get(
-          Uri.parse('$_baseUrl$_bannersEndpoint'),
+          Uri.parse(_bannersUrl),
           headers: {'Content-Type': 'application/json'},
         ).timeout(const Duration(seconds: 10)),
       );
@@ -398,27 +398,14 @@ class OptimizedHomepageService {
       return imagePath;
     }
 
-    if (imagePath.startsWith('/uploads/')) {
-      return 'https://adm-ecommerce.ernestchemists.com.gh$imagePath';
-    }
-
-    if (imagePath.startsWith('/storage/')) {
-      return 'https://eclcommerce.ernestchemists.com.gh$imagePath';
-    }
-
-    // Default product image path
-    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$imagePath';
+    return ApiConfig.getImageOrStorageUrl(imagePath);
   }
 
   /// Get banner image URL with optimization
   String _getBannerImageUrl(String? imagePath) {
     if (imagePath == null || imagePath.isEmpty) return '';
-
-    if (imagePath.startsWith('http')) {
-      return imagePath;
-    }
-
-    return 'https://eclcommerce.ernestchemists.com.gh/storage/banners/${Uri.encodeComponent(imagePath)}';
+    if (imagePath.startsWith('http')) return imagePath;
+    return ApiConfig.getStorageUrl('banners/$imagePath');
   }
 
   /// Get performance statistics

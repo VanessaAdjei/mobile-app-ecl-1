@@ -5,12 +5,13 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
 import '../models/wallet.dart';
 import 'auth_service.dart';
 
 class WalletService {
   static const String _baseUrl =
-      'https://eclcommerce.ernestchemists.com.gh/api';
+      ApiConfig.baseUrl;
   static const String _walletEndpoint = '/wallet';
   static const String _topUpEndpoint = '/wallet/top-up';
 

@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
 import '../services/auth_service.dart';
 import '../providers/notification_provider.dart';
 import 'order_tracking_page.dart';
@@ -771,15 +772,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
 
   String _getImageUrl(String? url) {
     if (url == null || url.isEmpty) return '';
-    if (url.startsWith('http')) return url;
-    if (url.startsWith('/uploads/')) {
-      return 'https://adm-ecommerce.ernestchemists.com.gh$url';
-    }
-    if (url.startsWith('/storage/')) {
-      return 'https://eclcommerce.ernestchemists.com.gh$url';
-    }
-
-    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
+    return ApiConfig.getImageOrStorageUrl(url);
   }
 
   Future<void> _markNotificationAsRead(

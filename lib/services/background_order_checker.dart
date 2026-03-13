@@ -4,14 +4,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
 import 'order_notification_service.dart';
 
 class BackgroundOrderChecker {
   static Timer? _timer;
   static const Duration _checkInterval =
       Duration(minutes: 5); // Check every 5 minutes
-  static const String _baseUrl =
-      'https://eclcommerce.ernestchemists.com.gh/api';
+  static String get _baseUrl => ApiConfig.baseUrl;
 
   /// Start periodic checking for order updates
   static void startPeriodicChecking() {

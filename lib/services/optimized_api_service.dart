@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:dio/dio.dart';
+import '../config/api_config.dart';
 import 'app_optimization_service.dart';
 
 class OptimizedApiService {
@@ -18,8 +19,7 @@ class OptimizedApiService {
   bool _initialized = false;
 
   // Base URL
-  static const String _baseUrl =
-      'https://eclcommerce.ernestchemists.com.gh/api';
+  static String get _baseUrl => ApiConfig.baseUrl;
 
   // Request timeout
   static const Duration _timeout = Duration(seconds: 15);

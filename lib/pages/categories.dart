@@ -10,6 +10,7 @@ import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/models/product_model.dart';
 import 'package:eclapp/pages/app_back_button.dart';
 import 'package:eclapp/widgets/cart_icon_button.dart';
+import 'package:eclapp/config/api_config.dart';
 import '../widgets/app_header_bar.dart';
 import 'package:eclapp/pages/bulk_purchase_page.dart';
 import 'package:eclapp/pages/bottomnav.dart';
@@ -427,7 +428,7 @@ class CategoryPageState extends State<CategoryPage> {
 
       final response = await http
           .get(Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'))
+              ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
           .timeout(Duration(seconds: 8));
 
       if (response.statusCode == 200) {
@@ -618,7 +619,7 @@ class CategoryPageState extends State<CategoryPage> {
             final subcategoriesResponse = await http
                 .get(
                   Uri.parse(
-                      'https://eclcommerce.ernestchemists.com.gh/api/categories/$categoryId'),
+                      ApiConfig.getCategoryProductsUrl(categoryId)),
                 )
                 .timeout(Duration(seconds: 3));
 
@@ -636,7 +637,7 @@ class CategoryPageState extends State<CategoryPage> {
                     final productsResponse = await http
                         .get(
                           Uri.parse(
-                              'https://eclcommerce.ernestchemists.com.gh/api/product-categories/$subcategoryId'),
+                              ApiConfig.getSubcategoryProductsUrl(subcategoryId)),
                         )
                         .timeout(Duration(
                             seconds:
@@ -691,7 +692,7 @@ class CategoryPageState extends State<CategoryPage> {
               final productsResponse = await http
                   .get(
                     Uri.parse(
-                        'https://eclcommerce.ernestchemists.com.gh/api/product-categories/$categoryId'),
+                        ApiConfig.getSubcategoryProductsUrl(categoryId)),
                   )
                   .timeout(Duration(
                       seconds:
@@ -826,7 +827,7 @@ class CategoryPageState extends State<CategoryPage> {
       // Try to get all products in one API call for maximum speed
       final response = await http
           .get(Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'))
+              ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
           .timeout(Duration(seconds: 3)); // Reasonable timeout for batch API
 
       if (response.statusCode == 200) {
@@ -886,7 +887,7 @@ class CategoryPageState extends State<CategoryPage> {
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       return imagePath;
     }
-    return 'https://eclcommerce.ernestchemists.com.gh/storage/$imagePath';
+    return ApiConfig.getStorageUrl(imagePath);
   }
 
   String _formatPrice(dynamic price) {
@@ -1961,7 +1962,7 @@ class CategoryPageState extends State<CategoryPage> {
       final response = await http
           .get(
             Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/get-all-products',
+              ApiConfig.getEndpointUrl(ApiConfig.getAllProducts),
             ),
           )
           .timeout(const Duration(seconds: 12));
@@ -2487,7 +2488,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       final response = await http
           .get(
             Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/categories/${widget.categoryId}',
+              ApiConfig.getCategoryProductsUrl(widget.categoryId.toString()),
             ),
           )
           .timeout(Duration(seconds: 8)); // Reduced timeout
@@ -2549,7 +2550,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     try {
       // Use the correct endpoint for products in a subcategory
       final apiUrl =
-          'https://eclcommerce.ernestchemists.com.gh/api/product-categories/$subcategoryId';
+          ApiConfig.getSubcategoryProductsUrl(subcategoryId.toString());
 
       final response =
           await http.get(Uri.parse(apiUrl)).timeout(Duration(seconds: 15));
@@ -2744,7 +2745,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     try {
       final response = await http
           .get(Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'))
+              ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
@@ -2855,7 +2856,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   Future<void> _preloadSubcategoryProducts(int subcategoryId) async {
     try {
       final apiUrl =
-          'https://eclcommerce.ernestchemists.com.gh/api/product-categories/$subcategoryId';
+          ApiConfig.getSubcategoryProductsUrl(subcategoryId.toString());
       final response =
           await http.get(Uri.parse(apiUrl)).timeout(Duration(seconds: 10));
 
@@ -3822,7 +3823,7 @@ class ProductListPageState extends State<ProductListPage> {
 
       final response = await http.get(
         Uri.parse(
-          'https://eclcommerce.ernestchemists.com.gh/api/product-categories/${widget.categoryId}',
+          ApiConfig.getSubcategoryProductsUrl(widget.categoryId.toString()),
         ),
       );
 
@@ -3916,7 +3917,7 @@ class ProductListPageState extends State<ProductListPage> {
       try {
         final response = await http.get(
           Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/products/$productId'),
+              ApiConfig.getProductByIdUrl(productId)),
         );
 
         if (response.statusCode == 200) {

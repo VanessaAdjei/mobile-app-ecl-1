@@ -7,6 +7,7 @@ import 'dart:async';
 import 'dart:io';
 import 'app_back_button.dart';
 
+import '../config/api_config.dart';
 import 'signinpage.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -36,7 +37,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     try {
       final response = await http
           .post(
-        Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/reset-pwd'),
+        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.resetPassword)),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',

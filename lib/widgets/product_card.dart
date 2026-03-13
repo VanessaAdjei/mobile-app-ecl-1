@@ -1,6 +1,7 @@
 // widgets/product_card.dart
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../config/api_config.dart';
 import '../config/app_routes.dart';
 import '../models/product_model.dart';
 import '../models/product.dart' as models;
@@ -481,10 +482,7 @@ String getProductImageUrl(String? url) {
     return url;
   }
 
-  // use the correct path 'product' (singular) instead of 'products'
-  final finalUrl =
-      'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
-  return finalUrl;
+  return ApiConfig.getProductImageUrl(url);
 }
 
 class ProductCard extends StatelessWidget {

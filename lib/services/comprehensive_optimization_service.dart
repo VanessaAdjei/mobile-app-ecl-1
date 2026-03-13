@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../config/api_config.dart';
 import 'app_optimization_service.dart';
 
 class ComprehensiveOptimizationService {
@@ -94,8 +95,7 @@ class ComprehensiveOptimizationService {
 
     try {
       final response = await http
-          .get(Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/homepage'))
+          .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.homepage)))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -147,8 +147,7 @@ class ComprehensiveOptimizationService {
 
     try {
       final response = await http
-          .get(Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/products'))
+          .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -195,8 +194,7 @@ class ComprehensiveOptimizationService {
 
     try {
       final response = await http
-          .get(Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/user/profile'))
+          .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getUserProfile)))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -244,8 +242,7 @@ class ComprehensiveOptimizationService {
 
     try {
       final response = await http
-          .get(Uri.parse(
-              'https://eclcommerce.ernestchemists.com.gh/api/notifications'))
+          .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.notifications)))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -292,7 +289,7 @@ class ComprehensiveOptimizationService {
 
     try {
       final response = await http
-          .get(Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/cart'))
+          .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getCart)))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {

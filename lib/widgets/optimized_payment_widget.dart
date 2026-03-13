@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
 import '../models/cart_item.dart';
+import '../config/api_config.dart';
 import '../services/payment_optimization_service.dart';
 import '../services/performance_service.dart';
 import 'loading_skeleton.dart';
@@ -1146,14 +1147,7 @@ class _OptimizedPaymentWidgetState extends State<OptimizedPaymentWidget> {
 
   String _getImageUrl(String? url) {
     if (url == null || url.isEmpty) return '';
-    if (url.startsWith('http')) return url;
-    if (url.startsWith('/uploads/')) {
-      return 'https://adm-ecommerce.ernestchemists.com.gh$url';
-    }
-    if (url.startsWith('/storage/')) {
-      return 'https://eclcommerce.ernestchemists.com.gh$url';
-    }
-    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
+    return ApiConfig.getImageOrStorageUrl(url);
   }
 
   @override

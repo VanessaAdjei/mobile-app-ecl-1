@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:eclapp/config/api_config.dart';
 import 'package:eclapp/services/auth_service.dart';
 import 'app_back_button.dart';
 import 'package:eclapp/widgets/error_display.dart';
@@ -98,7 +99,7 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
       // Start API call
       final responseFuture = http.post(
         Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/view-prescription'),
+            ApiConfig.getEndpointUrl(ApiConfig.viewPrescription)),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',

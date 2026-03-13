@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../config/api_config.dart';
 import '../models/order_tracking_model.dart';
 
 class OrderStatusHeroCard extends StatelessWidget {
@@ -105,7 +106,7 @@ class OrderStatusHeroCard extends StatelessWidget {
                           child: Image.network(
                             firstItem.imageUrl.startsWith('http')
                                 ? firstItem.imageUrl
-                                : 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/${firstItem.imageUrl}',
+                                : ApiConfig.getProductImageUrl(firstItem.imageUrl),
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Icon(
                               Icons.image_outlined,

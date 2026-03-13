@@ -9,6 +9,7 @@ import 'delivery_page.dart';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'app_back_button.dart';
+import '../config/api_config.dart';
 import '../services/auth_service.dart';
 import 'signinpage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -131,27 +132,7 @@ class CartState extends State<Cart> {
       return '';
     }
 
-    if (url.startsWith('http')) {
-      return url;
-    }
-
-    if (url.startsWith('/uploads/')) {
-      final fullUrl = 'https://adm-ecommerce.ernestchemists.com.gh$url';
-
-      return fullUrl;
-    }
-
-    if (url.startsWith('/storage/')) {
-      final fullUrl = 'https://eclcommerce.ernestchemists.com.gh$url';
-
-      return fullUrl;
-    }
-
-    // Otherwise, treat as filename
-    final fullUrl =
-        'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
-
-    return fullUrl;
+    return ApiConfig.getImageOrStorageUrl(url);
   }
 
   Future<bool> _showGuestReminder() async {

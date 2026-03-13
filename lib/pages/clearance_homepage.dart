@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../providers/clearance_sale_provider.dart';
 import '../services/clearance_sale_api_service.dart';
 import '../widgets/cart_icon_button.dart';
+import '../config/api_config.dart';
 import '../config/app_routes.dart';
 import '../providers/cart_provider.dart';
 import '../models/cart_item.dart';
@@ -245,7 +246,7 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
       final response = await http
           .get(
             Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'),
+                ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)),
           )
           .timeout(const Duration(seconds: 10));
 

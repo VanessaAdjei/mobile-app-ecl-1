@@ -18,6 +18,9 @@ class ApiConfig {
   // where product images are stored
   static const String productImageBaseUrl = '$adminBaseUrl/uploads/product';
 
+  // app root (no /api) for storage paths
+  static const String appBaseUrl = 'https://eclcommerce.ernestchemists.com.gh';
+
   // ==================== AUTHENTICATION ENDPOINTS ====================
   // login and auth stuff
 
@@ -209,6 +212,20 @@ class ApiConfig {
 
     // otherwise assume its just a filename and add it to the product image url
     return '$productImageBaseUrl/$imagePath';
+  }
+
+  /// Build URL for image or storage path (uploads/, storage/, or product filename).
+  static String getImageOrStorageUrl(String url) {
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (url.startsWith('/uploads/')) return '$adminBaseUrl$url';
+    if (url.startsWith('/storage/')) return '$appBaseUrl$url';
+    return '$productImageBaseUrl/$url';
+  }
+
+  /// Build URL for storage path (e.g. categories, banners).
+  static String getStorageUrl(String path) {
+    final encoded = path.contains('/') ? path : Uri.encodeComponent(path);
+    return '$appBaseUrl/storage/$encoded';
   }
 
   // build full url for any endpoint

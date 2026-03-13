@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 
 class ErnestAIService {
-  static const String _apiKey =
-      'AIzaSyCFmnQt32wCfsjoLVFEfFq7JrIDd2CqHZk'; // Your Gemini API key
+  /// Gemini API key. Prefer compile-time: --dart-define=GEMINI_API_KEY=your_key
+  static String get _apiKey =>
+      String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
   static const String _modelName = 'gemini-1.5-pro';
 
   // Health safety prompt template

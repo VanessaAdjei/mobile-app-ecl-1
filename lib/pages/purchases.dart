@@ -9,6 +9,7 @@ import 'package:shimmer/shimmer.dart';
 
 import 'bottomnav.dart';
 import 'app_back_button.dart';
+import '../config/api_config.dart';
 import '../services/auth_service.dart';
 import '../services/background_order_checker.dart';
 import '../widgets/cart_icon_button.dart';
@@ -445,19 +446,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
       return '';
     }
 
-    if (url.startsWith('http')) {
-      return url;
-    }
-
-    if (url.startsWith('/uploads/')) {
-      return 'https://adm-ecommerce.ernestchemists.com.gh$url';
-    }
-
-    if (url.startsWith('/storage/')) {
-      return 'https://eclcommerce.ernestchemists.com.gh$url';
-    }
-
-    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
+    return ApiConfig.getImageOrStorageUrl(url);
   }
 
   Color _getStatusColor(String status) {

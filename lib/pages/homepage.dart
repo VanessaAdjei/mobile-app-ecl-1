@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../config/api_config.dart';
 import '../config/app_routes.dart';
 import '../models/product_model.dart';
 import '../services/auth_service.dart';
@@ -651,7 +652,7 @@ class HomePageState extends State<HomePage>
       final response = await http
           .get(
             Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/get-all-products'),
+                ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)),
           )
           .timeout(Duration(seconds: 15));
 
@@ -1686,7 +1687,7 @@ class HomePageState extends State<HomePage>
                     final response = await http
                         .get(
                           Uri.parse(
-                              'https://eclcommerce.ernestchemists.com.gh/api/search/$pattern'),
+                              ApiConfig.getSearchUrl(pattern)),
                         )
                         .timeout(Duration(seconds: 10));
 
@@ -2932,7 +2933,7 @@ class HomePageState extends State<HomePage>
       final response = await http
           .get(
             Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/popular-products'),
+                ApiConfig.getEndpointUrl(ApiConfig.popularProducts)),
           )
           .timeout(Duration(
               seconds: 8)); // Reduced timeout for faster failure detection
@@ -3461,7 +3462,7 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
               final banner = banners[index];
               final imageUrl = banner.img.startsWith('http')
                   ? banner.img
-                  : 'https://eclcommerce.ernestchemists.com.gh/storage/banners/${Uri.encodeComponent(banner.img)}';
+                  : ApiConfig.getStorageUrl('banners/${banner.img}');
               return GestureDetector(
                 onTap: () {
                   if (banner.urlName != null && banner.urlName!.isNotEmpty) {
@@ -3625,7 +3626,7 @@ String getProductImageUrl(String? url) {
   }
 
   // Use the correct path 'product' (singular) instead of 'products'
-  return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
+  return ApiConfig.getProductImageUrl(url);
 }
 
 // Helper to build a modern section heading with enhanced design

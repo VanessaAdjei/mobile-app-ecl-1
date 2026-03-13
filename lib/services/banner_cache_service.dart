@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
+import '../config/api_config.dart';
 
 class BannerModel {
   final int id;
@@ -123,7 +124,7 @@ class BannerCacheService {
 
       final response = await http
           .get(
-            Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/banner'),
+            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.banners)),
           )
           .timeout(const Duration(seconds: 15));
 
@@ -429,7 +430,7 @@ class BannerCacheService {
       return imagePath;
     }
 
-    return 'https://eclcommerce.ernestchemists.com.gh/storage/banners/${Uri.encodeComponent(imagePath)}';
+    return ApiConfig.getStorageUrl('banners/$imagePath');
   }
 
   // Refresh cache

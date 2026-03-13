@@ -3,15 +3,14 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
 import '../models/promotional_event.dart';
 import 'auth_service.dart';
 
 class PromotionalEventService {
-  static const String _baseUrl =
-      'https://eclcommerce.ernestchemists.com.gh/api';
-  static const String _eventsEndpoint = '/promotional-events';
-  static const String _offersEndpoint = '/promotional-offers';
-  static const String _applyOfferEndpoint = '/apply-promotional-offer';
+  static String get _eventsUrl => ApiConfig.getEndpointUrl(ApiConfig.promotionalEvents);
+  static String get _applyOfferUrl => ApiConfig.getEndpointUrl('/apply-promotional-offer');
+  static String get _offersValidateUrl => ApiConfig.getEndpointUrl('/promotional-offers') + '/validate';
 
   // Cache keys
   static const String _eventsCacheKey = 'promotional_events_cache';
@@ -22,7 +21,7 @@ class PromotionalEventService {
   static Future<List<PromotionalEvent>> getPromotionalEvents() async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl$_eventsEndpoint'),
+        Uri.parse(_eventsUrl),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
@@ -112,7 +111,7 @@ class PromotionalEventService {
 
       final response = await http
           .post(
-            Uri.parse('$_baseUrl$_applyOfferEndpoint'),
+            Uri.parse(_applyOfferUrl),
             headers: {
               'Accept': 'application/json',
               'Content-Type': 'application/json',
@@ -163,7 +162,7 @@ class PromotionalEventService {
     try {
       final response = await http
           .post(
-            Uri.parse('$_baseUrl$_offersEndpoint/validate'),
+            Uri.parse(_offersValidateUrl),
             headers: {
               'Accept': 'application/json',
               'Content-Type': 'application/json',

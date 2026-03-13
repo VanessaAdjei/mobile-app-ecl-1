@@ -3,6 +3,7 @@ import 'dart:io' show SocketException;
 
 import 'package:http/http.dart' as http;
 
+import '../../config/api_config.dart';
 import '../../services/auth_service.dart';
 import '../../models/order_tracking_model.dart';
 
@@ -17,8 +18,6 @@ abstract class OrderTrackingRemoteDataSource {
 
 class OrderTrackingRemoteDataSourceImpl
     implements OrderTrackingRemoteDataSource {
-  static const String _baseUrl =
-      'https://eclcommerce.ernestchemists.com.gh/api';
 
   @override
   Future<PaymentStatusResult> checkPaymentStatus() async {
@@ -61,7 +60,7 @@ class OrderTrackingRemoteDataSourceImpl
 
       final response = await http
           .post(
-            Uri.parse('$_baseUrl/check-payment'),
+            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.checkPayment)),
             headers: headers,
             body: jsonEncode(requestBody),
           )
@@ -177,7 +176,7 @@ class OrderTrackingRemoteDataSourceImpl
       }
 
       final response = await http.get(
-        Uri.parse('$_baseUrl/orders/$orderId/status'),
+        Uri.parse(ApiConfig.getOrderStatusUrl(orderId)),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',

@@ -124,8 +124,7 @@ class DeliveryService {
 
       final response = await http
           .post(
-            Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/save-billing-add'),
+            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.saveBillingAddress)),
             headers: headers,
             body: json.encode(requestBody),
           )
@@ -228,14 +227,12 @@ class DeliveryService {
       }
 
       debugPrint('Fetching last delivery info from API...');
-      debugPrint(
-          'API URL: https://eclcommerce.ernestchemists.com.gh/api/get-billing-add');
+      debugPrint('API URL: ${ApiConfig.getEndpointUrl(ApiConfig.getBillingAddress)}');
 
       // call the api to get their saved address
       final response = await http
           .get(
-            Uri.parse(
-                'https://eclcommerce.ernestchemists.com.gh/api/get-billing-add'),
+            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getBillingAddress)),
             headers: headers,
           )
           .timeout(_apiTimeout);
@@ -536,7 +533,7 @@ class DeliveryService {
   static Future<Map<String, dynamic>> getRegions() async {
     try {
       final response = await http.get(
-        Uri.parse('https://eclcommerce.ernestchemists.com.gh/api/regions'),
+        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.regions)),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
@@ -595,12 +592,10 @@ class DeliveryService {
   static Future<Map<String, dynamic>> getCitiesByRegion(int regionId) async {
     try {
       debugPrint('Fetching cities for region $regionId from API...');
-      debugPrint(
-          'API URL: https://eclcommerce.ernestchemists.com.gh/api/regions/$regionId/cities');
+      debugPrint('API URL: ${ApiConfig.getRegionCitiesUrl(regionId.toString())}');
 
       final response = await http.get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/regions/$regionId/cities'),
+        Uri.parse(ApiConfig.getRegionCitiesUrl(regionId.toString())),
         headers: {
           'Accept': 'application/json',
         },
@@ -644,12 +639,10 @@ class DeliveryService {
   static Future<Map<String, dynamic>> getStoresByCity(int cityId) async {
     try {
       debugPrint('Fetching stores for city $cityId from API...');
-      debugPrint(
-          'API URL: https://eclcommerce.ernestchemists.com.gh/api/cities/$cityId/stores');
+      debugPrint('API URL: ${ApiConfig.getCityStoresUrl(cityId.toString())}');
 
       final response = await http.get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/cities/$cityId/stores'),
+        Uri.parse(ApiConfig.getCityStoresUrl(cityId.toString())),
         headers: {
           'Accept': 'application/json',
         },

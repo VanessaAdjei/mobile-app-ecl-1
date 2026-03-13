@@ -1,3 +1,4 @@
+import 'package:eclapp/config/api_config.dart';
 import 'package:eclapp/config/app_routes.dart';
 import 'package:eclapp/models/cart_item.dart';
 import 'package:eclapp/models/order_tracking_model.dart';
@@ -1755,7 +1756,7 @@ class _OrderItemRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final imageUrl = item.imageUrl.startsWith('http')
         ? item.imageUrl
-        : 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/${item.imageUrl}';
+        : ApiConfig.getProductImageUrl(item.imageUrl);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),

@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/delivery_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../config/api_config.dart';
 import '../services/auth_service.dart';
 import 'app_back_button.dart';
 
@@ -361,8 +362,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       final token = await AuthService.getToken();
       if (token == null) return null;
       final response = await http.get(
-        Uri.parse(
-            'https://eclcommerce.ernestchemists.com.gh/api/orders/$orderId/status'),
+        Uri.parse(ApiConfig.getOrderStatusUrl(orderId)),
         headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'},
       ).timeout(const Duration(seconds: 8));
       if (response.statusCode == 200) {
@@ -611,14 +611,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
 
   String getImageUrl(String? url) {
     if (url == null || url.isEmpty) return '';
-    if (url.startsWith('http')) return url;
-    if (url.startsWith('/uploads/')) {
-      return 'https://adm-ecommerce.ernestchemists.com.gh$url';
-    }
-    if (url.startsWith('/storage/')) {
-      return 'https://eclcommerce.ernestchemists.com.gh$url';
-    }
-    return 'https://adm-ecommerce.ernestchemists.com.gh/uploads/product/$url';
+    return ApiConfig.getImageOrStorageUrl(url);
   }
 
   // Helper method to get order items - handles both single and multiple items
