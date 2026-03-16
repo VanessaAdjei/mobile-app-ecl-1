@@ -64,8 +64,8 @@ class OrderStatusTimeline extends StatelessWidget {
             Column(
               children: [
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
                     color: isPending
                         ? Colors.grey.shade100
@@ -77,30 +77,30 @@ class OrderStatusTimeline extends StatelessWidget {
                   ),
                   child: Icon(
                     _iconForStep(step.id),
-                    size: 20,
+                    size: 16,
                     color: isPending ? Colors.grey.shade400 : color,
                   ),
                 ),
                 if (index < steps.length - 1)
                   Container(
                     width: 2,
-                    height: 52,
-                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    height: 36,
+                    margin: const EdgeInsets.symmetric(vertical: 4),
                     color: isDone ? color : Colors.grey.shade200,
                   ),
               ],
             ),
-            const SizedBox(width: 18),
+            const SizedBox(width: 12),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.only(top: 8, bottom: 16),
+                padding: const EdgeInsets.only(top: 4, bottom: 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       step.title,
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.2,
                         color: isPending
@@ -110,15 +110,15 @@ class OrderStatusTimeline extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       _messageForStep(step.id),
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 12,
                         color: isPending
                             ? Colors.grey.shade400
                             : Colors.grey.shade600,
-                        height: 1.4,
+                        height: 1.35,
                         letterSpacing: 0.1,
                       ),
                       overflow: TextOverflow.ellipsis,

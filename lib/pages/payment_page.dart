@@ -49,6 +49,7 @@ class PaymentPage extends StatefulWidget {
   final String? estimatedDeliveryTime;
   final double? distanceKm;
   final double? deliveryFee;
+  final bool isOrderUrgent;
 
   const PaymentPage({
     super.key,
@@ -61,6 +62,7 @@ class PaymentPage extends StatefulWidget {
     this.estimatedDeliveryTime,
     this.distanceKm,
     this.deliveryFee,
+    this.isOrderUrgent = false,
   });
 
   @override
@@ -77,7 +79,7 @@ class PaymentPageState extends State<PaymentPage> {
   String? _paymentError;
   String get expressPaymentForm =>
       ApiConfig.getEndpointUrl(ApiConfig.expressPayment);
-  bool _showAllItems = false; // Add this state variable
+  bool _showAllItems = false; 
 
   // Promo code variables
   final TextEditingController _promoCodeController = TextEditingController();
@@ -183,15 +185,15 @@ class PaymentPageState extends State<PaymentPage> {
     }
   }
 
-  // figure out which auth header to use (bearer or guest)
+
   Future<String?> getAuthHeader() async {
     final isLoggedIn = await AuthService.isLoggedIn();
     String? token = await AuthService.getToken();
     if (isLoggedIn && token != null && token.isNotEmpty) {
-      // Logged-in: use Bearer (token is auth token, not guest_id)
+   
       return 'Bearer $token';
     } else if (!isLoggedIn && token != null && token.isNotEmpty) {
-      // Guest: use Guest header (token is guest_id from SharedPreferences)
+ 
       return 'Guest $token';
     }
     return null;
@@ -201,7 +203,7 @@ class PaymentPageState extends State<PaymentPage> {
     debugPrint('[DEBUG] Entered processPayment');
     if (!mounted) return;
 
-    // Print selected payment method and token at the start
+   
     final debugToken = await AuthService.getToken();
     debugPrint('[DEBUG] Payment button pressed. Method: '
         '$selectedPaymentMethod Token:$debugToken');
@@ -214,10 +216,10 @@ class PaymentPageState extends State<PaymentPage> {
     });
 
     try {
-      // Get only selected items
+ 
       final selectedItems = cart.getSelectedItems();
 
-      // make sure cart has selected items
+    
       if (selectedItems.isEmpty) {
         debugPrint('[DEBUG] Returning early: no items selected');
         throw Exception(
@@ -226,7 +228,7 @@ class PaymentPageState extends State<PaymentPage> {
       debugPrint(
           '[DEBUG] Passed selected items check (${selectedItems.length} items selected)');
 
-      // add up the total price (only for selected items)
+    
       final subtotal = cart.calculateSubtotal();
       if (subtotal <= 0) {
         debugPrint('[DEBUG] Returning early: subtotal <= 0');
@@ -295,6 +297,7 @@ class PaymentPageState extends State<PaymentPage> {
         'city': '',
         'redirect_url': 'http://eclcommerce.test/complete',
         'shipping_type': widget.deliveryOption,
+        'order_urgent': widget.isOrderUrgent,
       };
 
       // Only include selected items in purchased items
@@ -523,6 +526,37 @@ class PaymentPageState extends State<PaymentPage> {
                           ),
                         ),
                       ),
+                      if (widget.isOrderUrgent) ...[
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Colors.red.withValues(alpha: 0.4),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.emergency_rounded, size: 18, color: Colors.red.shade700),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Emergency order',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.red.shade800,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

@@ -52,6 +52,11 @@ class PostCheckoutOrderPage extends StatefulWidget {
 class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
   static const String _supportPhoneNumber = '+233508411184';
 
+  bool get _isEmergencyOrder {
+    final v = widget.paymentParams['order_urgent'];
+    return v == true || v == 'true';
+  }
+
   late final OrderTrackingProvider _provider;
   final OrderTrackingService _service = OrderTrackingService();
 
@@ -77,10 +82,16 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
       initialOrder: initialOrder,
       onOrderConfirmed: _handleConfirmedOrder,
     )..initialize();
+
+    // When a push (order_status/delivery) arrives, refresh tracking immediately.
+    OrderTrackingProvider.onOrderStatusUpdateFromPush = () {
+      _provider.refreshTracking();
+    };
   }
 
   @override
   void dispose() {
+    OrderTrackingProvider.onOrderStatusUpdateFromPush = null;
     _provider.dispose();
     super.dispose();
   }
@@ -615,77 +626,125 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
 
   Widget _buildDeliveredBody(OrderTrackingModel order, Color accent) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
       child: Column(
         children: [
-          const SizedBox(height: 24),
           _FadeInUp(
-            duration: const Duration(milliseconds: 400),
+            duration: const Duration(milliseconds: 350),
             child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+              padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white,
+                    accent.withValues(alpha: 0.03),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: accent.withValues(alpha: 0.15),
+                  width: 1,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
+                    color: accent.withValues(alpha: 0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 4),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 12,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
               child: Column(
                 children: [
                   Container(
-                    width: 88,
-                    height: 88,
+                    width: 64,
+                    height: 64,
                     decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.12),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          accent.withValues(alpha: 0.15),
+                          accent.withValues(alpha: 0.08),
+                        ],
+                      ),
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: accent.withValues(alpha: 0.25),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Icon(
                       Icons.check_circle_rounded,
-                      size: 52,
+                      size: 36,
                       color: accent,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'DELIVERED',
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                        color: accent,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Text(
-                    'Your order has been delivered!',
-                    textAlign: TextAlign.center,
+                    'Your order has arrived',
                     style: GoogleFonts.poppins(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
                       color: const Color(0xFF1A1A1A),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 6),
                   Text(
-                    'Thank you for shopping with us. We hope you enjoy your purchase.',
-                    textAlign: TextAlign.center,
+                    'Thank you for shopping with us.',
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: 13,
                       color: Colors.grey.shade600,
-                      height: 1.5,
+                      height: 1.4,
                     ),
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           _FadeInUp(
-            duration: const Duration(milliseconds: 450),
+            duration: const Duration(milliseconds: 400),
             child: Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade100),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
@@ -693,37 +752,74 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Icon(Icons.receipt_long_rounded, size: 20, color: accent),
-                      const SizedBox(width: 10),
                       Text(
                         'Order #${order.orderNumber}',
                         style: GoogleFonts.poppins(
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.w600,
                           color: const Color(0xFF1A1A1A),
                         ),
                       ),
+                      Text(
+                        'GHS ${order.totalAmount.toStringAsFixed(2)}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: accent,
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    '${order.totalQuantity} item${order.totalQuantity == 1 ? '' : 's'} • GHS ${order.totalAmount.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 1,
+                    color: Colors.grey.shade200,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.inventory_2_outlined,
+                        size: 16,
+                        color: Colors.grey.shade500,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${order.totalQuantity} item${order.totalQuantity == 1 ? '' : 's'}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
                   ),
                   if (order.deliveryAddress.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Delivered to ${order.deliveryAddress}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade600,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: 16,
+                          color: Colors.grey.shade500,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            order.deliveryAddress,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                              height: 1.4,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ],
@@ -731,45 +827,50 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
             ),
           ),
           if (order.items.isNotEmpty) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _FadeInUp(
-              duration: const Duration(milliseconds: 500),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => _showItemsSheet(order),
+              duration: const Duration(milliseconds: 450),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade100),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.list_alt_rounded, size: 20, color: accent),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'View order details',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: accent,
-                            ),
-                          ),
-                        ),
-                        Icon(Icons.chevron_right_rounded, size: 20, color: accent),
-                      ],
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Order items',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                        color: Colors.grey.shade600,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 10),
+                    ...order.items.asMap().entries.map(
+                      (e) => _OrderItemRow(
+                        item: e.value,
+                        isLast: e.key == order.items.length - 1,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ],
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
           _FadeInUp(
-            duration: const Duration(milliseconds: 550),
+            duration: const Duration(milliseconds: 500),
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -778,17 +879,17 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                   backgroundColor: accent,
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                icon: const Icon(Icons.home_rounded, size: 22),
+                icon: const Icon(Icons.home_rounded, size: 20),
                 label: Text(
                   'Back to Home',
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w600,
-                    fontSize: 16,
+                    fontSize: 15,
                   ),
                 ),
               ),
@@ -857,16 +958,49 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                 onPressed: _goHome,
               ),
               title: Text(
-                'Confirmation Page',
+                'Confirmation',
                 style: GoogleFonts.poppins(
-                  fontSize: 20,
+                  fontSize: 18,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
-                  letterSpacing: 0.5,
+                  letterSpacing: 0.3,
                 ),
               ),
             ),
-            body: provider.isLoading && provider.isAwaitingPaymentConfirmation
+            body: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_isEmergencyOrder)
+                  Container(
+                    width: double.infinity,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.12),
+                      border: Border(
+                        bottom: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.emergency_rounded,
+                            size: 16, color: Colors.red.shade700),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Emergency order',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.red.shade800,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                Expanded(
+                  child: provider.isLoading && provider.isAwaitingPaymentConfirmation
                 ? const Center(child: CircularProgressIndicator())
                 : order.stage == OrderTrackingStage.failed
                     ? _buildFailedBody(order, accent)
@@ -880,8 +1014,8 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                             child: TrackingMap(order: order, accent: accent),
                           ),
                           Positioned(
-                            bottom: 24,
-                            right: 20,
+                            bottom: 16,
+                            right: 16,
                             child: Material(
                               elevation: 6,
                               shadowColor: Colors.black.withValues(alpha: 0.2),
@@ -891,7 +1025,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                 onTap: _callSupport,
                                 customBorder: const CircleBorder(),
                                 child: const Padding(
-                                  padding: EdgeInsets.all(14),
+                                  padding: EdgeInsets.all(12),
                                   child: Icon(
                                     Icons.phone_rounded,
                                     color: Colors.white,
@@ -927,77 +1061,102 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                               color: accent,
                               child: ListView(
                                 controller: scrollController,
-                                padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+                                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                                 children: [
                                   Center(
                                     child: Container(
-                                      width: 36,
-                                      height: 4,
-                                      margin: const EdgeInsets.only(bottom: 16),
+                                      width: 32,
+                                      height: 3,
+                                      margin:
+                                          const EdgeInsets.only(bottom: 8),
                                       decoration: BoxDecoration(
                                         color: Colors.grey.shade400,
                                         borderRadius: BorderRadius.circular(2),
                                       ),
                                     ),
                                   ),
-                                  if (order.stage != OrderTrackingStage.failed &&
-                                      !provider.isAwaitingPaymentConfirmation) ...[
-                                    _FadeInUp(
-                                      duration: const Duration(milliseconds: 400),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Order confirmed',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.w700,
-                                              color: const Color(0xFF1A1A1A),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Your order is on its way — we\'ll keep you posted every step.',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.grey.shade600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 20),
-                                  ],
                                   Container(
-                                    padding: const EdgeInsets.all(20),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 14,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.grey.shade100,
+                                        width: 1,
+                                      ),
                                       boxShadow: [
                                         BoxShadow(
                                           color: Colors.black.withValues(alpha: 0.04),
-                                          blurRadius: 12,
-                                          offset: const Offset(0, 4),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 2),
                                         ),
                                       ],
                                     ),
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          'Order #${order.orderNumber}',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600,
-                                            color: const Color(0xFF1A1A1A),
-                                          ),
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    order.stageLabel,
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 16,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: const Color(0xFF1A1A1A),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    'Order #${order.orderNumber}',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w500,
+                                                      color: Colors.grey.shade600,
+                                                      letterSpacing: 0.2,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            if (order.stage != OrderTrackingStage.failed &&
+                                                order.stage != OrderTrackingStage.pendingPayment)
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                  vertical: 4,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: accent.withValues(alpha: 0.1),
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                child: Text(
+                                                  '${order.totalQuantity} item${order.totalQuantity == 1 ? '' : 's'}',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: accent,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
                                         ),
-                                        const SizedBox(height: 6),
+                                        const SizedBox(height: 10),
                                         Text(
-                                          'Arrives in ${order.estimatedDeliveryTime} • ${order.totalQuantity} item${order.totalQuantity == 1 ? '' : 's'} • GHS ${order.totalAmount.toStringAsFixed(2)}',
+                                          order.stage == OrderTrackingStage.failed
+                                              ? order.stageMessage
+                                              : 'Arrives in ${order.estimatedDeliveryTime} • GHS ${order.totalAmount.toStringAsFixed(2)}',
                                           style: TextStyle(
-                                            fontSize: 13,
+                                            fontSize: 12,
                                             color: Colors.grey.shade600,
+                                            height: 1.35,
                                           ),
                                         ),
                                       ],
@@ -1006,80 +1165,57 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                   if (order.stage == OrderTrackingStage.outForDelivery &&
                                       order.deliveryOtp != null &&
                                       order.deliveryOtp!.isNotEmpty) ...[
-                                    const SizedBox(height: 16),
+                                    const SizedBox(height: 8),
                                     Container(
-                                      padding: const EdgeInsets.all(20),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 14,
+                                      ),
                                       decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                          colors: [
-                                            accent.withValues(alpha: 0.12),
-                                            accent.withValues(alpha: 0.06),
-                                          ],
-                                        ),
-                                        borderRadius: BorderRadius.circular(16),
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
                                         border: Border.all(
-                                          color: accent.withValues(alpha: 0.3),
+                                          color: Colors.grey.shade200,
                                           width: 1,
                                         ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.03),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
                                       ),
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment: CrossAxisAlignment.center,
                                         children: [
-                                          Row(
-                                            children: [
-                                              Icon(
-                                                Icons.key_rounded,
-                                                size: 20,
-                                                color: accent,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Text(
-                                                'Give this OTP to the delivery rider',
-                                                style: GoogleFonts.poppins(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: const Color(0xFF1A1A1A),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 12),
-                                          Container(
-                                            width: double.infinity,
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 16,
-                                              horizontal: 24,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.white,
-                                              borderRadius: BorderRadius.circular(12),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.black.withValues(alpha: 0.06),
-                                                  blurRadius: 8,
-                                                  offset: const Offset(0, 2),
-                                                ),
-                                              ],
-                                            ),
-                                            child: Text(
-                                              order.deliveryOtp!,
-                                              textAlign: TextAlign.center,
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 28,
-                                                fontWeight: FontWeight.w700,
-                                                letterSpacing: 8,
-                                                color: accent,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
                                           Text(
-                                            'The rider will ask for this code to complete delivery.',
+                                            'DELIVERY CODE',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                              letterSpacing: 1.2,
+                                              color: Colors.grey.shade500,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 10),
+                                          Text(
+                                            order.deliveryOtp!,
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 22,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: 6,
+                                              color: accent,
+                                              height: 1.2,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            'Show to rider on delivery',
                                             style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey.shade600,
+                                              fontSize: 11,
+                                              color: Colors.grey.shade500,
+                                              letterSpacing: 0.2,
                                             ),
                                           ),
                                         ],
@@ -1087,7 +1223,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                     ),
                                   ],
                                   if (order.stage == OrderTrackingStage.failed) ...[
-                                    const SizedBox(height: 20),
+                                    const SizedBox(height: 12),
                                     _SheetBanner(
                                       icon: Icons.warning_amber_rounded,
                                       message:
@@ -1098,7 +1234,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                     ),
                                   ] else if (provider.errorMessage != null &&
                                       provider.errorMessage!.isNotEmpty) ...[
-                                    const SizedBox(height: 20),
+                                    const SizedBox(height: 12),
                                     _SheetBanner(
                                       icon: Icons.wifi_tethering_error_rounded,
                                       message: provider.errorMessage!,
@@ -1114,7 +1250,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                     ),
                                   ] else if (provider
                                       .isAwaitingPaymentConfirmation) ...[
-                                    const SizedBox(height: 20),
+                                    const SizedBox(height: 12),
                                     SizedBox(
                                       width: double.infinity,
                                       child: ElevatedButton.icon(
@@ -1126,11 +1262,11 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                           foregroundColor: Colors.white,
                                           elevation: 0,
                                           padding: const EdgeInsets.symmetric(
-                                            vertical: 16,
+                                            vertical: 12,
                                           ),
                                           shape: RoundedRectangleBorder(
                                             borderRadius:
-                                                BorderRadius.circular(14),
+                                                BorderRadius.circular(12),
                                           ),
                                         ),
                                         icon: Icon(
@@ -1151,12 +1287,12 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                       ),
                                     ),
                                   ],
-                                  const SizedBox(height: 20),
+                                  const SizedBox(height: 8),
                                   Container(
-                                    padding: const EdgeInsets.all(20),
+                                    padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
                                       color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius: BorderRadius.circular(10),
                                       boxShadow: [
                                         BoxShadow(
                                           color: Colors.black.withValues(alpha: 0.04),
@@ -1171,12 +1307,12 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                         Text(
                                           'Order progress',
                                           style: GoogleFonts.poppins(
-                                            fontSize: 13,
+                                            fontSize: 12,
                                             fontWeight: FontWeight.w600,
                                             color: Colors.grey.shade700,
                                           ),
                                         ),
-                                        const SizedBox(height: 16),
+                                        const SizedBox(height: 6),
                                         OrderStatusTimeline(
                                           steps: order.timelineSteps,
                                           accent: accent,
@@ -1185,67 +1321,89 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                     ),
                                   ),
                                   if (order.items.isNotEmpty) ...[
-                                    const SizedBox(height: 16),
-                                    Material(
-                                      color: Colors.transparent,
-                                      child: InkWell(
-                                        onTap: () => _showItemsSheet(order),
-                                        borderRadius: BorderRadius.circular(12),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 14,
-                                            horizontal: 16,
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: Colors.grey.shade100,
+                                          width: 1,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.02),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 1),
                                           ),
-                                          decoration: BoxDecoration(
-                                            color: accent.withValues(alpha: 0.06),
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                          ),
-                                          child: Row(
+                                        ],
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            crossAxisAlignment: CrossAxisAlignment.center,
                                             children: [
-                                              Icon(
-                                                Icons.receipt_long_rounded,
-                                                size: 20,
-                                                color: accent,
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Text(
-                                                  'View order details',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 14,
-                                                    color: accent,
-                                                  ),
-                                                  overflow: TextOverflow.ellipsis,
+                                              Text(
+                                                'Order items',
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                  letterSpacing: 0.3,
+                                                  color: Colors.grey.shade600,
                                                 ),
                                               ),
-                                              Icon(
-                                                Icons.chevron_right_rounded,
-                                                size: 20,
-                                                color: accent,
+                                              Material(
+                                                color: Colors.transparent,
+                                                child: InkWell(
+                                                  onTap: () => _showItemsSheet(order),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.symmetric(
+                                                      horizontal: 4,
+                                                      vertical: 2,
+                                                    ),
+                                                    child: Text(
+                                                      'View details',
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight: FontWeight.w500,
+                                                        color: accent,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
                                               ),
                                             ],
                                           ),
-                                        ),
+                                          const SizedBox(height: 8),
+                                          ...order.items.asMap().entries.map(
+                                            (e) => _OrderItemRow(
+                                              item: e.value,
+                                              isLast: e.key == order.items.length - 1,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 10),
                                   Material(
                                     color: Colors.transparent,
                                     child: InkWell(
                                       onTap: _goHome,
-                                      borderRadius: BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(10),
                                       child: Container(
                                         width: double.infinity,
                                         padding: const EdgeInsets.symmetric(
-                                          vertical: 16,
+                                          vertical: 12,
                                         ),
                                         decoration: BoxDecoration(
                                           color: accent,
                                           borderRadius:
-                                              BorderRadius.circular(12),
+                                              BorderRadius.circular(10),
                                         ),
                                         child: Row(
                                           mainAxisAlignment:
@@ -1253,15 +1411,15 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                           children: [
                                             Icon(
                                               Icons.home_rounded,
-                                              size: 20,
+                                              size: 18,
                                               color: Colors.white,
                                             ),
-                                            const SizedBox(width: 10),
+                                            const SizedBox(width: 8),
                                             Text(
                                               'Back to Home',
                                               style: GoogleFonts.poppins(
                                                 fontWeight: FontWeight.w600,
-                                                fontSize: 15,
+                                                fontSize: 14,
                                                 color: Colors.white,
                                               ),
                                               overflow: TextOverflow.ellipsis,
@@ -1279,6 +1437,9 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                       ),
                     ],
                   ),
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -1748,9 +1909,13 @@ class _DetailSheet extends StatelessWidget {
 }
 
 class _OrderItemRow extends StatelessWidget {
-  const _OrderItemRow({required this.item});
+  const _OrderItemRow({
+    required this.item,
+    this.isLast = false,
+  });
 
   final OrderTrackingItem item;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
@@ -1759,69 +1924,67 @@ class _OrderItemRow extends StatelessWidget {
         : ApiConfig.getProductImageUrl(item.imageUrl);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(14),
-              ),
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              width: 44,
+              height: 44,
+              color: Colors.grey.shade100,
               child: item.imageUrl.isEmpty
-                  ? Icon(Icons.image_outlined, color: Colors.grey.shade500)
-                  : ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: Image.network(
-                        imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(
-                          Icons.image_outlined,
-                          color: Colors.grey.shade500,
-                        ),
+                  ? Icon(Icons.image_outlined, size: 20, color: Colors.grey.shade400)
+                  : Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Icon(
+                        Icons.image_outlined,
+                        size: 20,
+                        color: Colors.grey.shade400,
                       ),
                     ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.name,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade900,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 2,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  item.name,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF1A1A1A),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Qty ${item.quantity}${item.batchNo.isNotEmpty ? '  •  ${item.batchNo}' : ''}',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 12,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Qty ${item.quantity}${item.batchNo.isNotEmpty ? ' · ${item.batchNo}' : ''}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade500,
                   ),
-                ],
-              ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ],
             ),
-            Text(
-              'GHS ${item.lineTotal.toStringAsFixed(2)}',
-              style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          Text(
+            'GHS ${item.lineTotal.toStringAsFixed(2)}',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF1A1A1A),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

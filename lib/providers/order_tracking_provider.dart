@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/order_tracking_model.dart';
+import '../services/order_notification_service.dart';
 import '../services/order_tracking_service.dart';
 
 class OrderTrackingProvider extends ChangeNotifier {
@@ -15,7 +16,16 @@ class OrderTrackingProvider extends ChangeNotifier {
         _onOrderConfirmed = onOrderConfirmed;
 
   static const Duration _paymentPollInterval = Duration(seconds: 5);
-  static const Duration _trackingPollInterval = Duration(seconds: 30);
+  /// Poll every 2s so the UI updates as soon as the backend changes (no manual refresh).
+  static const Duration _trackingPollInterval = Duration(seconds: 2);
+
+  /// Callback for push-driven refresh (e.g. order_status / delivery notification). Set by the tracking screen.
+  static void Function()? onOrderStatusUpdateFromPush;
+
+  /// Call when a push notification indicates order status changed; refreshes immediately if tracking is active.
+  static void notifyOrderStatusChanged() {
+    onOrderStatusUpdateFromPush?.call();
+  }
   static const Duration _manualRefreshDelay = Duration(seconds: 10);
   static const int _maxEmptyResponses = 36;
   static const int _maxEmptyResponseMinutes = 3;
@@ -61,10 +71,24 @@ class OrderTrackingProvider extends ChangeNotifier {
 
   Future<void> refreshTracking() async {
     try {
+      final previousStage = _order.stage;
       _isRefreshing = true;
       notifyListeners();
       _order = await _service.refreshOrder(_order);
       _errorMessage = null;
+      if (previousStage != OrderTrackingStage.delivered &&
+          _order.stage == OrderTrackingStage.delivered) {
+        await OrderNotificationService.createOrderStatusNotification(
+          orderId: _order.orderId,
+          orderNumber: _order.orderNumber,
+          status: _order.rawStatus,
+          title: 'Order Delivered',
+          message:
+              'Your order #${_order.orderNumber} has been delivered. Thank you for shopping with us!',
+          totalAmount: _order.totalAmount.toString(),
+          items: _order.items.map((e) => e.toMap()).toList(),
+        );
+      }
     } catch (e) {
       _errorMessage = e.toString().replaceFirst('Exception: ', '');
     } finally {

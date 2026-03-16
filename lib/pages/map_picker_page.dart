@@ -36,6 +36,8 @@ class _MapPickerPageState extends State<MapPickerPage> {
   Set<Marker> _markers = {};
   String _selectedAddress = 'Loading address...';
   bool _isLoadingAddress = true;
+  /// True while searching/updating location (Places or Geocoding); disable Confirm until done.
+  bool _isUpdatingLocation = false;
 
   // search box for finding places
   final TextEditingController _searchController = TextEditingController();
@@ -388,6 +390,8 @@ class _MapPickerPageState extends State<MapPickerPage> {
   // search for a place and move the map to it (using Google Geocoding API or Places API)
   Future<void> _searchLocation(String query) async {
     if (query.trim().isEmpty) return;
+    if (!mounted) return;
+    setState(() => _isUpdatingLocation = true);
 
     print('🗺️ [MAP] Searching for location: "$query"');
 
@@ -500,6 +504,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
               );
             }
             print('🗺️ [MAP] ✅ Location selection complete');
+            if (mounted) setState(() => _isUpdatingLocation = false);
             return; // Success, exit early
           }
         }
@@ -614,6 +619,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
             );
           }
           print('🗺️ [MAP] ✅ Location selection complete');
+          if (mounted) setState(() => _isUpdatingLocation = false);
           return; // Success, exit early
         } else {
           print('🗺️ [MAP] ⚠️ No results for "$searchQuery", status: $status');
@@ -627,6 +633,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
     // If we get here, all searches failed
     print('🗺️ [MAP] ❌ All search attempts failed for: "$query"');
     if (mounted) {
+      setState(() => _isUpdatingLocation = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Location not found: $query'),
@@ -977,12 +984,14 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
                       const SizedBox(height: 16),
 
-                      // Confirm Button
+                      // Confirm Button (disabled while search/place update is in progress)
                       SizedBox(
                         width: double.infinity,
                         height: 48,
                         child: ElevatedButton(
-                          onPressed: () {
+                          onPressed: _isUpdatingLocation
+                              ? null
+                              : () {
                             print('🗺️ [MAP] ===== CONFIRMING LOCATION =====');
                             print(
                                 '🗺️ [MAP] Selected location: $_selectedLocation');

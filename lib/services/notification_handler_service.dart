@@ -3,8 +3,10 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:eclapp/pages/notifications.dart';
+import 'package:eclapp/providers/order_tracking_provider.dart';
 
-import '../services/native_notification_service.dart';
+import 'native_notification_service.dart';
+import 'order_notification_service.dart';
 
 class NotificationHandlerService {
   static void handleNotificationPayload(BuildContext context, String? payload) {
@@ -56,7 +58,8 @@ class NotificationHandlerService {
   static void _handleOrderStatusNotification(
       BuildContext context, Map<String, dynamic> data) {
     debugPrint('📱 Handler: Handling order status notification');
-
+    // Refresh tracking screen immediately so status updates without user action
+    OrderTrackingProvider.notifyOrderStatusChanged();
     _navigateToNotificationsImmediately(context);
   }
 
@@ -64,7 +67,20 @@ class NotificationHandlerService {
   static void _handleDeliveryNotification(
       BuildContext context, Map<String, dynamic> data) {
     debugPrint('📱 Handler: Handling delivery notification');
-
+    final orderId = data['order_id']?.toString() ?? data['delivery_id']?.toString() ?? '';
+    final orderNumber = data['order_number']?.toString() ?? orderId;
+    OrderNotificationService.createOrderStatusNotification(
+      orderId: orderId.isNotEmpty ? orderId : DateTime.now().millisecondsSinceEpoch.toString(),
+      orderNumber: orderNumber.isNotEmpty ? orderNumber : 'Order',
+      status: data['status']?.toString() ?? 'delivered',
+      title: 'Order Delivered',
+      message: orderNumber.isNotEmpty
+          ? 'Your order #$orderNumber has been delivered. Thank you for shopping with us!'
+          : 'Your order has been delivered. Thank you for shopping with us!',
+      totalAmount: data['total_amount']?.toString(),
+      items: (data['items'] as List<dynamic>?) ?? const [],
+    );
+    OrderTrackingProvider.notifyOrderStatusChanged();
     _navigateToNotificationsImmediately(context);
   }
 

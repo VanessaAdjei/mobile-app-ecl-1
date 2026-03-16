@@ -15,10 +15,6 @@ class DeliveryService {
   /// Timeout for delivery API calls. Shorter = fail fast and use local fallback.
   static const Duration _apiTimeout = Duration(seconds: 5);
 
-  /// In-memory cache for delivery fee by distance_text to avoid repeated slow API calls.
-  static final Map<String, Map<String, dynamic>> _feeCache = {};
-  static const int _feeCacheMaxEntries = 20;
-
   // Delivery pricing constants
   // Base fee = 20
   // Base distance = 3 km
@@ -250,7 +246,7 @@ class DeliveryService {
         // Pretty print the API response
 
         if (data['data'] != null && data['data']['billingAddr'] != null) {
-          final billingAddr = data['data']['billingAddr'];
+          // keep for structured logging / future use
         } else {
           debugPrint('  └── billingAddr: null');
         }
@@ -363,10 +359,6 @@ class DeliveryService {
         debugPrint('calculate-delivery-fee: distance_text is empty');
         return null;
       }
-      if (_feeCache.containsKey(key)) {
-        debugPrint('calculate-delivery-fee: cache hit for "$key"');
-        return Map<String, dynamic>.from(_feeCache[key]!);
-      }
       final isLoggedIn = await AuthService.isLoggedIn();
       String? token;
       String? guestId;
@@ -448,10 +440,6 @@ class DeliveryService {
         'distance': distanceKm,
         'delivery_fee': feeValue,
       };
-      if (_feeCache.length >= _feeCacheMaxEntries) {
-        _feeCache.remove(_feeCache.keys.first);
-      }
-      _feeCache[key] = result;
       return result;
     } catch (e) {
       print('❌ [CALCULATE-DELIVERY-FEE] Error: $e');

@@ -9,7 +9,10 @@ import 'package:intl/intl.dart';
 import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/app_header_bar.dart';
-
+import 'pharmacists/pharmacists_bookings_sheet.dart';
+import 'pharmacists/pharmacists_booking_helpers.dart';
+import 'pharmacists/pharmacists_ernest_config_dialog.dart';
+import 'pharmacists/pharmacists_models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../services/health_tips_service.dart';
@@ -657,18 +660,20 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           content: Text('Booking cancelled'),
           backgroundColor: Colors.green.shade700,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
       return true;
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-              result['message']?.toString() ?? 'Failed to cancel booking'),
+          content:
+              Text(result['message']?.toString() ?? 'Failed to cancel booking'),
           backgroundColor: Colors.red.shade600,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
       return false;
@@ -1091,13 +1096,12 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
 
   void _refreshAvailableDates({StateSetter? dialogSetState}) {
     final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    final start =
+        DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
     final end = start.add(const Duration(days: 30));
 
     final dates = <DateTime>[];
-    for (var d = start;
-        d.isBefore(end);
-        d = d.add(const Duration(days: 1))) {
+    for (var d = start; d.isBefore(end); d = d.add(const Duration(days: 1))) {
       final times = _computeAvailableTimesForDate(d);
       if (times.isNotEmpty) dates.add(d);
     }
@@ -1236,8 +1240,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     final lastDate = firstDate.add(const Duration(days: 30));
     final initialDate = _availabilityDate ??
         (_availableDates.isNotEmpty ? _availableDates.first : firstDate);
-    final isLoading =
-        loadingSessionsHolder != null && loadingSessionsHolder.isNotEmpty && loadingSessionsHolder[0];
+    final isLoading = loadingSessionsHolder != null &&
+        loadingSessionsHolder.isNotEmpty &&
+        loadingSessionsHolder[0];
 
     return Container(
       key: key,
@@ -1317,8 +1322,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       if (!mounted) return;
                       List<TimeOfDay> times = [];
                       if (result['success'] == true && result['data'] is List) {
-                        final sessions =
-                            result['data'] as List<dynamic>;
+                        final sessions = result['data'] as List<dynamic>;
                         for (final s in sessions) {
                           if (s is! Map) continue;
                           if (s['available'] != true) continue;
@@ -1363,8 +1367,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       width: 22,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(Colors.white),
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
                   : Text(
@@ -1496,7 +1499,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     );
   }
 
-  Widget _buildBookingFormStep({Key? key, required StateSetter setDialogState}) {
+  Widget _buildBookingFormStep(
+      {Key? key, required StateSetter setDialogState}) {
     return SingleChildScrollView(
       key: key,
       padding: const EdgeInsets.all(16),
@@ -1512,8 +1516,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   'Mode of Consultation',
                   _selectedConsultationType,
                   _consultationTypes,
-                  (value) =>
-                      setState(() => _selectedConsultationType = value!),
+                  (value) => setState(() => _selectedConsultationType = value!),
                 ),
                 const SizedBox(height: 12),
                 _buildSimpleDropdownField(
@@ -1528,8 +1531,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   'Gender Preference',
                   _selectedGenderPreference,
                   _genderPreferences,
-                  (value) =>
-                      setState(() => _selectedGenderPreference = value!),
+                  (value) => setState(() => _selectedGenderPreference = value!),
                 ),
               ],
             ),
@@ -1637,7 +1639,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                             _availabilityTime = null;
                             _availableTimes = [];
                           });
-                          _refreshAvailableDates(dialogSetState: setDialogState);
+                          _refreshAvailableDates(
+                              dialogSetState: setDialogState);
                         },
                         child: Text(
                           'Change',
@@ -2469,9 +2472,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     final endMinute = _selectedTime.minute;
     final endTime =
         '${(endHour % 24).toString().padLeft(2, '0')}:${endMinute.toString().padLeft(2, '0')}';
-    final typeValue = _selectedConsultationType
-        .toLowerCase()
-        .replaceAll(' ', '');
+    final typeValue =
+        _selectedConsultationType.toLowerCase().replaceAll(' ', '');
     final apiBody = {
       'session_date': sessionDate,
       'start_time': startTime,
@@ -2519,8 +2521,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
             content: Text(result['message']?.toString() ?? 'Booking failed'),
             backgroundColor: Colors.red[600],
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             duration: Duration(seconds: 4),
           ),
         );
@@ -5374,7 +5376,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               Container(
                 width: 4,
                 decoration: BoxDecoration(
-                  color: isUpcoming ? Colors.green.shade500 : Colors.grey.shade400,
+                  color:
+                      isUpcoming ? Colors.green.shade500 : Colors.grey.shade400,
                 ),
               ),
               Expanded(
@@ -5385,7 +5388,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.event_rounded, color: Colors.green.shade600, size: 16),
+                          Icon(Icons.event_rounded,
+                              color: Colors.green.shade600, size: 16),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
@@ -5400,9 +5404,12 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: isUpcoming ? Colors.green.shade50 : Colors.grey.shade100,
+                              color: isUpcoming
+                                  ? Colors.green.shade50
+                                  : Colors.grey.shade100,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -5410,7 +5417,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                               style: GoogleFonts.poppins(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
-                                color: isUpcoming ? Colors.green.shade700 : Colors.grey.shade700,
+                                color: isUpcoming
+                                    ? Colors.green.shade700
+                                    : Colors.grey.shade700,
                               ),
                             ),
                           ),
@@ -5430,7 +5439,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       const SizedBox(height: 2),
                       Text(
                         '${bookingDisplayConsultationType(b)} · ${bookingDisplayPlatform(b)}',
-                        style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey.shade600),
+                        style: GoogleFonts.poppins(
+                            fontSize: 11, color: Colors.grey.shade600),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -5442,13 +5452,15 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                             onTap: () async {
                               final confirm = await showDialog<bool>(
                                 context: context,
-                                builder: (ctx) => _buildCancelBookingConfirmDialog(ctx),
+                                builder: (ctx) =>
+                                    buildCancelBookingConfirmDialog(ctx),
                               );
                               if (confirm == true) await _cancelBooking(b);
                             },
                             borderRadius: BorderRadius.circular(6),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
                               child: Text(
                                 'Cancel booking',
                                 style: GoogleFonts.poppins(
@@ -5979,779 +5991,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         ],
       ),
     );
-  }
-}
-
-class ChatMessage {
-  final String text;
-  final bool isUser;
-
-  ChatMessage({required this.text, required this.isUser});
-}
-
-class BookingsListSheet extends StatelessWidget {
-  final List<Map<String, dynamic>> bookings;
-  final VoidCallback onClear;
-  final Future<bool> Function(Map<String, dynamic> booking)? onCancelBooking;
-  const BookingsListSheet({
-    required this.bookings,
-    required this.onClear,
-    this.onCancelBooking,
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header
-            Container(
-              padding: EdgeInsets.fromLTRB(20, 20, 12, 16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.green.shade600, Colors.green.shade700],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(Icons.event_note_rounded, color: Colors.white, size: 24),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Booking history',
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${bookings.length} consultation${bookings.length == 1 ? '' : 's'}',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            color: Colors.white.withValues(alpha: 0.9),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.close_rounded, color: Colors.white, size: 24),
-                    onPressed: () => Navigator.pop(context),
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.white.withValues(alpha: 0.2),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Flexible(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.6,
-                ),
-                child: bookings.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.calendar_today_rounded,
-                                size: 56, color: Colors.grey.shade400),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No bookings yet',
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Book a consultation to see it here',
-                              style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                color: Colors.grey.shade600,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.separated(
-                        shrinkWrap: true,
-                        padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-                        itemCount: bookings.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 14),
-                        itemBuilder: (context, i) => _BookingCardModal(
-                          bookings[i],
-                          onCancel: onCancelBooking,
-                        ),
-                      ),
-            ),
-            ),
-            if (bookings.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-                child: TextButton.icon(
-                  onPressed: onClear,
-                  icon: Icon(Icons.delete_outline_rounded, size: 18, color: Colors.red.shade600),
-                  label: Text(
-                    'Clear all from device',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.red.shade600,
-                    ),
-                  ),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.red.shade600,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BookingCardModal extends StatelessWidget {
-  final Map<String, dynamic> b;
-  final Future<bool> Function(Map<String, dynamic> booking)? onCancel;
-  const _BookingCardModal(this.b, {this.onCancel});
-  @override
-  Widget build(BuildContext context) {
-    final hasId = b['id'] != null;
-    final isUpcoming = getBookingStatus(b) == 'Upcoming';
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                width: 4,
-                decoration: BoxDecoration(
-                  color: isUpcoming ? Colors.green.shade500 : Colors.grey.shade400,
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${bookingDisplayDate(b)} · ${bookingDisplayTime(b)}',
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade800,
-                                letterSpacing: -0.2,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isUpcoming
-                                  ? Colors.green.shade50
-                                  : Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              getBookingStatus(b),
-                              style: GoogleFonts.poppins(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: isUpcoming
-                                    ? Colors.green.shade700
-                                    : Colors.grey.shade700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _detailRow(Icons.person_outline_rounded, bookingDisplayName(b)),
-                            const SizedBox(height: 8),
-                            _detailRow(Icons.phone_outlined, b['phone'] ?? ''),
-                            const SizedBox(height: 8),
-                            _detailRow(Icons.email_outlined, b['email'] ?? ''),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Icon(Icons.videocam_outlined, size: 16, color: Colors.grey.shade600),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    '${bookingDisplayConsultationType(b)} · ${bookingDisplayPlatform(b)}',
-                                    style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade700),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (bookingDisplaySymptoms(b).isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        Text(
-                          bookingDisplaySymptoms(b),
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
-                            height: 1.35,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                      if (hasId && isUpcoming && onCancel != null) ...[
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () async {
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => _buildCancelBookingConfirmDialog(ctx),
-                                );
-                                if (confirm == true) {
-                                  final ok = await onCancel!(b);
-                                  if (context.mounted && ok) Navigator.pop(context);
-                                }
-                              },
-                              borderRadius: BorderRadius.circular(8),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.cancel_outlined, size: 16, color: Colors.red.shade600),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'Cancel booking',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.red.shade600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _detailRow(IconData icon, String text) {
-    if (text.isEmpty) return const SizedBox.shrink();
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 16, color: Colors.grey.shade600),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade800),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Redesigned cancel-booking confirmation popup.
-Widget _buildCancelBookingConfirmDialog(BuildContext context) {
-  return Dialog(
-    backgroundColor: Colors.transparent,
-    elevation: 0,
-    child: Container(
-      constraints: const BoxConstraints(maxWidth: 340),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.event_busy_rounded,
-                size: 40,
-                color: Colors.red.shade600,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Cancel this appointment?',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade800,
-                letterSpacing: -0.3,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'This consultation will be cancelled. You can book a new one anytime.',
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                color: Colors.grey.shade600,
-                height: 1.4,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 22),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.green.shade700,
-                      side: BorderSide(color: Colors.green.shade300),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      'Keep appointment',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red.shade500,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      'Yes, cancel',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-// Helpers so booking cards work with both local shape (date, time, name, ...) and API history shape (session_date, start_time, end_time, full_name, type, platform, reason).
-String bookingDisplayDate(Map<String, dynamic> b) {
-  final d = b['date'];
-  if (d != null && d.toString().isNotEmpty) return d.toString();
-  final sd = b['session_date'];
-  if (sd != null && sd.toString().isNotEmpty) return sd.toString();
-  return '';
-}
-
-String bookingDisplayTime(Map<String, dynamic> b) {
-  final t = b['time'];
-  if (t != null && t.toString().isNotEmpty) return t.toString();
-  final start = b['start_time']?.toString() ?? '';
-  final end = b['end_time']?.toString() ?? '';
-  if (start.isEmpty && end.isEmpty) return '';
-  String s = start.split(':').take(2).join(':');
-  String e = end.split(':').take(2).join(':');
-  return e.isEmpty ? s : '$s - $e';
-}
-
-String bookingDisplayName(Map<String, dynamic> b) =>
-    (b['name'] ?? b['full_name'] ?? '').toString();
-
-String bookingDisplayConsultationType(Map<String, dynamic> b) =>
-    (b['consultationType'] ?? b['type'] ?? '').toString();
-
-String bookingDisplayPlatform(Map<String, dynamic> b) =>
-    (b['preferredPlatform'] ?? b['platform'] ?? 'Not specified').toString();
-
-String bookingDisplaySymptoms(Map<String, dynamic> b) =>
-    (b['symptoms'] ?? b['reason'] ?? '').toString();
-
-// Helper to determine booking status (supports local and API history format).
-String getBookingStatus(Map<String, dynamic> b) {
-  try {
-    final now = DateTime.now();
-    // API history format: session_date "2026-01-27", start_time "09:00:00"
-    final sessionDate = b['session_date']?.toString();
-    final startTime = b['start_time']?.toString();
-    if (sessionDate != null &&
-        sessionDate.isNotEmpty &&
-        startTime != null &&
-        startTime.isNotEmpty) {
-      final dateParts = sessionDate.split('-');
-      final timeParts = startTime.split(':');
-      if (dateParts.length >= 3 && timeParts.length >= 2) {
-        final year = int.tryParse(dateParts[0]) ?? now.year;
-        final month = int.tryParse(dateParts[1]) ?? 1;
-        final day = int.tryParse(dateParts[2]) ?? 1;
-        final hour = int.tryParse(timeParts[0]) ?? 0;
-        final minute = int.tryParse(timeParts[1]) ?? 0;
-        final bookingDate = DateTime(year, month, day, hour, minute);
-        return bookingDate.isAfter(now) ? 'Upcoming' : 'Completed';
-      }
-    }
-    // Local format: date "d/m/y", time "2:30 PM" or "14:30"
-    final parts = (b['date'] ?? '').toString().split('/');
-    final timeStr = (b['time'] ?? '').toString();
-    if (parts.length == 3 && timeStr.isNotEmpty) {
-      final day = int.tryParse(parts[0]) ?? 1;
-      final month = int.tryParse(parts[1]) ?? 1;
-      final year = int.tryParse(parts[2]) ?? 2000;
-      final timeParts = timeStr.split(' ');
-      final hm = timeParts[0].split(':');
-      int hour = int.tryParse(hm[0]) ?? 0;
-      int minute = hm.length > 1 ? (int.tryParse(hm[1]) ?? 0) : 0;
-      if (timeParts.length > 1 &&
-          timeParts[1].toUpperCase() == 'PM' &&
-          hour < 12) {
-        hour += 12;
-      }
-      if (timeParts.length > 1 &&
-          timeParts[1].toUpperCase() == 'AM' &&
-          hour == 12) {
-        hour = 0;
-      }
-      final bookingDate = DateTime(year, month, day, hour, minute);
-      return bookingDate.isAfter(now) ? 'Upcoming' : 'Completed';
-    }
-  } catch (_) {
-    // ignore errors and fall through to default
-  }
-  return 'Upcoming';
-}
-
-// Ernest AI Configuration Dialog
-class ErnestConfigurationDialog extends StatefulWidget {
-  @override
-  _ErnestConfigurationDialogState createState() =>
-      _ErnestConfigurationDialogState();
-}
-
-class _ErnestConfigurationDialogState extends State<ErnestConfigurationDialog> {
-  final TextEditingController _apiKeyController = TextEditingController();
-  bool _isConfiguring = false;
-  String? _errorMessage;
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        padding: EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 25,
-              offset: Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // AI Icon
-            Container(
-              padding: EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.purple[400]!, Colors.purple[600]!],
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(
-                Icons.smart_toy,
-                color: Colors.white,
-                size: 48,
-              ),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Configure Ask Ernest',
-              style: GoogleFonts.poppins(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[800],
-              ),
-            ),
-            SizedBox(height: 12),
-            Text(
-              'To use Ernest, you need a Google Gemini API key. Get one for free at:\nhttps://makersuite.google.com/app/apikey',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 20),
-
-            // API Key Input
-            TextField(
-              controller: _apiKeyController,
-              decoration: InputDecoration(
-                labelText: 'Google Gemini API Key',
-                hintText: 'Enter your API key here',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                prefixIcon: Icon(Icons.key, color: Colors.purple[600]),
-              ),
-              obscureText: true,
-            ),
-
-            if (_errorMessage != null) ...[
-              SizedBox(height: 12),
-              Text(
-                _errorMessage!,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: Colors.red[600],
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-
-            SizedBox(height: 24),
-
-            // Action Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () => Navigator.pop(context),
-                        child: Center(
-                          child: Text(
-                            'Cancel',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Container(
-                    height: 48,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.purple[500]!, Colors.purple[600]!],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: _isConfiguring ? null : _configureService,
-                        child: Center(
-                          child: _isConfiguring
-                              ? SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white),
-                                  ),
-                                )
-                              : Text(
-                                  'Configure',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _configureService() async {
-    if (_apiKeyController.text.isEmpty) {
-      setState(() {
-        _errorMessage = 'Please enter your API key';
-      });
-      return;
-    }
-
-    setState(() {
-      _isConfiguring = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final success = await ErnestAIService.configure(_apiKeyController.text);
-      if (success) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Ernest AI configured successfully! 🎉'),
-            backgroundColor: Colors.green[600],
-          ),
-        );
-      } else {
-        setState(() {
-          _errorMessage = 'Invalid API key. Please check and try again.';
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Configuration failed: ${e.toString()}';
-      });
-    } finally {
-      setState(() {
-        _isConfiguring = false;
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _apiKeyController.dispose();
-    super.dispose();
   }
 }
 
@@ -7728,19 +6967,4 @@ class _SimpleErnestChatPageState extends State<SimpleErnestChatPage> {
     _messageController.dispose();
     super.dispose();
   }
-}
-
-// Simple chat message model
-class SimpleChatMessage {
-  final String text;
-  final bool isUser;
-  final DateTime timestamp;
-  final bool showYesNoButtons;
-
-  SimpleChatMessage({
-    required this.text,
-    required this.isUser,
-    required this.timestamp,
-    this.showYesNoButtons = false,
-  });
 }

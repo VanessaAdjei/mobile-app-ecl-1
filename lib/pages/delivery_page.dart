@@ -57,6 +57,8 @@ class DeliveryPageState extends State<DeliveryPage> {
   final GlobalKey citySectionKey = GlobalKey();
   final GlobalKey addressSectionKey = GlobalKey();
 
+  bool _isOrderUrgent = false;
+
   // data for pickup locations (regions, cities, stores)
   List<Map<String, dynamic>> regions = [];
   List<Map<String, dynamic>> cities = [];
@@ -150,11 +152,8 @@ class DeliveryPageState extends State<DeliveryPage> {
         print('🗺️ [MAP COORDINATES] Longitude: ${location.longitude}');
         print('🗺️ [MAP COORDINATES] ======================================');
 
-        // Do reverse geocoding to get full address with place name
+        // Do reverse geocoding and update address; _getAddressFromCoordinates calls _fetchDeliveryTimeFromAPI when done.
         await _getAddressFromCoordinates(_latitude!, _longitude!);
-
-        // Fetch delivery time from API with new coordinates
-        _fetchDeliveryTimeFromAPI();
 
         if (oldLat != null && oldLng != null) {
           print('   📍 Previous coordinates: ($oldLat, $oldLng)');
@@ -315,10 +314,6 @@ class DeliveryPageState extends State<DeliveryPage> {
     }
   }
 
-  double _calculateDeliveryFee(String region, String city) {
-    return DeliveryService.calculateDeliveryFee(region, city);
-  }
-
   void _resetHighlights() {
     if (!mounted) return;
     setState(() {
@@ -351,12 +346,7 @@ class DeliveryPageState extends State<DeliveryPage> {
   }
 
   void _updateDeliveryFee() {
-    if (_regionController.text.isNotEmpty && _cityController.text.isNotEmpty) {
-      setState(() {
-        deliveryFee =
-            _calculateDeliveryFee(_regionController.text, _cityController.text);
-      });
-    }
+    // Delivery fee comes from API only in _fetchDeliveryTimeFromAPI; do not set from calculation
   }
 
   @override
@@ -485,6 +475,8 @@ class DeliveryPageState extends State<DeliveryPage> {
                                 ],
                                 child: _buildDeliveryOptions(),
                               ),
+                              const SizedBox(height: 16),
+                              _buildUrgentOption(),
                               const SizedBox(height: 20),
                               if (deliveryOption == 'pickup')
                                 Animate(
@@ -1460,34 +1452,21 @@ class DeliveryPageState extends State<DeliveryPage> {
         });
       }
 
-      // Show local fee immediately so UI doesn't wait for the (slow) fee API
+      // Delivery fee from API only (no local calculation)
       if (distanceText != null && distanceText.isNotEmpty && mounted) {
-        final localFallback = DeliveryService.calculateDeliveryFeeFromDistanceText(
-          distanceText,
-        );
-        if (localFallback != null) {
+        final feeResult =
+            await DeliveryService.fetchDeliveryFeeFromApi(distanceText: distanceText);
+
+        if (feeResult != null && mounted) {
+          final feeValue = feeResult['delivery_fee'] as double;
+          final distanceKm = feeResult['distance'] as double?;
           setState(() {
-            deliveryFee = localFallback['fee']!;
-            _distanceKm = localFallback['distanceKm'];
+            deliveryFee = feeValue;
+            _distanceKm = distanceKm;
           });
           print(
-              '📦 Delivery fee (local, instant): distance=${localFallback['distanceKm']} km, fee=GHS ${localFallback['fee']?.toStringAsFixed(2)}');
+              '📦 Delivery fee (API): distance=$distanceKm km, delivery_fee=GHS ${feeValue.toStringAsFixed(2)}');
         }
-
-        // Refine with API in background (cache or network); update UI when it returns
-        DeliveryService.fetchDeliveryFeeFromApi(distanceText: distanceText)
-            .then((feeResult) {
-          if (feeResult != null && mounted) {
-            final feeValue = feeResult['delivery_fee'] as double;
-            final distanceKm = feeResult['distance'] as double?;
-            setState(() {
-              deliveryFee = feeValue;
-              _distanceKm = distanceKm;
-            });
-            print(
-                '📦 Delivery fee (API): distance=$distanceKm km, delivery_fee=GHS ${feeValue.toStringAsFixed(2)}');
-          }
-        });
       }
     } catch (e) {
       print('❌ [DELIVERY] Error fetching delivery time/fee from API: $e');
@@ -1658,6 +1637,113 @@ class DeliveryPageState extends State<DeliveryPage> {
             textInputAction: TextInputAction.done,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildUrgentOption() {
+    final isOn = _isOrderUrgent;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _isOrderUrgent = !_isOrderUrgent;
+            });
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            decoration: BoxDecoration(
+              color: isOn
+                  ? Colors.red.withValues(alpha: 0.06)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isOn
+                    ? Colors.red.withValues(alpha: 0.35)
+                    : Colors.grey.shade200,
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isOn
+                        ? Colors.red.withValues(alpha: 0.12)
+                        : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.emergency_rounded,
+                    size: 20,
+                    color: isOn ? Colors.red.shade600 : Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        isOn ? 'Urgent order' : 'Urgent or emergency',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.2,
+                          color: isOn
+                              ? Colors.red.shade700
+                              : Colors.grey.shade800,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        isOn
+                            ? 'We’ll prioritise this order'
+                            : 'Tap to mark as urgent',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                          letterSpacing: 0.1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isOn
+                        ? Colors.red.shade500
+                        : Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(
+                    isOn ? Icons.check_rounded : Icons.add_rounded,
+                    size: 16,
+                    color: isOn ? Colors.white : Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -2080,6 +2166,7 @@ class DeliveryPageState extends State<DeliveryPage> {
           estimatedDeliveryTime: _apiDeliveryTime,
           distanceKm: _distanceKm,
           deliveryFee: deliveryFee,
+          isOrderUrgent: _isOrderUrgent,
         ),
       ),
     );
@@ -2328,11 +2415,10 @@ class DeliveryPageState extends State<DeliveryPage> {
             _highlightRegionField = false;
             _highlightCityField = false;
             _highlightAddressField = false;
-
-            // Update delivery fee since region/city changed
-            _updateDeliveryFee();
           });
         }
+        // Use the new location for delivery: save address and fetch delivery fee from API
+        if (mounted) _fetchDeliveryTimeFromAPI();
       } else {
         print(
             '⚠️ [REVERSE GEOCODING] No address found for coordinates: ($lat, $lng)');
