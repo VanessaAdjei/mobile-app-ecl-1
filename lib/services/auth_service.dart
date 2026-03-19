@@ -78,18 +78,12 @@ class AuthService {
     }
   }
 
-  // write to secure storage but use regular storage if it fails
+  // write to secure storage; only fall back to SharedPreferences if secure storage fails
+  // (do not write to both—tokens must not be stored in plain prefs when secure works)
   static Future<void> _safeWrite(String key, String value) async {
     bool keychainFailed = false;
     try {
       await _secureStorage.write(key: key, value: value);
-      // if secure storage worked, also save to regular storage as backup
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('secure_$key', value);
-      } catch (e) {
-        // dont care if this fails since secure storage worked
-      }
     } on PlatformException catch (e) {
       // handle keychain errors
       if (e.code == '-34018' || e.message?.contains('34018') == true) {

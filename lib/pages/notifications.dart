@@ -620,7 +620,8 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Future<void> _handleNotificationAction(Map<String, dynamic> notification) async {
+  Future<void> _handleNotificationAction(
+      Map<String, dynamic> notification) async {
     debugPrint('🔍 _handleNotificationAction called');
     debugPrint('🔍 Full notification: $notification');
 
@@ -695,7 +696,8 @@ class NotificationsScreenState extends State<NotificationsScreen> {
           final oId = ord['id']?.toString();
           final ordNum = ord['order_number']?.toString();
 
-          final matches = (dId != null && (dId == orderId || dId == orderNumber)) ||
+          final matches = (dId != null &&
+                  (dId == orderId || dId == orderNumber)) ||
               (tId != null && (tId == orderId || tId == orderNumber)) ||
               (oId != null && (oId == orderId || oId == orderNumber)) ||
               (ordNum != null && (ordNum == orderId || ordNum == orderNumber));
@@ -716,7 +718,8 @@ class NotificationsScreenState extends State<NotificationsScreen> {
               for (final o in rawOrders) {
                 final ord = Map<String, dynamic>.from(o);
                 if (ord['delivery_id']?.toString() == dId) {
-                  final s = ord['status']?.toString() ?? ord['order_status']?.toString();
+                  final s = ord['status']?.toString() ??
+                      ord['order_status']?.toString();
                   if (s != null && s.isNotEmpty) {
                     apiStatus = s;
                     break;
@@ -727,7 +730,8 @@ class NotificationsScreenState extends State<NotificationsScreen> {
           }
           if (apiStatus != null && apiStatus.isNotEmpty) {
             orderDetails['status'] = apiStatus;
-            debugPrint('📱 Got actual status from API for notification: $apiStatus');
+            debugPrint(
+                '📱 Got actual status from API for notification: $apiStatus');
           }
           orderDetails['delivery_id'] = bestDeliveryId;
           orderDetails['transaction_id'] = bestDeliveryId;
@@ -762,8 +766,8 @@ class NotificationsScreenState extends State<NotificationsScreen> {
             content: Text('Error navigating to tracking page: $e'),
             duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
-            margin:
-                EdgeInsets.only(bottom: MediaQuery.of(context).size.height - 100),
+            margin: EdgeInsets.only(
+                bottom: MediaQuery.of(context).size.height - 100),
           ),
         );
       }
@@ -827,248 +831,245 @@ class NotificationsScreenState extends State<NotificationsScreen> {
       timeText = 'Just now';
     }
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: true,
-      barrierColor: Colors.black.withValues(alpha: 0.5),
-      builder: (context) => PopScope(
-        onPopInvokedWithResult: (didPop, result) async {
-          if (didPop) {
-            await _markNotificationAsRead(notification);
-          }
-        },
-        child: Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          child: Container(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.8,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (context) {
+        return PopScope(
+          onPopInvokedWithResult: (didPop, result) async {
+            if (didPop) {
+              await _markNotificationAsRead(notification);
+            }
+          },
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
             ),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Modern Header
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        iconColor.withValues(alpha: 0.1),
-                        iconColor.withValues(alpha: 0.05),
-                      ],
-                    ),
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(20),
-                      topRight: Radius.circular(20),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(999),
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: iconColor,
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: [
-                            BoxShadow(
-                              color: iconColor.withValues(alpha: 0.3),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          iconData,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              notification['title'] ?? 'Notification',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
-                                color: Colors.grey.shade900,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              timeText,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () async {
-                            await _markNotificationAsRead(notification);
-                            Navigator.pop(context);
-                          },
-                          borderRadius: BorderRadius.circular(20),
-                          child: Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.close_rounded,
-                              color: Colors.grey.shade700,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Content
-                Flexible(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  Padding(
+                    padding:
+                        const EdgeInsets.fromLTRB(16, 12, 16, 10),
+                    child: Row(
                       children: [
-                        // Message
-                        if (notification['message']?.toString().isNotEmpty ==
-                            true) ...[
-                          Text(
-                            notification['message'] ?? '',
-                            style: TextStyle(
-                              color: Colors.grey.shade700,
-                              fontSize: 14,
-                              height: 1.5,
-                            ),
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: iconColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          const SizedBox(height: 16),
-                        ],
-
-                        // Items with images
-                        if (items.isNotEmpty) ...[
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: items
-                                .map<Widget>((item) => _buildImageItemRow(item))
-                                .toList(),
+                          child: Icon(
+                            iconData,
+                            color: iconColor,
+                            size: 22,
                           ),
-                          const SizedBox(height: 16),
-                        ],
-
-                        // Order details - simplified
-                        if (orderNumber.isNotEmpty) ...[
-                          Row(
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                orderNumber,
+                                notification['title'] ?? 'Notification',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w700,
-                                  fontSize: 15,
+                                  fontSize: 15.5,
                                   color: Colors.grey.shade900,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                timeText,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade600,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                        ],
-                        if (status.isNotEmpty) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade600,
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            child: Text(
-                              status.toUpperCase(),
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                        if (totalAmount.isNotEmpty) ...[
-                          Text(
-                            totalAmount,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 18,
-                              color: Colors.green.shade700,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-
-                        // Track Order Button
-                        if (notification['order_id'] != null ||
-                            notification['order_number'] != null)
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: () async {
-                                Navigator.pop(context);
-                                await _handleNotificationAction(notification);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green.shade600,
-                                foregroundColor: Colors.white,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: const Text(
-                                'Track Order',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15,
-                                ),
-                              ),
-                            ),
-                          ),
+                        ),
                       ],
                     ),
                   ),
-                ),
-              ],
+                  const Divider(height: 1),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding:
+                          const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (notification['message']
+                                      ?.toString()
+                                      .isNotEmpty ==
+                                  true) ...[
+                            Text(
+                              notification['message'] ?? '',
+                              style: TextStyle(
+                                color: Colors.grey.shade800,
+                                fontSize: 14,
+                                height: 1.5,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                          ],
+                          if (items.isNotEmpty) ...[
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: items
+                                  .map<Widget>(
+                                      (item) => _buildImageItemRow(item))
+                                  .toList(),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          if (orderNumber.isNotEmpty ||
+                              totalAmount.isNotEmpty)
+                            Row(
+                              children: [
+                                if (orderNumber.isNotEmpty) ...[
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Order',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey.shade600,
+                                            letterSpacing: 0.4,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          orderNumber,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                            color: Colors.grey.shade900,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                if (totalAmount.isNotEmpty) ...[
+                                  const SizedBox(width: 12),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        'Total',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey.shade600,
+                                          letterSpacing: 0.4,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        totalAmount,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                          color: Colors.green.shade700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          if (orderNumber.isNotEmpty ||
+                              totalAmount.isNotEmpty)
+                            const SizedBox(height: 14),
+                          if (status.isNotEmpty) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                    color: Colors.green.shade100),
+                              ),
+                              child: Text(
+                                status.toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green.shade700,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          if (notification['order_id'] != null ||
+                              notification['order_number'] != null)
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  Navigator.pop(context);
+                                  await _handleNotificationAction(
+                                      notification);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green.shade600,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 11),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius.circular(12),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: const Text(
+                                  'Track order',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

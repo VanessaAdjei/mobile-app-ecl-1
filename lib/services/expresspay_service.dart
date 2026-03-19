@@ -2,6 +2,7 @@
 // handles expresspay payment stuff
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -26,8 +27,9 @@ class ExpressPayApi {
     _queryCompletionListener = listener;
   }
 
+  /// Debug mode only works in debug builds; ignored in release.
   void setDebugMode(bool enabled) {
-    _debugMode = enabled;
+    _debugMode = kDebugMode && enabled;
   }
 
   Future<void> pay(Map<String, String> params) async {
@@ -38,7 +40,7 @@ class ExpressPayApi {
 
       if (_debugMode) {
         _token = 'DEBUG_${DateTime.now().millisecondsSinceEpoch}';
-        debugPrint('Debug mode: Generated token $_token');
+        if (kDebugMode) debugPrint('Debug mode: using test token (no real payment)');
 
         await checkout();
         return;
@@ -54,7 +56,7 @@ class ExpressPayApi {
       final responseData = json.decode(response.body);
       if (responseData['status'] == '1') {
         _token = responseData['token'];
-        debugPrint('Received token: $_token');
+        if (kDebugMode) debugPrint('Received token: [REDACTED]');
         await checkout();
       } else {
         final errorMsg = responseData['message'] ?? 'Payment failed';

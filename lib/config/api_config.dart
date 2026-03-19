@@ -21,6 +21,12 @@ class ApiConfig {
   // app root (no /api) for storage paths
   static const String appBaseUrl = 'https://eclcommerce.ernestchemists.com.gh';
 
+  /// Payment gateway redirect URL. Override with --dart-define=PAYMENT_REDIRECT_URL=... for test.
+  static String get paymentRedirectUrl {
+    const env = String.fromEnvironment('PAYMENT_REDIRECT_URL', defaultValue: '');
+    return env.isNotEmpty ? env : '$appBaseUrl/complete';
+  }
+
   // ==================== AUTHENTICATION ENDPOINTS ====================
   // login and auth stuff
 
@@ -186,10 +192,10 @@ class ApiConfig {
   static const String googleMapsGeocodingUrl =
       'https://maps.googleapis.com/maps/api/geocode/json';
 
-  // NOTE: Set this to your real Google Maps API key (the same one you use in iOS/Android)
-  // before building the app. Leaving the placeholder will make geocoding requests fail.
-  static const String googleMapsApiKey =
-      'AIzaSyBovMgpzLro6Z-yabBeLRl1FLVnE52BTnc';
+  /// Google Maps API key. Set via --dart-define=GOOGLE_MAPS_API_KEY=your_key
+  /// so it is not committed. Empty in repo; required for map/geocoding.
+  static String get googleMapsApiKey =>
+      String.fromEnvironment('GOOGLE_MAPS_API_KEY', defaultValue: '');
 
   // ==================== HELPER METHODS ====================
   // functions to build full urls from endpoints

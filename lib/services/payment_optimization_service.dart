@@ -248,7 +248,7 @@ class PaymentOptimizationService {
         'email': userEmail,
         'phone_number': contactNumber,
         'account_number': contactNumber,
-        'redirect_url': 'http://eclcommerce.test/complete'
+        'redirect_url': ApiConfig.paymentRedirectUrl
       };
 
       final purchasedItems = List<CartItem>.from(cart.cartItems);

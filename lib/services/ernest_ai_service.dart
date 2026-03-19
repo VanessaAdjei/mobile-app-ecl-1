@@ -45,9 +45,7 @@ Be friendly, professional, and always prioritize user safety.
   static Future<Map<String, dynamic>> testConnection() async {
     try {
       debugPrint('🔍 Testing Ernest AI connection...');
-      debugPrint('🔑 API Key: ${_apiKey.substring(0, 10)}...');
       debugPrint('🤖 Model: $_modelName');
-      debugPrint('🔍 API Key length: ${_apiKey.length} characters');
 
       // test 1: basic model creation
       debugPrint('🔍 Test 1: Creating GenerativeModel...');
@@ -189,7 +187,6 @@ Please provide a helpful, safe response following all safety guidelines.
       if (e.toString().contains('model') ||
           e.toString().contains('not found')) {
         debugPrint('🔍 Model error detected. Trying to identify the issue...');
-        debugPrint('🔑 API Key format: ${_apiKey.length} characters');
         debugPrint('🤖 Model name: $_modelName');
 
         return ErnestResponse(

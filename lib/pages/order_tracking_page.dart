@@ -766,7 +766,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       debugPrint('🔍 Total amount: $totalAmount');
 
       return Scaffold(
-        backgroundColor: Colors.grey[50],
+        backgroundColor: Colors.grey[100],
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -851,19 +851,141 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                 child: SingleChildScrollView(
                   physics: AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(16),
-                  child: Column(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.grey.shade200,
+                          Colors.grey.shade100,
+                          Colors.grey.shade100,
+                        ],
+                        stops: const [0.0, 0.12, 1.0],
+                      ),
+                    ),
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildModernHeader(orderNumber, status, orderDate),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.green.shade200),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.green.shade200.withValues(alpha: 0.5),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.receipt_long_rounded,
+                              size: 16,
+                              color: Colors.green.shade700,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Order summary',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade800,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
                       _buildOrderItemsCard(
                           orderItems, totalQuantity, totalAmount),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blue.shade200),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.blue.shade200.withValues(alpha: 0.5),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.timeline_rounded,
+                              size: 16,
+                              color: Colors.blue.shade600,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Status',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade800,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
                       _buildStatusTimelineCard(status),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.orange.shade200),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.orange.shade200.withValues(alpha: 0.5),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.location_on_rounded,
+                              size: 16,
+                              color: Colors.orange.shade700,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Delivery details',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade800,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
                       _buildDeliveryDetailsCard(),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 28),
                     ],
+                    ),
                   ),
                 ),
               ),
@@ -912,48 +1034,136 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
 
   Widget _buildModernHeader(
       String orderNumber, String status, DateTime? orderDate) {
+    // derive a primary color/icon for the current status so the header feels more alive
+    final lowerStatus = status.toLowerCase().trim();
+    Color accentColor;
+    IconData accentIcon;
+    String friendlyStatus;
+    if (lowerStatus.contains('delivered') || lowerStatus == 'completed') {
+      accentColor = Colors.green.shade600;
+      accentIcon = Icons.check_circle_rounded;
+      friendlyStatus = 'Delivered';
+    } else if (lowerStatus.contains('out for delivery') ||
+        lowerStatus.contains('out_for_delivery') ||
+        lowerStatus.contains('shipped') ||
+        lowerStatus == 'shipped' ||
+        lowerStatus.contains('out for')) {
+      accentColor = Colors.blue.shade600;
+      accentIcon = Icons.delivery_dining_rounded;
+      friendlyStatus = 'Out for delivery';
+    } else if (lowerStatus.contains('paid') ||
+        lowerStatus.contains('confirm') ||
+        lowerStatus == 'processing' ||
+        lowerStatus == 'payment received' ||
+        lowerStatus == 'payment verified' ||
+        lowerStatus == 'pending confirmation') {
+      accentColor = Colors.orange.shade600;
+      accentIcon = Icons.verified_rounded;
+      friendlyStatus = 'Confirmed';
+    } else if (lowerStatus == 'order placed' || lowerStatus == 'pending') {
+      accentColor = Colors.grey.shade700;
+      accentIcon = Icons.receipt_long_rounded;
+      friendlyStatus = 'Order placed';
+    } else {
+      accentColor = Colors.grey.shade700;
+      accentIcon = Icons.info_rounded;
+      friendlyStatus = status.isNotEmpty ? status : 'Pending';
+    }
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green.shade200, width: 1.5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.green.shade200, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.green.shade50,
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.green.shade200.withValues(alpha: 0.4),
             blurRadius: 8,
             offset: const Offset(0, 2),
+            spreadRadius: -2,
           ),
         ],
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: accentColor.withValues(alpha: 0.2),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(
+              accentIcon,
+              color: accentColor,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  orderNumber,
+                  'Order $orderNumber',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: Colors.grey.shade900,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                if (orderDate != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    DateFormat('MMM d, y • h:mm a').format(orderDate),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Text(
+                      friendlyStatus,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: accentColor,
+                      ),
                     ),
-                  ),
-                ],
+                    if (orderDate != null) ...[
+                      Text(
+                        ' • ',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                      Flexible(
+                        child: Text(
+                          DateFormat('MMM d, y • h:mm a').format(orderDate),
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: Colors.grey.shade600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           _buildStatusBadge(status),
         ],
       ),
@@ -993,6 +1203,13 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       decoration: BoxDecoration(
         color: statusColor,
         borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: statusColor.withValues(alpha: 0.4),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Text(
         statusText.toUpperCase(),
@@ -1008,16 +1225,23 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
 
   Widget _buildStatusTimelineCard(String currentStatus) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green.shade200, width: 1.5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.green.shade50,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+            spreadRadius: 0,
           ),
         ],
       ),
@@ -1084,24 +1308,69 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     debugPrint('🔍   Will show delivery fee: ${deliveryFee > 0.01}');
     
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green.shade200, width: 1.5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.green.shade50,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+            spreadRadius: 0,
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: Colors.grey.shade300),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  '$totalQuantity item${totalQuantity == 1 ? '' : 's'}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'GHS ${totalAmount.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.green.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           ...orderItems.map((item) => _buildModernOrderItemRow(item)),
-          const Divider(height: 12),
+          const Divider(height: 14),
           // Price Breakdown
           // Subtotal
           Row(
@@ -1237,22 +1506,25 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     final price = (item['price'] ?? 0.0).toDouble();
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(8),
             child: Image.network(
               productImg,
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) => Container(
-                width: 40,
-                height: 40,
+                width: 44,
+                height: 44,
                 color: Colors.grey.shade100,
-                child: Icon(Icons.image_rounded,
-                    color: Colors.grey.shade400, size: 16),
+                child: Icon(
+                  Icons.image_rounded,
+                  color: Colors.grey.shade400,
+                  size: 18,
+                ),
               ),
             ),
           ),
@@ -1363,6 +1635,18 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                             ? Colors.blue.shade600
                             : Colors.grey.shade300,
                     shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: (isCompleted
+                                ? Colors.green.shade600
+                                : isCurrent
+                                    ? Colors.blue.shade600
+                                    : Colors.grey.shade400)
+                            .withValues(alpha: 0.4),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Icon(
                     icon,
@@ -1447,16 +1731,23 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
 
   Widget _buildDeliveryDetailsCard() {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green.shade200, width: 1.5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.green.shade50,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+            spreadRadius: 0,
           ),
         ],
       ),

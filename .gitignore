@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 android/key.properties
+android/local.properties
 
 # Miscellaneous
 *.class

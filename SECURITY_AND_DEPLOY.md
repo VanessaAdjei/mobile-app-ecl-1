@@ -54,10 +54,52 @@ The Gemini API key is read at compile time so it is not hardcoded in source.
 
 ### Google Maps
 
-- **Android:** the Maps API key is in `AndroidManifest.xml`. Prefer loading it from `local.properties` (e.g. `MAPS_API_KEY=...`) and injecting it in `build.gradle` so the key is not committed. Add `local.properties` to `.gitignore` if you put secrets there.
-- **iOS:** the key is in `AppDelegate.swift` / xcconfig. Prefer a non-committed xcconfig or build-phase injection so the key is not in source control.
+Keys are **not** committed. Set them as follows for release and CI.
 
-The placeholder in `lib/config/api_config.dart` (`googleMapsApiKey`) is used for web/other; avoid committing a production key there.
+- **Dart (map/geocoding):** pass at build time:
+
+  ```bash
+  flutter build apk --release --dart-define=GOOGLE_MAPS_API_KEY=your_google_maps_key
+  flutter build appbundle --release --dart-define=GOOGLE_MAPS_API_KEY=your_google_maps_key
+  ```
+
+- **Android:** create or edit `android/local.properties` (do not commit; already in `.gitignore`):
+
+  ```properties
+  sdk.dir=/path/to/your/android/sdk
+  MAPS_API_KEY=your_google_maps_key
+  ```
+
+  The app reads `MAPS_API_KEY` via `build.gradle` and injects it into the manifest. If missing, the placeholder `YOUR_GOOGLE_MAPS_API_KEY` is used and Maps will not work until you set it.
+
+- **iOS:** the repo contains the placeholder `YOUR_GOOGLE_MAPS_API_KEY` in `ios/Runner/Info.plist` (no real key committed).
+
+  - **Local run:** replace it manually with your key, or inject before building (see below).
+  - **CI / release:** inject the key so it is never committed. Example (run from repo root, with `GMS_API_KEY` set in CI secrets):
+
+    ```bash
+    plutil -replace GMSApiKey -string "$GMS_API_KEY" ios/Runner/Info.plist
+    flutter build ios --release
+    ```
+
+  - `AppDelegate.swift` reads the key from `Info.plist` at runtime; do not hardcode the key there.
+
+## Payment redirect URL
+
+The payment gateway redirect URL defaults to `https://eclcommerce.ernestchemists.com.gh/complete`. For test environments, override with:
+
+```bash
+--dart-define=PAYMENT_REDIRECT_URL=https://your-test-host/complete
+```
+
+## Security hardening (vulnerability testing)
+
+- **SSL:** The app uses default certificate validation; no custom `badCertificateCallback` in production.
+- **iOS ATS:** `NSAllowsArbitraryLoads` and `NSAllowsArbitraryLoadsInWebContent` are `false`; no arbitrary HTTP loads.
+- **Auth tokens:** Stored in secure storage (Keychain/EncryptedSharedPreferences); SharedPreferences is used only when secure storage fails (e.g. iOS simulator keychain issues).
+- **ExpressPay:** Debug mode is ignored in release builds (`kDebugMode`); payment tokens are not logged in release.
+- **Logging:** API keys and tokens are not printed in logs.
+- **API keys in repo:** No real Google Maps or Gemini keys in version control; use dart-define / local.properties / CI injection.
 
 ## ProGuard (Android release)
 
@@ -77,4 +119,7 @@ If you see runtime crashes or missing classes in release, add keep rules for the
 | Android keystore  | Create `android/upload-keystore.jks`, do not commit. |
 | Signing config    | `android/key.properties` (from `key.properties.example`), do not commit. |
 | Gemini API key    | `--dart-define=GEMINI_API_KEY=...` for release; optional in-app entry. |
-| Google Maps keys  | Prefer `local.properties` (Android) and xcconfig/build args (iOS); do not commit. |
+| Google Maps (Dart) | `--dart-define=GOOGLE_MAPS_API_KEY=...` for release. |
+| Google Maps (Android) | `android/local.properties` → `MAPS_API_KEY=...`; do not commit. |
+| Google Maps (iOS) | Replace `YOUR_GOOGLE_MAPS_API_KEY` in `Info.plist` at build time; do not commit. |
+| Payment redirect  | Default production URL; override with `--dart-define=PAYMENT_REDIRECT_URL=...` for test. |

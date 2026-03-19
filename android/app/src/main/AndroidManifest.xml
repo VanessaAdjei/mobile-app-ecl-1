@@ -49,10 +49,10 @@
             </intent-filter>
         </activity>
 
-        <!-- Google Maps API Key -->
+        <!-- Google Maps API Key: set MAPS_API_KEY in android/local.properties (do not commit) -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyBIC6ZwYoKZjy0ALdkNu3svUzuOYMTHVhQ" />
+            android:value="${MAPS_API_KEY}" />
 
         <!-- Main Activity -->
         <activity

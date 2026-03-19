@@ -1,10 +1,8 @@
 // services/notification_handler_service.dart
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:eclapp/pages/notifications.dart';
 import 'package:eclapp/providers/order_tracking_provider.dart';
-
 import 'native_notification_service.dart';
 import 'order_notification_service.dart';
 

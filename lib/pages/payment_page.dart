@@ -295,7 +295,7 @@ class PaymentPageState extends State<PaymentPage> {
         'address': widget.deliveryAddress ?? '',
         'region': '',
         'city': '',
-        'redirect_url': 'http://eclcommerce.test/complete',
+        'redirect_url': ApiConfig.paymentRedirectUrl,
         'shipping_type': widget.deliveryOption,
         'order_urgent': widget.isOrderUrgent,
       };
