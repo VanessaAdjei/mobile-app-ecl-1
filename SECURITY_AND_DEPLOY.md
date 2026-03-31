@@ -97,7 +97,7 @@ The payment gateway redirect URL defaults to `https://eclcommerce.ernestchemists
 - **SSL:** The app uses default certificate validation; no custom `badCertificateCallback` in production.
 - **iOS ATS:** `NSAllowsArbitraryLoads` and `NSAllowsArbitraryLoadsInWebContent` are `false`; no arbitrary HTTP loads.
 - **Auth tokens:** Stored in secure storage (Keychain/EncryptedSharedPreferences); SharedPreferences is used only when secure storage fails (e.g. iOS simulator keychain issues).
-- **ExpressPay:** Debug mode is ignored in release builds (`kDebugMode`); payment tokens are not logged in release.
+- **ExpressPay:** Debug  mode is ignored in release builds (`kDebugMode`); payment tokens are not logged in release.
 - **Logging:** API keys and tokens are not printed in logs.
 - **API keys in repo:** No real Google Maps or Gemini keys in version control; use dart-define / local.properties / CI injection.
 

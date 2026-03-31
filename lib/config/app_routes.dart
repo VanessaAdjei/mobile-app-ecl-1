@@ -1,7 +1,3 @@
-// config/app_routes.dart
-// Central route names and generator. Use these instead of importing pages directly
-// for navigation to reduce coupling.
-
 import 'package:flutter/material.dart';
 import '../pages/aboutus.dart';
 import '../pages/cart.dart';

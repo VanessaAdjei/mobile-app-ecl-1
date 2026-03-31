@@ -205,16 +205,22 @@ class NativeNotificationService {
     }
     try {
       const androidDetails = AndroidNotificationDetails(
-        'ecl_order_channel',
+        // Bump channel id so existing installs pick up sound/vibration settings.
+        // Android notification channels are not fully editable after creation.
+        'ecl_order_channel_v3',
         'Order Updates',
         channelDescription: 'Notifications for order status and updates',
         importance: Importance.high,
         priority: Priority.high,
+        playSound: true,
+        sound: RawResourceAndroidNotificationSound('notification'),
+        enableVibration: true,
       );
       const iosDetails = DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
+        sound: 'notification.wav',
       );
       const details = NotificationDetails(
         android: androidDetails,
