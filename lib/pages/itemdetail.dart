@@ -8,7 +8,6 @@ import 'package:uuid/uuid.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/cart_item.dart';
 import 'package:eclapp/models/product_model.dart';
 import 'package:eclapp/config/api_config.dart';
@@ -353,8 +352,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     try {
       final response = await http
           .get(
-        Uri.parse(
-            ApiConfig.getProductDetailsUrl(urlName)),
+        Uri.parse(ApiConfig.getProductDetailsUrl(urlName)),
       )
           .timeout(
         const Duration(seconds: 15),
@@ -373,8 +371,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
           // print the api response so we can see what we got
           debugPrint('🔍 PRODUCT DETAILS API RESPONSE ===');
-          debugPrint(
-              'URL: ${ApiConfig.getProductDetailsUrl(urlName)}');
+          debugPrint('URL: ${ApiConfig.getProductDetailsUrl(urlName)}');
           debugPrint('Response Status: ${response.statusCode}');
           debugPrint('Response Body: ${response.body}');
           debugPrint('  data keys: ${data.keys.toList()}');
@@ -598,8 +595,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     try {
       final response = await http
           .get(
-        Uri.parse(
-            ApiConfig.getRelatedProductsUrl(urlName)),
+        Uri.parse(ApiConfig.getRelatedProductsUrl(urlName)),
       )
           .timeout(
         const Duration(seconds: 10),
@@ -978,9 +974,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildProductImageGallery(Product product) {
-    final imageUrls = _productImages.isNotEmpty
-        ? _productImages
-        : [product.thumbnail];
+    final imageUrls =
+        _productImages.isNotEmpty ? _productImages : [product.thumbnail];
     return GestureDetector(
       onTap: () => FullScreenImageViewer.show(
         context,
@@ -990,7 +985,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       child: Animate(
         effects: [
           FadeEffect(duration: 400.ms),
-          SlideEffect(duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
+          SlideEffect(
+              duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
         ],
         child: Container(
           height: 220,
@@ -999,45 +995,57 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             children: [
               // image pageview
               PageView.builder(
-              controller: _imagePageController,
-              onPageChanged: (index) {
-                setState(() {
-                  _currentImageIndex = index;
-                });
-              },
-              itemCount: _productImages.isNotEmpty ? _productImages.length : 1,
-              itemBuilder: (context, index) {
-                final imageUrl = _productImages.isNotEmpty
-                    ? _productImages[index]
-                    : product.thumbnail;
+                controller: _imagePageController,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentImageIndex = index;
+                  });
+                },
+                itemCount:
+                    _productImages.isNotEmpty ? _productImages.length : 1,
+                itemBuilder: (context, index) {
+                  final imageUrl = _productImages.isNotEmpty
+                      ? _productImages[index]
+                      : product.thumbnail;
 
-                return Center(
-                  child: Container(
-                    height: 200,
-                    width: 200,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Hero(
-                        tag: 'product-image-${product.id}-${product.urlName}',
-                        child: imageUrl.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: imageUrl,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
-                                  color: Colors.grey[200],
-                                  child: Center(
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.green.shade600,
+                  return Center(
+                    child: Container(
+                      height: 200,
+                      width: 200,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Hero(
+                          tag: 'product-image-${product.id}-${product.urlName}',
+                          child: imageUrl.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: imageUrl,
+                                  fit: BoxFit.cover,
+                                  placeholder: (context, url) => Container(
+                                    color: Colors.grey[200],
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                          Colors.green.shade600,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                errorWidget: (context, url, error) => Container(
+                                  errorWidget: (context, url, error) =>
+                                      Container(
+                                    color: Colors.grey[200],
+                                    child: Icon(
+                                      Icons.medical_services,
+                                      size: 50,
+                                      color: Colors.grey[400],
+                                    ),
+                                  ),
+                                )
+                              : Container(
                                   color: Colors.grey[200],
                                   child: Icon(
                                     Icons.medical_services,
@@ -1045,46 +1053,37 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                     color: Colors.grey[400],
                                   ),
                                 ),
-                              )
-                            : Container(
-                                color: Colors.grey[200],
-                                child: Icon(
-                                  Icons.medical_services,
-                                  size: 50,
-                                  color: Colors.grey[400],
-                                ),
-                              ),
+                        ),
                       ),
                     ),
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              ),
 
-            // image indicators (dots)
-            if (_productImages.length > 1)
-              Positioned(
-                bottom: 8,
-                left: 0,
-                right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    _productImages.length,
-                    (index) => Container(
-                      width: 6,
-                      height: 6,
-                      margin: EdgeInsets.symmetric(horizontal: 3),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _currentImageIndex == index
-                            ? Colors.green.shade600
-                            : Colors.white.withValues(alpha: 0.5),
+              // image indicators (dots)
+              if (_productImages.length > 1)
+                Positioned(
+                  bottom: 8,
+                  left: 0,
+                  right: 0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      _productImages.length,
+                      (index) => Container(
+                        width: 6,
+                        height: 6,
+                        margin: EdgeInsets.symmetric(horizontal: 3),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _currentImageIndex == index
+                              ? Colors.green.shade600
+                              : Colors.white.withValues(alpha: 0.5),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -1574,41 +1573,11 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                           'DEBUG: isPrescribed = \\${widget.isPrescribed}');
                       if (isPrescription) {
                         final token = await AuthService.getToken();
-                        if (token == null || token == "guest-temp-token") {
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.setString(
-                              'pending_prescription_product', product.name);
-                          await prefs.setString(
-                              'pending_prescription_thumbnail',
-                              product.thumbnail);
-                          await prefs.setString(
-                              'pending_prescription_id', product.id.toString());
-                          await prefs.setString(
-                              'pending_prescription_price', product.price);
-                          await prefs.setString('pending_prescription_batch_no',
-                              product.batch_no);
-                          await prefs.setBool('has_pending_prescription', true);
-
-                          debugPrint(
-                              '🔍 ItemDetail: Stored prescription data:');
-                          debugPrint(
-                              '🔍 ItemDetail: Product Name: ${product.name}');
-                          debugPrint(
-                              '🔍 ItemDetail: Product ID: ${product.id}');
-                          debugPrint('🔍 ItemDetail: Price: ${product.price}');
-                          debugPrint(
-                              '🔍 ItemDetail: Batch No: ${product.batch_no}');
-
-                          if (!context.mounted) return;
-
-                          _showSignInRequiredDialog(context);
-                          return;
-                        }
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => PrescriptionUploadPage(
-                              token: token,
+                              token: token ?? 'guest-temp-token',
                               item: {
                                 'product': {
                                   'name': product.name,
@@ -2057,100 +2026,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           ),
         ),
       ),
-    );
-  }
-
-  void _showSignInRequiredDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return Dialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          backgroundColor: Colors.white,
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade100,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.red.shade300, width: 1.5),
-                  ),
-                  child: Icon(
-                    Icons.medical_services_rounded,
-                    color: Colors.red.shade700,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Prescription Required',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade900,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'This medication requires a valid prescription. Please sign in to upload your prescription and complete your order.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                    height: 1.3,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.grey.shade700,
-                          side: BorderSide(color: Colors.grey.shade300),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: const Text('Cancel'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          Navigator.pushNamed(
-                            context,
-                            AppRoutes.signIn,
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade700,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          elevation: 0,
-                        ),
-                        child: const Text('Sign In'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }

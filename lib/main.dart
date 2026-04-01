@@ -22,6 +22,7 @@ import 'services/homepage_optimization_service.dart';
 import 'services/background_prefetch_service.dart';
 import 'pages/onboarding_splash_page.dart';
 import 'pages/prescription.dart';
+import 'pages/prescription_upload_standalone.dart';
 import 'pages/notification_permission_page.dart';
 import 'pages/clearance_admin_page.dart';
 import 'providers/notification_provider.dart';
@@ -68,7 +69,11 @@ void main() async {
 
     FlutterError.onError = (FlutterErrorDetails d) {
       if (_isKeychainError(d.exception) ||
-          d.stack?.toString().toLowerCase().contains('flutter_secure_storage') == true) {
+          d.stack
+                  ?.toString()
+                  .toLowerCase()
+                  .contains('flutter_secure_storage') ==
+              true) {
         return;
       }
       FlutterError.presentError(d);
@@ -665,34 +670,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               routes: {
                 '/clearance-admin': (context) => const ClearanceAdminPage(),
                 '/prescription-upload': (context) =>
-                    FutureBuilder<Map<String, dynamic>>(
-                      future: _getPrescriptionData(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Scaffold(
-                            body: Center(child: CircularProgressIndicator()),
-                          );
-                        }
-
-                        if (snapshot.hasData && snapshot.data != null) {
-                          debugPrint(
-                              '🔍 Main: Route handler - Creating PrescriptionUploadPage');
-                          debugPrint(
-                              '🔍 Main: Token: ${snapshot.data!['token']}');
-                          debugPrint(
-                              '🔍 Main: Item: ${snapshot.data!['item']}');
-
-                          return PrescriptionUploadPage(
-                            token: snapshot.data!['token'] ?? '',
-                            item: snapshot.data!['item'],
-                          );
-                        }
-
-                        // Fallback to HomePage if no data
-                        return const HomePage();
-                      },
-                    ),
+                    const PrescriptionUploadStandalone(),
               },
             ),
           );

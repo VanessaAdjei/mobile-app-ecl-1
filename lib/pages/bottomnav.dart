@@ -349,6 +349,21 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                           children: [
                             _buildMenuOption(
                               context,
+                              icon: Icons.upload_rounded,
+                              title: 'Upload prescription',
+                              subtitle: 'Upload your medical prescription',
+                              color: Colors.purple.shade600,
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.prescriptionUpload,
+                                );
+                              },
+                            ),
+                            const Divider(height: 1),
+                            _buildMenuOption(
+                              context,
                               icon: Icons.medical_services_rounded,
                               title: 'Meet your pharmacist',
                               subtitle: 'Chat or schedule a consultation',
@@ -963,7 +978,8 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.red.withValues(alpha: 0.5),
+                                        color:
+                                            Colors.red.withValues(alpha: 0.5),
                                         blurRadius: 4,
                                         offset: const Offset(0, 2),
                                       ),
@@ -1142,8 +1158,10 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                   colors: [
-                                    const Color(0xFF20AF67).withValues(alpha: 0.1),
-                                    const Color(0xFF20AF67).withValues(alpha: 0.05),
+                                    const Color(0xFF20AF67)
+                                        .withValues(alpha: 0.1),
+                                    const Color(0xFF20AF67)
+                                        .withValues(alpha: 0.05),
                                   ],
                                 ),
                               ),
