@@ -24,6 +24,7 @@ import 'pages/onboarding_splash_page.dart';
 import 'pages/prescription.dart';
 import 'pages/prescription_upload_standalone.dart';
 import 'pages/notification_permission_page.dart';
+import 'pages/terms_acceptance_page.dart';
 import 'pages/clearance_admin_page.dart';
 import 'providers/notification_provider.dart';
 import 'services/background_order_checker.dart';
@@ -197,6 +198,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool? _isFirstLaunch;
+  bool? _termsAccepted;
   bool _isLoggedIn = false;
   String? _pendingNotificationPayload;
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
@@ -217,6 +219,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     // do the important checks first (wait for them)
     await _checkFirstLaunch();
+    await _checkTermsAcceptance();
 
     // do the less important checks at the same time (dont wait)
     unawaited(_checkAuthStatus());
@@ -275,6 +278,22 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         });
         debugPrint('🚀 Main: Date parsing error - treating as fresh install');
       }
+    }
+  }
+
+  Future<void> _checkTermsAcceptance() async {
+    final prefs = await SharedPreferences.getInstance();
+    final termsAccepted = prefs.getBool('terms_accepted') ?? false;
+
+    if (!mounted) return;
+    setState(() {
+      _termsAccepted = termsAccepted;
+    });
+
+    if (termsAccepted) {
+      debugPrint('🚀 Main: Terms already accepted');
+    } else {
+      debugPrint('🚀 Main: Terms not accepted yet - will show acceptance page');
     }
   }
 
@@ -414,7 +433,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     // if we're still loading, show loading screen or go to onboarding
-    if (_isFirstLaunch == null) {
+    if (_isFirstLaunch == null || _termsAccepted == null) {
       // show a simple loading screen or just go straight to onboarding
       return MaterialApp(
         home: Scaffold(
@@ -642,26 +661,34 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               ),
               navigatorKey: NativeNotificationService.globalNavigatorKey,
               scaffoldMessengerKey: NotificationService.messengerKey,
-              home: _isFirstLaunch == true
-                  ? OnboardingSplashPage(
-                      onFinish: () async {
-                        if (!mounted) return;
+              home: _termsAccepted == false
+                  ? _TermsWrapper(
+                      onAccepted: () {
                         setState(() {
-                          _isFirstLaunch = false;
-                        });
-
-                        // Show notification permission request after onboarding
-                        // Use Future.microtask to defer to next event loop tick
-                        Future.microtask(() {
-                          if (!mounted) return;
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (!mounted) return;
-                            _showNotificationPermissionIfNeeded();
-                          });
+                          _termsAccepted = true;
                         });
                       },
                     )
-                  : const HomePage(),
+                  : _isFirstLaunch == true
+                      ? OnboardingSplashPage(
+                          onFinish: () async {
+                            if (!mounted) return;
+                            setState(() {
+                              _isFirstLaunch = false;
+                            });
+
+                            // Show notification permission request after onboarding
+                            // Use Future.microtask to defer to next event loop tick
+                            Future.microtask(() {
+                              if (!mounted) return;
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (!mounted) return;
+                                _showNotificationPermissionIfNeeded();
+                              });
+                            });
+                          },
+                        )
+                      : const HomePage(),
               onGenerateRoute: (settings) =>
                   AppRouteGenerator.generate(settings) ??
                   MaterialPageRoute(
@@ -824,6 +851,50 @@ class ProtectedRoute extends StatelessWidget {
     }
 
     return child;
+  }
+}
+
+// Wrapper widget for terms acceptance
+class _TermsWrapper extends StatefulWidget {
+  final VoidCallback onAccepted;
+
+  const _TermsWrapper({required this.onAccepted});
+
+  @override
+  State<_TermsWrapper> createState() => _TermsWrapperState();
+}
+
+class _TermsWrapperState extends State<_TermsWrapper> {
+  @override
+  Widget build(BuildContext context) {
+    return TermsAcceptancePage();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen for when terms are accepted
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForAcceptance();
+    });
+  }
+
+  void _checkForAcceptance() async {
+    // Wait a bit and check if terms were accepted
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final accepted = prefs.getBool('terms_accepted') ?? false;
+
+    if (accepted && mounted) {
+      widget.onAccepted();
+    } else {
+      // Check again after a delay
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) _checkForAcceptance();
+      });
+    }
   }
 }
 
