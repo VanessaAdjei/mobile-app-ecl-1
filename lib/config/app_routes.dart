@@ -18,6 +18,7 @@ import '../pages/tandc.dart';
 import '../pages/wallet_page.dart';
 import '../pages/wishlist_page.dart';
 import '../pages/delivery_page.dart';
+import '../pages/prescription_upload_standalone.dart';
 
 /// Central route name constants. Use these for Navigator.pushNamed.
 class AppRoutes {
@@ -38,6 +39,7 @@ class AppRoutes {
   static const String signIn = '/sign-in';
   static const String profileScreen = '/profile-screen';
   static const String prescriptionHistory = '/prescription-history';
+  static const String prescriptionUpload = '/prescription-upload';
   static const String purchases = '/purchases';
   static const String aboutUs = '/about-us';
   static const String privacyPolicy = '/privacy-policy';
@@ -103,6 +105,10 @@ class AppRouteGenerator {
       case AppRoutes.prescriptionHistory:
         return MaterialPageRoute(
           builder: (_) => const PrescriptionHistoryScreen(),
+        );
+      case AppRoutes.prescriptionUpload:
+        return MaterialPageRoute(
+          builder: (_) => const PrescriptionUploadStandalone(),
         );
       case AppRoutes.purchases:
         return MaterialPageRoute(builder: (_) => const PurchaseScreen());

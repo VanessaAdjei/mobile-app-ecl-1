@@ -8,7 +8,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
-import '../widgets/app_header_bar.dart';
 import 'pharmacists/pharmacists_bookings_sheet.dart';
 import 'pharmacists/pharmacists_booking_helpers.dart';
 import 'pharmacists/pharmacists_ernest_config_dialog.dart';
@@ -3011,155 +3010,168 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     final topPadding = MediaQuery.of(context).padding.top;
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: Stack(children: [
-        Column(children: [
-          // Unified app header
-          AppHeaderBar(
-            title: 'Meet the Pharmacists',
-            subtitle: 'Get expert advice from our pharmacists',
-            onBack: () {
-              if (Navigator.canPop(context)) {
-                Navigator.pop(context);
-              } else {
-                Navigator.pop(context);
-              }
-            },
+      backgroundColor: Color(0xFFF8FAFB),
+      appBar: AppBar(
+        backgroundColor: Color(0xFF4CAF50),
+        elevation: 4,
+        shadowColor: Colors.black.withOpacity(0.2),
+        centerTitle: true,
+        leading: BackButtonUtils.simple(
+          backgroundColor: Colors.white.withOpacity(0.2),
+        ),
+        title: Text(
+          'Meet the Pharmacists',
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            letterSpacing: 0.5,
           ),
-          // Content
-          Expanded(
-            child: Column(
-              children: [
-                // My Booked Appointments Section
-                if (_bookings.isNotEmpty) ...[
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(20, 2, 20, 0),
-                    child: Row(
-                      children: [
-                        if (_bookings.length > 1)
-                          Expanded(
-                            child: Container(
-                              height: 28,
-                              decoration: BoxDecoration(
-                                color: Colors.green[100],
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(4),
-                                  onTap: () {
-                                    showModalBottomSheet(
-                                      context: context,
-                                      isScrollControlled: true,
-                                      backgroundColor: Colors.transparent,
-                                      builder: (_) => BookingsListSheet(
-                                        bookings: _bookings,
-                                        onClear: _clearBookings,
-                                        onCancelBooking: _cancelBooking,
-                                      ),
-                                    );
-                                  },
-                                  child: Center(
-                                    child: Text(
-                                      'See All (${_bookings.length})',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.green[700],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        if (_bookings.length > 1) SizedBox(width: 6),
-                        Container(
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: Colors.red.shade600,
+        ),
+        actions: [
+          Container(
+            margin: EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: CartIconButton(
+              iconColor: Colors.white,
+              iconSize: 24,
+              backgroundColor: Colors.transparent,
+            ),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // My Booked Appointments Section
+          if (_bookings.isNotEmpty) ...[
+            Padding(
+              padding: EdgeInsets.fromLTRB(20, 2, 20, 0),
+              child: Row(
+                children: [
+                  if (_bookings.length > 1)
+                    Expanded(
+                      child: Container(
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: Colors.green[100],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
                             borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(4),
-                              onTap: _clearBookings,
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 10),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.clear_all,
-                                      color: Colors.white,
-                                      size: 14,
-                                    ),
-                                    SizedBox(width: 3),
-                                    Text(
-                                      'Clear',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ],
+                            onTap: () {
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (_) => BookingsListSheet(
+                                  bookings: _bookings,
+                                  onClear: _clearBookings,
+                                  onCancelBooking: _cancelBooking,
+                                ),
+                              );
+                            },
+                            child: Center(
+                              child: Text(
+                                'See All (${_bookings.length})',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green[700],
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ],
+                      ),
+                    ),
+                  if (_bookings.length > 1) SizedBox(width: 6),
+                  Container(
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade600,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(4),
+                        onTap: _clearBookings,
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 10),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.clear_all,
+                                color: Colors.white,
+                                size: 14,
+                              ),
+                              SizedBox(width: 3),
+                              Text(
+                                'Clear',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                  _isUserLoggedIn
-                      ? _buildSlimBookingCard(_bookings.first)
-                      : _buildLoginPromptCard(),
                 ],
-                // Main Content
-                Expanded(
-                  child: ListView(
-                    padding: EdgeInsets.fromLTRB(16, 4, 16, 16),
-                    children: [
-                      // Hero Section
-                      _buildHeroSection(),
-                      SizedBox(height: 10),
+              ),
+            ),
+            _isUserLoggedIn
+                ? _buildSlimBookingCard(_bookings.first)
+                : _buildLoginPromptCard(),
+          ],
+          // Main Content
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(16, 4, 16, 16),
+              children: [
+                // Hero Section
+                _buildHeroSection(),
+                SizedBox(height: 10),
 
-                      SizedBox(height: 22),
-                      _buildConsolidatedServicesCard(),
-                      SizedBox(height: 48),
+                SizedBox(height: 22),
+                _buildConsolidatedServicesCard(),
+                SizedBox(height: 48),
 
-                      // Health Tips Section
-                      _buildRedesignedHealthTipsSection(),
-                      // Space for floating bot
-                    ],
-                  ),
-                ),
+                // Health Tips Section
+                _buildRedesignedHealthTipsSection(),
+                // Space for floating bot
               ],
             ),
           ),
-        ]),
-      ]),
+        ],
+      ),
     );
   }
 
   Widget _buildHeroSection() {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.grey.shade200,
-          width: 1,
+        gradient: LinearGradient(
+          colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Color(0xFF4CAF50).withOpacity(0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -3169,22 +3181,22 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           Row(
             children: [
               Container(
-                padding: EdgeInsets.all(10),
+                padding: EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(10),
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Colors.green.shade100,
-                    width: 1,
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1.5,
                   ),
                 ),
                 child: Icon(
-                  Icons.medical_services,
-                  color: Colors.green.shade700,
-                  size: 20,
+                  Icons.medical_services_rounded,
+                  color: Colors.white,
+                  size: 28,
                 ),
               ),
-              SizedBox(width: 12),
+              SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3192,18 +3204,19 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                     Text(
                       'Professional Healthcare',
                       style: GoogleFonts.poppins(
-                        fontSize: 16,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade900,
+                        color: Colors.white,
+                        letterSpacing: 0.3,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    SizedBox(height: 6),
                     Text(
-                      'Get expert advice from our experienced pharmacists with 24/7 support.',
+                      'Connect with certified pharmacists for personalized health guidance anytime.',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
-                        color: Colors.grey.shade600,
-                        height: 1.2,
+                        color: Colors.white.withOpacity(0.95),
+                        height: 1.4,
                       ),
                     ),
                   ],
@@ -3211,17 +3224,17 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               ),
             ],
           ),
-          SizedBox(height: 10),
+          SizedBox(height: 16),
           Wrap(
-            spacing: 6,
-            runSpacing: 4,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               _buildFeatureBadge(
-                  Icons.check_circle, 'Expert Advice', Colors.green.shade700),
+                  Icons.verified_rounded, 'Expert Advice', Colors.white),
               _buildFeatureBadge(
-                  Icons.access_time, '24/7 Support', Colors.grey.shade700),
+                  Icons.access_time_rounded, '24/7 Support', Colors.white),
               _buildFeatureBadge(
-                  Icons.security, 'Secure & Private', Colors.red.shade600),
+                  Icons.security_rounded, 'Secure & Private', Colors.white),
             ],
           ),
         ],
@@ -3230,31 +3243,20 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   }
 
   Widget _buildFeatureBadge(IconData icon, String text, Color color) {
-    final isRed = color == Colors.red.shade600;
-    final isGreen = color == Colors.green.shade700;
-
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: isRed
-            ? Colors.red.shade50
-            : isGreen
-                ? Colors.green.shade50
-                : Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: isRed
-              ? Colors.red.shade200
-              : isGreen
-                  ? Colors.green.shade200
-                  : Colors.grey.shade200,
-          width: 1,
+          color: Colors.white.withOpacity(0.3),
+          width: 1.5,
         ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 14),
+          Icon(icon, color: color, size: 16),
           SizedBox(width: 6),
           Text(
             text,
@@ -3890,84 +3892,76 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   // Consolidated Services Card - Combines Virtual Consultation and Ernest AI
   Widget _buildConsolidatedServicesCard() {
     return Container(
-      padding: EdgeInsets.all(12),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.grey.shade200,
-          width: 1,
-        ),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Compact Header
-          Container(
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.grey.shade200,
-                width: 1,
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Colors.green.shade100,
-                      width: 1,
+          // Elegant Header
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF2196F3), Color(0xFF1976D2)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFF2196F3).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
                     ),
-                  ),
-                  child: Icon(
-                    Icons.medical_services,
-                    color: Colors.green.shade700,
-                    size: 18,
-                  ),
+                  ],
                 ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Healthcare Services',
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade900,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Consultation & AI assistance',
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          color: Colors.grey.shade600,
-                          height: 1.1,
-                        ),
-                      ),
-                    ],
-                  ),
+                child: Icon(
+                  Icons.health_and_safety_rounded,
+                  color: Colors.white,
+                  size: 24,
                 ),
-              ],
-            ),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Healthcare Services',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1A1A1A),
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Choose your preferred consultation method',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Color(0xFF757575),
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          SizedBox(height: 16),
+          SizedBox(height: 20),
 
           // Compact Service Options
           IntrinsicHeight(
@@ -3981,24 +3975,30 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       children: [
                         AnimatedContainer(
                           duration: Duration(milliseconds: 300),
-                          height: 160,
-                          padding: EdgeInsets.all(16),
+                          height: 180,
+                          padding: EdgeInsets.all(18),
                           decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
+                            gradient: LinearGradient(
+                              colors: _shouldHighlightBooking
+                                  ? [Color(0xFF4CAF50), Color(0xFF2E7D32)]
+                                  : [Color(0xFFF1F8F4), Color(0xFFE8F5E9)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: _shouldHighlightBooking
-                                  ? Colors.green.shade400
-                                  : Colors.grey.shade200,
-                              width: _shouldHighlightBooking ? 2 : 1,
+                                  ? Colors.white.withOpacity(0.3)
+                                  : Color(0xFF4CAF50).withOpacity(0.3),
+                              width: 2,
                             ),
                             boxShadow: [
                               BoxShadow(
                                 color: _shouldHighlightBooking
-                                    ? Colors.green.withValues(alpha: 0.15)
-                                    : Colors.black.withValues(alpha: 0.04),
-                                blurRadius: _shouldHighlightBooking ? 8 : 4,
-                                offset: const Offset(0, 2),
+                                    ? Color(0xFF4CAF50).withOpacity(0.3)
+                                    : Colors.black.withOpacity(0.05),
+                                blurRadius: _shouldHighlightBooking ? 12 : 8,
+                                offset: const Offset(0, 4),
                               ),
                             ],
                           ),
@@ -4008,59 +4008,75 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               Container(
-                                padding: EdgeInsets.all(8),
+                                padding: EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: Colors.green.shade50,
-                                  borderRadius: BorderRadius.circular(10),
+                                  color: _shouldHighlightBooking
+                                      ? Colors.white.withOpacity(0.25)
+                                      : Color(0xFF4CAF50).withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
-                                    color: Colors.green.shade100,
-                                    width: 1,
+                                    color: _shouldHighlightBooking
+                                        ? Colors.white.withOpacity(0.3)
+                                        : Color(0xFF4CAF50).withOpacity(0.3),
+                                    width: 1.5,
                                   ),
                                 ),
                                 child: Icon(
-                                  Icons.video_call,
-                                  color: Colors.green.shade700,
-                                  size: 20,
+                                  Icons.video_call_rounded,
+                                  color: _shouldHighlightBooking
+                                      ? Colors.white
+                                      : Color(0xFF2E7D32),
+                                  size: 32,
                                 ),
                               ),
-                              SizedBox(height: 8),
+                              SizedBox(height: 12),
                               Text(
                                 'Book Consultation',
                                 style: GoogleFonts.poppins(
-                                  fontSize: 13,
+                                  fontSize: 14,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.grey.shade900,
-                                  letterSpacing: 0.2,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              SizedBox(height: 3),
-                              Text(
-                                'Video, Audio & Chat',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 9,
-                                  color: Colors.grey.shade600,
+                                  color: _shouldHighlightBooking
+                                      ? Colors.white
+                                      : Color(0xFF1A1A1A),
+                                  letterSpacing: 0.3,
                                 ),
                                 textAlign: TextAlign.center,
                               ),
                               SizedBox(height: 6),
+                              Text(
+                                'Video, Audio & Chat',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  color: _shouldHighlightBooking
+                                      ? Colors.white.withOpacity(0.9)
+                                      : Color(0xFF757575),
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              SizedBox(height: 8),
                               Container(
                                 padding: EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 3),
+                                    horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.shade50,
-                                  borderRadius: BorderRadius.circular(6),
+                                  color: _shouldHighlightBooking
+                                      ? Colors.white.withOpacity(0.2)
+                                      : Color(0xFF4CAF50).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
-                                    color: Colors.grey.shade200,
+                                    color: _shouldHighlightBooking
+                                        ? Colors.white.withOpacity(0.3)
+                                        : Color(0xFF4CAF50).withOpacity(0.3),
                                     width: 1,
                                   ),
                                 ),
                                 child: Text(
                                   '24/7 Available',
                                   style: GoogleFonts.poppins(
-                                    fontSize: 8,
-                                    color: Colors.grey.shade700,
-                                    fontWeight: FontWeight.w500,
+                                    fontSize: 9,
+                                    color: _shouldHighlightBooking
+                                        ? Colors.white
+                                        : Color(0xFF2E7D32),
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ),
@@ -4089,15 +4105,19 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 Expanded(
                   child: InkWell(
                     onTap: _openVirtualAssistant,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                     child: Container(
-                      height: 160,
-                      padding: EdgeInsets.all(16),
+                      height: 180,
+                      padding: EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
+                        gradient: LinearGradient(
+                          colors: [Color(0xFFFFF3E0), Color(0xFFFFE0B2)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: Colors.grey.shade200,
+                          color: Color(0xFFFF9800).withOpacity(0.3),
                           width: 1,
                         ),
                         boxShadow: [
@@ -4114,59 +4134,59 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Container(
-                            padding: EdgeInsets.all(8),
+                            padding: EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.green.shade50,
-                              borderRadius: BorderRadius.circular(10),
+                              color: Color(0xFFFF9800).withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: Colors.green.shade100,
-                                width: 1,
+                                color: Color(0xFFFF9800).withOpacity(0.3),
+                                width: 1.5,
                               ),
                             ),
                             child: Icon(
-                              Icons.smart_toy,
-                              color: Colors.green.shade700,
-                              size: 20,
+                              Icons.smart_toy_rounded,
+                              color: Color(0xFFE65100),
+                              size: 32,
                             ),
                           ),
-                          SizedBox(height: 8),
+                          SizedBox(height: 12),
                           Text(
-                            'Ask Ernest',
+                            'Ask Ernest AI',
                             style: GoogleFonts.poppins(
-                              fontSize: 13,
+                              fontSize: 14,
                               fontWeight: FontWeight.bold,
-                              color: Colors.grey.shade900,
-                              letterSpacing: 0.2,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          SizedBox(height: 3),
-                          Text(
-                            'AI health tips',
-                            style: GoogleFonts.poppins(
-                              fontSize: 9,
-                              color: Colors.grey.shade600,
+                              color: Color(0xFF1A1A1A),
+                              letterSpacing: 0.3,
                             ),
                             textAlign: TextAlign.center,
                           ),
                           SizedBox(height: 6),
+                          Text(
+                            'AI Health Assistant',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: Color(0xFF757575),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 8),
                           Container(
                             padding: EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 3),
+                                horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
-                              borderRadius: BorderRadius.circular(6),
+                              color: Color(0xFFFF9800).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: Colors.grey.shade200,
+                                color: Color(0xFFFF9800).withOpacity(0.3),
                                 width: 1,
                               ),
                             ),
                             child: Text(
                               'Instant Help',
                               style: GoogleFonts.poppins(
-                                fontSize: 8,
-                                color: Colors.grey.shade700,
-                                fontWeight: FontWeight.w500,
+                                fontSize: 9,
+                                color: Color(0xFFE65100),
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),

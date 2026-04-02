@@ -20,7 +20,8 @@ class ClickableImageButton extends StatelessWidget {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => PrescriptionUploadPage(token: '')),
+              MaterialPageRoute(
+                  builder: (context) => PrescriptionUploadPage(token: '')),
             );
           },
           borderRadius: BorderRadius.circular(16),

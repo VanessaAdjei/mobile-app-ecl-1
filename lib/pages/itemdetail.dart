@@ -353,8 +353,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     try {
       final response = await http
           .get(
-        Uri.parse(
-            ApiConfig.getProductDetailsUrl(urlName)),
+        Uri.parse(ApiConfig.getProductDetailsUrl(urlName)),
       )
           .timeout(
         const Duration(seconds: 15),
@@ -373,8 +372,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
           // print the api response so we can see what we got
           debugPrint('🔍 PRODUCT DETAILS API RESPONSE ===');
-          debugPrint(
-              'URL: ${ApiConfig.getProductDetailsUrl(urlName)}');
+          debugPrint('URL: ${ApiConfig.getProductDetailsUrl(urlName)}');
           debugPrint('Response Status: ${response.statusCode}');
           debugPrint('Response Body: ${response.body}');
           debugPrint('  data keys: ${data.keys.toList()}');
@@ -598,8 +596,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     try {
       final response = await http
           .get(
-        Uri.parse(
-            ApiConfig.getRelatedProductsUrl(urlName)),
+        Uri.parse(ApiConfig.getRelatedProductsUrl(urlName)),
       )
           .timeout(
         const Duration(seconds: 10),
@@ -978,9 +975,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildProductImageGallery(Product product) {
-    final imageUrls = _productImages.isNotEmpty
-        ? _productImages
-        : [product.thumbnail];
+    final imageUrls =
+        _productImages.isNotEmpty ? _productImages : [product.thumbnail];
     return GestureDetector(
       onTap: () => FullScreenImageViewer.show(
         context,
@@ -990,7 +986,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       child: Animate(
         effects: [
           FadeEffect(duration: 400.ms),
-          SlideEffect(duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
+          SlideEffect(
+              duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
         ],
         child: Container(
           height: 220,
@@ -999,45 +996,57 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             children: [
               // image pageview
               PageView.builder(
-              controller: _imagePageController,
-              onPageChanged: (index) {
-                setState(() {
-                  _currentImageIndex = index;
-                });
-              },
-              itemCount: _productImages.isNotEmpty ? _productImages.length : 1,
-              itemBuilder: (context, index) {
-                final imageUrl = _productImages.isNotEmpty
-                    ? _productImages[index]
-                    : product.thumbnail;
+                controller: _imagePageController,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentImageIndex = index;
+                  });
+                },
+                itemCount:
+                    _productImages.isNotEmpty ? _productImages.length : 1,
+                itemBuilder: (context, index) {
+                  final imageUrl = _productImages.isNotEmpty
+                      ? _productImages[index]
+                      : product.thumbnail;
 
-                return Center(
-                  child: Container(
-                    height: 200,
-                    width: 200,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Hero(
-                        tag: 'product-image-${product.id}-${product.urlName}',
-                        child: imageUrl.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: imageUrl,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
-                                  color: Colors.grey[200],
-                                  child: Center(
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.green.shade600,
+                  return Center(
+                    child: Container(
+                      height: 200,
+                      width: 200,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Hero(
+                          tag: 'product-image-${product.id}-${product.urlName}',
+                          child: imageUrl.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: imageUrl,
+                                  fit: BoxFit.cover,
+                                  placeholder: (context, url) => Container(
+                                    color: Colors.grey[200],
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                          Colors.green.shade600,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                errorWidget: (context, url, error) => Container(
+                                  errorWidget: (context, url, error) =>
+                                      Container(
+                                    color: Colors.grey[200],
+                                    child: Icon(
+                                      Icons.medical_services,
+                                      size: 50,
+                                      color: Colors.grey[400],
+                                    ),
+                                  ),
+                                )
+                              : Container(
                                   color: Colors.grey[200],
                                   child: Icon(
                                     Icons.medical_services,
@@ -1045,46 +1054,37 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                     color: Colors.grey[400],
                                   ),
                                 ),
-                              )
-                            : Container(
-                                color: Colors.grey[200],
-                                child: Icon(
-                                  Icons.medical_services,
-                                  size: 50,
-                                  color: Colors.grey[400],
-                                ),
-                              ),
+                        ),
                       ),
                     ),
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              ),
 
-            // image indicators (dots)
-            if (_productImages.length > 1)
-              Positioned(
-                bottom: 8,
-                left: 0,
-                right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    _productImages.length,
-                    (index) => Container(
-                      width: 6,
-                      height: 6,
-                      margin: EdgeInsets.symmetric(horizontal: 3),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _currentImageIndex == index
-                            ? Colors.green.shade600
-                            : Colors.white.withValues(alpha: 0.5),
+              // image indicators (dots)
+              if (_productImages.length > 1)
+                Positioned(
+                  bottom: 8,
+                  left: 0,
+                  right: 0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      _productImages.length,
+                      (index) => Container(
+                        width: 6,
+                        height: 6,
+                        margin: EdgeInsets.symmetric(horizontal: 3),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _currentImageIndex == index
+                              ? Colors.green.shade600
+                              : Colors.white.withValues(alpha: 0.5),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),

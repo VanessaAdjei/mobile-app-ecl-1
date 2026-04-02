@@ -515,8 +515,7 @@ class AuthService {
 
   // OTP
   static Future<bool> verifyOTP(String email, String otp) async {
-    final url = Uri.parse(
-        ApiConfig.getEndpointUrl(ApiConfig.otpVerification));
+    final url = Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.otpVerification));
 
     try {
       final response = await http
@@ -552,8 +551,7 @@ class AuthService {
 
   // Resend OTP
   static Future<Map<String, dynamic>> resendOTP(String email) async {
-    final url =
-        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.resendOtp));
+    final url = Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.resendOtp));
 
     debugPrint('🔄 [AuthService] Resending OTP to: $url');
     debugPrint('📧 [AuthService] Email: $email');
@@ -1646,7 +1644,7 @@ class AuthService {
       final now = DateTime.now();
       final timestamp = now.toIso8601String();
 
-      // Create individual order items for each product 
+      // Create individual order items for each product
       final orderItems = items
           .map((item) => {
                 'id':
