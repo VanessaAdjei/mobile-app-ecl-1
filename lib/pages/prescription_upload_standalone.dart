@@ -286,22 +286,41 @@ class _PrescriptionUploadStandaloneState
           children: [
             // 4-step process header
             _buildStepHeader(),
-            const SizedBox(height: 30),
+            const SizedBox(height: 20),
 
             // Form section
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Upload your prescription',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Color(0xFF4CAF50).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.upload_file_rounded,
+                          color: Color(0xFF4CAF50),
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Upload your prescription',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A1A1A),
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
 
                   // Full name
                   _buildTextField(
@@ -353,13 +372,15 @@ class _PrescriptionUploadStandaloneState
                   // Submit button
                   SizedBox(
                     width: double.infinity,
-                    height: 50,
+                    height: 56,
                     child: ElevatedButton(
                       onPressed: _isSubmitting ? null : _submitPrescription,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF4CAF50),
+                        elevation: 4,
+                        shadowColor: Color(0xFF4CAF50).withOpacity(0.4),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: _isSubmitting
@@ -398,11 +419,15 @@ class _PrescriptionUploadStandaloneState
 
   Widget _buildStepHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 25, horizontal: 10),
+      padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        gradient: LinearGradient(
+          colors: [Color(0xFFF5F9F7), Color(0xFFE8F5E9)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         border: Border(
-          bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+          bottom: BorderSide(color: Color(0xFFE0E0E0), width: 1),
         ),
       ),
       child: Row(
@@ -427,14 +452,21 @@ class _PrescriptionUploadStandaloneState
     return Expanded(
       child: Column(
         children: [
-          Icon(icon, size: 32, color: Colors.grey.shade700),
-          const SizedBox(height: 6),
+          Container(
+            padding: EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Color(0xFF4CAF50).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 28, color: Color(0xFF2E7D32)),
+          ),
+          const SizedBox(height: 8),
           Text(
             'STEP $number',
             style: TextStyle(
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: FontWeight.bold,
-              color: Colors.grey.shade700,
+              color: Color(0xFF4CAF50),
               letterSpacing: 0.5,
             ),
           ),
@@ -465,27 +497,27 @@ class _PrescriptionUploadStandaloneState
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
-      style: const TextStyle(fontSize: 14),
+      style: const TextStyle(fontSize: 15),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-        prefixIcon: Icon(icon, color: Colors.grey.shade500, size: 20),
+        hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+        prefixIcon: Icon(icon, color: Color(0xFF4CAF50), size: 22),
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey.shade300),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey.shade300),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: Color(0xFF4461F2), width: 1.5),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 2),
         ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: Colors.grey.shade50,
       ),
     );
   }
@@ -497,8 +529,9 @@ class _PrescriptionUploadStandaloneState
           height: 56,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
+            color: Colors.grey.shade50,
             border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
@@ -565,22 +598,26 @@ class _PrescriptionUploadStandaloneState
             keyboardType: TextInputType.phone,
             decoration: InputDecoration(
               hintText: 'Phone',
-              prefixIcon:
-                  Icon(Icons.phone_outlined, color: Colors.grey.shade600),
+              hintStyle: TextStyle(fontSize: 15),
+              prefixIcon: Icon(Icons.phone_outlined,
+                  color: Color(0xFF4CAF50), size: 22),
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: Colors.grey.shade300),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: Colors.grey.shade300),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFF4461F2)),
+                borderRadius: BorderRadius.circular(12),
+                borderSide:
+                    const BorderSide(color: Color(0xFF4CAF50), width: 2),
               ),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: Colors.grey.shade50,
             ),
           ),
         ),
@@ -597,49 +634,107 @@ class _PrescriptionUploadStandaloneState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
+        Row(
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1A1A1A),
+              ),
+            ),
+            if (isOptional)
+              Container(
+                margin: EdgeInsets.only(left: 8),
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Optional',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+          ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         GestureDetector(
           onTap: onTap,
           child: Container(
-            height: 120,
+            height: 140,
             decoration: BoxDecoration(
+              color: image == null ? Colors.grey.shade50 : Colors.transparent,
               border: Border.all(
                 color: Colors.grey.shade300,
-                style: BorderStyle.solid,
+                width: 1.5,
               ),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: image != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.file(
-                      image,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                    ),
+                ? Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.file(
+                          image,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: double.infinity,
+                        ),
+                      ),
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          padding: EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.check_circle,
+                            color: Color(0xFF4CAF50),
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ],
                   )
                 : Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.cloud_upload_outlined,
-                          size: 40,
-                          color: Colors.grey.shade400,
+                        Container(
+                          padding: EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Color(0xFF4CAF50).withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.cloud_upload_outlined,
+                            size: 36,
+                            color: Color(0xFF4CAF50),
+                          ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
                         Text(
-                          'Add file',
+                          'Tap to upload',
                           style: TextStyle(
-                            color: Colors.grey.shade600,
+                            color: Color(0xFF4CAF50),
                             fontSize: 14,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
@@ -656,31 +751,49 @@ class _PrescriptionUploadStandaloneState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Pick up or Delivery',
+          'Delivery Method',
           style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF1A1A1A),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
+            color: Colors.grey.shade50,
             border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: _selectedDeliveryOption,
               isExpanded: true,
+              icon: Icon(Icons.keyboard_arrow_down, color: Color(0xFF4CAF50)),
+              style: TextStyle(fontSize: 15, color: Colors.black87),
               items: const [
                 DropdownMenuItem(
                   value: 'delivery',
-                  child: Text('Delivery'),
+                  child: Row(
+                    children: [
+                      Icon(Icons.local_shipping_outlined,
+                          size: 20, color: Color(0xFF4CAF50)),
+                      SizedBox(width: 12),
+                      Text('Delivery'),
+                    ],
+                  ),
                 ),
                 DropdownMenuItem(
                   value: 'pickup',
-                  child: Text('Pick up'),
+                  child: Row(
+                    children: [
+                      Icon(Icons.store_outlined,
+                          size: 20, color: Color(0xFF4CAF50)),
+                      SizedBox(width: 12),
+                      Text('Pick up'),
+                    ],
+                  ),
                 ),
               ],
               onChanged: (value) {
@@ -700,32 +813,36 @@ class _PrescriptionUploadStandaloneState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Note',
+          'Additional Notes',
           style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF1A1A1A),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         TextField(
           controller: _noteController,
           maxLines: 4,
+          style: TextStyle(fontSize: 15),
           decoration: InputDecoration(
-            hintText: 'Add any additional notes...',
+            hintText: 'Any special instructions or requirements...',
+            hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+            contentPadding: EdgeInsets.all(16),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: Colors.grey.shade300),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: Colors.grey.shade300),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFF4461F2)),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 2),
             ),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: Colors.grey.shade50,
           ),
         ),
       ],
@@ -734,40 +851,44 @@ class _PrescriptionUploadStandaloneState
 
   Widget _buildBottomInfo() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+      margin: EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        border: Border(
-          top: BorderSide(color: Colors.grey.shade300, width: 1),
-        ),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      child: Column(
         children: [
           _buildInfoItem(
-            Icons.delivery_dining_outlined,
-            'STREAMLINED DELIVERY',
-            'Efficient Delivery within 24\nhours for rapid service',
+            Icons.local_shipping_outlined,
+            'Fast Delivery',
+            'Quick delivery within 24 hours',
           ),
-          Container(
-            height: 70,
-            width: 1,
-            color: Colors.grey.shade300,
-          ),
-          _buildInfoItem(
-            Icons.favorite_border,
-            'CONSUMER APPROVAL',
-            'Your convenience is our\nachievement',
-          ),
-          Container(
-            height: 70,
-            width: 1,
-            color: Colors.grey.shade300,
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Divider(height: 1, color: Colors.grey.shade200),
           ),
           _buildInfoItem(
-            Icons.headset_mic_outlined,
-            'TOP-NOTCH SUPPORT',
-            'Seek assistance? Our team is\navailable to help',
+            Icons.verified_user_outlined,
+            'Secure Process',
+            'Your privacy and data are protected',
+          ),
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Divider(height: 1, color: Colors.grey.shade200),
+          ),
+          _buildInfoItem(
+            Icons.support_agent_outlined,
+            '24/7 Support',
+            'Our team is here to help anytime',
           ),
         ],
       ),
@@ -775,36 +896,42 @@ class _PrescriptionUploadStandaloneState
   }
 
   Widget _buildInfoItem(IconData icon, String title, String description) {
-    return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, size: 38, color: Colors.grey.shade700),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade800,
-              letterSpacing: 0.3,
-            ),
+    return Row(
+      children: [
+        Container(
+          padding: EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Color(0xFF4CAF50).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
           ),
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(
-              description,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 8.5,
-                color: Colors.grey.shade600,
-                height: 1.4,
+          child: Icon(icon, size: 24, color: Color(0xFF4CAF50)),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1A1A1A),
+                ),
               ),
-            ),
+              const SizedBox(height: 4),
+              Text(
+                description,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                  height: 1.3,
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
