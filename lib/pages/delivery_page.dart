@@ -1397,79 +1397,113 @@ class DeliveryPageState extends State<DeliveryPage> {
   }
 
   Future<void> _fetchDeliveryTimeFromAPI() async {
+    // Early exit if coordinates not set or widget not mounted
     if (_latitude == null || _longitude == null) {
+      print('⚠️ [DELIVERY] Skipping API call: coordinates not set');
+      return;
+    }
+
+    if (!mounted) {
+      print('⚠️ [DELIVERY] Widget not mounted when API call started');
       return;
     }
 
     try {
-      print('🚀 [DELIVERY] Fetching delivery time from API...');
+      print('🚀 [DELIVERY] Starting delivery info fetch...');
       print('   📍 Coordinates: ($_latitude, $_longitude)');
 
+      // Wrap the entire API call in a protective block
+      final savedSuccessfully = await _safelyCallDeliveryAPI();
+
+      if (savedSuccessfully) {
+        print('✅ [DELIVERY] Delivery info saved successfully');
+      } else {
+        print('⚠️ [DELIVERY] Failed to save delivery info');
+      }
+    } catch (e) {
+      print('❌ [DELIVERY] Unexpected error: $e');
+    }
+  }
+
+  Future<bool> _safelyCallDeliveryAPI() async {
+    try {
+      if (!mounted) return false;
+
+      // Collect data first (before any async operations)
+      final name = _nameController.text.trim();
+      final email = _emailController.text.trim();
+      final phone = _phoneController.text;
+      final region = _regionController.text.trim();
+      final city = _cityController.text.trim();
+      final address = _addressController.text.trim();
+      final lat = _latitude;
+      final lng = _longitude;
+
+      print('📤 Calling DeliveryService.saveDeliveryInfo...');
+
       final result = await DeliveryService.saveDeliveryInfo(
-        name: _nameController.text.trim(),
-        email: _emailController.text.trim(),
-        phone: _phoneController.text,
+        name: name,
+        email: email,
+        phone: phone,
         deliveryOption: 'delivery',
-        region: _regionController.text.trim(),
-        city: _cityController.text.trim(),
-        address: _addressController.text.trim(),
+        region: region,
+        city: city,
+        address: address,
         notes: '',
         pickupRegion: null,
         pickupCity: null,
         pickupSite: null,
-        lat: _latitude,
-        lng: _longitude,
+        lat: lat,
+        lng: lng,
       );
 
-      // Log full API response to terminal
-      print('═══════════════════════════════════════════════════════');
-      print('📤 DELIVERY / MAP API RESPONSE');
-      print('═══════════════════════════════════════════════════════');
-      try {
-        print(json.encode(result));
-      } catch (_) {
-        print(result.toString());
-      }
-      print('═══════════════════════════════════════════════════════');
-      print('Success: ${result['success']}');
-      print('Message: ${result['message']}');
-      if (result['closest_store'] != null) {
-        print('closest_store: ${result['closest_store']}');
-      }
-      if (result['data'] != null) {
-        print('data: ${result['data']}');
+      if (!mounted) {
+        print('⚠️ Widget disposed, ignoring API result');
+        return false;
       }
 
-      final closestStore = result['closest_store'] ?? result['data']?['closest_store'];
+      print('📦 API Response received');
+      print(json.encode(result));
+
+      // Extract closest store safely
+      final closestStore =
+          result['closest_store'] ?? result['data']?['closest_store'];
+      if (closestStore != null &&
+          closestStore['duration_text'] != null &&
+          mounted) {
+        setState(() {
+          _apiDeliveryTime = closestStore['duration_text'];
+        });
+        print('✅ ETA updated: $_apiDeliveryTime');
+      }
+
+      // Get distance text
       final distanceText = closestStore?['distance_text']?.toString() ??
           result['distance_text']?.toString() ??
           result['data']?['distance_text']?.toString();
 
-      // Update ETA immediately when we have it
-      if (closestStore != null && closestStore['duration_text'] != null && mounted) {
-        setState(() {
-          _apiDeliveryTime = closestStore['duration_text'];
-        });
-      }
-
-      // Delivery fee from API only (no local calculation)
+      // Fetch fee if distance available
       if (distanceText != null && distanceText.isNotEmpty && mounted) {
-        final feeResult =
-            await DeliveryService.fetchDeliveryFeeFromApi(distanceText: distanceText);
+        print('📦 Fetching fee for distance: $distanceText');
+
+        final feeResult = await DeliveryService.fetchDeliveryFeeFromApi(
+            distanceText: distanceText);
 
         if (feeResult != null && mounted) {
-          final feeValue = feeResult['delivery_fee'] as double;
-          final distanceKm = feeResult['distance'] as double?;
-          setState(() {
-            deliveryFee = feeValue;
-            _distanceKm = distanceKm;
-          });
-          print(
-              '📦 Delivery fee (API): distance=$distanceKm km, delivery_fee=GHS ${feeValue.toStringAsFixed(2)}');
+          final feeValue = feeResult['delivery_fee'] as double?;
+          if (feeValue != null) {
+            setState(() {
+              deliveryFee = feeValue;
+            });
+            print('📦 Fee set: GHS ${feeValue.toStringAsFixed(2)}');
+          }
         }
       }
+
+      return true;
     } catch (e) {
-      print('❌ [DELIVERY] Error fetching delivery time/fee from API: $e');
+      print('❌ Error in API call: $e');
+      return false;
     }
   }
 
@@ -1659,9 +1693,7 @@ class DeliveryPageState extends State<DeliveryPage> {
             curve: Curves.easeOut,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             decoration: BoxDecoration(
-              color: isOn
-                  ? Colors.red.withValues(alpha: 0.06)
-                  : Colors.white,
+              color: isOn ? Colors.red.withValues(alpha: 0.06) : Colors.white,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: isOn
@@ -1706,9 +1738,8 @@ class DeliveryPageState extends State<DeliveryPage> {
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -0.2,
-                          color: isOn
-                              ? Colors.red.shade700
-                              : Colors.grey.shade800,
+                          color:
+                              isOn ? Colors.red.shade700 : Colors.grey.shade800,
                         ),
                       ),
                       const SizedBox(height: 1),
@@ -1727,11 +1758,10 @@ class DeliveryPageState extends State<DeliveryPage> {
                 ),
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: isOn
-                        ? Colors.red.shade500
-                        : Colors.grey.shade200,
+                    color: isOn ? Colors.red.shade500 : Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Icon(
@@ -2326,7 +2356,14 @@ class DeliveryPageState extends State<DeliveryPage> {
                     address != 'Address not found')
                 ? address
                 : null;
-            _getAddressFromCoordinates(lat, lng, preferredAddress: preferredAddress);
+
+            // Fire the async geocoding in the background (don't await, callback is void)
+            try {
+              _getAddressFromCoordinates(lat, lng,
+                  preferredAddress: preferredAddress);
+            } catch (e) {
+              print('❌ [MAP PICKER] Error in location selected callback: $e');
+            }
           },
         ),
       ),
@@ -2407,18 +2444,23 @@ class DeliveryPageState extends State<DeliveryPage> {
             }
 
             // Update address field: use preferred (e.g. from Places) or placemark-built
-            _addressController.text =
-                (preferredAddress ?? address).trim();
-            print('🗺️ [REVERSE GEOCODING] Updated address: ${preferredAddress ?? address}');
+            _addressController.text = (preferredAddress ?? address).trim();
+            print(
+                '🗺️ [REVERSE GEOCODING] Updated address: ${preferredAddress ?? address}');
 
             // Clear validation highlights since user picked a valid location
             _highlightRegionField = false;
             _highlightCityField = false;
             _highlightAddressField = false;
           });
+
+          // Use the new location for delivery: save address and fetch delivery fee from API
+          // Delay this slightly to ensure setState is fully processed
+          await Future.delayed(const Duration(milliseconds: 100));
+          if (mounted) {
+            await _fetchDeliveryTimeFromAPI();
+          }
         }
-        // Use the new location for delivery: save address and fetch delivery fee from API
-        if (mounted) _fetchDeliveryTimeFromAPI();
       } else {
         print(
             '⚠️ [REVERSE GEOCODING] No address found for coordinates: ($lat, $lng)');
@@ -2603,7 +2645,9 @@ class DeliveryPageState extends State<DeliveryPage> {
               final regionVal = _regionController.text.trim().toLowerCase();
               final regionExists = regions.any((r) {
                 final desc = (r['description'] ?? '').toString().toLowerCase();
-                return desc == regionVal || desc.contains(regionVal) || regionVal.contains(desc);
+                return desc == regionVal ||
+                    desc.contains(regionVal) ||
+                    regionVal.contains(desc);
               });
               if (!regionExists) {
                 _regionController.clear();
@@ -2698,7 +2742,9 @@ class DeliveryPageState extends State<DeliveryPage> {
               final cityVal = _cityController.text.trim().toLowerCase();
               final cityExists = cities.any((c) {
                 final desc = (c['description'] ?? '').toString().toLowerCase();
-                return desc == cityVal || desc.contains(cityVal) || cityVal.contains(desc);
+                return desc == cityVal ||
+                    desc.contains(cityVal) ||
+                    cityVal.contains(desc);
               });
               if (!cityExists) {
                 _cityController.clear();

@@ -52,7 +52,9 @@ class _TermsAcceptancePageState extends State<TermsAcceptancePage> {
           'terms_accepted_date', DateTime.now().toIso8601String());
 
       if (!mounted) return;
-      Navigator.of(context).pop(true);
+      // Don't pop - let the parent widget detect the change and rebuild
+      // This page is shown as home, not pushed on a route stack
+      debugPrint('✅ Terms accepted, waiting for parent widget to rebuild');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

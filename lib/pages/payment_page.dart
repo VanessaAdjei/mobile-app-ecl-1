@@ -79,7 +79,7 @@ class PaymentPageState extends State<PaymentPage> {
   String? _paymentError;
   String get expressPaymentForm =>
       ApiConfig.getEndpointUrl(ApiConfig.expressPayment);
-  bool _showAllItems = false; 
+  bool _showAllItems = false;
 
   // Promo code variables
   final TextEditingController _promoCodeController = TextEditingController();
@@ -185,15 +185,12 @@ class PaymentPageState extends State<PaymentPage> {
     }
   }
 
-
   Future<String?> getAuthHeader() async {
     final isLoggedIn = await AuthService.isLoggedIn();
     String? token = await AuthService.getToken();
     if (isLoggedIn && token != null && token.isNotEmpty) {
-   
       return 'Bearer $token';
     } else if (!isLoggedIn && token != null && token.isNotEmpty) {
- 
       return 'Guest $token';
     }
     return null;
@@ -203,7 +200,6 @@ class PaymentPageState extends State<PaymentPage> {
     debugPrint('[DEBUG] Entered processPayment');
     if (!mounted) return;
 
-   
     final debugToken = await AuthService.getToken();
     debugPrint('[DEBUG] Payment button pressed. Method: '
         '$selectedPaymentMethod Token:$debugToken');
@@ -216,10 +212,8 @@ class PaymentPageState extends State<PaymentPage> {
     });
 
     try {
- 
       final selectedItems = cart.getSelectedItems();
 
-    
       if (selectedItems.isEmpty) {
         debugPrint('[DEBUG] Returning early: no items selected');
         throw Exception(
@@ -228,7 +222,6 @@ class PaymentPageState extends State<PaymentPage> {
       debugPrint(
           '[DEBUG] Passed selected items check (${selectedItems.length} items selected)');
 
-    
       final subtotal = cart.calculateSubtotal();
       if (subtotal <= 0) {
         debugPrint('[DEBUG] Returning early: subtotal <= 0');
@@ -284,7 +277,7 @@ class PaymentPageState extends State<PaymentPage> {
         'request': 'submit',
         'order_id': 'ORDER_${DateTime.now().millisecondsSinceEpoch}',
         'currency': 'GHS',
-        'amount': total,
+        'amount': total.toStringAsFixed(2),
         'order_desc': orderDesc,
         'user_name': _userEmail,
         'first_name': firstName,
@@ -339,6 +332,14 @@ class PaymentPageState extends State<PaymentPage> {
         );
         debugPrint(
             '[DEBUG] Online Payment API Response: Status: ${response.statusCode}, Body: ${response.body}');
+
+        // Log full API response for express payment
+        debugPrint('✅ [EXPRESS PAYMENT API] RESPONSE RECEIVED:');
+        debugPrint('📊 Status Code: ${response.statusCode}');
+        debugPrint('📋 Full Response Body: ${response.body}');
+        debugPrint('📋 Response Headers: ${response.headers}');
+        debugPrint('🔍 Request Params: ${jsonEncode(params)}');
+        debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       } catch (e) {
         debugPrint('[DEBUG] Exception during expresspay API call: $e');
         rethrow;
@@ -530,7 +531,8 @@ class PaymentPageState extends State<PaymentPage> {
                         Container(
                           width: double.infinity,
                           margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
                             color: Colors.red.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(10),
@@ -542,7 +544,8 @@ class PaymentPageState extends State<PaymentPage> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.emergency_rounded, size: 18, color: Colors.red.shade700),
+                              Icon(Icons.emergency_rounded,
+                                  size: 18, color: Colors.red.shade700),
                               const SizedBox(width: 8),
                               Text(
                                 'Emergency order',
@@ -2928,8 +2931,7 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
       debugPrint('[DEBUG] Making HTTP request to check-payment endpoint...');
       final response = await http
           .post(
-        Uri.parse(
-            ApiConfig.getEndpointUrl(ApiConfig.checkPayment)),
+        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.checkPayment)),
         headers: headers,
         body: jsonEncode(requestBody),
       )
@@ -2944,6 +2946,15 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
       debugPrint('[DEBUG] HTTP request completed successfully');
       debugPrint(
           '[DEBUG] Payment Status Check - Raw Response: ${response.body}');
+
+      // Log full API response for payment status
+      debugPrint('✅ [CHECK PAYMENT API] RESPONSE RECEIVED:');
+      debugPrint('📊 Status Code: ${response.statusCode}');
+      debugPrint('📋 Full Response Body: ${response.body}');
+      debugPrint('📋 Response Headers: ${response.headers}');
+      debugPrint('🔍 Request Headers: ${headers}');
+      debugPrint('🔍 Request Body: ${jsonEncode(requestBody)}');
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       if (response.statusCode == 200) {
         // Handle empty response
@@ -3041,8 +3052,20 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
           }
 
           final data = json.decode(responseBody);
+
+          // Log full API response
+          debugPrint('✅ [PAYMENT API] SUCCESS RESPONSE:');
+          debugPrint('📊 Status Code: ${response.statusCode}');
+          debugPrint('📋 Full Response Body: ${response.body}');
+          debugPrint('📦 Parsed JSON: ${jsonEncode(data)}');
+          debugPrint('🔑 Response Keys: ${data.keys.toList()}');
+          debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
           return _processPaymentStatus(data);
         } catch (e) {
+          debugPrint('❌ [PAYMENT API] ERROR PARSING RESPONSE:');
+          debugPrint('   Error: $e');
+          debugPrint('   Raw Body: ${response.body}');
           throw Exception(
               'Invalid response format from server. Please try again.');
         }

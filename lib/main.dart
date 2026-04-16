@@ -881,17 +881,18 @@ class _TermsWrapperState extends State<_TermsWrapper> {
 
   void _checkForAcceptance() async {
     // Wait a bit and check if terms were accepted
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
     final accepted = prefs.getBool('terms_accepted') ?? false;
 
     if (accepted && mounted) {
+      debugPrint('✅ Main: Terms acceptance detected, triggering callback');
       widget.onAccepted();
     } else {
-      // Check again after a delay
-      Future.delayed(const Duration(milliseconds: 500), () {
+      // Check again after a shorter delay
+      Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted) _checkForAcceptance();
       });
     }

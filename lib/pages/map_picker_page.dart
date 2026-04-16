@@ -36,6 +36,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
   Set<Marker> _markers = {};
   String _selectedAddress = 'Loading address...';
   bool _isLoadingAddress = true;
+
   /// True while searching/updating location (Places or Geocoding); disable Confirm until done.
   bool _isUpdatingLocation = false;
 
@@ -992,28 +993,47 @@ class _MapPickerPageState extends State<MapPickerPage> {
                           onPressed: _isUpdatingLocation
                               ? null
                               : () {
-                            print('🗺️ [MAP] ===== CONFIRMING LOCATION =====');
-                            print(
-                                '🗺️ [MAP] Selected location: $_selectedLocation');
-                            print(
-                                '🗺️ [MAP] Latitude: ${_selectedLocation.latitude}');
-                            print(
-                                '🗺️ [MAP] Longitude: ${_selectedLocation.longitude}');
-                            print(
-                                '🗺️ [MAP] Calling onLocationSelected callback');
-                            print(
-                                '🗺️ [MAP] Selected address: $_selectedAddress');
+                                  print(
+                                      '🗺️ [MAP] ===== CONFIRMING LOCATION =====');
+                                  print(
+                                      '🗺️ [MAP] Selected location: $_selectedLocation');
+                                  print(
+                                      '🗺️ [MAP] Latitude: ${_selectedLocation.latitude}');
+                                  print(
+                                      '🗺️ [MAP] Longitude: ${_selectedLocation.longitude}');
+                                  print(
+                                      '🗺️ [MAP] Calling onLocationSelected callback');
+                                  print(
+                                      '🗺️ [MAP] Selected address: $_selectedAddress');
 
-                            widget.onLocationSelected(
-                              _selectedLocation.latitude,
-                              _selectedLocation.longitude,
-                              _selectedAddress, // Pass the address along with coordinates
-                            );
+                                  try {
+                                    widget.onLocationSelected(
+                                      _selectedLocation.latitude,
+                                      _selectedLocation.longitude,
+                                      _selectedAddress, // Pass the address along with coordinates
+                                    );
 
-                            print(
-                                '🗺️ [MAP] Location confirmed and callback called');
-                            Navigator.pop(context);
-                          },
+                                    print(
+                                        '🗺️ [MAP] Location confirmed and callback called');
+                                  } catch (e) {
+                                    print(
+                                        '❌ [MAP] Error in onLocationSelected callback: $e');
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Error: $e'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+
+                                  // Pop after a brief delay to ensure callback completes
+                                  Future.delayed(
+                                      const Duration(milliseconds: 100), () {
+                                    if (mounted) {
+                                      Navigator.pop(context);
+                                    }
+                                  });
+                                },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green.shade600,
                             foregroundColor: Colors.white,

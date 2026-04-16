@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../services/auth_service.dart';
+import '../services/delivery_service.dart';
 import 'signinpage.dart';
 
 class PrescriptionUploadStandalone extends StatefulWidget {
@@ -32,10 +33,26 @@ class _PrescriptionUploadStandaloneState
   String _selectedDeliveryOption = 'delivery';
   String _selectedCountryCode = '+233';
 
+  // Pickup location variables
+  List<Map<String, dynamic>> regions = [];
+  List<Map<String, dynamic>> cities = [];
+  List<Map<String, dynamic>> stores = [];
+  Map<String, dynamic>? selectedRegion;
+  Map<String, dynamic>? selectedCity;
+  Map<String, dynamic>? selectedPickupSite;
+  bool isLoadingRegions = false;
+  bool isLoadingCities = false;
+  bool isLoadingStores = false;
+
+  // Cache for cities and stores
+  final Map<int, List<Map<String, dynamic>>> _citiesCache = {};
+  final Map<int, List<Map<String, dynamic>>> _storesCache = {};
+
   @override
   void initState() {
     super.initState();
     _checkLoginStatus();
+    _loadRegions();
   }
 
   Future<void> _checkLoginStatus() async {
@@ -799,11 +816,248 @@ class _PrescriptionUploadStandaloneState
               onChanged: (value) {
                 setState(() {
                   _selectedDeliveryOption = value!;
+                  // Reset pickup selections when switching to delivery
+                  if (value == 'delivery') {
+                    selectedRegion = null;
+                    selectedCity = null;
+                    selectedPickupSite = null;
+                  }
                 });
               },
             ),
           ),
         ),
+
+        // Show branches when pickup is selected
+        if (_selectedDeliveryOption == 'pickup') ...[
+          const SizedBox(height: 16),
+          // Region dropdown
+          const Text(
+            'Select Region',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF1A1A1A),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: isLoadingRegions
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
+                      ),
+                    ),
+                  )
+                : DropdownButtonHideUnderline(
+                    child: DropdownButton<Map<String, dynamic>>(
+                      value: selectedRegion,
+                      isExpanded: true,
+                      hint: const Row(
+                        children: [
+                          Icon(Icons.location_on_outlined,
+                              size: 20, color: Color(0xFF4CAF50)),
+                          SizedBox(width: 12),
+                          Text('Choose a region'),
+                        ],
+                      ),
+                      icon: Icon(Icons.keyboard_arrow_down,
+                          color: Color(0xFF4CAF50)),
+                      style: TextStyle(fontSize: 15, color: Colors.black87),
+                      items: regions.map((region) {
+                        return DropdownMenuItem(
+                          value: region,
+                          child: Row(
+                            children: [
+                              Icon(Icons.location_on_outlined,
+                                  size: 20, color: Color(0xFF4CAF50)),
+                              SizedBox(width: 12),
+                              Text(
+                                region['description'] ?? '',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          selectedRegion = value;
+                          selectedCity = null;
+                          selectedPickupSite = null;
+                        });
+                        if (value != null) {
+                          _loadCities(value['id']);
+                        }
+                      },
+                    ),
+                  ),
+          ),
+
+          // City dropdown
+          if (selectedRegion != null) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'Select City',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1A1A1A),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: isLoadingCities
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
+                        ),
+                      ),
+                    )
+                  : DropdownButtonHideUnderline(
+                      child: DropdownButton<Map<String, dynamic>>(
+                        value: selectedCity,
+                        isExpanded: true,
+                        hint: const Row(
+                          children: [
+                            Icon(Icons.location_city_outlined,
+                                size: 20, color: Color(0xFF4CAF50)),
+                            SizedBox(width: 12),
+                            Text('Choose a city'),
+                          ],
+                        ),
+                        icon: Icon(Icons.keyboard_arrow_down,
+                            color: Color(0xFF4CAF50)),
+                        style: TextStyle(fontSize: 15, color: Colors.black87),
+                        items: cities.map((city) {
+                          return DropdownMenuItem(
+                            value: city,
+                            child: Row(
+                              children: [
+                                Icon(Icons.location_city_outlined,
+                                    size: 20, color: Color(0xFF4CAF50)),
+                                SizedBox(width: 12),
+                                Text(
+                                  city['description'] ?? '',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedCity = value;
+                            selectedPickupSite = null;
+                          });
+                          if (value != null) {
+                            _loadStores(value['id']);
+                          }
+                        },
+                      ),
+                    ),
+            ),
+          ],
+
+          // Store/Branch dropdown
+          if (selectedCity != null) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'Select Pickup Branch',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1A1A1A),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: isLoadingStores
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
+                        ),
+                      ),
+                    )
+                  : DropdownButtonHideUnderline(
+                      child: DropdownButton<Map<String, dynamic>>(
+                        value: selectedPickupSite,
+                        isExpanded: true,
+                        hint: const Row(
+                          children: [
+                            Icon(Icons.store_outlined,
+                                size: 20, color: Color(0xFF4CAF50)),
+                            SizedBox(width: 12),
+                            Text('Choose a branch'),
+                          ],
+                        ),
+                        icon: Icon(Icons.keyboard_arrow_down,
+                            color: Color(0xFF4CAF50)),
+                        style: TextStyle(fontSize: 15, color: Colors.black87),
+                        items: stores.map((store) {
+                          return DropdownMenuItem(
+                            value: store,
+                            child: Row(
+                              children: [
+                                Icon(Icons.store_outlined,
+                                    size: 20, color: Color(0xFF4CAF50)),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    store['description'] ?? '',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedPickupSite = value;
+                          });
+                        },
+                      ),
+                    ),
+            ),
+          ],
+        ],
       ],
     );
   }
@@ -933,5 +1187,219 @@ class _PrescriptionUploadStandaloneState
         ),
       ],
     );
+  }
+
+  /// Load regions for pickup
+  Future<void> _loadRegions() async {
+    if (!mounted) return;
+    setState(() {
+      isLoadingRegions = true;
+    });
+
+    try {
+      final result = await DeliveryService.getRegions()
+          .timeout(const Duration(seconds: 5));
+      if (result['success'] && mounted) {
+        try {
+          setState(() {
+            final rawRegions = List<Map<String, dynamic>>.from(result['data']);
+            final uniqueRegions = <String, Map<String, dynamic>>{};
+
+            for (final region in rawRegions) {
+              try {
+                final description = region['description']?.toString() ?? '';
+                if (description.isNotEmpty &&
+                    !uniqueRegions.containsKey(description)) {
+                  uniqueRegions[description] = region;
+                }
+              } catch (e) {
+                debugPrint('⚠️ Error processing region: $e');
+                continue;
+              }
+            }
+
+            final allRegions = uniqueRegions.values.toList();
+
+            // Filter to only show Greater Accra, Ashanti, and Western regions
+            final allowedRegionNames = [
+              'greater accra',
+              'ashanti',
+              'western',
+              'accra',
+            ];
+
+            final filteredRegions = allRegions.where((region) {
+              final regionName =
+                  (region['description'] ?? '').toString().toLowerCase().trim();
+              return allowedRegionNames
+                  .any((allowed) => regionName.contains(allowed));
+            }).toList();
+
+            regions = filteredRegions;
+            isLoadingRegions = false;
+          });
+        } catch (e) {
+          debugPrint('❌ Error setting regions state: $e');
+          setState(() {
+            regions = [];
+            isLoadingRegions = false;
+          });
+        }
+      } else {
+        if (!mounted) return;
+        setState(() {
+          isLoadingRegions = false;
+        });
+        debugPrint('Failed to load regions: ${result['message']}');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        isLoadingRegions = false;
+      });
+      debugPrint('Error loading regions: $e');
+    }
+  }
+
+  /// Load cities for selected region
+  Future<void> _loadCities(int regionId) async {
+    // Check cache first
+    if (_citiesCache.containsKey(regionId)) {
+      if (!mounted) return;
+      setState(() {
+        cities = _citiesCache[regionId]!;
+        selectedCity = null;
+        selectedPickupSite = null;
+        stores = [];
+      });
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      isLoadingCities = true;
+      cities = [];
+      stores = [];
+      selectedCity = null;
+      selectedPickupSite = null;
+    });
+
+    try {
+      final result = await DeliveryService.getCitiesByRegion(regionId)
+          .timeout(const Duration(seconds: 3));
+      if (result['success'] && mounted) {
+        final citiesData = List<Map<String, dynamic>>.from(result['data']);
+        if (!mounted) return;
+        try {
+          setState(() {
+            final uniqueCities = <String, Map<String, dynamic>>{};
+
+            for (final city in citiesData) {
+              try {
+                final description = city['description']?.toString() ?? '';
+                if (description.isNotEmpty &&
+                    !uniqueCities.containsKey(description)) {
+                  uniqueCities[description] = city;
+                }
+              } catch (e) {
+                debugPrint('⚠️ Error processing city: $e');
+                continue;
+              }
+            }
+
+            cities = uniqueCities.values.toList();
+            _citiesCache[regionId] = uniqueCities.values.toList();
+            isLoadingCities = false;
+          });
+        } catch (e) {
+          debugPrint('❌ Error setting cities state: $e');
+          setState(() {
+            cities = [];
+            isLoadingCities = false;
+          });
+        }
+      } else {
+        if (!mounted) return;
+        setState(() {
+          isLoadingCities = false;
+        });
+        debugPrint('Failed to load cities: ${result['message']}');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        isLoadingCities = false;
+      });
+      debugPrint('Error loading cities: $e');
+    }
+  }
+
+  /// Load stores for selected city
+  Future<void> _loadStores(int cityId) async {
+    // Check cache first
+    if (_storesCache.containsKey(cityId)) {
+      if (!mounted) return;
+      setState(() {
+        stores = _storesCache[cityId]!;
+        selectedPickupSite = null;
+      });
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      isLoadingStores = true;
+      stores = [];
+      selectedPickupSite = null;
+    });
+
+    try {
+      final result = await DeliveryService.getStoresByCity(cityId)
+          .timeout(const Duration(seconds: 3));
+      if (result['success'] && mounted) {
+        final storesData = List<Map<String, dynamic>>.from(result['data']);
+        if (!mounted) return;
+        try {
+          setState(() {
+            final uniqueStores = <String, Map<String, dynamic>>{};
+
+            for (final store in storesData) {
+              try {
+                final description = store['description']?.toString() ?? '';
+                if (description.isNotEmpty &&
+                    !uniqueStores.containsKey(description)) {
+                  uniqueStores[description] = store;
+                }
+              } catch (e) {
+                debugPrint('⚠️ Error processing store: $e');
+                continue;
+              }
+            }
+
+            stores = uniqueStores.values.toList();
+            _storesCache[cityId] = uniqueStores.values.toList();
+            isLoadingStores = false;
+          });
+        } catch (e) {
+          debugPrint('❌ Error setting stores state: $e');
+          setState(() {
+            stores = [];
+            isLoadingStores = false;
+          });
+        }
+      } else {
+        if (!mounted) return;
+        setState(() {
+          isLoadingStores = false;
+        });
+        debugPrint('Failed to load stores: ${result['message']}');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        isLoadingStores = false;
+      });
+      debugPrint('Error loading stores: $e');
+    }
   }
 }

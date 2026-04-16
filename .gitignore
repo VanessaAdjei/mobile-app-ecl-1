@@ -4,6 +4,7 @@
 !.env.example
 android/key.properties
 android/local.properties
+ios/Flutter/Secrets.xcconfig
 
 # Miscellaneous
 *.class
