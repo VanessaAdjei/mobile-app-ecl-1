@@ -21,6 +21,8 @@ class OrderStatusHeroCard extends StatelessWidget {
         return Colors.teal.shade700;
       case OrderTrackingStage.pendingConfirmation:
         return Colors.blue.shade700;
+      case OrderTrackingStage.orderConfirmed:
+        return Colors.blue.shade600;
       case OrderTrackingStage.outForDelivery:
         return Colors.deepPurple.shade600;
       case OrderTrackingStage.delivered:
@@ -106,7 +108,8 @@ class OrderStatusHeroCard extends StatelessWidget {
                           child: Image.network(
                             firstItem.imageUrl.startsWith('http')
                                 ? firstItem.imageUrl
-                                : ApiConfig.getProductImageUrl(firstItem.imageUrl),
+                                : ApiConfig.getProductImageUrl(
+                                    firstItem.imageUrl),
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Icon(
                               Icons.image_outlined,

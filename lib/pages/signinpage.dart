@@ -266,7 +266,8 @@ class SignInScreenState extends State<SignInScreen> {
             return;
           } else if (widget.returnTo != null) {
             debugPrint('🔍 SignIn: Navigating to returnTo: ${widget.returnTo}');
-            Navigator.pushReplacementNamed(context, widget.returnTo!);
+            Navigator.pushNamedAndRemoveUntil(
+                context, widget.returnTo!, (route) => false);
           } else {
             // check if theres prescription data waiting
             final prefs = await SharedPreferences.getInstance();
@@ -430,7 +431,7 @@ class SignInScreenState extends State<SignInScreen> {
                   // Error Message with improved styling
                   if (_errorMessage != null)
                     Container(
-                      margin: const EdgeInsets.only(bottom:  12),
+                      margin: const EdgeInsets.only(bottom: 12),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,

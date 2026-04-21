@@ -6,6 +6,7 @@ enum OrderTrackingStage {
   orderPlaced,
   paid,
   pendingConfirmation,
+  orderConfirmed,
   outForDelivery,
   delivered,
   failed,
@@ -140,6 +141,7 @@ class OrderTrackingModel {
   final String? courierPhone;
   final String? courierVehicle;
   final String? liveTrackingNote;
+
   /// OTP the user gives to the delivery rider to complete delivery. Shown when out for delivery.
   final String? deliveryOtp;
 

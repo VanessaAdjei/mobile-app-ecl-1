@@ -1,13 +1,11 @@
-// services/delivery_service.dart
-// handles saving delivery addresses and stuff
-import 'dart:convert';
 import 'dart:io';
+import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
-import '../config/api_config.dart';
-import 'package:eclapp/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
+import '../config/api_config.dart';
+import 'package:eclapp/services/auth_service.dart';
 
 class DeliveryService {
   static const String baseUrl = ApiConfig.baseUrl;
@@ -22,6 +20,52 @@ class DeliveryService {
   static const double baseDeliveryFee = 20.0;
   static const double baseDeliveryDistanceKm = 3.0;
   static const double defaultRatePerKm = 3.0; // X: change this if needed
+
+  /// Call /add-xpress-fee API to add express/urgent delivery fee
+  static Future<Map<String, dynamic>?> addXpressFee() async {
+    try {
+      final isLoggedIn = await AuthService.isLoggedIn();
+      String? token;
+      String? guestId;
+      if (isLoggedIn) {
+        token = await AuthService.getToken();
+      } else {
+        final prefs = await SharedPreferences.getInstance();
+        guestId = prefs.getString('guest_id');
+      }
+      if (!isLoggedIn && (guestId == null || guestId.isEmpty)) {
+        debugPrint('add-xpress-fee: Guest auth required');
+        return null;
+      }
+      if (isLoggedIn && (token == null || token.isEmpty)) {
+        debugPrint('add-xpress-fee: Auth required');
+        return null;
+      }
+      final url = ApiConfig.getEndpointUrl('/add-xpress-fee');
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        if (isLoggedIn) 'Authorization': 'Bearer $token',
+        if (!isLoggedIn && guestId != null) ...{
+          'Authorization': 'Guest $guestId',
+          'X-Guest-ID': guestId,
+        },
+      };
+      final response = await http
+          .get(Uri.parse(url), headers: headers)
+          .timeout(const Duration(seconds: 5));
+      debugPrint('[add-xpress-fee] Response status: \\${response.statusCode}');
+      debugPrint('[add-xpress-fee] Response body: \\${response.body}');
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = json.decode(response.body);
+        return data;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('add-xpress-fee error: \\${e.toString()}');
+      return null;
+    }
+  }
 
   // save where they want stuff delivered
   static Future<Map<String, dynamic>> saveDeliveryInfo({
@@ -223,7 +267,8 @@ class DeliveryService {
       }
 
       debugPrint('Fetching last delivery info from API...');
-      debugPrint('API URL: ${ApiConfig.getEndpointUrl(ApiConfig.getBillingAddress)}');
+      debugPrint(
+          'API URL: ${ApiConfig.getEndpointUrl(ApiConfig.getBillingAddress)}');
 
       // call the api to get their saved address
       final response = await http
@@ -319,7 +364,8 @@ class DeliveryService {
         };
       } else if (response.statusCode == 401) {
         // Unauthorized (expired token or invalid guest_id) - treat as no saved address
-        debugPrint('=== API GET - UNAUTHORIZED (treating as no saved address) ===');
+        debugPrint(
+            '=== API GET - UNAUTHORIZED (treating as no saved address) ===');
         return {
           'success': true,
           'data': null,
@@ -389,7 +435,8 @@ class DeliveryService {
       };
       // API expects "distance_text" - try JSON body first
       final jsonBody = json.encode({'distance_text': distanceText.trim()});
-      final formBody = 'distance_text=${Uri.encodeComponent(distanceText.trim())}';
+      final formBody =
+          'distance_text=${Uri.encodeComponent(distanceText.trim())}';
 
       print('📤 [CALCULATE-DELIVERY-FEE] Calling API: $url');
       print('📤 [CALCULATE-DELIVERY-FEE] distance_text: "$distanceText"');
@@ -409,7 +456,8 @@ class DeliveryService {
             .timeout(_apiTimeout);
       }
 
-      print('📥 [CALCULATE-DELIVERY-FEE] Response status: ${response.statusCode}');
+      print(
+          '📥 [CALCULATE-DELIVERY-FEE] Response status: ${response.statusCode}');
       print('📥 [CALCULATE-DELIVERY-FEE] Response body: ${response.body}');
 
       if (response.statusCode != 200 && response.statusCode != 201) {
@@ -418,14 +466,17 @@ class DeliveryService {
       }
       final data = json.decode(response.body) as Map<String, dynamic>?;
       if (data == null) {
-        print('❌ [CALCULATE-DELIVERY-FEE] Response body could not be parsed, using fallback');
+        print(
+            '❌ [CALCULATE-DELIVERY-FEE] Response body could not be parsed, using fallback');
         return null;
       }
 
       final distance = data['distance'];
-      final deliveryFeeRaw = data['delivery_fee'] ?? data['deliveryFee'] ?? data['fee'];
+      final deliveryFeeRaw =
+          data['delivery_fee'] ?? data['deliveryFee'] ?? data['fee'];
       if (deliveryFeeRaw == null) {
-        print('❌ [CALCULATE-DELIVERY-FEE] No delivery_fee in response, using fallback');
+        print(
+            '❌ [CALCULATE-DELIVERY-FEE] No delivery_fee in response, using fallback');
         return null;
       }
 
@@ -484,7 +535,8 @@ class DeliveryService {
   }) {
     final distanceKm = parseDistanceTextToKm(distanceText);
     if (distanceKm == null) return null;
-    final fee = calculateDeliveryFeeByDistance(distanceKm, ratePerKm: ratePerKm);
+    final fee =
+        calculateDeliveryFeeByDistance(distanceKm, ratePerKm: ratePerKm);
     return {'fee': fee, 'distanceKm': distanceKm};
   }
 
@@ -580,7 +632,8 @@ class DeliveryService {
   static Future<Map<String, dynamic>> getCitiesByRegion(int regionId) async {
     try {
       debugPrint('Fetching cities for region $regionId from API...');
-      debugPrint('API URL: ${ApiConfig.getRegionCitiesUrl(regionId.toString())}');
+      debugPrint(
+          'API URL: ${ApiConfig.getRegionCitiesUrl(regionId.toString())}');
 
       final response = await http.get(
         Uri.parse(ApiConfig.getRegionCitiesUrl(regionId.toString())),

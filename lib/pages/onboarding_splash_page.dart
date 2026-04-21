@@ -287,7 +287,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                               ),
                             ),
                             const SizedBox(height: 18),
-                            // Animated FloatingActionButton for Next/Get Started
+                            // Animated Next button for all pages
                             Center(
                               child: TweenAnimationBuilder<double>(
                                 tween: Tween(begin: 1.0, end: 1.0),
@@ -302,9 +302,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                                           const Duration(milliseconds: 100),
                                       child: Semantics(
                                         button: true,
-                                        label: _currentPage == _pages.length - 1
-                                            ? 'Get Started'
-                                            : 'Next',
+                                        label: 'Next',
                                         child: SizedBox(
                                           width: 220,
                                           height: 52,
@@ -319,22 +317,11 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                                               elevation: 2,
                                             ),
                                             onPressed: _onNext,
-                                            child: _currentPage ==
-                                                    _pages.length - 1
-                                                ? Text(
-                                                    'Get Started',
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: 18,
-                                                    ),
-                                                  )
-                                                : Icon(
-                                                    Icons.arrow_forward,
-                                                    color: Colors.white,
-                                                    size: 28,
-                                                  ),
+                                            child: Icon(
+                                              Icons.arrow_forward,
+                                              color: Colors.white,
+                                              size: 28,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -343,20 +330,6 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                                 },
                               ),
                             ),
-                            // Add friendly microcopy on last page
-                            if (_currentPage == _pages.length - 1)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 14.0),
-                                child: Text(
-                                  "Let's get started on your health journey!",
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
                             const SizedBox(height: 16),
                           ],
                         ),

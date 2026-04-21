@@ -192,9 +192,15 @@ class OrderTrackingService {
     }
     if (status.contains('pending confirmation') ||
         status.contains('pending_confirmation') ||
-        status == 'confirming' ||
-        status == 'processing') {
+        status == 'confirming') {
       return OrderTrackingStage.pendingConfirmation;
+    }
+    if (status.contains('confirmed') ||
+        status == 'confirmed' ||
+        status == 'processing' ||
+        status.contains('preparing') ||
+        status.contains('packing')) {
+      return OrderTrackingStage.orderConfirmed;
     }
     if (status.contains('paid') ||
         status == 'payment received' ||
@@ -220,6 +226,8 @@ class OrderTrackingService {
         return 'Paid';
       case OrderTrackingStage.pendingConfirmation:
         return 'Pending Confirmation';
+      case OrderTrackingStage.orderConfirmed:
+        return 'Order Confirmed';
       case OrderTrackingStage.outForDelivery:
         return 'Out for Delivery';
       case OrderTrackingStage.delivered:
@@ -239,6 +247,8 @@ class OrderTrackingService {
         return 'Payment has been received. Your order is being processed.';
       case OrderTrackingStage.pendingConfirmation:
         return 'Your order is awaiting confirmation from the store.';
+      case OrderTrackingStage.orderConfirmed:
+        return 'Your order has been confirmed and is being prepared!';
       case OrderTrackingStage.outForDelivery:
         return 'Your order is on its way to you.';
       case OrderTrackingStage.delivered:
@@ -253,6 +263,7 @@ class OrderTrackingService {
       OrderTrackingStage.orderPlaced,
       OrderTrackingStage.paid,
       OrderTrackingStage.pendingConfirmation,
+      OrderTrackingStage.orderConfirmed,
       OrderTrackingStage.outForDelivery,
       OrderTrackingStage.delivered,
     ];
@@ -260,6 +271,7 @@ class OrderTrackingService {
       OrderTrackingStage.orderPlaced: 'Order Placed',
       OrderTrackingStage.paid: 'Paid',
       OrderTrackingStage.pendingConfirmation: 'Pending Confirmation',
+      OrderTrackingStage.orderConfirmed: 'Order Confirmed',
       OrderTrackingStage.outForDelivery: 'Out for Delivery',
       OrderTrackingStage.delivered: 'Delivered',
     };

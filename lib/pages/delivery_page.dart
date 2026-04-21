@@ -23,6 +23,15 @@ class DeliveryPage extends StatefulWidget {
 }
 
 class DeliveryPageState extends State<DeliveryPage> {
+  void _onAddressFieldsChanged() {
+    // Only trigger if all fields are non-empty
+    if (_regionController.text.trim().isNotEmpty &&
+        _cityController.text.trim().isNotEmpty &&
+        _addressController.text.trim().isNotEmpty) {
+      _updateDeliveryFee();
+    }
+  }
+
   String deliveryOption = 'delivery';
   double deliveryFee = 0.00;
   double? _distanceKm; // actual distance in km from closest store
@@ -58,6 +67,8 @@ class DeliveryPageState extends State<DeliveryPage> {
   final GlobalKey addressSectionKey = GlobalKey();
 
   bool _isOrderUrgent = false;
+  bool _isUrgentFeeLoading = false;
+  double? _emergencyOrderFee;
 
   // data for pickup locations (regions, cities, stores)
   List<Map<String, dynamic>> regions = [];
@@ -81,6 +92,9 @@ class DeliveryPageState extends State<DeliveryPage> {
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _regionController.removeListener(_onAddressFieldsChanged);
+    _cityController.removeListener(_onAddressFieldsChanged);
+    _addressController.removeListener(_onAddressFieldsChanged);
     _regionController.dispose();
     _cityController.dispose();
     _addressController.dispose();
@@ -346,7 +360,15 @@ class DeliveryPageState extends State<DeliveryPage> {
   }
 
   void _updateDeliveryFee() {
-    // Delivery fee comes from API only in _fetchDeliveryTimeFromAPI; do not set from calculation
+    // Only proceed if all fields are non-empty
+    final region = _regionController.text.trim();
+    final city = _cityController.text.trim();
+    final address = _addressController.text.trim();
+    if (region.isEmpty || city.isEmpty || address.isEmpty) {
+      return;
+    }
+    // Start geocoding and fee calculation
+    _getCoordinatesFromAddress(address);
   }
 
   @override
@@ -1682,9 +1704,36 @@ class DeliveryPageState extends State<DeliveryPage> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () {
+          onTap: () async {
+            if (_isUrgentFeeLoading) return;
+            setState(() {
+              _isUrgentFeeLoading = true;
+            });
+            if (!_isOrderUrgent) {
+              // Only call API when toggling ON
+              final result = await DeliveryService.addXpressFee();
+              if (result != null && result['xpress_fee'] != null) {
+                setState(() {
+                  _emergencyOrderFee = (result['xpress_fee'] is num)
+                      ? (result['xpress_fee'] as num).toDouble()
+                      : double.tryParse(result['xpress_fee'].toString());
+                });
+              } else {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Failed to add urgent delivery fee.')),
+                  );
+                }
+              }
+            } else {
+              setState(() {
+                _emergencyOrderFee = null;
+              });
+            }
             setState(() {
               _isOrderUrgent = !_isOrderUrgent;
+              _isUrgentFeeLoading = false;
             });
           },
           borderRadius: BorderRadius.circular(16),
@@ -1693,83 +1742,52 @@ class DeliveryPageState extends State<DeliveryPage> {
             curve: Curves.easeOut,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             decoration: BoxDecoration(
-              color: isOn ? Colors.red.withValues(alpha: 0.06) : Colors.white,
+              color: isOn ? Colors.red.withOpacity(0.06) : Colors.white,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isOn
-                    ? Colors.red.withValues(alpha: 0.35)
-                    : Colors.grey.shade200,
+                color:
+                    isOn ? Colors.red.withOpacity(0.35) : Colors.grey.shade200,
                 width: 1,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
             ),
             child: Row(
               children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isOn
-                        ? Colors.red.withValues(alpha: 0.12)
-                        : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    Icons.emergency_rounded,
-                    size: 20,
-                    color: isOn ? Colors.red.shade600 : Colors.grey.shade600,
-                  ),
+                Icon(
+                  isOn ? Icons.flash_on : Icons.flash_on_outlined,
+                  color: isOn ? Colors.red : Colors.grey,
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         isOn ? 'Urgent order' : 'Urgent or emergency',
                         style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.2,
-                          color:
-                              isOn ? Colors.red.shade700 : Colors.grey.shade800,
+                          fontWeight: FontWeight.bold,
+                          color: isOn ? Colors.red : Colors.black,
                         ),
                       ),
-                      const SizedBox(height: 1),
                       Text(
                         isOn
-                            ? 'We’ll prioritise this order'
+                            ? 'We will prioritize your order.'
                             : 'Tap to mark as urgent',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade500,
-                          letterSpacing: 0.1,
+                          color: Colors.grey[700],
                         ),
                       ),
                     ],
                   ),
                 ),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: isOn ? Colors.red.shade500 : Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Icon(
-                    isOn ? Icons.check_rounded : Icons.add_rounded,
-                    size: 16,
-                    color: isOn ? Colors.white : Colors.grey.shade600,
-                  ),
-                ),
+                if (_isUrgentFeeLoading)
+                  const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else if (isOn)
+                  const Icon(Icons.check_circle, color: Colors.red),
               ],
             ),
           ),
@@ -1780,7 +1798,8 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   Widget _buildOrderSummary(CartProvider cart) {
     final subtotal = cart.calculateSubtotal();
-    final total = subtotal + deliveryFee;
+    final emergencyOrderFee = _emergencyOrderFee ?? 0.0;
+    final total = subtotal + deliveryFee + emergencyOrderFee;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -1815,6 +1834,11 @@ class DeliveryPageState extends State<DeliveryPage> {
                 const SizedBox(height: 12),
                 _buildSummaryRow('Delivery fee', deliveryFee,
                     icon: Icons.local_shipping_rounded),
+                if (emergencyOrderFee > 0) ...[
+                  const SizedBox(height: 12),
+                  _buildSummaryRow('Emergency Order Fee', emergencyOrderFee,
+                      icon: Icons.flash_on),
+                ],
                 Divider(height: 28, thickness: 1, color: Colors.grey.shade300),
                 _buildSummaryRow('Total', total,
                     isHighlighted: true, icon: Icons.payment_rounded),
@@ -2197,6 +2221,7 @@ class DeliveryPageState extends State<DeliveryPage> {
           distanceKm: _distanceKm,
           deliveryFee: deliveryFee,
           isOrderUrgent: _isOrderUrgent,
+          emergencyOrderFee: _emergencyOrderFee,
         ),
       ),
     );

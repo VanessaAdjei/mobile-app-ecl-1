@@ -20,6 +20,8 @@ class OrderStatusTimeline extends StatelessWidget {
         return 'Payment has been received.';
       case 'pendingConfirmation':
         return 'Awaiting confirmation from the store.';
+      case 'orderConfirmed':
+        return 'Your order has been confirmed!';
       case 'outForDelivery':
         return 'Your order is on its way.';
       case 'delivered':
@@ -37,6 +39,8 @@ class OrderStatusTimeline extends StatelessWidget {
         return Icons.payment_rounded;
       case 'pendingConfirmation':
         return Icons.hourglass_top_rounded;
+      case 'orderConfirmed':
+        return Icons.check_circle_outline_rounded;
       case 'outForDelivery':
         return Icons.delivery_dining_rounded;
       case 'delivered':
@@ -71,9 +75,8 @@ class OrderStatusTimeline extends StatelessWidget {
                         ? Colors.grey.shade100
                         : activeColor.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
-                    border: isCurrent
-                        ? Border.all(color: color, width: 2)
-                        : null,
+                    border:
+                        isCurrent ? Border.all(color: color, width: 2) : null,
                   ),
                   child: Icon(
                     _iconForStep(step.id),

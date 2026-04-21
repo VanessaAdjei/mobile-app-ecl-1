@@ -39,7 +39,7 @@ class HomeProductCard extends StatelessWidget {
 
   // shorten product names so they dont get too long
   String _truncateProductName(String name) {
-    if (name.length <= 18) return name;
+    if (name.length <= 20) return name;
     return '${name.substring(0, 20)}...';
   }
 

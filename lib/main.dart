@@ -677,15 +677,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                               _isFirstLaunch = false;
                             });
 
-                            // Show notification permission request after onboarding
-                            // Use Future.microtask to defer to next event loop tick
-                            Future.microtask(() {
-                              if (!mounted) return;
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (!mounted) return;
-                                _showNotificationPermissionIfNeeded();
-                              });
-                            });
+                            // Navigate to HomePage (which will handle showing the welcome message)
+                            await Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(
+                                  builder: (_) => const HomePage()),
+                            );
                           },
                         )
                       : const HomePage(),

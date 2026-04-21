@@ -46,6 +46,7 @@ import '../services/wishlist_service.dart';
 import '../services/category_optimization_service.dart';
 import 'categories.dart';
 import '../models/cart_item.dart';
+import 'notification_permission_page.dart';
 
 // class to load images before we need them so they show up faster
 class ImagePreloader {
@@ -651,8 +652,7 @@ class HomePageState extends State<HomePage>
 
       final response = await http
           .get(
-            Uri.parse(
-                ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)),
+            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)),
           )
           .timeout(Duration(seconds: 15));
 
@@ -1438,6 +1438,9 @@ class HomePageState extends State<HomePage>
 
     WidgetsBinding.instance.addObserver(this);
 
+    // Check if we should show welcome message (first launch after onboarding)
+    _checkAndShowWelcomeMessage();
+
     // Show loading state; cache is only used when server can't be reached
     _loadCachedDataImmediately();
 
@@ -1489,6 +1492,347 @@ class HomePageState extends State<HomePage>
     });
 
     // Auto-scroll will be initialized when popular products are loaded
+  }
+
+  // Check if we should show the welcome message after first launch
+  Future<void> _checkAndShowWelcomeMessage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasShownWelcome = prefs.getBool('has_shown_welcome_message') ?? false;
+
+    if (!hasShownWelcome) {
+      // Wait for the widget to be fully mounted
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (mounted) {
+          await _showWelcomePage();
+          // Mark as shown so it doesn't appear again
+          await prefs.setBool('has_shown_welcome_message', true);
+        }
+      });
+    }
+  }
+
+  // Show the welcome message as a full page
+  Future<void> _showWelcomePage() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.white,
+          body: SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 20),
+                        // Logo
+                        Image.asset(
+                          'assets/images/png.png',
+                          height: 80,
+                          fit: BoxFit.contain,
+                        ),
+                        const SizedBox(height: 40),
+                        // Welcome title
+                        Text(
+                          'Welcome',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w300,
+                            color: Colors.grey.shade900,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'ERNEST CHEMIST LIMITED',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey.shade500,
+                            letterSpacing: 2.0,
+                          ),
+                        ),
+                        const SizedBox(height: 40),
+                        // Main message
+                        Text(
+                          "We appreciate you choosing us for your health and wellness essentials.",
+                          style: TextStyle(
+                            fontSize: 15,
+                            height: 1.7,
+                            color: Colors.grey.shade700,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          "Thank you. Remember, we are always ready to assist the best way possible.",
+                          style: TextStyle(
+                            fontSize: 14,
+                            height: 1.6,
+                            color: Colors.grey.shade600,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 50),
+                        // Simple divider
+                        Container(
+                          width: 60,
+                          height: 2,
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade600,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Your health, our priority',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey.shade600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
+                ),
+                // Button
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await _showNotificationPermissionIfNeeded();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green.shade700,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Get Started',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRefinedFeature(IconData icon, String line1, String line2) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.grey.shade200,
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              color: Colors.green.shade700,
+              size: 22,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            line1,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade800,
+            ),
+          ),
+          Text(
+            line2,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactFeature(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              color: Colors.green.shade700,
+              size: 24,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade800,
+              height: 1.3,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildElegantFeature(IconData icon, String title, String subtitle) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.green.shade50,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            icon,
+            color: Colors.green.shade700,
+            size: 22,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFeatureRow(IconData icon, String title, String subtitle) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.green.shade50,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: Colors.green.shade700, size: 24),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Show notification permission request if needed
+  Future<void> _showNotificationPermissionIfNeeded() async {
+    try {
+      if (!mounted) return;
+
+      final permission = Permission.notification;
+      final status = await permission.status;
+
+      if (!mounted) return;
+
+      // Only show if we don't have permission and they haven't permanently denied it
+      if (!status.isGranted && !status.isPermanentlyDenied) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const NotificationPermissionPage(),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error showing notification permission: $e');
+    }
   }
 
   // Set loading state only - do not display cached data on homepage load
@@ -1686,8 +2030,7 @@ class HomePageState extends State<HomePage>
                   try {
                     final response = await http
                         .get(
-                          Uri.parse(
-                              ApiConfig.getSearchUrl(pattern)),
+                          Uri.parse(ApiConfig.getSearchUrl(pattern)),
                         )
                         .timeout(Duration(seconds: 10));
 
@@ -2932,8 +3275,7 @@ class HomePageState extends State<HomePage>
     try {
       final response = await http
           .get(
-            Uri.parse(
-                ApiConfig.getEndpointUrl(ApiConfig.popularProducts)),
+            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.popularProducts)),
           )
           .timeout(Duration(
               seconds: 8)); // Reduced timeout for faster failure detection
@@ -3087,213 +3429,305 @@ class HomePageSkeletonBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
+
     return Shimmer.fromColors(
-      baseColor: Colors.grey[400]!,
-      highlightColor: Colors.grey[200]!,
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
       child: CustomScrollView(
         slivers: [
+          // AppBar skeleton
           SliverAppBar(
-            expandedHeight: 50.0,
+            automaticallyImplyLeading: false,
+            backgroundColor: Color(0xFF4CAF50),
+            toolbarHeight: isTablet ? 80 : 60,
             floating: false,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Container(
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(30),
-                ),
+            pinned: false,
+            flexibleSpace: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    width: isTablet ? 100 : 85,
+                    height: isTablet ? 40 : 35,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.3),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
+
           // Search Bar Skeleton
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Container(
-                height: 50,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _SearchBarSkeletonDelegate(isTablet: isTablet),
           ),
-          // Banner Carousel Skeleton
+
+          // Banner Skeleton - matching the new single banner
           SliverToBoxAdapter(
             child: Container(
-              height: 150,
-              margin: EdgeInsets.symmetric(horizontal: 16),
+              height: isTablet ? 220 : 140,
+              margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
           ),
-          // Action Cards Skeleton
+
+          // Action Cards Skeleton (3 cards in a row)
           SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: List.generate(
                   3,
-                  (index) => Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
+                  (index) => Expanded(
+                    child: Container(
+                      height: isTablet ? 110 : 90,
+                      margin: EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
           ),
-          // Product grid skeleton
-          SliverGrid(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) => _buildProductCardSkeleton(),
-              childCount: 4,
-            ),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 0.7,
-            ),
-          ),
-          // Large rectangle skeleton (e.g. for offers)
-          SliverToBoxAdapter(
-            child: Container(
-              height: 120,
-              margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-          // Another product grid skeleton
-          SliverGrid(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) => _buildProductCardSkeleton(),
-              childCount: 4,
-            ),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 0.7,
-            ),
-          ),
-          // Small bar skeleton
+
+          SliverToBoxAdapter(child: SizedBox(height: 8)),
+
+          // Categories horizontal list skeleton
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              child: Container(
-                width: 150,
-                height: 24,
-                color: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 120,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          // Horizontal list skeleton
+
           SliverToBoxAdapter(
             child: Container(
-              height: 120,
-              margin: EdgeInsets.only(left: 16),
+              height: 100,
+              margin: EdgeInsets.only(left: 16, bottom: 16),
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
-                itemCount: 5,
+                itemCount: 8,
                 itemBuilder: (context, index) => Padding(
-                  padding: EdgeInsets.only(right: 16),
-                  child: Container(
-                    width: 80,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
+                  padding: EdgeInsets.only(right: 12),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Container(
+                        width: 60,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
           ),
-          // Final product grid skeleton
-          SliverGrid(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) => _buildProductCardSkeleton(),
-              childCount: 4,
+
+          // Section title skeleton
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    width: 150,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  Container(
+                    width: 60,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 0.7,
+          ),
+
+          // Product grid skeleton
+          SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+            sliver: SliverGrid(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => _buildProductCardSkeleton(isTablet),
+                childCount: isTablet ? 9 : 6,
+              ),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: isTablet ? 3 : 2,
+                childAspectRatio: 0.7,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 12,
+              ),
+            ),
+          ),
+
+          SliverToBoxAdapter(child: SizedBox(height: 20)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductCardSkeleton(bool isTablet) {
+    return Container(
+      margin: EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image placeholder
+          Expanded(
+            flex: 3,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+            ),
+          ),
+          // Content placeholder
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Title lines
+                  Container(
+                    width: double.infinity,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Container(
+                    width: 80,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  Spacer(),
+                  // Price placeholder
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        width: 60,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildProductCardSkeleton() {
+class _SearchBarSkeletonDelegate extends SliverPersistentHeaderDelegate {
+  final bool isTablet;
+
+  _SearchBarSkeletonDelegate({required this.isTablet});
+
+  @override
+  double get minExtent => isTablet ? 80 : 70;
+
+  @override
+  double get maxExtent => isTablet ? 80 : 70;
+
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
-      margin: EdgeInsets.all(8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                // Image placeholder
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    color: Colors.grey[200],
-                  ),
-                ),
-                // Prescription badge placeholder (bottom left)
-                Positioned(
-                  bottom: 8,
-                  left: 2,
-                  child: Container(
-                    width: 48,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: Colors.red[100],
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 2.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Name line
-                Container(
-                  width: 80,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                SizedBox(height: 4),
-                // Price line
-                Container(
-                  width: 60,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: Colors.green[100],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                SizedBox(height: 2),
-              ],
-            ),
-          ),
-        ],
+      color: Colors.white,
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Container(
+        height: isTablet ? 55 : 50,
+        decoration: BoxDecoration(
+          color: Colors.grey[200],
+          borderRadius: BorderRadius.circular(25),
+        ),
       ),
     );
+  }
+
+  @override
+  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) {
+    return false;
   }
 }
 
@@ -3433,7 +3867,8 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
     }
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
-    final bannerHeight = isTablet ? 300.0 : 190.0;
+    final bannerHeight =
+        isTablet ? 220.0 : 140.0; // Adjusted for landscape aspect ratio
     final bannerWidth =
         screenWidth * 0.85; // 85% of screen width for each banner
 
@@ -3450,121 +3885,63 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
       children: [
         SizedBox(
           height: bannerHeight,
-          child: ListView.builder(
-            controller: _scrollController,
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(
+          child: Container(
+            margin: EdgeInsets.symmetric(
               horizontal: isTablet ? 12 : 16,
               vertical: 8,
             ),
-            itemCount: banners.length,
-            itemBuilder: (context, index) {
-              final banner = banners[index];
-              final imageUrl = banner.img.startsWith('http')
-                  ? banner.img
-                  : ApiConfig.getStorageUrl('banners/${banner.img}');
-              return GestureDetector(
-                onTap: () {
-                  if (banner.urlName != null && banner.urlName!.isNotEmpty) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            ItemPage(urlName: banner.urlName!),
-                      ),
-                    );
-                  }
-                },
-                child: Container(
-                  width: bannerWidth,
-                  margin: EdgeInsets.only(
-                    right: isTablet ? 16 : 12,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(
+                isTablet ? 16 : 12,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: isTablet ? 8 : 6,
+                  offset: Offset(
+                    0,
+                    isTablet ? 4 : 3,
                   ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(
-                      isTablet ? 16 : 12,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: isTablet ? 8 : 6,
-                        offset: Offset(
-                          0,
-                          isTablet ? 4 : 3,
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(
+                isTablet ? 16 : 12,
+              ),
+              child: Image.asset(
+                'assets/images/banner2.jpg',
+                fit: BoxFit.cover,
+                width: double.infinity,
+                errorBuilder: (context, error, stackTrace) {
+                  print('Banner image error: $error');
+                  print('Stack trace: $stackTrace');
+                  return Container(
+                    color: Colors.grey[200],
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.broken_image,
+                          size: 40,
+                          color: Colors.grey[400],
                         ),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(
-                      isTablet ? 16 : 12,
-                    ),
-                    child: CachedNetworkImage(
-                      imageUrl: imageUrl,
-                      fit: BoxFit.cover,
-                      fadeInDuration: const Duration(milliseconds: 300),
-                      fadeOutDuration: const Duration(milliseconds: 200),
-                      memCacheWidth: isTablet ? 800 : 400,
-                      memCacheHeight: isTablet ? 600 : 300,
-                      placeholder: (context, url) => Container(
-                        color: Colors.grey[200],
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.green),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Image unavailable',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
                           ),
                         ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        color: Colors.grey[200],
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.broken_image,
-                              size: 40,
-                              color: Colors.grey[400],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Image unavailable',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      ],
                     ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        if (banners.length > 1)
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                banners.length,
-                (index) => Container(
-                  width: index == activeIndex ? 8 : 6,
-                  height: index == activeIndex ? 8 : 6,
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: index == activeIndex
-                        ? Colors.green
-                        : Colors.green.withOpacity(0.3),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ),
+        ),
       ],
     );
   }

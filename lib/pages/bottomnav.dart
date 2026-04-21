@@ -503,6 +503,8 @@ class _CustomBottomNavState extends State<CustomBottomNav>
 
   void _showContactOptions(BuildContext context) {
     const String phoneNumber = '+233508411184';
+    const String email = 'info@ecl.com.gh';
+    const String alternatePhone = '+233302908674';
 
     showModalBottomSheet(
       context: context,
@@ -552,11 +554,11 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                           context,
                           icon: Icons.phone_rounded,
                           title: 'Call Us',
-                          subtitle: 'Speak directly with our team',
+                          subtitle: '(+233) 302 908674/5 or 0508411184',
                           color: Colors.green.shade600,
                           onTap: () {
                             Navigator.pop(context);
-                            _launchPhoneDialer(phoneNumber);
+                            _launchPhoneDialer(alternatePhone);
                           },
                         ),
                         const Divider(height: 1),
@@ -564,7 +566,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                           context,
                           icon: Icons.message_rounded,
                           title: 'WhatsApp',
-                          subtitle: 'Chat with us instantly',
+                          subtitle: '0508411184 - Chat instantly',
                           color: const Color(0xFF25D366),
                           onTap: () {
                             Navigator.pop(context);
@@ -577,12 +579,11 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                           context,
                           icon: Icons.email_rounded,
                           title: 'Email Us',
-                          subtitle: 'Send us a detailed message',
+                          subtitle: email,
                           color: Colors.blue.shade600,
                           onTap: () {
                             Navigator.pop(context);
-                            _launchEmail('support@ernestchemists.com',
-                                'ECL App Support & Inquiry');
+                            _launchEmail(email, 'ECL App Support & Inquiry');
                           },
                         ),
                       ],

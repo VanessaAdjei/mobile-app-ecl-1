@@ -30,7 +30,8 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   String? _deliveryOption;
   bool _isLoading = true;
   double? _actualTotalAmount; // Store actual total fetched from API if needed
-  double? _actualDeliveryFee; // Store actual delivery fee fetched from API if needed
+  double?
+      _actualDeliveryFee; // Store actual delivery fee fetched from API if needed
   /// Current order status for timeline; updated from API so progression can move.
   String? _orderStatus;
 
@@ -43,7 +44,8 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     super.initState();
     debugPrint('🔍 OrderTrackingPage initState called');
     debugPrint('🔍 Order details in initState: ${widget.orderDetails}');
-    debugPrint('🔍 All order details keys: ${widget.orderDetails.keys.toList()}');
+    debugPrint(
+        '🔍 All order details keys: ${widget.orderDetails.keys.toList()}');
     // Log delivery fee related fields
     debugPrint('🔍 Delivery fee fields check:');
     debugPrint('🔍   delivery_fee: ${widget.orderDetails['delivery_fee']}');
@@ -54,12 +56,13 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         'Current navigation stack depth: ${Navigator.of(context).widget.observers.length}');
     debugPrint('Can pop current context: ${Navigator.canPop(context)}');
     _loadDeliveryInfo();
-    
+
     // If delivery fee is missing, try to retrieve it from stored preferences
-    final hasDeliveryFee = widget.orderDetails['delivery_fee'] != null || 
-                          widget.orderDetails['deliveryFee'] != null;
+    final hasDeliveryFee = widget.orderDetails['delivery_fee'] != null ||
+        widget.orderDetails['deliveryFee'] != null;
     if (!hasDeliveryFee) {
-      debugPrint('🔍 Delivery fee missing - trying to retrieve from stored data...');
+      debugPrint(
+          '🔍 Delivery fee missing - trying to retrieve from stored data...');
       _loadStoredDeliveryFee();
     }
 
@@ -225,7 +228,8 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         _deliveryOption = notificationDeliveryOption ??
             prefs.getString('delivery_option') ??
             'Standard Delivery';
-        _orderStatus = widget.orderDetails['status']?.toString() ?? 'Processing';
+        _orderStatus =
+            widget.orderDetails['status']?.toString() ?? 'Processing';
         _isLoading = false;
       });
 
@@ -244,7 +248,8 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         _deliveryAddress = 'Address not available';
         _contactNumber = 'Contact not available';
         _deliveryOption = 'Standard Delivery';
-        _orderStatus = widget.orderDetails['status']?.toString() ?? 'Processing';
+        _orderStatus =
+            widget.orderDetails['status']?.toString() ?? 'Processing';
         _isLoading = false;
       });
     }
@@ -254,23 +259,23 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   Future<void> _loadStoredDeliveryFee() async {
     try {
       final transactionId = widget.orderDetails['transaction_id']?.toString() ??
-                           widget.orderDetails['delivery_id']?.toString() ??
-                           widget.orderDetails['order_id']?.toString();
-      
+          widget.orderDetails['delivery_id']?.toString() ??
+          widget.orderDetails['order_id']?.toString();
+
       if (transactionId == null || transactionId.isEmpty) {
         debugPrint('🔍 Cannot load stored delivery fee: no transaction_id');
         return;
       }
 
       final prefs = await SharedPreferences.getInstance();
-      
+
       // Try with the transaction_id/delivery_id as-is (could be ECL format)
       String deliveryFeeKey = 'order_delivery_fee_$transactionId';
       String totalKey = 'order_total_$transactionId';
-      
+
       double? storedDeliveryFee = prefs.getDouble(deliveryFeeKey);
       double? storedTotal = prefs.getDouble(totalKey);
-      
+
       // If not found and transactionId is ECL format, also try with ORDER_ prefix
       // (in case it was stored with ORDER_ prefix from confirmation page)
       if (storedDeliveryFee == null && transactionId.startsWith('ECL')) {
@@ -281,27 +286,31 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         for (final key in allKeys) {
           if (key.startsWith('order_delivery_fee_ORDER_')) {
             // Extract numeric part from ORDER_ key
-            final orderNumericPart = key.replaceFirst('order_delivery_fee_ORDER_', '');
+            final orderNumericPart =
+                key.replaceFirst('order_delivery_fee_ORDER_', '');
             // Try matching with different lengths (ECL might have shorter timestamp)
             // Match if ORDER_ timestamp starts with ECL timestamp (or vice versa)
-            final minLength = eclNumericPart.length < orderNumericPart.length 
-                ? eclNumericPart.length 
+            final minLength = eclNumericPart.length < orderNumericPart.length
+                ? eclNumericPart.length
                 : orderNumericPart.length;
             if (minLength >= 10) {
               // Try matching first 10 digits (common timestamp length)
-              final eclPrefix = eclNumericPart.substring(0, minLength > 10 ? 10 : minLength);
-              final orderPrefix = orderNumericPart.substring(0, minLength > 10 ? 10 : minLength);
+              final eclPrefix =
+                  eclNumericPart.substring(0, minLength > 10 ? 10 : minLength);
+              final orderPrefix = orderNumericPart.substring(
+                  0, minLength > 10 ? 10 : minLength);
               if (eclPrefix == orderPrefix) {
                 deliveryFeeKey = key;
                 storedDeliveryFee = prefs.getDouble(key);
-                debugPrint('🔍 Found delivery fee with ORDER_ prefix: $key (matched by timestamp prefix)');
+                debugPrint(
+                    '🔍 Found delivery fee with ORDER_ prefix: $key (matched by timestamp prefix)');
                 break;
               }
             }
           }
         }
       }
-      
+
       // If still not found, try the reverse: if we have ORDER_ prefix, try ECL format
       if (storedDeliveryFee == null && transactionId.startsWith('ORDER_')) {
         final orderNumericPart = transactionId.replaceFirst('ORDER_', '');
@@ -310,34 +319,40 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         for (final key in allKeys) {
           if (key.startsWith('order_delivery_fee_ECL')) {
             // Extract numeric part from ECL key
-            final eclNumericPart = key.replaceFirst('order_delivery_fee_ECL', '');
+            final eclNumericPart =
+                key.replaceFirst('order_delivery_fee_ECL', '');
             // Try matching with different lengths
-            final minLength = eclNumericPart.length < orderNumericPart.length 
-                ? eclNumericPart.length 
+            final minLength = eclNumericPart.length < orderNumericPart.length
+                ? eclNumericPart.length
                 : orderNumericPart.length;
             if (minLength >= 10) {
               // Try matching first 10 digits (common timestamp length)
-              final eclPrefix = eclNumericPart.substring(0, minLength > 10 ? 10 : minLength);
-              final orderPrefix = orderNumericPart.substring(0, minLength > 10 ? 10 : minLength);
+              final eclPrefix =
+                  eclNumericPart.substring(0, minLength > 10 ? 10 : minLength);
+              final orderPrefix = orderNumericPart.substring(
+                  0, minLength > 10 ? 10 : minLength);
               if (eclPrefix == orderPrefix) {
                 deliveryFeeKey = key;
                 storedDeliveryFee = prefs.getDouble(key);
-                debugPrint('🔍 Found delivery fee with ECL format: $key (matched by timestamp prefix)');
+                debugPrint(
+                    '🔍 Found delivery fee with ECL format: $key (matched by timestamp prefix)');
                 break;
               }
             }
           }
         }
       }
-      
+
       if (storedDeliveryFee != null && storedDeliveryFee > 0) {
-        debugPrint('🔍 ✅ Found stored delivery fee: $storedDeliveryFee for order $transactionId');
+        debugPrint(
+            '🔍 ✅ Found stored delivery fee: $storedDeliveryFee for order $transactionId');
         // Also get the total if available
         if (storedTotal == null) {
-          totalKey = deliveryFeeKey.replaceFirst('order_delivery_fee_', 'order_total_');
+          totalKey = deliveryFeeKey.replaceFirst(
+              'order_delivery_fee_', 'order_total_');
           storedTotal = prefs.getDouble(totalKey);
         }
-        
+
         if (mounted) {
           setState(() {
             _actualDeliveryFee = storedDeliveryFee;
@@ -363,11 +378,15 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       if (token == null) return null;
       final response = await http.get(
         Uri.parse(ApiConfig.getOrderStatusUrl(orderId)),
-        headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'},
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json'
+        },
       ).timeout(const Duration(seconds: 8));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return data['status']?.toString() ?? data['data']?['status']?.toString();
+        return data['status']?.toString() ??
+            data['data']?['status']?.toString();
       }
     } catch (e) {
       debugPrint('🔍 Direct status API error: $e');
@@ -396,9 +415,9 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         final orders = result['data'] as List;
         final notificationDeliveryId =
             widget.orderDetails['delivery_id']?.toString() ??
-            widget.orderDetails['transaction_id']?.toString() ??
-            widget.orderDetails['id']?.toString() ??
-            widget.orderDetails['order_number']?.toString();
+                widget.orderDetails['transaction_id']?.toString() ??
+                widget.orderDetails['id']?.toString() ??
+                widget.orderDetails['order_number']?.toString();
 
         debugPrint('🔍 Orders API response received, ${orders.length} orders');
 
@@ -428,179 +447,196 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         // try different ways to find the order (use toString() for type-safe comparison)
         Map<String, dynamic>? targetOrder;
 
-          for (final order in orders) {
-            final dId = order['delivery_id']?.toString();
-            final tId = order['transaction_id']?.toString();
-            final oId = order['id']?.toString();
-            final ordNum = order['order_number']?.toString();
-            final match = (dId != null && (dId == notificationDeliveryId || dId == orderNumber)) ||
-                (tId != null && (tId == notificationDeliveryId || tId == orderNumber)) ||
-                (oId != null && (oId == orderId || oId == notificationDeliveryId)) ||
-                (ordNum != null && (ordNum == orderId || ordNum == orderNumber));
-            if (match) {
-              targetOrder = Map<String, dynamic>.from(order);
-              debugPrint('🔍 Found order (delivery_id=$dId, status=${order['status']})');
-              break;
+        for (final order in orders) {
+          final dId = order['delivery_id']?.toString();
+          final tId = order['transaction_id']?.toString();
+          final oId = order['id']?.toString();
+          final ordNum = order['order_number']?.toString();
+          final match = (dId != null &&
+                  (dId == notificationDeliveryId || dId == orderNumber)) ||
+              (tId != null &&
+                  (tId == notificationDeliveryId || tId == orderNumber)) ||
+              (oId != null &&
+                  (oId == orderId || oId == notificationDeliveryId)) ||
+              (ordNum != null && (ordNum == orderId || ordNum == orderNumber));
+          if (match) {
+            targetOrder = Map<String, dynamic>.from(order);
+            debugPrint(
+                '🔍 Found order (delivery_id=$dId, status=${order['status']})');
+            break;
+          }
+        }
+
+        if (targetOrder == null &&
+            orderId != null &&
+            orderId.startsWith('ORDER_')) {
+          final numericId = orderId.replaceFirst('ORDER_', '');
+          final numericIdInt = int.tryParse(numericId);
+          if (numericIdInt != null) {
+            for (final order in orders) {
+              if (order['id'] == numericIdInt ||
+                  order['id'].toString() == numericId) {
+                targetOrder = Map<String, dynamic>.from(order);
+                debugPrint('🔍 Found order by numeric ID');
+                break;
+              }
+            }
+          }
+        }
+
+        if (targetOrder != null) {
+          debugPrint('🔍 Found target order in orders list: $targetOrder');
+          debugPrint('🔍 Available fields in target order:');
+          targetOrder.forEach((key, value) {
+            debugPrint('🔍   $key: $value');
+          });
+
+          // Check if we need to update total and delivery fee
+          // Group orders by delivery_id to calculate actual total
+          final deliveryId = targetOrder['delivery_id']?.toString();
+          if (deliveryId != null) {
+            // Find all orders with same delivery_id to get the complete order
+            final groupedOrders = orders
+                .where((o) => o['delivery_id']?.toString() == deliveryId)
+                .toList();
+
+            if (groupedOrders.isNotEmpty) {
+              // Calculate actual total from all items in this delivery
+              double actualSubtotal = 0.0;
+              for (var order in groupedOrders) {
+                final price = (order['price'] ?? 0.0).toDouble();
+                final qty = (order['qty'] ?? 1).toInt();
+                actualSubtotal += price * qty;
+              }
+
+              debugPrint(
+                  '🔍 Grouped ${groupedOrders.length} orders for delivery_id: $deliveryId');
+              debugPrint(
+                  '🔍 Calculated subtotal from grouped orders: $actualSubtotal');
+
+              // Check if there's a delivery fee field in any of the orders
+              double? foundDeliveryFee;
+              for (var order in groupedOrders) {
+                final fee = order['delivery_fee'] ?? order['deliveryFee'];
+                if (fee != null) {
+                  foundDeliveryFee = (fee is num)
+                      ? fee.toDouble()
+                      : (double.tryParse(fee.toString()) ?? 0.0);
+                  debugPrint(
+                      '🔍 Found delivery fee in order: $foundDeliveryFee');
+                  if (foundDeliveryFee > 0) break;
+                }
+              }
+
+              // If delivery fee not found in orders, the API doesn't return it
+              // We'll need to calculate it from the actual paid amount if available
+              // For now, we'll estimate it based on the difference if total_price > subtotal
+              if (foundDeliveryFee == null || foundDeliveryFee <= 0) {
+                debugPrint('🔍 Delivery fee not in orders API response');
+                debugPrint(
+                    '🔍 Note: Orders API does not return delivery fee field');
+                debugPrint(
+                    '🔍 Delivery fee should be passed from order confirmation page');
+              }
+
+              // If we found delivery fee, store it
+              if (foundDeliveryFee != null && foundDeliveryFee > 0) {
+                final feeValue = foundDeliveryFee;
+                debugPrint('🔍 ✅ Storing delivery fee from API: $feeValue');
+                if (mounted) {
+                  setState(() {
+                    _actualDeliveryFee = feeValue;
+                    _actualTotalAmount = actualSubtotal + feeValue;
+                  });
+                }
+              } else {
+                debugPrint('🔍 ⚠️ Could not find delivery fee in API response');
+                debugPrint(
+                    '🔍 This is expected - orders API does not return delivery fee');
+                debugPrint(
+                    '🔍 Delivery fee should come from order confirmation page data');
+              }
             }
           }
 
-          if (targetOrder == null && orderId != null && orderId.startsWith('ORDER_')) {
-            final numericId = orderId.replaceFirst('ORDER_', '');
-            final numericIdInt = int.tryParse(numericId);
-            if (numericIdInt != null) {
-              for (final order in orders) {
-                if (order['id'] == numericIdInt ||
-                    order['id'].toString() == numericId) {
-                  targetOrder = Map<String, dynamic>.from(order);
-                  debugPrint('🔍 Found order by numeric ID');
+          // get delivery info from the order we found
+          // note: the api response doesnt seem to have delivery address fields
+          // we'll use what we have and show a message if info is missing
+          final address = targetOrder['delivery_address']?.toString() ??
+              targetOrder['shipping_address']?.toString() ??
+              targetOrder['address']?.toString() ??
+              targetOrder['addr_1']?.toString();
+          final contact = targetOrder['contact_number']?.toString() ??
+              targetOrder['phone']?.toString() ??
+              targetOrder['user_phone']?.toString();
+          final method = targetOrder['delivery_option']?.toString() ??
+              targetOrder['shipping_method']?.toString() ??
+              targetOrder['delivery_method']?.toString() ??
+              targetOrder['shipping_type']?.toString();
+
+          if (address != null &&
+              address.isNotEmpty &&
+              _deliveryAddress == 'Address not available') {
+            debugPrint('🔍 Found delivery address from orders API: $address');
+            setState(() {
+              _deliveryAddress = address;
+            });
+          }
+
+          if (contact != null &&
+              contact.isNotEmpty &&
+              _contactNumber == 'Contact not available') {
+            debugPrint('🔍 Found contact number from orders API: $contact');
+            setState(() {
+              _contactNumber = contact;
+            });
+          }
+
+          if (method != null &&
+              method.isNotEmpty &&
+              _deliveryOption == 'Standard Delivery') {
+            debugPrint('🔍 Found delivery method from orders API: $method');
+            setState(() {
+              _deliveryOption = method;
+            });
+          }
+
+          // Update order status from API so the delivery progression timeline can move
+          String? apiStatus = targetOrder['status']?.toString() ??
+              targetOrder['order_status']?.toString();
+          if (apiStatus == null || apiStatus.isEmpty) {
+            final dId = targetOrder['delivery_id']?.toString();
+            if (dId != null) {
+              final group = orders
+                  .where((o) => o['delivery_id']?.toString() == dId)
+                  .toList();
+              for (final o in group) {
+                final s =
+                    o['status']?.toString() ?? o['order_status']?.toString();
+                if (s != null && s.isNotEmpty) {
+                  apiStatus = s;
                   break;
                 }
               }
             }
           }
-
-          if (targetOrder != null) {
-            debugPrint('🔍 Found target order in orders list: $targetOrder');
-            debugPrint('🔍 Available fields in target order:');
-            targetOrder.forEach((key, value) {
-              debugPrint('🔍   $key: $value');
+          if (apiStatus != null && apiStatus.isNotEmpty && mounted) {
+            setState(() {
+              _orderStatus = apiStatus;
             });
-
-            // Check if we need to update total and delivery fee
-            // Group orders by delivery_id to calculate actual total
-            final deliveryId = targetOrder['delivery_id']?.toString();
-            if (deliveryId != null) {
-              // Find all orders with same delivery_id to get the complete order
-              final groupedOrders = orders.where((o) => 
-                o['delivery_id']?.toString() == deliveryId
-              ).toList();
-              
-              if (groupedOrders.isNotEmpty) {
-                // Calculate actual total from all items in this delivery
-                double actualSubtotal = 0.0;
-                for (var order in groupedOrders) {
-                  final price = (order['price'] ?? 0.0).toDouble();
-                  final qty = (order['qty'] ?? 1).toInt();
-                  actualSubtotal += price * qty;
-                }
-                
-                debugPrint('🔍 Grouped ${groupedOrders.length} orders for delivery_id: $deliveryId');
-                debugPrint('🔍 Calculated subtotal from grouped orders: $actualSubtotal');
-                
-                // Check if there's a delivery fee field in any of the orders
-                double? foundDeliveryFee;
-                for (var order in groupedOrders) {
-                  final fee = order['delivery_fee'] ?? order['deliveryFee'];
-                  if (fee != null) {
-                    foundDeliveryFee = (fee is num) ? fee.toDouble() : 
-                        (double.tryParse(fee.toString()) ?? 0.0);
-                    debugPrint('🔍 Found delivery fee in order: $foundDeliveryFee');
-                    if (foundDeliveryFee > 0) break;
-                  }
-                }
-                
-                // If delivery fee not found in orders, the API doesn't return it
-                // We'll need to calculate it from the actual paid amount if available
-                // For now, we'll estimate it based on the difference if total_price > subtotal
-                if (foundDeliveryFee == null || foundDeliveryFee <= 0) {
-                  debugPrint('🔍 Delivery fee not in orders API response');
-                  debugPrint('🔍 Note: Orders API does not return delivery fee field');
-                  debugPrint('🔍 Delivery fee should be passed from order confirmation page');
-                }
-                
-                // If we found delivery fee, store it
-                if (foundDeliveryFee != null && foundDeliveryFee > 0) {
-                  final feeValue = foundDeliveryFee;
-                  debugPrint('🔍 ✅ Storing delivery fee from API: $feeValue');
-                  if (mounted) {
-                    setState(() {
-                      _actualDeliveryFee = feeValue;
-                      _actualTotalAmount = actualSubtotal + feeValue;
-                    });
-                  }
-                } else {
-                  debugPrint('🔍 ⚠️ Could not find delivery fee in API response');
-                  debugPrint('🔍 This is expected - orders API does not return delivery fee');
-                  debugPrint('🔍 Delivery fee should come from order confirmation page data');
-                }
-              }
-            }
-
-            // get delivery info from the order we found
-            // note: the api response doesnt seem to have delivery address fields
-            // we'll use what we have and show a message if info is missing
-            final address = targetOrder['delivery_address']?.toString() ??
-                targetOrder['shipping_address']?.toString() ??
-                targetOrder['address']?.toString() ??
-                targetOrder['addr_1']?.toString();
-            final contact = targetOrder['contact_number']?.toString() ??
-                targetOrder['phone']?.toString() ??
-                targetOrder['user_phone']?.toString();
-            final method = targetOrder['delivery_option']?.toString() ??
-                targetOrder['shipping_method']?.toString() ??
-                targetOrder['delivery_method']?.toString() ??
-                targetOrder['shipping_type']?.toString();
-
-            if (address != null &&
-                address.isNotEmpty &&
-                _deliveryAddress == 'Address not available') {
-              debugPrint('🔍 Found delivery address from orders API: $address');
-              setState(() {
-                _deliveryAddress = address;
-              });
-            }
-
-            if (contact != null &&
-                contact.isNotEmpty &&
-                _contactNumber == 'Contact not available') {
-              debugPrint('🔍 Found contact number from orders API: $contact');
-              setState(() {
-                _contactNumber = contact;
-              });
-            }
-
-            if (method != null &&
-                method.isNotEmpty &&
-                _deliveryOption == 'Standard Delivery') {
-              debugPrint('🔍 Found delivery method from orders API: $method');
-              setState(() {
-                _deliveryOption = method;
-              });
-            }
-
-            // Update order status from API so the delivery progression timeline can move
-            String? apiStatus = targetOrder['status']?.toString() ??
-                targetOrder['order_status']?.toString();
-            if (apiStatus == null || apiStatus.isEmpty) {
-              final dId = targetOrder['delivery_id']?.toString();
-              if (dId != null) {
-                final group = orders.where((o) =>
-                    o['delivery_id']?.toString() == dId).toList();
-                for (final o in group) {
-                  final s = o['status']?.toString() ?? o['order_status']?.toString();
-                  if (s != null && s.isNotEmpty) {
-                    apiStatus = s;
-                    break;
-                  }
-                }
-              }
-            }
-            if (apiStatus != null && apiStatus.isNotEmpty && mounted) {
-              setState(() {
-                _orderStatus = apiStatus;
-              });
-              debugPrint('🔍 Updated order status from API: $apiStatus');
-            }
-
-            // if we still dont have delivery info, show a message
-            if (_deliveryAddress == 'Address not available' &&
-                _contactNumber == 'Contact not available') {
-              debugPrint(
-                  '🔍 No delivery info found in orders API - this appears to be a limitation of the current API');
-            }
-          } else {
-            debugPrint('🔍 Target order not found in list (direct API already tried)');
+            debugPrint('🔍 Updated order status from API: $apiStatus');
           }
+
+          // if we still dont have delivery info, show a message
+          if (_deliveryAddress == 'Address not available' &&
+              _contactNumber == 'Contact not available') {
+            debugPrint(
+                '🔍 No delivery info found in orders API - this appears to be a limitation of the current API');
+          }
+        } else {
+          debugPrint(
+              '🔍 Target order not found in list (direct API already tried)');
+        }
       } else {
         debugPrint('🔍 Orders API did not return success: ${result['status']}');
       }
@@ -657,82 +693,90 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       final qty = item['qty'] ?? 1;
       return sum + (price * qty);
     });
-    
+
     // Get discount if any
-    final discountValue = widget.orderDetails['discount'] ?? 
-                         widget.orderDetails['discount_amount'];
+    final discountValue = widget.orderDetails['discount'] ??
+        widget.orderDetails['discount_amount'];
     final discount = discountValue != null
-        ? ((discountValue is num) 
-            ? discountValue.toDouble() 
+        ? ((discountValue is num)
+            ? discountValue.toDouble()
             : (double.tryParse(discountValue.toString()) ?? 0.0))
         : 0.0;
-    
+
     // Get delivery fee from order details
-    final deliveryFeeValue = widget.orderDetails['delivery_fee'] ?? 
-                            widget.orderDetails['deliveryFee'] ??
-                            widget.orderDetails['delivery_fee_amount'] ??
-                            widget.orderDetails['shipping_fee'] ??
-                            widget.orderDetails['shippingFee'];
+    final deliveryFeeValue = widget.orderDetails['delivery_fee'] ??
+        widget.orderDetails['deliveryFee'] ??
+        widget.orderDetails['delivery_fee_amount'] ??
+        widget.orderDetails['shipping_fee'] ??
+        widget.orderDetails['shippingFee'];
     double deliveryFee = 0.0;
     if (deliveryFeeValue != null) {
-      deliveryFee = (deliveryFeeValue is num) 
-          ? deliveryFeeValue.toDouble() 
+      deliveryFee = (deliveryFeeValue is num)
+          ? deliveryFeeValue.toDouble()
           : (double.tryParse(deliveryFeeValue.toString()) ?? 0.0);
     }
-    
+
     // Try to use total_price/total_amount/amount from order details
-    final orderTotalPrice = widget.orderDetails['total_price'] ?? 
-                           widget.orderDetails['total_amount'] ??
-                           widget.orderDetails['amount'];
-    
+    final orderTotalPrice = widget.orderDetails['total_price'] ??
+        widget.orderDetails['total_amount'] ??
+        widget.orderDetails['amount'];
+
     if (orderTotalPrice != null) {
-      final totalFromOrder = (orderTotalPrice is num) 
-          ? orderTotalPrice.toDouble() 
+      final totalFromOrder = (orderTotalPrice is num)
+          ? orderTotalPrice.toDouble()
           : (double.tryParse(orderTotalPrice.toString()) ?? 0.0);
-      
+
       if (totalFromOrder > 0) {
         // Check if totalFromOrder equals subtotal exactly (within 0.01 tolerance)
         // This means the API only returned subtotal, not the total with delivery fee
         final isSubtotalOnly = (totalFromOrder - subtotal).abs() < 0.01;
-        
+
         if (isSubtotalOnly && deliveryFee <= 0.01) {
           // total_price is just subtotal, and no delivery fee in order details
           // Check if we fetched actual total/delivery fee from API
           if (_actualTotalAmount != null && _actualTotalAmount! > subtotal) {
-            debugPrint('🔍 getTotalAmount: Using actual total fetched from API: $_actualTotalAmount');
+            debugPrint(
+                '🔍 getTotalAmount: Using actual total fetched from API: $_actualTotalAmount');
             return _actualTotalAmount!;
           }
           if (_actualDeliveryFee != null && _actualDeliveryFee! > 0) {
             final calculatedTotal = subtotal + _actualDeliveryFee! - discount;
-            debugPrint('🔍 getTotalAmount: Using delivery fee fetched from API: $_actualDeliveryFee, total: $calculatedTotal');
+            debugPrint(
+                '🔍 getTotalAmount: Using delivery fee fetched from API: $_actualDeliveryFee, total: $calculatedTotal');
             return calculatedTotal;
           }
-          
+
           // total_price is just subtotal, and no delivery fee in order details
           // This means delivery fee is missing from API response
-          debugPrint('🔍 getTotalAmount: ⚠️ total_price ($totalFromOrder) equals subtotal ($subtotal) - delivery fee missing from API');
-          debugPrint('🔍 getTotalAmount: Returning subtotal only (delivery fee not available): $subtotal');
+          debugPrint(
+              '🔍 getTotalAmount: ⚠️ total_price ($totalFromOrder) equals subtotal ($subtotal) - delivery fee missing from API');
+          debugPrint(
+              '🔍 getTotalAmount: Returning subtotal only (delivery fee not available): $subtotal');
           return subtotal;
         } else if (isSubtotalOnly && deliveryFee > 0.01) {
           // total_price is subtotal, but we have delivery fee from order details
           final correctedTotal = totalFromOrder + deliveryFee - discount;
-          debugPrint('🔍 getTotalAmount: total_price is subtotal only. Adding delivery fee: $totalFromOrder + $deliveryFee - $discount = $correctedTotal');
+          debugPrint(
+              '🔍 getTotalAmount: total_price is subtotal only. Adding delivery fee: $totalFromOrder + $deliveryFee - $discount = $correctedTotal');
           return correctedTotal;
         } else if (totalFromOrder > subtotal + 0.01) {
           // totalFromOrder is greater than subtotal, so it likely includes delivery fee
-          debugPrint('🔍 getTotalAmount: Using total_price/total_amount/amount (includes delivery): $totalFromOrder');
+          debugPrint(
+              '🔍 getTotalAmount: Using total_price/total_amount/amount (includes delivery): $totalFromOrder');
           return totalFromOrder;
         } else {
           // Use totalFromOrder as is (might be less than subtotal due to discount)
-          debugPrint('🔍 getTotalAmount: Using total_price/total_amount/amount: $totalFromOrder');
+          debugPrint(
+              '🔍 getTotalAmount: Using total_price/total_amount/amount: $totalFromOrder');
           return totalFromOrder;
         }
       }
     }
-    
+
     // Fallback: calculate total from subtotal + delivery fee - discount
     final calculatedTotal = subtotal + deliveryFee - discount;
-    debugPrint('🔍 getTotalAmount: Calculated total: subtotal $subtotal + deliveryFee $deliveryFee - discount $discount = $calculatedTotal');
+    debugPrint(
+        '🔍 getTotalAmount: Calculated total: subtotal $subtotal + deliveryFee $deliveryFee - discount $discount = $calculatedTotal');
     return calculatedTotal;
   }
 
@@ -749,7 +793,8 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
 
       final orderDate =
           DateTime.tryParse(widget.orderDetails['created_at'] ?? '');
-      final status = _orderStatus ?? widget.orderDetails['status'] ?? 'Processing';
+      final status =
+          _orderStatus ?? widget.orderDetails['status'] ?? 'Processing';
       final orderItems = getOrderItems();
       final totalQuantity = getTotalQuantity();
       final totalAmount = getTotalAmount();
@@ -865,126 +910,131 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                       ),
                     ),
                     child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildModernHeader(orderNumber, status, orderDate),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.green.shade200),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.green.shade200.withValues(alpha: 0.5),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildModernHeader(orderNumber, status, orderDate),
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border:
+                                    Border.all(color: Colors.green.shade200),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.green.shade200
+                                        .withValues(alpha: 0.5),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.receipt_long_rounded,
+                                size: 16,
+                                color: Colors.green.shade700,
+                              ),
                             ),
-                            child: Icon(
-                              Icons.receipt_long_rounded,
-                              size: 16,
-                              color: Colors.green.shade700,
+                            const SizedBox(width: 8),
+                            Text(
+                              'Order summary',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade800,
+                                letterSpacing: 0.3,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Order summary',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade800,
-                              letterSpacing: 0.3,
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        _buildOrderItemsCard(
+                            orderItems, totalQuantity, totalAmount),
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.blue.shade200),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.blue.shade200
+                                        .withValues(alpha: 0.5),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.timeline_rounded,
+                                size: 16,
+                                color: Colors.blue.shade600,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      _buildOrderItemsCard(
-                          orderItems, totalQuantity, totalAmount),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.blue.shade200),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.blue.shade200.withValues(alpha: 0.5),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
+                            const SizedBox(width: 8),
+                            Text(
+                              'Status',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade800,
+                                letterSpacing: 0.3,
+                              ),
                             ),
-                            child: Icon(
-                              Icons.timeline_rounded,
-                              size: 16,
-                              color: Colors.blue.shade600,
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        _buildStatusTimelineCard(status),
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border:
+                                    Border.all(color: Colors.orange.shade200),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.orange.shade200
+                                        .withValues(alpha: 0.5),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.location_on_rounded,
+                                size: 16,
+                                color: Colors.orange.shade700,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Status',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade800,
-                              letterSpacing: 0.3,
+                            const SizedBox(width: 8),
+                            Text(
+                              'Delivery details',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade800,
+                                letterSpacing: 0.3,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      _buildStatusTimelineCard(status),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.orange.shade200),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.orange.shade200.withValues(alpha: 0.5),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Icon(
-                              Icons.location_on_rounded,
-                              size: 16,
-                              color: Colors.orange.shade700,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Delivery details',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade800,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      _buildDeliveryDetailsCard(),
-                      const SizedBox(height: 28),
-                    ],
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        _buildDeliveryDetailsCard(),
+                        const SizedBox(height: 28),
+                      ],
                     ),
                   ),
                 ),
@@ -1176,18 +1226,27 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
 
     final s = status.toLowerCase().trim();
     // Check "out for delivery" / "shipped" BEFORE "delivered" (since "out for delivery" contains "deliver")
-    if (s.contains('out for delivery') || s.contains('out_for_delivery') ||
-        s.contains('shipped') || s == 'shipped' || s.contains('out for')) {
+    if (s.contains('out for delivery') ||
+        s.contains('out_for_delivery') ||
+        s.contains('shipped') ||
+        s == 'shipped' ||
+        s.contains('out for')) {
       statusColor = Colors.blue.shade600;
       statusText = 'Out for Delivery';
-    } else if (s.contains('delivered') || s == 'delivered' || s == 'completed') {
+    } else if (s.contains('delivered') ||
+        s == 'delivered' ||
+        s == 'completed') {
       statusColor = Colors.green.shade600;
       statusText = 'Delivered';
     } else if (s.contains('ship')) {
       statusColor = Colors.blue.shade600;
       statusText = 'Out for Delivery';
-    } else if (s.contains('paid') || s.contains('confirm') || s == 'processing' ||
-        s == 'payment received' || s == 'payment verified' || s == 'pending confirmation') {
+    } else if (s.contains('paid') ||
+        s.contains('confirm') ||
+        s == 'processing' ||
+        s == 'payment received' ||
+        s == 'payment verified' ||
+        s == 'pending confirmation') {
       statusColor = Colors.orange.shade600;
       statusText = 'Confirmed';
     } else if (s == 'order placed' || s == 'pending') {
@@ -1257,28 +1316,28 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       final qty = item['qty'] ?? 1;
       return sum + (price * qty);
     });
-    
+
     // Get discount first (needed for delivery fee calculation)
-    final discountValue = widget.orderDetails['discount'] ?? 
-                         widget.orderDetails['discount_amount'];
+    final discountValue = widget.orderDetails['discount'] ??
+        widget.orderDetails['discount_amount'];
     final discount = discountValue != null
-        ? ((discountValue is num) 
-            ? discountValue.toDouble() 
+        ? ((discountValue is num)
+            ? discountValue.toDouble()
             : (double.tryParse(discountValue.toString()) ?? 0.0))
         : 0.0;
-    
+
     // Get delivery fee from order details - prioritize delivery_fee and deliveryFee
     // These are set when navigating from order confirmation page
-    final deliveryFeeValue = widget.orderDetails['delivery_fee'] ?? 
-                            widget.orderDetails['deliveryFee'];
-    
+    final deliveryFeeValue = widget.orderDetails['delivery_fee'] ??
+        widget.orderDetails['deliveryFee'];
+
     double deliveryFee = 0.0;
     if (deliveryFeeValue != null) {
-      deliveryFee = (deliveryFeeValue is num) 
-          ? deliveryFeeValue.toDouble() 
+      deliveryFee = (deliveryFeeValue is num)
+          ? deliveryFeeValue.toDouble()
           : (double.tryParse(deliveryFeeValue.toString()) ?? 0.0);
     }
-    
+
     // Debug logging
     debugPrint('🔍 ===== Delivery Fee Calculation =====');
     debugPrint('🔍   totalAmount: $totalAmount');
@@ -1286,13 +1345,15 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     debugPrint('🔍   discount: $discount');
     debugPrint('🔍   deliveryFeeValue from order: $deliveryFeeValue');
     debugPrint('🔍   deliveryFee (from order): $deliveryFee');
-    
+
     // Use stored delivery fee if available (stored when order was placed)
-    if (deliveryFee <= 0.01 && _actualDeliveryFee != null && _actualDeliveryFee! > 0.01) {
+    if (deliveryFee <= 0.01 &&
+        _actualDeliveryFee != null &&
+        _actualDeliveryFee! > 0.01) {
       deliveryFee = _actualDeliveryFee!;
       debugPrint('🔍   ✅ Using stored delivery fee: $deliveryFee');
     }
-    
+
     // Calculate delivery fee from difference: total = subtotal + deliveryFee - discount
     // So: deliveryFee = total - subtotal + discount
     // This is a fallback when delivery fee is not explicitly provided
@@ -1300,13 +1361,14 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       final calculatedFeeFromDifference = totalAmount - subtotal + discount;
       if (calculatedFeeFromDifference > 0.01) {
         deliveryFee = calculatedFeeFromDifference;
-        debugPrint('🔍   ✅ Using calculated deliveryFee from difference: $deliveryFee');
+        debugPrint(
+            '🔍   ✅ Using calculated deliveryFee from difference: $deliveryFee');
       }
     }
-    
+
     debugPrint('🔍   ===== Final deliveryFee: $deliveryFee =====');
     debugPrint('🔍   Will show delivery fee: ${deliveryFee > 0.01}');
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -1334,8 +1396,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
           Row(
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(999),
@@ -1397,7 +1458,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
             builder: (context) {
               // Use the deliveryFee calculated above, or calculate from difference
               double finalDeliveryFee = deliveryFee;
-              
+
               // If delivery fee is 0 or very small, calculate from difference
               // Formula: total = subtotal + deliveryFee - discount
               // So: deliveryFee = total - subtotal + discount
@@ -1407,12 +1468,14 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                   finalDeliveryFee = calculatedFee;
                 }
               }
-              
-              debugPrint('🔍 Display Builder: finalDeliveryFee=$finalDeliveryFee, totalAmount=$totalAmount, subtotal=$subtotal, discount=$discount');
-              
+
+              debugPrint(
+                  '🔍 Display Builder: finalDeliveryFee=$finalDeliveryFee, totalAmount=$totalAmount, subtotal=$subtotal, discount=$discount');
+
               // Always show if there's a meaningful delivery fee
               if (finalDeliveryFee > 0.01) {
-                debugPrint('🔍 Display: ✅ SHOWING delivery fee: GHS ${finalDeliveryFee.toStringAsFixed(2)}');
+                debugPrint(
+                    '🔍 Display: ✅ SHOWING delivery fee: GHS ${finalDeliveryFee.toStringAsFixed(2)}');
                 return Column(
                   children: [
                     const SizedBox(height: 8),
@@ -1443,7 +1506,8 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
                 debugPrint('🔍   - totalAmount: $totalAmount');
                 debugPrint('🔍   - subtotal: $subtotal');
                 debugPrint('🔍   - discount: $discount');
-                debugPrint('🔍   - calculated difference: ${totalAmount - subtotal + discount}');
+                debugPrint(
+                    '🔍   - calculated difference: ${totalAmount - subtotal + discount}');
               }
               return const SizedBox.shrink();
             },
@@ -1574,10 +1638,16 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         'status': 'pending',
         'icon': Icons.shopping_cart_rounded
       },
+      {'title': 'Paid', 'status': 'paid', 'icon': Icons.payment_rounded},
       {
-        'title': 'Confirmed',
-        'status': 'processing',
-        'icon': Icons.verified_rounded
+        'title': 'Pending Confirmation',
+        'status': 'pending_confirmation',
+        'icon': Icons.hourglass_empty_rounded
+      },
+      {
+        'title': 'Order Confirmed',
+        'status': 'confirmed',
+        'icon': Icons.check_circle_outline_rounded
       },
       {
         'title': 'Out for Delivery',
@@ -1592,20 +1662,36 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     ];
 
     final normalizedStatus = currentStatus.toLowerCase().trim();
-    // Map API statuses to timeline steps: Order Placed, Paid, Confirmed, Shipped, Delivered
+    // Map API statuses to timeline steps
     String timelineStatus;
     if (normalizedStatus == 'order placed' || normalizedStatus == 'pending') {
       timelineStatus = 'pending';
-    } else if (normalizedStatus.contains('paid') || normalizedStatus.contains('confirm') ||
-        normalizedStatus == 'processing' || normalizedStatus == 'payment received' ||
-        normalizedStatus == 'payment verified' || normalizedStatus == 'pending confirmation') {
-      timelineStatus = 'processing';
-    } else if (normalizedStatus.contains('out for delivery') || normalizedStatus.contains('out_for_delivery') ||
-        normalizedStatus.contains('shipped') || normalizedStatus == 'shipped' || normalizedStatus.contains('out for')) {
+    } else if (normalizedStatus.contains('paid') &&
+        !normalizedStatus.contains('pending')) {
+      timelineStatus = 'paid';
+    } else if (normalizedStatus == 'pending confirmation' ||
+        normalizedStatus.contains('pending_confirmation') ||
+        normalizedStatus == 'payment received' ||
+        normalizedStatus == 'payment verified') {
+      timelineStatus = 'pending_confirmation';
+    } else if (normalizedStatus.contains('confirmed') ||
+        normalizedStatus.contains('confirm')) {
+      timelineStatus = 'confirmed';
+    } else if (normalizedStatus == 'processing' ||
+        normalizedStatus.contains('preparing') ||
+        normalizedStatus.contains('packing')) {
+      timelineStatus = 'confirmed';
+    } else if (normalizedStatus.contains('out for delivery') ||
+        normalizedStatus.contains('out_for_delivery') ||
+        normalizedStatus.contains('shipped') ||
+        normalizedStatus == 'shipped' ||
+        normalizedStatus.contains('out for')) {
       timelineStatus = 'shipped';
     } else if (normalizedStatus.contains('ship')) {
       timelineStatus = 'shipped';
-    } else if (normalizedStatus.contains('delivered') || normalizedStatus == 'delivered' || normalizedStatus == 'completed') {
+    } else if (normalizedStatus.contains('delivered') ||
+        normalizedStatus == 'delivered' ||
+        normalizedStatus == 'completed') {
       timelineStatus = 'delivered';
     } else {
       timelineStatus = normalizedStatus;
@@ -1696,28 +1782,52 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   }
 
   bool _isStatusCompleted(String status, String currentStatus) {
-    final statusOrder = ['pending', 'processing', 'shipped', 'delivered'];
-    
-    // Normalize status: Order Placed->pending, Paid/Confirmed->processing, Shipped->shipped, Delivered->delivered
+    final statusOrder = [
+      'pending',
+      'paid',
+      'pending_confirmation',
+      'confirmed',
+      'shipped',
+      'delivered'
+    ];
+
+    // Normalize status
     final normalizedCurrentStatus = currentStatus.toLowerCase().trim();
     String normalizedStatus;
-    if (normalizedCurrentStatus == 'order placed' || normalizedCurrentStatus == 'pending') {
+    if (normalizedCurrentStatus == 'order placed' ||
+        normalizedCurrentStatus == 'pending') {
       normalizedStatus = 'pending';
-    } else if (normalizedCurrentStatus.contains('paid') || normalizedCurrentStatus.contains('confirm') ||
-        normalizedCurrentStatus == 'processing' || normalizedCurrentStatus == 'payment received' ||
-        normalizedCurrentStatus == 'payment verified' || normalizedCurrentStatus == 'pending confirmation') {
-      normalizedStatus = 'processing';
-    } else if (normalizedCurrentStatus.contains('out for delivery') || normalizedCurrentStatus.contains('out_for_delivery') ||
-        normalizedCurrentStatus.contains('shipped') || normalizedCurrentStatus == 'shipped' || normalizedCurrentStatus.contains('out for')) {
+    } else if (normalizedCurrentStatus.contains('paid') &&
+        !normalizedCurrentStatus.contains('pending')) {
+      normalizedStatus = 'paid';
+    } else if (normalizedCurrentStatus == 'pending confirmation' ||
+        normalizedCurrentStatus.contains('pending_confirmation') ||
+        normalizedCurrentStatus == 'payment received' ||
+        normalizedCurrentStatus == 'payment verified') {
+      normalizedStatus = 'pending_confirmation';
+    } else if (normalizedCurrentStatus.contains('confirmed') ||
+        normalizedCurrentStatus.contains('confirm')) {
+      normalizedStatus = 'confirmed';
+    } else if (normalizedCurrentStatus == 'processing' ||
+        normalizedCurrentStatus.contains('preparing') ||
+        normalizedCurrentStatus.contains('packing')) {
+      normalizedStatus = 'confirmed';
+    } else if (normalizedCurrentStatus.contains('out for delivery') ||
+        normalizedCurrentStatus.contains('out_for_delivery') ||
+        normalizedCurrentStatus.contains('shipped') ||
+        normalizedCurrentStatus == 'shipped' ||
+        normalizedCurrentStatus.contains('out for')) {
       normalizedStatus = 'shipped';
     } else if (normalizedCurrentStatus.contains('ship')) {
       normalizedStatus = 'shipped';
-    } else if (normalizedCurrentStatus.contains('delivered') || normalizedCurrentStatus == 'delivered' || normalizedCurrentStatus == 'completed') {
+    } else if (normalizedCurrentStatus.contains('delivered') ||
+        normalizedCurrentStatus == 'delivered' ||
+        normalizedCurrentStatus == 'completed') {
       normalizedStatus = 'delivered';
     } else {
       normalizedStatus = normalizedCurrentStatus;
     }
-    
+
     final currentIndex = statusOrder.indexOf(normalizedStatus);
     final statusIndex = statusOrder.indexOf(status);
 

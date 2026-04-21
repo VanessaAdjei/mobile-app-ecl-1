@@ -23,7 +23,8 @@ class ApiConfig {
 
   /// Payment gateway redirect URL. Override with --dart-define=PAYMENT_REDIRECT_URL=... for test.
   static String get paymentRedirectUrl {
-    const env = String.fromEnvironment('PAYMENT_REDIRECT_URL', defaultValue: '');
+    const env =
+        String.fromEnvironment('PAYMENT_REDIRECT_URL', defaultValue: '');
     return env.isNotEmpty ? env : '$appBaseUrl/complete';
   }
 
@@ -129,7 +130,8 @@ class ApiConfig {
   // ==================== BOOKINGS ENDPOINTS ====================
   // pharmacist / consultation bookings
 
-  static const String bookingsAvailableSessions = '/bookings/available-sessions';
+  static const String bookingsAvailableSessions =
+      '/bookings/available-sessions';
   static const String bookingsBook = '/bookings/book';
   static const String bookingsHistory = '/bookings/history';
   static const String bookingsCancel = '/bookings/cancel';
@@ -193,9 +195,16 @@ class ApiConfig {
       'https://maps.googleapis.com/maps/api/geocode/json';
 
   /// Google Maps API key. Set via --dart-define=GOOGLE_MAPS_API_KEY=your_key
-  /// so it is not committed. Empty in repo; required for map/geocoding.
-  static String get googleMapsApiKey =>
-      String.fromEnvironment('GOOGLE_MAPS_API_KEY', defaultValue: '');
+  /// or configured in android/local.properties and ios/Runner/Info.plist
+  static String get googleMapsApiKey {
+    // First try --dart-define
+    final fromEnv =
+        String.fromEnvironment('GOOGLE_MAPS_API_KEY', defaultValue: '');
+    if (fromEnv.isNotEmpty) return fromEnv;
+
+    // Fallback to hardcoded key (this is restricted by app bundle ID in Google Cloud Console)
+    return 'AIzaSyAVd8EX7tAd4CEuoUKnXlumiCm_9CI9h4k';
+  }
 
   // ==================== HELPER METHODS ====================
   // functions to build full urls from endpoints

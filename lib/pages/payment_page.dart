@@ -50,9 +50,10 @@ class PaymentPage extends StatefulWidget {
   final double? distanceKm;
   final double? deliveryFee;
   final bool isOrderUrgent;
+  final double? emergencyOrderFee;
 
   const PaymentPage({
-    super.key,
+    Key? key,
     this.deliveryAddress,
     this.contactNumber,
     this.deliveryOption = 'Delivery',
@@ -63,7 +64,8 @@ class PaymentPage extends StatefulWidget {
     this.distanceKm,
     this.deliveryFee,
     this.isOrderUrgent = false,
-  });
+    this.emergencyOrderFee,
+  }) : super(key: key);
 
   @override
   PaymentPageState createState() => PaymentPageState();
@@ -164,6 +166,7 @@ class PaymentPageState extends State<PaymentPage> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        debugPrint('[CHECK PAYMENT API RESPONSE] ${response.body}');
         return {
           'verified': true,
           'status': data['status'] ?? 'success',
@@ -231,7 +234,9 @@ class PaymentPageState extends State<PaymentPage> {
       debugPrint('[DEBUG] Passed subtotal check');
 
       final deliveryFee = widget.deliveryFee ?? 0.00;
-      final total = subtotal + deliveryFee - _discountAmount;
+      final emergencyOrderFee = widget.emergencyOrderFee ?? 0.00;
+      final total =
+          subtotal + deliveryFee + emergencyOrderFee - _discountAmount;
 
       // check if theyre a guest or logged in
       final authHeader = await getAuthHeader();
@@ -277,7 +282,8 @@ class PaymentPageState extends State<PaymentPage> {
         'request': 'submit',
         'order_id': 'ORDER_${DateTime.now().millisecondsSinceEpoch}',
         'currency': 'GHS',
-        'amount': total.toStringAsFixed(2),
+        'amount':
+            double.parse(total.toStringAsFixed(2)), // Send as float, not string
         'order_desc': orderDesc,
         'user_name': _userEmail,
         'first_name': firstName,
@@ -325,10 +331,21 @@ class PaymentPageState extends State<PaymentPage> {
       debugPrint('[DEBUG] About to call expresspay API');
       http.Response? response;
       try {
+        // Convert params to form-encoded body (backend expects form data, not JSON)
+        final formBody = params.entries
+            .map((e) =>
+                '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value.toString())}')
+            .join('&');
+
+        final formHeaders = <String, String>{
+          ...headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        };
+
         response = await http.post(
           Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.expressPayment)),
-          headers: headers,
-          body: jsonEncode(params),
+          headers: formHeaders,
+          body: formBody,
         );
         debugPrint(
             '[DEBUG] Online Payment API Response: Status: ${response.statusCode}, Body: ${response.body}');
@@ -548,7 +565,7 @@ class PaymentPageState extends State<PaymentPage> {
                                   size: 18, color: Colors.red.shade700),
                               const SizedBox(width: 8),
                               Text(
-                                'Emergency order',
+                                'Urgent Order',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -1184,7 +1201,8 @@ class PaymentPageState extends State<PaymentPage> {
   Widget _buildOrderSummary(CartProvider cart) {
     final subtotal = cart.calculateSubtotal();
     final deliveryFee = widget.deliveryFee ?? 0.00;
-    final total = subtotal + deliveryFee - _discountAmount;
+    final emergencyOrderFee = widget.emergencyOrderFee ?? 0.0;
+    final total = subtotal + deliveryFee + emergencyOrderFee - _discountAmount;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -1450,6 +1468,11 @@ class PaymentPageState extends State<PaymentPage> {
                   ],
                   _buildSummaryRow('Delivery Fee', deliveryFee,
                       icon: Icons.local_shipping_outlined),
+                  if (emergencyOrderFee > 0) ...[
+                    const SizedBox(height: 6),
+                    _buildSummaryRow('Urgent Order Fee', emergencyOrderFee,
+                        icon: Icons.flash_on, isDiscount: false),
+                  ],
                   Divider(height: 12, thickness: 1, color: Colors.grey[300]),
                   _buildSummaryRow('TOTAL', total,
                       isHighlighted: true, icon: Icons.payment),
@@ -2489,6 +2512,50 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
               height: 1.3,
             ),
           ),
+          if (_status?.toLowerCase() == 'success') ...[
+            const SizedBox(height: 16),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    'Thank You!',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'We appreciate you choosing us for your health and wellness essentials.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade700,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Remember, we are always ready to assist the best way possible.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 4),
           // Check Status Button (only loop if needed)
           if (_showCheckStatusButton)

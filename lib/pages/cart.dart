@@ -10,6 +10,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'app_back_button.dart';
 import '../config/api_config.dart';
+import '../config/app_routes.dart';
 import '../services/auth_service.dart';
 import 'signinpage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -199,7 +200,9 @@ class CartState extends State<Cart> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    itemName.length > 50 ? '${itemName.substring(0, 50)}...' : itemName,
+                    itemName.length > 50
+                        ? '${itemName.substring(0, 50)}...'
+                        : itemName,
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -440,19 +443,22 @@ class CartState extends State<Cart> {
                                         padding: const EdgeInsets.symmetric(
                                             horizontal: 12, vertical: 6),
                                         minimumSize: Size(0, 0),
-                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
                                       ),
                                       child: Text(
                                         "Log in",
                                         style: TextStyle(fontSize: 12),
                                       ),
                                       onPressed: () async {
-                                        // Navigate to login screen directly (no loading dialog needed)
-                                        await Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) => SignInScreen(),
-                                            ));
+                                        // Use named route for login and ensure returnTo is passed
+                                        await Navigator.pushNamed(
+                                          context,
+                                          AppRoutes.signIn,
+                                          arguments: {
+                                            'returnTo': AppRoutes.cart
+                                          },
+                                        );
 
                                         // After returning from login, check if user is now logged in
                                         if (mounted) {
@@ -465,7 +471,8 @@ class CartState extends State<Cart> {
                                           // Sync AuthProvider so app-wide auth state is correct
                                           try {
                                             await Provider.of<AuthProvider>(
-                                                    context, listen: false)
+                                                    context,
+                                                    listen: false)
                                                 .refreshAuthState();
                                           } catch (_) {}
 
@@ -633,8 +640,9 @@ class CartState extends State<Cart> {
                                 ? null
                                 : () async {
                                     // Fresh check from AuthService to avoid stale state issues
-                                    final actuallyLoggedIn = await AuthService.isLoggedIn();
-                                    
+                                    final actuallyLoggedIn =
+                                        await AuthService.isLoggedIn();
+
                                     if (!actuallyLoggedIn) {
                                       final prefs =
                                           await SharedPreferences.getInstance();
@@ -854,7 +862,8 @@ class CartState extends State<Cart> {
                                           // Sync AuthProvider so delivery/payment pages see correct auth
                                           try {
                                             await Provider.of<AuthProvider>(
-                                                    context, listen: false)
+                                                    context,
+                                                    listen: false)
                                                 .refreshAuthState();
                                           } catch (_) {}
                                           // Sync cart with backend after login
@@ -1259,32 +1268,35 @@ class CartState extends State<Cart> {
                                   child: CircularProgressIndicator(
                                     strokeWidth: 1.5,
                                     valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.green.shade600,
+                                      Colors.green.shade600,
                                     ),
                                   ),
                                 ),
                               ),
                             item.quantity > 1
                                 ? OptimizedRemoveButton(
-                                    onPressed: cart.isItemUpdating(item.id, index)
-                                        ? null
-                                        : () {
-                                            debugPrint(
-                                                '🔍 Cart: Minus button pressed for ${item.name}');
-                                            debugPrint(
-                                                '🔍 Cart: Current quantity: ${item.quantity}');
-                                            debugPrint(
-                                                '🔍 Cart: New quantity will be: ${item.quantity - 1}');
-                                            debugPrint(
-                                                '🔍 Cart: Item index: $index');
-                                            debugPrint(
-                                                '🔍 Cart: Item ID: ${item.id}');
+                                    onPressed:
+                                        cart.isItemUpdating(item.id, index)
+                                            ? null
+                                            : () {
+                                                debugPrint(
+                                                    '🔍 Cart: Minus button pressed for ${item.name}');
+                                                debugPrint(
+                                                    '🔍 Cart: Current quantity: ${item.quantity}');
+                                                debugPrint(
+                                                    '🔍 Cart: New quantity will be: ${item.quantity - 1}');
+                                                debugPrint(
+                                                    '🔍 Cart: Item index: $index');
+                                                debugPrint(
+                                                    '🔍 Cart: Item ID: ${item.id}');
 
-                                            // Use item ID + row index so only this row shows loader
-                                            cart.updateQuantityById(
-                                                item.id, item.quantity - 1, rowIndex: index);
-                                          },
-                                    isEnabled: !cart.isItemUpdating(item.id, index),
+                                                // Use item ID + row index so only this row shows loader
+                                                cart.updateQuantityById(
+                                                    item.id, item.quantity - 1,
+                                                    rowIndex: index);
+                                              },
+                                    isEnabled:
+                                        !cart.isItemUpdating(item.id, index),
                                     size: 28.0,
                                   )
                                 : OptimizedDeleteButton(
@@ -1318,7 +1330,8 @@ class CartState extends State<Cart> {
                                   ? null
                                   : () {
                                       cart.updateQuantityById(
-                                          item.id, item.quantity + 1, rowIndex: index);
+                                          item.id, item.quantity + 1,
+                                          rowIndex: index);
                                     },
                               isEnabled: !cart.isItemUpdating(item.id, index),
                               size: 28.0,

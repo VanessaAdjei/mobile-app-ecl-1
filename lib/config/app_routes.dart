@@ -7,14 +7,14 @@ import '../pages/itemdetail.dart';
 import '../pages/notifications.dart';
 import '../pages/pharmacists.dart';
 import '../pages/prescription_history.dart';
-import '../pages/privacypolicy.dart';
 import '../pages/profile.dart';
 import '../pages/profilescreen.dart';
 import '../pages/purchases.dart';
 import '../pages/refill_page.dart';
+import '../pages/return_policy_page.dart';
 import '../pages/signinpage.dart';
 import '../pages/storelocation.dart';
-import '../pages/tandc.dart';
+import '../pages/terms_and_conditions_page.dart';
 import '../pages/wallet_page.dart';
 import '../pages/wishlist_page.dart';
 import '../pages/delivery_page.dart';
@@ -42,8 +42,8 @@ class AppRoutes {
   static const String prescriptionUpload = '/prescription-upload';
   static const String purchases = '/purchases';
   static const String aboutUs = '/about-us';
-  static const String privacyPolicy = '/privacy-policy';
   static const String termsAndConditions = '/terms-and-conditions';
+  static const String returnPolicy = '/return-policy';
 }
 
 /// Generates routes with arguments. Use with MaterialApp.onGenerateRoute.
@@ -114,10 +114,11 @@ class AppRouteGenerator {
         return MaterialPageRoute(builder: (_) => const PurchaseScreen());
       case AppRoutes.aboutUs:
         return MaterialPageRoute(builder: (_) => AboutUsScreen());
-      case AppRoutes.privacyPolicy:
-        return MaterialPageRoute(builder: (_) => PrivacyPolicyScreen());
       case AppRoutes.termsAndConditions:
-        return MaterialPageRoute(builder: (_) => TermsAndConditionsScreen());
+        return MaterialPageRoute(
+            builder: (_) => const TermsAndConditionsPage());
+      case AppRoutes.returnPolicy:
+        return MaterialPageRoute(builder: (_) => const ReturnPolicyPage());
       default:
         return null;
     }
