@@ -427,8 +427,7 @@ class CategoryPageState extends State<CategoryPage> {
       stopwatch.start();
 
       final response = await http
-          .get(Uri.parse(
-              ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
+          .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
           .timeout(Duration(seconds: 8));
 
       if (response.statusCode == 200) {
@@ -618,8 +617,7 @@ class CategoryPageState extends State<CategoryPage> {
           try {
             final subcategoriesResponse = await http
                 .get(
-                  Uri.parse(
-                      ApiConfig.getCategoryProductsUrl(categoryId)),
+                  Uri.parse(ApiConfig.getCategoryProductsUrl(categoryId)),
                 )
                 .timeout(Duration(seconds: 3));
 
@@ -636,8 +634,8 @@ class CategoryPageState extends State<CategoryPage> {
                   try {
                     final productsResponse = await http
                         .get(
-                          Uri.parse(
-                              ApiConfig.getSubcategoryProductsUrl(subcategoryId)),
+                          Uri.parse(ApiConfig.getSubcategoryProductsUrl(
+                              subcategoryId)),
                         )
                         .timeout(Duration(
                             seconds:
@@ -691,8 +689,7 @@ class CategoryPageState extends State<CategoryPage> {
             try {
               final productsResponse = await http
                   .get(
-                    Uri.parse(
-                        ApiConfig.getSubcategoryProductsUrl(categoryId)),
+                    Uri.parse(ApiConfig.getSubcategoryProductsUrl(categoryId)),
                   )
                   .timeout(Duration(
                       seconds:
@@ -826,8 +823,7 @@ class CategoryPageState extends State<CategoryPage> {
     try {
       // Try to get all products in one API call for maximum speed
       final response = await http
-          .get(Uri.parse(
-              ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
+          .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
           .timeout(Duration(seconds: 3)); // Reasonable timeout for batch API
 
       if (response.statusCode == 200) {
@@ -1077,8 +1073,8 @@ class CategoryPageState extends State<CategoryPage> {
             Column(
               children: [
                 AppHeaderBar(
-                  title: 'Categories',
-                  subtitle: 'Browse all product categories',
+                  title: 'Shop',
+                  subtitle: 'Browse all products',
                   onBack: () {
                     if (widget.isBulkPurchase) {
                       Navigator.pushReplacement(
@@ -2744,8 +2740,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
 
     try {
       final response = await http
-          .get(Uri.parse(
-              ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
+          .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
@@ -3916,8 +3911,7 @@ class ProductListPageState extends State<ProductListPage> {
 
       try {
         final response = await http.get(
-          Uri.parse(
-              ApiConfig.getProductByIdUrl(productId)),
+          Uri.parse(ApiConfig.getProductByIdUrl(productId)),
         );
 
         if (response.statusCode == 200) {

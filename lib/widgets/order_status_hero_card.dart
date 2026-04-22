@@ -159,10 +159,10 @@ class OrderStatusHeroCard extends StatelessWidget {
           _SummaryLine(
               label: 'Subtotal',
               value: 'GHS ${order.subtotal.toStringAsFixed(2)}'),
-          if (order.deliveryFee > 0)
+          if ((order.deliveryFee ?? 0) > 0)
             _SummaryLine(
               label: 'Delivery fee',
-              value: 'GHS ${order.deliveryFee.toStringAsFixed(2)}',
+              value: 'GHS ${(order.deliveryFee ?? 0).toStringAsFixed(2)}',
             ),
           _SummaryLine(label: 'ETA', value: order.estimatedDeliveryTime),
           _SummaryLine(label: 'Address', value: order.deliveryAddress),

@@ -267,17 +267,22 @@ class AdvancedPerformanceService {
     Widget Function(BuildContext, String)? placeholder,
     Widget Function(BuildContext, String, dynamic)? errorWidget,
   }) {
+    int safeRound(double value) {
+      if (value.isNaN || value.isInfinite) return 1;
+      return value.round();
+    }
+
     return ClipRRect(
       borderRadius: borderRadius ?? BorderRadius.circular(8),
       child: CachedNetworkImage(
         imageUrl: imageUrl,
-        width: width,
-        height: height,
+        width: width.isFinite && !width.isNaN ? width : 1,
+        height: height.isFinite && !height.isNaN ? height : 1,
         fit: fit,
-        memCacheWidth: (width * 2).round(),
-        memCacheHeight: (height * 2).round(),
-        maxWidthDiskCache: (width * 2).round(),
-        maxHeightDiskCache: (height * 2).round(),
+        memCacheWidth: safeRound(width * 2),
+        memCacheHeight: safeRound(height * 2),
+        maxWidthDiskCache: safeRound(width * 2),
+        maxHeightDiskCache: safeRound(height * 2),
         placeholder:
             placeholder ?? (context, url) => _buildDefaultPlaceholder(),
         errorWidget: errorWidget ??

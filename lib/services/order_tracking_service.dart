@@ -18,7 +18,7 @@ class OrderTrackingService {
     required String contactNumber,
     required String deliveryOption,
     required String estimatedDeliveryTime,
-    required double deliveryFee,
+    double? deliveryFee,
     required double discount,
     String initialStatus = 'pending',
   }) {
@@ -27,8 +27,7 @@ class OrderTrackingService {
         .toList(growable: false);
     final subtotal = items.fold<double>(0, (sum, item) => sum + item.lineTotal);
     final total = _parseDouble(paymentParams['amount']);
-    final normalizedTotal =
-        total > 0 ? total : subtotal + deliveryFee - discount;
+    final normalizedTotal = total > 0 ? total : subtotal - discount;
     final stage = normalizeStage(initialStatus);
 
     return OrderTrackingModel(
@@ -43,7 +42,7 @@ class OrderTrackingService {
       deliveryOption: deliveryOption,
       estimatedDeliveryTime: estimatedDeliveryTime,
       subtotal: subtotal,
-      deliveryFee: deliveryFee,
+      // deliveryFee removed
       discount: discount,
       totalAmount: normalizedTotal,
       rawStatus: initialStatus,
@@ -90,13 +89,12 @@ class OrderTrackingService {
     final refreshedItems = _extractItems(snapshot, currentOrder.items);
     final subtotal =
         refreshedItems.fold<double>(0, (sum, item) => sum + item.lineTotal);
-    final deliveryFee = _extractDeliveryFee(snapshot, currentOrder.deliveryFee);
+    // deliveryFee removed
     final discount = _extractDiscount(snapshot, currentOrder.discount);
     final totalAmount = _extractTotal(
       snapshot: snapshot,
       fallback: currentOrder.totalAmount,
       subtotal: subtotal,
-      deliveryFee: deliveryFee,
       discount: discount,
     );
 
@@ -115,7 +113,7 @@ class OrderTrackingService {
       transactionId: transactionId,
       items: refreshedItems,
       subtotal: subtotal,
-      deliveryFee: deliveryFee,
+      // deliveryFee removed
       discount: discount,
       totalAmount: totalAmount,
       rawStatus: rawStatus,
@@ -320,16 +318,6 @@ class OrderTrackingService {
     return fallback;
   }
 
-  double _extractDeliveryFee(Map<String, dynamic> snapshot, double fallback) {
-    final fee = snapshot['delivery_fee'] ??
-        snapshot['deliveryFee'] ??
-        snapshot['delivery_fee_amount'] ??
-        snapshot['shipping_fee'] ??
-        snapshot['shippingFee'];
-    final parsed = _parseDouble(fee);
-    return parsed > 0 ? parsed : fallback;
-  }
-
   double _extractDiscount(Map<String, dynamic> snapshot, double fallback) {
     final discount = snapshot['discount'] ?? snapshot['discount_amount'];
     final parsed = _parseDouble(discount);
@@ -340,7 +328,6 @@ class OrderTrackingService {
     required Map<String, dynamic> snapshot,
     required double fallback,
     required double subtotal,
-    required double deliveryFee,
     required double discount,
   }) {
     final amount = snapshot['total_price'] ??
@@ -350,7 +337,7 @@ class OrderTrackingService {
     if (parsed > 0) {
       return parsed;
     }
-    final computed = subtotal + deliveryFee - discount;
+    final computed = subtotal - discount;
     return computed > 0 ? computed : fallback;
   }
 

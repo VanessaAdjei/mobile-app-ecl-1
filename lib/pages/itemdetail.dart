@@ -1,6 +1,7 @@
 // pages/itemdetail.dart
 import 'package:eclapp/pages/prescription.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
@@ -2407,27 +2408,9 @@ class ProductDescription extends StatefulWidget {
 }
 
 class _ProductDescriptionState extends State<ProductDescription> {
-  bool isExpanded = false;
-  late String _plainDescription;
-
-  @override
-  void initState() {
-    super.initState();
-    _plainDescription = _stripHtmlTags(widget.description);
-  }
-
-  String _stripHtmlTags(String html) {
-    // use the html parser to remove tags
-    return parse(html).body?.text.trim() ?? html;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final displayContent = !isExpanded && _plainDescription.length > 100
-        ? '${_plainDescription.substring(0, 100)}...'
-        : _plainDescription;
-
-    if (_plainDescription.isEmpty) {
+    if (widget.description.trim().isEmpty) {
       return const Text(
         'No description available.',
         style: TextStyle(
@@ -2437,37 +2420,16 @@ class _ProductDescriptionState extends State<ProductDescription> {
         ),
       );
     }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          displayContent,
-          style: const TextStyle(
-            fontSize: 13,
-            color: Colors.black54,
-            height: 1.4,
-          ),
+    return Html(
+      data: widget.description,
+      style: {
+        "body": Style(
+          fontSize: FontSize(13),
+          color: Colors.black54,
+          lineHeight: LineHeight(1.4),
+          margin: Margins.zero,
         ),
-        if (_plainDescription.length > 100)
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.zero,
-                minimumSize: const Size(40, 30),
-              ),
-              onPressed: () => setState(() => isExpanded = !isExpanded),
-              child: Text(
-                isExpanded ? 'Read Less' : 'Read More',
-                style: TextStyle(
-                  color: Colors.green.shade700,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ),
-      ],
+      },
     );
   }
 }

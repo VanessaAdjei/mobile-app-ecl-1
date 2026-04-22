@@ -18,7 +18,6 @@ abstract class OrderTrackingRemoteDataSource {
 
 class OrderTrackingRemoteDataSourceImpl
     implements OrderTrackingRemoteDataSource {
-
   @override
   Future<PaymentStatusResult> checkPaymentStatus() async {
     try {
@@ -66,8 +65,12 @@ class OrderTrackingRemoteDataSourceImpl
           )
           .timeout(const Duration(seconds: 15));
 
+      print(
+          '[CHECK STATUS BUTTON] Raw API response: statusCode=${response.statusCode}, body=${response.body}');
+
       if (response.statusCode == 200) {
         if (response.body.trim().isEmpty) {
+          print('[CHECK STATUS BUTTON] Empty response body from API');
           return const PaymentStatusResult(
             status: 'pending',
             message: 'Waiting for payment confirmation...',
@@ -75,7 +78,9 @@ class OrderTrackingRemoteDataSourceImpl
           );
         }
 
+        print('[CHECK STATUS BUTTON] Decoding response body...');
         final payload = _decodeResponse(response.body);
+        print('[CHECK STATUS BUTTON] Decoded payload: ' + payload.toString());
         return _mapPaymentStatus(payload);
       }
 

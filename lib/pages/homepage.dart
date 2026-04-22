@@ -1,8 +1,6 @@
 // pages/homepage.dart
 
-import 'package:eclapp/pages/pharmacists.dart';
 import 'package:eclapp/pages/signinpage.dart';
-import 'package:eclapp/pages/storelocation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -33,20 +31,25 @@ import 'section_products_page.dart';
 import 'package:animations/animations.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../providers/promotional_event_provider.dart';
-import '../providers/clearance_sale_provider.dart';
-import '../widgets/ernest_friday_banner.dart';
-import '../widgets/ernest_friday_notification.dart';
+
 import '../widgets/clearance_sale_banner.dart';
-import 'ernest_friday_page.dart';
-import 'wishlist_page.dart';
-import '../services/wishlist_service.dart';
 import '../services/category_optimization_service.dart';
 import 'categories.dart';
-import '../models/cart_item.dart';
+
 import 'notification_permission_page.dart';
+
+// Banner data helper class for homepage banner carousel
+class _BannerData {
+  final String image;
+  final String headline;
+  final String subtitle;
+  _BannerData(
+      {required this.image, required this.headline, required this.subtitle});
+}
+
+// Add prescribed shield asset
+const String prescribedShieldAsset = 'assets/images/prescribed_shield.png';
 
 // class to load images before we need them so they show up faster
 class ImagePreloader {
@@ -491,6 +494,7 @@ class HomePageState extends State<HomePage>
 
   List<Product> otcpomProducts = [];
   List<Product> drugProducts = [];
+  List<Product> prescribedProducts = [];
   List<Product> wellnessProducts = [];
   List<Product> selfcareProducts = [];
   List<Product> accessoriesProducts = [];
@@ -925,12 +929,17 @@ class HomePageState extends State<HomePage>
     });
 
     final List<Product> otcDrugProducts = [];
+    final List<Product> prescribedList = [];
     final List<Product> wellnessList = [];
     final List<Product> selfcareList = [];
     final List<Product> accessoriesList = [];
 
     for (final product in allProducts) {
-      if ((product.otcpom != null &&
+      final isPrescribed = product.otcpom != null &&
+          product.otcpom!.trim().toLowerCase() == 'pom';
+      if (isPrescribed) {
+        prescribedList.add(product);
+      } else if ((product.otcpom != null &&
               product.otcpom!.trim().toLowerCase() == 'otc') ||
           (product.drug != null &&
               product.drug!.trim().toLowerCase() == 'drug')) {
@@ -951,10 +960,10 @@ class HomePageState extends State<HomePage>
     if (_lastSectionShuffleTime == null) {
       debugPrint(
           '🎲 HomePage: Section shuffle timestamp not loaded yet, skipping shuffle check');
-
       if (mounted) {
         setState(() {
           drugsSectionProducts = otcDrugProducts;
+          prescribedProducts = prescribedList;
           wellnessProducts = wellnessList;
           selfcareProducts = selfcareList;
           accessoriesProducts = accessoriesList;
@@ -967,12 +976,11 @@ class HomePageState extends State<HomePage>
 
     if (shouldShuffleSections) {
       debugPrint('🎲 HomePage: Shuffling product sections after 24 hours');
-      // shuffle the products in each section
       otcDrugProducts.shuffle();
+      prescribedList.shuffle();
       wellnessList.shuffle();
       selfcareList.shuffle();
       accessoriesList.shuffle();
-      // remember when we shuffled and save it
       _lastSectionShuffleTime = DateTime.now();
       _saveSectionShuffleTime();
     } else {
@@ -980,9 +988,9 @@ class HomePageState extends State<HomePage>
           '🎲 HomePage: Using existing section product order (within 24 hours)');
     }
 
-    // print product counts so we can see if everything is consistent
     debugPrint('🔍 PRODUCT SECTIONS - Consistent Order:');
     debugPrint('  Drugs: ${otcDrugProducts.length} products');
+    debugPrint('  Prescribed: ${prescribedList.length} products');
     debugPrint('  Wellness: ${wellnessList.length} products');
     debugPrint('  Selfcare: ${selfcareList.length} products');
     debugPrint('  Accessories: ${accessoriesList.length} products');
@@ -990,6 +998,7 @@ class HomePageState extends State<HomePage>
     if (mounted) {
       setState(() {
         drugsSectionProducts = otcDrugProducts;
+        prescribedProducts = prescribedList;
         wellnessProducts = wellnessList;
         selfcareProducts = selfcareList;
         accessoriesProducts = accessoriesList;
@@ -2436,7 +2445,7 @@ class HomePageState extends State<HomePage>
                     // Text content
                     Expanded(
                       child: Text(
-                        'Categories',
+                        'Shop',
                         style: GoogleFonts.poppins(
                           color: Colors.white,
                           fontSize: 13,
@@ -2926,15 +2935,20 @@ class HomePageState extends State<HomePage>
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.only(top: 16.0),
-                        child: _buildProductSection(
-                          'Drugs',
-                          Colors.green[700]!,
-                          _getLimitedProducts(drugsSectionProducts),
-                          'drugs',
-                          fontSize: cardFontSize,
-                          padding: cardPadding,
-                          imageHeight: cardImageHeight,
-                          isTablet: isTablet,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildProductSection(
+                              'Drugs',
+                              Colors.green[700]!,
+                              _getLimitedProducts(drugsSectionProducts),
+                              'drugs',
+                              fontSize: cardFontSize,
+                              padding: cardPadding,
+                              imageHeight: cardImageHeight,
+                              isTablet: isTablet,
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -3051,6 +3065,20 @@ class HomePageState extends State<HomePage>
                         imageHeight: cardImageHeight,
                       ),
                     ),
+                    // Prescription Only Medicine Section (moved below Accessories)
+                    if (prescribedProducts.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: _buildProductSection(
+                          'PRESCRIPTION ONLY MEDICINE',
+                          Colors.red[700]!,
+                          _getLimitedProducts(prescribedProducts),
+                          'prescribed',
+                          fontSize: cardFontSize,
+                          padding: cardPadding,
+                          imageHeight: cardImageHeight,
+                          isTablet: isTablet,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -3183,7 +3211,24 @@ class HomePageState extends State<HomePage>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: buildSectionHeading(title, color),
+                child: (title.toUpperCase() == 'PRESCRIPTION ONLY MEDICINE')
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Image.asset(
+                            prescribedShieldAsset,
+                            width: isTablet ? 32 : 24,
+                            height: isTablet ? 32 : 24,
+                          ),
+                          const SizedBox(width: 8),
+                          // Make the title flexible to avoid overflow
+                          Flexible(
+                            child: buildSectionHeading(title, color,
+                                hideIcon: true),
+                          ),
+                        ],
+                      )
+                    : buildSectionHeading(title, color),
               ),
               TextButton(
                 onPressed: () {
@@ -3855,92 +3900,200 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
         child: CircularProgressIndicator(),
       );
     }
-    if (banners.isEmpty) {
-      return Container(
-        height: 140,
-        alignment: Alignment.center,
-        child: Text(
-          'No banners available',
-          style: TextStyle(color: Colors.grey[600]),
-        ),
-      );
-    }
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
-    final bannerHeight =
-        isTablet ? 220.0 : 140.0; // Adjusted for landscape aspect ratio
-    final bannerWidth =
-        screenWidth * 0.85; // 85% of screen width for each banner
+    final bannerHeight = isTablet ? 220.0 : 140.0;
+    final List<_BannerData> bannerData = [
+      _BannerData(
+        image: 'assets/images/banner1.jpg',
+        headline: 'Your Health, Our Priority',
+        subtitle: 'Shop medicines, wellness, and more with confidence.',
+      ),
+      _BannerData(
+        image: 'assets/images/banner2.jpg',
+        headline: 'Fast Delivery, Trusted Service',
+        subtitle: 'Get your essentials delivered quickly and safely.',
+      ),
+    ];
+    const int _kInfiniteScrollOffset = 10000;
+    int _activeBanner = 0;
+    final PageController _pageController = PageController(
+        initialPage: _kInfiniteScrollOffset, viewportFraction: 0.88);
 
-    final double dotSpacing = isTablet ? 16.0 : 12.0;
-    final double itemWidth = bannerWidth + dotSpacing;
-    final double currentOffset =
-        _scrollController.hasClients ? _scrollController.offset : 0.0;
-    final int activeIndex = (itemWidth > 0 && banners.isNotEmpty)
-        ? (currentOffset / itemWidth).round().clamp(0, banners.length - 1)
-        : 0;
+    // Auto-scroll logic for infinite loop
+    void _startAutoScroll() {
+      Future.delayed(const Duration(seconds: 4), () {
+        if (!mounted || !_pageController.hasClients) return;
+        _pageController.nextPage(
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+        _startAutoScroll();
+      });
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startAutoScroll();
+    });
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
           height: bannerHeight,
-          child: Container(
-            margin: EdgeInsets.symmetric(
-              horizontal: isTablet ? 12 : 16,
-              vertical: 8,
-            ),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(
-                isTablet ? 16 : 12,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: isTablet ? 8 : 6,
-                  offset: Offset(
-                    0,
-                    isTablet ? 4 : 3,
-                  ),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(
-                isTablet ? 16 : 12,
-              ),
-              child: Image.asset(
-                'assets/images/banner2.jpg',
-                fit: BoxFit.cover,
-                width: double.infinity,
-                errorBuilder: (context, error, stackTrace) {
-                  print('Banner image error: $error');
-                  print('Stack trace: $stackTrace');
-                  return Container(
-                    color: Colors.grey[200],
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.broken_image,
-                          size: 40,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Image unavailable',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
+          child: PageView.builder(
+            controller: _pageController,
+            // Infinite loop: no itemCount
+            onPageChanged: (index) {
+              setState(() {
+                _activeBanner = index % bannerData.length;
+              });
+            },
+            itemBuilder: (context, index) {
+              final data = bannerData[index % bannerData.length];
+              return AnimatedBuilder(
+                animation: _pageController,
+                builder: (context, child) {
+                  double value = 0.0;
+                  if (_pageController.position.haveDimensions) {
+                    value = _pageController.page! - index;
+                  } else {
+                    value = _activeBanner - index.toDouble();
+                  }
+                  value = value.clamp(-1, 1);
+                  final double scale = 1 - (0.15 * value.abs());
+                  final double angle = value * 0.18;
+                  final double translateX = value * (isTablet ? 40 : 24);
+                  return Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()
+                      ..translate(translateX)
+                      ..scale(scale, scale)
+                      ..setEntry(3, 2, 0.001)
+                      ..rotateY(angle),
+                    child: Container(
+                      margin: EdgeInsets.symmetric(
+                        horizontal: isTablet ? 2 : 1,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(isTablet ? 18 : 12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.13),
+                            blurRadius: isTablet ? 10 : 7,
+                            offset: Offset(0, isTablet ? 4 : 2),
                           ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(isTablet ? 18 : 12),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.asset(
+                              data.image,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  color: Colors.grey[200],
+                                  child: Center(
+                                    child: Icon(Icons.broken_image,
+                                        size: 40, color: Colors.grey[400]),
+                                  ),
+                                );
+                              },
+                            ),
+                            // Gradient at bottom for text readability
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              height: bannerHeight * 0.45,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.bottomCenter,
+                                    end: Alignment.topCenter,
+                                    colors: [
+                                      Colors.black.withOpacity(0.7),
+                                      Colors.transparent,
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            // Text overlay (bottom left)
+                            Positioned(
+                              left: 20,
+                              bottom: 22,
+                              right: 20,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    data.headline,
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: isTablet ? 18 : 14.5,
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black.withOpacity(0.4),
+                                          blurRadius: 6,
+                                          offset: Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  SizedBox(height: 5),
+                                  Text(
+                                    data.subtitle,
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.white.withOpacity(0.92),
+                                      fontWeight: FontWeight.w400,
+                                      fontSize: isTablet ? 13 : 10.5,
+                                      height: 1.3,
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black.withOpacity(0.3),
+                                          blurRadius: 4,
+                                          offset: Offset(0, 1),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   );
                 },
-              ),
-            ),
+              );
+            },
           ),
+        ),
+        // Page indicator dots
+        SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(bannerData.length, (index) {
+            return AnimatedContainer(
+              duration: Duration(milliseconds: 300),
+              margin: EdgeInsets.symmetric(horizontal: 4),
+              width: _activeBanner == index ? 18 : 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: _activeBanner == index
+                    ? Colors.white.withOpacity(0.95)
+                    : Colors.white.withOpacity(0.45),
+                borderRadius: BorderRadius.circular(8),
+              ),
+            );
+          }),
         ),
       ],
     );
@@ -4007,8 +4160,9 @@ String getProductImageUrl(String? url) {
 }
 
 // Helper to build a modern section heading with enhanced design
-Widget buildSectionHeading(String title, Color color) {
+Widget buildSectionHeading(String title, Color color, {bool hideIcon = false}) {
   return Row(
+    mainAxisSize: MainAxisSize.min,
     children: [
       // Decorative line with gradient
       Container(
@@ -4020,13 +4174,13 @@ Widget buildSectionHeading(String title, Color color) {
             end: Alignment.bottomCenter,
             colors: [
               color,
-              color.withValues(alpha: 0.7),
+              color.withOpacity(0.7),
             ],
           ),
           borderRadius: BorderRadius.circular(2),
           boxShadow: [
             BoxShadow(
-              color: color.withValues(alpha: 0.2),
+              color: color.withOpacity(0.2),
               blurRadius: 2,
               offset: const Offset(0, 1),
             ),
@@ -4034,33 +4188,37 @@ Widget buildSectionHeading(String title, Color color) {
         ),
       ),
       const SizedBox(width: 8),
-      // Icon beside the title
-      Container(
-        padding: const EdgeInsets.all(5),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(4),
+      if (!hideIcon) ...[
+        // Icon beside the title
+        Container(
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Icon(
+            _getIconForSection(title),
+            color: color,
+            size: 16,
+          ),
         ),
-        child: Icon(
-          _getIconForSection(title),
-          color: color,
-          size: 16,
-        ),
-      ),
-      const SizedBox(width: 8),
+        const SizedBox(width: 8),
+      ],
       // Title with enhanced styling
-      Expanded(
+      Flexible(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               title,
               style: GoogleFonts.poppins(
-                fontSize: 18,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: Colors.black87,
                 letterSpacing: 0.2,
               ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
             Container(
               width: 30,
@@ -4069,10 +4227,9 @@ Widget buildSectionHeading(String title, Color color) {
                 gradient: LinearGradient(
                   colors: [
                     color,
-                    color.withValues(alpha: 0.5),
+                    color.withOpacity(0.2),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(1),
               ),
             ),
           ],
@@ -4082,11 +4239,9 @@ Widget buildSectionHeading(String title, Color color) {
   );
 }
 
-// Helper to get appropriate icon for each section
+// Section icon helper
 IconData _getIconForSection(String title) {
   switch (title.toLowerCase()) {
-    case 'drugs':
-      return Icons.medication;
     case 'popular products':
       return Icons.trending_up;
     case 'otc/pom':
@@ -4094,9 +4249,13 @@ IconData _getIconForSection(String title) {
     case 'wellness':
       return Icons.favorite;
     case 'self care':
-      return Icons.self_improvement;
+      return Icons.spa;
     case 'accessories':
+      return Icons.headphones;
+    case 'drugs':
       return Icons.medical_services;
+    case 'prescription only medicine':
+      return Icons.verified_user;
     default:
       return Icons.category;
   }

@@ -101,7 +101,7 @@ class OrderTrackingModel {
     required this.deliveryOption,
     required this.estimatedDeliveryTime,
     required this.subtotal,
-    required this.deliveryFee,
+    this.deliveryFee,
     required this.discount,
     required this.totalAmount,
     required this.rawStatus,
@@ -128,7 +128,7 @@ class OrderTrackingModel {
   final String deliveryOption;
   final String estimatedDeliveryTime;
   final double subtotal;
-  final double deliveryFee;
+  final double? deliveryFee;
   final double discount;
   final double totalAmount;
   final String rawStatus;

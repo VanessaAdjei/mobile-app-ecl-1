@@ -4002,85 +4002,87 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                               ),
                             ],
                           ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: _shouldHighlightBooking
-                                      ? Colors.white.withOpacity(0.25)
-                                      : Color(0xFF4CAF50).withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
                                     color: _shouldHighlightBooking
-                                        ? Colors.white.withOpacity(0.3)
-                                        : Color(0xFF4CAF50).withOpacity(0.3),
-                                    width: 1.5,
+                                        ? Colors.white.withOpacity(0.25)
+                                        : Color(0xFF4CAF50).withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: _shouldHighlightBooking
+                                          ? Colors.white.withOpacity(0.3)
+                                          : Color(0xFF4CAF50).withOpacity(0.3),
+                                      width: 1.5,
+                                    ),
                                   ),
-                                ),
-                                child: Icon(
-                                  Icons.video_call_rounded,
-                                  color: _shouldHighlightBooking
-                                      ? Colors.white
-                                      : Color(0xFF2E7D32),
-                                  size: 32,
-                                ),
-                              ),
-                              SizedBox(height: 12),
-                              Text(
-                                'Book Consultation',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: _shouldHighlightBooking
-                                      ? Colors.white
-                                      : Color(0xFF1A1A1A),
-                                  letterSpacing: 0.3,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              SizedBox(height: 6),
-                              Text(
-                                'Video, Audio & Chat',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 11,
-                                  color: _shouldHighlightBooking
-                                      ? Colors.white.withOpacity(0.9)
-                                      : Color(0xFF757575),
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              SizedBox(height: 8),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: _shouldHighlightBooking
-                                      ? Colors.white.withOpacity(0.2)
-                                      : Color(0xFF4CAF50).withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: _shouldHighlightBooking
-                                        ? Colors.white.withOpacity(0.3)
-                                        : Color(0xFF4CAF50).withOpacity(0.3),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Text(
-                                  '24/7 Available',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 9,
+                                  child: Icon(
+                                    Icons.video_call_rounded,
                                     color: _shouldHighlightBooking
                                         ? Colors.white
                                         : Color(0xFF2E7D32),
-                                    fontWeight: FontWeight.w600,
+                                    size: 32,
                                   ),
                                 ),
-                              ),
-                            ],
+                                SizedBox(height: 12),
+                                Text(
+                                  'Book Consultation',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: _shouldHighlightBooking
+                                        ? Colors.white
+                                        : Color(0xFF1A1A1A),
+                                    letterSpacing: 0.3,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                SizedBox(height: 6),
+                                Text(
+                                  'Video, Audio & Chat',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    color: _shouldHighlightBooking
+                                        ? Colors.white.withOpacity(0.9)
+                                        : Color(0xFF757575),
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                SizedBox(height: 8),
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: _shouldHighlightBooking
+                                        ? Colors.white.withOpacity(0.2)
+                                        : Color(0xFF4CAF50).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: _shouldHighlightBooking
+                                          ? Colors.white.withOpacity(0.3)
+                                          : Color(0xFF4CAF50).withOpacity(0.3),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '24/7 Available',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 9,
+                                      color: _shouldHighlightBooking
+                                          ? Colors.white
+                                          : Color(0xFF2E7D32),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         // Border overlay that doesn't affect container size
@@ -4128,69 +4130,71 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                           ),
                         ],
                       ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Color(0xFFFF9800).withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: Color(0xFFFF9800).withOpacity(0.3),
-                                width: 1.5,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Color(0xFFFF9800).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Color(0xFFFF9800).withOpacity(0.3),
+                                  width: 1.5,
+                                ),
                               ),
-                            ),
-                            child: Icon(
-                              Icons.smart_toy_rounded,
-                              color: Color(0xFFE65100),
-                              size: 32,
-                            ),
-                          ),
-                          SizedBox(height: 12),
-                          Text(
-                            'Ask Ernest AI',
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1A1A1A),
-                              letterSpacing: 0.3,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          SizedBox(height: 6),
-                          Text(
-                            'AI Health Assistant',
-                            style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              color: Color(0xFF757575),
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          SizedBox(height: 8),
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Color(0xFFFF9800).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Color(0xFFFF9800).withOpacity(0.3),
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              'Instant Help',
-                              style: GoogleFonts.poppins(
-                                fontSize: 9,
+                              child: Icon(
+                                Icons.smart_toy_rounded,
                                 color: Color(0xFFE65100),
-                                fontWeight: FontWeight.w600,
+                                size: 32,
                               ),
                             ),
-                          ),
-                        ],
+                            SizedBox(height: 12),
+                            Text(
+                              'Ask Ernest AI',
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1A1A1A),
+                                letterSpacing: 0.3,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: 6),
+                            Text(
+                              'AI Health Assistant',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                color: Color(0xFF757575),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: 8),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Color(0xFFFF9800).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Color(0xFFFF9800).withOpacity(0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                'Instant Help',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 9,
+                                  color: Color(0xFFE65100),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

@@ -2200,8 +2200,8 @@ class DeliveryPageState extends State<DeliveryPage> {
       print('   📍 Full coordinates: ($_latitude, $_longitude)');
       print(
           '   📍 Coordinates type: ${_latitude.runtimeType}, ${_longitude.runtimeType}');
-      print(
-          '   📍 Coordinates precision: ${_latitude?.toStringAsFixed(8)}, ${_longitude?.toStringAsFixed(8)}');
+      print('   📍 Coordinates precision: '
+          '${_latitude?.toStringAsFixed(8)}, ${_longitude?.toStringAsFixed(8)}');
       print('🚀 [DELIVERY] ======================================');
     } else {
       print('⚠️ [DELIVERY] No coordinates available to pass to PaymentPage');
@@ -2219,7 +2219,6 @@ class DeliveryPageState extends State<DeliveryPage> {
           lng: _longitude,
           estimatedDeliveryTime: _apiDeliveryTime,
           distanceKm: _distanceKm,
-          deliveryFee: deliveryFee,
           isOrderUrgent: _isOrderUrgent,
           emergencyOrderFee: _emergencyOrderFee,
         ),
@@ -2365,8 +2364,8 @@ class DeliveryPageState extends State<DeliveryPage> {
             print('   📍 Address from map picker: $address');
             print(
                 '   📍 Coordinates type: ${lat.runtimeType}, ${lng.runtimeType}');
-            print(
-                '   📍 Coordinates precision: ${lat.toStringAsFixed(8)}, ${lng.toStringAsFixed(8)}');
+            print('   📍 Coordinates precision: '
+                '${lat.toStringAsFixed(8)}, ${lng.toStringAsFixed(8)}');
             print('🗺️ [MAP PICKER] 📍 STORED IN STATE:');
             print('   📍 Stored Latitude: $_latitude');
             print('   📍 Stored Longitude: $_longitude');

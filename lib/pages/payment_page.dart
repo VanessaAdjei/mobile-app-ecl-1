@@ -48,7 +48,7 @@ class PaymentPage extends StatefulWidget {
   final double? lng;
   final String? estimatedDeliveryTime;
   final double? distanceKm;
-  final double? deliveryFee;
+  // final double? deliveryFee; // Removed manual delivery fee
   final bool isOrderUrgent;
   final double? emergencyOrderFee;
 
@@ -62,7 +62,7 @@ class PaymentPage extends StatefulWidget {
     this.lng,
     this.estimatedDeliveryTime,
     this.distanceKm,
-    this.deliveryFee,
+    // this.deliveryFee, // Removed manual delivery fee
     this.isOrderUrgent = false,
     this.emergencyOrderFee,
   }) : super(key: key);
@@ -167,6 +167,7 @@ class PaymentPageState extends State<PaymentPage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         debugPrint('[CHECK PAYMENT API RESPONSE] ${response.body}');
+        print('[CHECK PAYMENT API RESPONSE] ${response.body}');
         return {
           'verified': true,
           'status': data['status'] ?? 'success',
@@ -233,10 +234,8 @@ class PaymentPageState extends State<PaymentPage> {
       }
       debugPrint('[DEBUG] Passed subtotal check');
 
-      final deliveryFee = widget.deliveryFee ?? 0.00;
       final emergencyOrderFee = widget.emergencyOrderFee ?? 0.00;
-      final total =
-          subtotal + deliveryFee + emergencyOrderFee - _discountAmount;
+      final total = subtotal + emergencyOrderFee - _discountAmount;
 
       // check if theyre a guest or logged in
       final authHeader = await getAuthHeader();
@@ -385,13 +384,14 @@ class PaymentPageState extends State<PaymentPage> {
               deliveryOption: widget.deliveryOption,
               estimatedDeliveryTime:
                   widget.estimatedDeliveryTime ?? 'Calculating ETA',
-              deliveryFee: deliveryFee,
+              // deliveryFee removed
               discount: _discountAmount,
               onPaymentComplete: (success, token) async {
                 if (success && token != null) {
                   try {
                     final result =
                         await _verifyPayment(token, transactionId.toString());
+                    debugPrint('[CHECK PAYMENT API RESULT] $result');
                     final statusText =
                         result['status']?.toString().toLowerCase() ?? '';
 
@@ -406,6 +406,7 @@ class PaymentPageState extends State<PaymentPage> {
                       // Payment not completed or declined
                     }
                   } catch (e) {
+                    debugPrint('[CHECK PAYMENT API ERROR] $e');
                     throw Exception(
                         'Failed to verify payment status. Please contact support.');
                   }
@@ -1200,9 +1201,8 @@ class PaymentPageState extends State<PaymentPage> {
 
   Widget _buildOrderSummary(CartProvider cart) {
     final subtotal = cart.calculateSubtotal();
-    final deliveryFee = widget.deliveryFee ?? 0.00;
     final emergencyOrderFee = widget.emergencyOrderFee ?? 0.0;
-    final total = subtotal + deliveryFee + emergencyOrderFee - _discountAmount;
+    final total = subtotal + emergencyOrderFee - _discountAmount;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -1466,8 +1466,7 @@ class PaymentPageState extends State<PaymentPage> {
                         icon: Icons.local_offer, isDiscount: true),
                     const SizedBox(height: 6),
                   ],
-                  _buildSummaryRow('Delivery Fee', deliveryFee,
-                      icon: Icons.local_shipping_outlined),
+                  // Delivery Fee row removed
                   if (emergencyOrderFee > 0) ...[
                     const SizedBox(height: 6),
                     _buildSummaryRow('Urgent Order Fee', emergencyOrderFee,

@@ -1016,7 +1016,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                         isSelected: _selectedIndex == 3,
                         itemIndex: 3,
                       ),
-                      label: 'Categories',
+                      label: 'Shop',
                     ),
                     BottomNavigationBarItem(
                       icon: Consumer<NotificationProvider>(

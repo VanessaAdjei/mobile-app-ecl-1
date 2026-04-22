@@ -28,7 +28,7 @@ class PostCheckoutOrderPage extends StatefulWidget {
     required this.contactNumber,
     required this.deliveryOption,
     required this.estimatedDeliveryTime,
-    required this.deliveryFee,
+    this.deliveryFee,
     required this.discount,
     this.initialStatus = 'pending',
   });
@@ -41,7 +41,7 @@ class PostCheckoutOrderPage extends StatefulWidget {
   final String contactNumber;
   final String deliveryOption;
   final String estimatedDeliveryTime;
-  final double deliveryFee;
+  final double? deliveryFee;
   final double discount;
   final String initialStatus;
 
@@ -111,15 +111,10 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
     if (orderId.isEmpty) return;
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('order_delivery_fee_$orderId', order.deliveryFee);
     await prefs.setDouble('order_total_$orderId', order.totalAmount);
 
     if (widget.initialTransactionId != orderId &&
         widget.initialTransactionId.isNotEmpty) {
-      await prefs.setDouble(
-        'order_delivery_fee_${widget.initialTransactionId}',
-        order.deliveryFee,
-      );
       await prefs.setDouble(
         'order_total_${widget.initialTransactionId}',
         order.totalAmount,

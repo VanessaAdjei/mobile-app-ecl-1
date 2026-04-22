@@ -15,7 +15,7 @@ class PaymentWebView extends StatefulWidget {
   final String contactNumber;
   final String deliveryOption;
   final String estimatedDeliveryTime;
-  final double deliveryFee;
+  final double? deliveryFee;
   final double discount;
 
   const PaymentWebView({
@@ -28,7 +28,7 @@ class PaymentWebView extends StatefulWidget {
     required this.contactNumber,
     required this.deliveryOption,
     required this.estimatedDeliveryTime,
-    required this.deliveryFee,
+    this.deliveryFee,
     required this.discount,
     this.onPaymentComplete,
   });
