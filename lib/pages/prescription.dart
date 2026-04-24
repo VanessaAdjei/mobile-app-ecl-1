@@ -10,12 +10,12 @@ import '../config/api_config.dart';
 
 class PrescriptionUploadPage extends StatefulWidget {
   final Map<String, dynamic>? item;
-  final String token;
+  final String? token;
 
   const PrescriptionUploadPage({
     super.key,
     this.item,
-    required this.token,
+    this.token,
   });
 
   @override
@@ -64,7 +64,8 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
           setState(() {
             _selectedImage = imageFile;
           });
-          _showConfirmationSnackbar("Image added. Tap Submit Prescription to send.");
+          _showConfirmationSnackbar(
+              "Image added. Tap Submit Prescription to send.");
         } else {
           _showConfirmationSnackbar("File exceeds 10MB and was not added.");
         }
@@ -154,7 +155,8 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
           setState(() {
             _selectedImage = imageFile;
           });
-          _showConfirmationSnackbar("Image added. Tap Submit Prescription to send.");
+          _showConfirmationSnackbar(
+              "Image added. Tap Submit Prescription to send.");
         } else {
           _showConfirmationSnackbar("File exceeds 10MB and was not added.");
         }
@@ -393,9 +395,10 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
 
       try {
         debugPrint('🔍 Starting prescription upload...');
-        // make sure theyre logged in
-        if (widget.token.isEmpty) {
-          throw Exception('Please log in to upload a prescription');
+        // Allow both logged-in and guest users to upload prescriptions
+        final token = widget.token ?? 'guest-temp-token';
+        if (token.isEmpty) {
+          throw Exception('Unable to process prescription upload');
         }
 
         // create the multipart request
@@ -405,7 +408,7 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
         );
 
         // add auth headers
-        request.headers['Authorization'] = 'Bearer ${widget.token}';
+        request.headers['Authorization'] = 'Bearer $token';
         request.headers['Accept'] = 'application/json';
 
         // add the image file

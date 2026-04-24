@@ -688,6 +688,19 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                   ),
                   _buildEnhancedProfileOption(
                     context,
+                    Icons.medical_services_outlined,
+                    "Upload Prescription",
+                    "Upload your prescription directly",
+                    () => _navigateTo(AppRoutes.prescriptionUpload),
+                    Colors.blue.shade700,
+                    cardColor,
+                    textColor,
+                    subtextColor,
+                    Colors.blue.shade700,
+                    3,
+                  ),
+                  _buildEnhancedProfileOption(
+                    context,
                     Icons.refresh,
                     "Refill Medicines",
                     "Browse and reorder your refillable medications",
@@ -700,7 +713,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     textColor,
                     subtextColor,
                     primaryColor,
-                    3,
+                    4,
                   ),
                   _buildEnhancedProfileOption(
                     context,
@@ -716,7 +729,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     textColor,
                     subtextColor,
                     primaryColor,
-                    4,
+                    5,
                   ),
                   _buildEnhancedProfileOption(
                     context,
@@ -732,7 +745,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     textColor,
                     subtextColor,
                     primaryColor,
-                    5,
+                    6,
                   ),
                   const SizedBox(height: 12),
                   // ernest friday option - turned off for now

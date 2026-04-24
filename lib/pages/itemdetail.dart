@@ -9,7 +9,6 @@ import 'package:uuid/uuid.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/cart_item.dart';
 import 'package:eclapp/models/product_model.dart';
 import 'package:eclapp/config/api_config.dart';
@@ -1587,41 +1586,11 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                           'DEBUG: isPrescribed = \\${widget.isPrescribed}');
                       if (isPrescription) {
                         final token = await AuthService.getToken();
-                        if (token == null || token == "guest-temp-token") {
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.setString(
-                              'pending_prescription_product', product.name);
-                          await prefs.setString(
-                              'pending_prescription_thumbnail',
-                              product.thumbnail);
-                          await prefs.setString(
-                              'pending_prescription_id', product.id.toString());
-                          await prefs.setString(
-                              'pending_prescription_price', product.price);
-                          await prefs.setString('pending_prescription_batch_no',
-                              product.batch_no);
-                          await prefs.setBool('has_pending_prescription', true);
-
-                          debugPrint(
-                              '🔍 ItemDetail: Stored prescription data:');
-                          debugPrint(
-                              '🔍 ItemDetail: Product Name: ${product.name}');
-                          debugPrint(
-                              '🔍 ItemDetail: Product ID: ${product.id}');
-                          debugPrint('🔍 ItemDetail: Price: ${product.price}');
-                          debugPrint(
-                              '🔍 ItemDetail: Batch No: ${product.batch_no}');
-
-                          if (!context.mounted) return;
-
-                          _showSignInRequiredDialog(context);
-                          return;
-                        }
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => PrescriptionUploadPage(
-                              token: token,
+                              token: token ?? 'guest-temp-token',
                               item: {
                                 'product': {
                                   'name': product.name,
@@ -1916,100 +1885,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           // ...existing code for the card UI...
           // You should reconstruct the widget tree here as needed, ensuring no dead code or duplicate children.
           ),
-    );
-  }
-
-  void _showSignInRequiredDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return Dialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          backgroundColor: Colors.white,
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade100,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.red.shade300, width: 1.5),
-                  ),
-                  child: Icon(
-                    Icons.medical_services_rounded,
-                    color: Colors.red.shade700,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Prescription Required',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade900,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'This medication requires a valid prescription. Please sign in to upload your prescription and complete your order.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                    height: 1.3,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.grey.shade700,
-                          side: BorderSide(color: Colors.grey.shade300),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: const Text('Cancel'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          Navigator.pushNamed(
-                            context,
-                            AppRoutes.signIn,
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade700,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          elevation: 0,
-                        ),
-                        child: const Text('Sign In'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }

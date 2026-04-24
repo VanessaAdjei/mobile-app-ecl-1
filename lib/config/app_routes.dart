@@ -7,16 +7,21 @@ import '../pages/itemdetail.dart';
 import '../pages/notifications.dart';
 import '../pages/pharmacists.dart';
 import '../pages/prescription_history.dart';
+<<<<<<< HEAD
+=======
+import '../pages/prescription_upload_standalone.dart';
+import '../pages/privacypolicy.dart';
+>>>>>>> ac36f10c63e4e51c2054af04e645eed7b9660c17
 import '../pages/profile.dart';
 import '../pages/profilescreen.dart';
 import '../pages/purchases.dart';
 import '../pages/refill_page.dart';
 import '../pages/return_policy_page.dart';
 import '../pages/signinpage.dart';
-import '../pages/storelocation.dart';
+import '../pages/pharmacists.dart';
 import '../pages/terms_and_conditions_page.dart';
-import '../pages/wallet_page.dart';
-import '../pages/wishlist_page.dart';
+import '../pages/prescription_upload_standalone.dart';
+import '../pages/privacypolicy.dart';
 import '../pages/delivery_page.dart';
 import '../pages/prescription_upload_standalone.dart';
 
