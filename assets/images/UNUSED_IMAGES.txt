@@ -1,0 +1,28 @@
+The following images in assets/images/ are not referenced in the codebase and can be considered for removal:
+
+- image copy.png
+- img.png
+- img_1.png
+- logo.png
+- logo1.png
+- pngwhite.png
+- prod1.png
+- prod2.png
+- prod3.png
+- prod4.png
+- prod5.png
+- p6.png
+- mother.png
+- medicine.png
+- food.png
+- home.png
+- background.png
+- whatsapp.png
+- danone.png
+- sports.png
+- personal.png
+- baby.png
+- sanitary.png
+- side-logo.png
+
+Please review before deleting, as some images may be used dynamically or in future features.

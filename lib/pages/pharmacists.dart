@@ -20,6 +20,8 @@ import '../services/ernest_ai_service.dart';
 import '../services/auth_service.dart';
 import 'signinpage.dart';
 import '../services/booking_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'signinpage.dart';
 
 class PharmacistsPage extends StatefulWidget {
   const PharmacistsPage({super.key});
