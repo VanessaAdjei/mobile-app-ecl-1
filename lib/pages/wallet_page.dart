@@ -374,15 +374,15 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
       WalletProvider provider, Color cardColor, Color textColor) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
       decoration: BoxDecoration(
         color: cardColor,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -393,14 +393,18 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
               'Available',
               '$_currencySymbol${provider.balance.toStringAsFixed(2)}',
               Colors.green.shade700,
+              fontSize: 15,
+              labelFontSize: 10,
             ),
           ),
-          Container(width: 1, height: 36, color: Colors.grey.shade300),
+          Container(width: 1, height: 28, color: Colors.grey.shade300),
           Expanded(
             child: _buildSimpleStatItem(
               'Transactions',
               provider.transactions.length.toString(),
               textColor,
+              fontSize: 15,
+              labelFontSize: 10,
             ),
           ),
         ],
@@ -408,22 +412,23 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildSimpleStatItem(String label, String value, Color color) {
+  Widget _buildSimpleStatItem(String label, String value, Color color,
+      {double fontSize = 18, double labelFontSize = 12}) {
     return Column(
       children: [
         Text(
           value,
           style: GoogleFonts.poppins(
-            fontSize: 18,
+            fontSize: fontSize,
             fontWeight: FontWeight.bold,
             color: color,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Text(
           label,
           style: GoogleFonts.poppins(
-            fontSize: 12,
+            fontSize: labelFontSize,
             color: Colors.grey.shade600,
             fontWeight: FontWeight.w500,
           ),

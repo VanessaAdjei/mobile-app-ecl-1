@@ -407,12 +407,18 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
   Widget _getPlaceholderIconForIndex(int index) {
     switch (index) {
       case 0:
-        return Center(
-          child: Image.asset(
-            'assets/images/png.png',
-            height: 120,
-            fit: BoxFit.contain,
-          ),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Image.asset(
+                'assets/images/png.png',
+                height: 28,
+                fit: BoxFit.contain,
+              ),
+            ),
+            const SizedBox(height: 36),
+          ],
         );
       case 1:
         return _videoInitFailed ||

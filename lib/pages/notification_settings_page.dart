@@ -150,17 +150,48 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Row(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Test notification sent!',
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w500,
-                  ),
+              Container(
+                width: double.infinity,
+                alignment: Alignment.center,
+                margin: const EdgeInsets.only(bottom: 6, top: 2),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Swipe down to dismiss',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.white.withOpacity(0.85),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+              Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Test notification sent!',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -176,7 +207,38 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error sending test notification: $e'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: double.infinity,
+                alignment: Alignment.center,
+                margin: const EdgeInsets.only(bottom: 6, top: 2),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Swipe down to dismiss',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.white.withOpacity(0.85),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text('Error sending test notification: $e'),
+            ],
+          ),
           backgroundColor: Colors.red[600],
         ),
       );
@@ -426,12 +488,29 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'We use notifications to keep you informed about your orders, delivery updates, and special offers. You can control notification preferences in your device settings.',
+                        'We use notifications to keep you informed about your orders, payments, delivery updates, and special offers. You will receive both push and in-app notifications for important events. You can control notification preferences in your device settings.',
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           color: Colors.blue[700],
                           height: 1.4,
                         ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.notifications_active,
+                              color: Colors.blue[400], size: 18),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'In-app notifications will appear inside the app for order and payment updates, even if push notifications are off. You can swipe these notification banners down to dismiss them.',
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                color: Colors.blue[600],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -441,4 +520,3 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     );
   }
 }
-

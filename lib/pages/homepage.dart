@@ -544,7 +544,8 @@ class HomePageState extends State<HomePage>
   void _seedSectionsFromProducts(List<Product> allProducts) {
     if (allProducts.isEmpty) return;
     drugsSectionProducts = allProducts
-        .where((p) => p.drug?.toLowerCase() == 'drug' && p.otcpom?.toLowerCase() != 'pom')
+        .where((p) =>
+            p.drug?.toLowerCase() == 'drug' && p.otcpom?.toLowerCase() != 'pom')
         .toList(growable: false);
     prescribedProducts = allProducts
         .where((p) => p.otcpom?.toLowerCase() == 'pom')
@@ -1053,11 +1054,11 @@ class HomePageState extends State<HomePage>
                 child: Column(children: [
                   const SizedBox(height: 20),
                   Image.asset('assets/images/png.png',
-                      height: 80, fit: BoxFit.contain),
-                  const SizedBox(height: 40),
+                      height: 50, fit: BoxFit.contain),
+                  const SizedBox(height: 20),
                   Text('Welcome',
                       style: TextStyle(
-                          fontSize: 32,
+                          fontSize: 24,
                           fontWeight: FontWeight.w300,
                           color: Colors.grey.shade900,
                           letterSpacing: 1.0)),
@@ -1558,7 +1559,7 @@ class HomePageState extends State<HomePage>
                     Padding(
                       padding: EdgeInsets.only(left: isTablet ? 16 : 1),
                       child: Image.asset('assets/images/png.png',
-                          height: isTablet ? 100 : 85),
+                          height: isTablet ? 32 : 20),
                     ),
                     CartIconButton(
                       iconColor: Colors.white,
@@ -2814,8 +2815,8 @@ Widget buildSectionHeading(String title, Color color, {bool hideIcon = false}) {
             color: color.withOpacity(0.08),
             borderRadius: BorderRadius.circular(4)),
         child: assetPath != null
-          ? Image.asset(assetPath, height: 32, width: 32, fit: BoxFit.contain)
-          : Icon(_getIconForSection(title), color: color, size: 24),
+            ? Image.asset(assetPath, height: 32, width: 32, fit: BoxFit.contain)
+            : Icon(_getIconForSection(title), color: color, size: 24),
       ),
       const SizedBox(width: 8),
     ],

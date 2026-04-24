@@ -106,9 +106,16 @@ flutter:
     - assets/sounds/
     - assets/images/prescribed_shield.png
 
+
   fonts:
     - family: Poppins
       fonts:
         - asset: assets/fonts/Poppins-Regular.ttf
         - asset: assets/fonts/Poppins-Bold.ttf
           weight: 700
+
+# Launcher icon configuration
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_icon.png"
