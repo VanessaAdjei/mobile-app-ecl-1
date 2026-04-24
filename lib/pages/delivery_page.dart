@@ -911,7 +911,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Pickup stations are open Mon–Sat, 9am–6pm. Bring a valid ID for collection.',
+                    'Pickup stations are open till 7pm, Monday to Saturday. Closed on Sundays.',
                     style: TextStyle(
                       color: Colors.blue.shade800,
                       fontSize: 12,

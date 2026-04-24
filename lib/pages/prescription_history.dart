@@ -477,125 +477,134 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   Widget _buildPrescriptionsList() {
     return RefreshIndicator(
       onRefresh: _refreshPrescriptions,
-      child: ListView.builder(
-        controller: _scrollController,
-        padding: const EdgeInsets.all(16),
-        itemCount: _prescriptions.length,
-        // Performance optimizations
-        addAutomaticKeepAlives: false,
-        addRepaintBoundaries: false,
-        // Additional performance optimizations
-        cacheExtent: 200,
-        itemBuilder: (context, index) {
-          final prescription = _prescriptions[index];
-
-          return Card(
-            margin: const EdgeInsets.only(bottom: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final crossAxisCount = constraints.maxWidth > 600
+              ? 3
+              : constraints.maxWidth > 400
+                  ? 2
+                  : 1;
+          return GridView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.all(16),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 0.85,
             ),
-            elevation: 2,
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(16),
-              leading: GestureDetector(
-                onTap: () {
-                  if (prescription['file'] != null) {
-                    _showPrescriptionImage(prescription['file']);
-                  }
-                },
-                child: Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    color: Colors.grey[200],
-                  ),
-                  child: prescription['file'] != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: CachedNetworkImage(
-                            imageUrl: prescription['file'],
-                            width: 60,
-                            height: 60,
-                            fit: BoxFit.cover,
-                            // Optimize memory usage for thumbnails
-                            memCacheWidth: 60,
-                            memCacheHeight: 60,
-                            // Add image loading optimization
-                            maxWidthDiskCache: 120,
-                            maxHeightDiskCache: 120,
-                            // Faster placeholder
-                            placeholder: (context, url) => Container(
-                              color: Colors.grey[200],
-                              child: const Center(
-                                child: Icon(
-                                  Icons.image,
-                                  color: Colors.grey,
-                                  size: 20,
-                                ),
-                              ),
-                            ),
-                            // Optimized error widget
-                            errorWidget: (context, url, error) => Icon(
-                              Icons.medical_services_outlined,
-                              size: 30,
-                              color: Colors.green.shade700,
-                            ),
-                          ),
-                        )
-                      : Icon(
-                          Icons.medical_services_outlined,
-                          size: 30,
-                          color: Colors.green.shade700,
-                        ),
-                ),
-              ),
-              title: Text(
-                'Prescription #${prescription['id']}',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 4),
-                  Row(
+            itemCount: _prescriptions.length,
+            itemBuilder: (context, index) {
+              final prescription = _prescriptions[index];
+              final status = (prescription['status'] ?? 'pending').toString();
+              final uploadDate =
+                  prescription['created_at'] ?? prescription['date'] ?? '';
+              return Material(
+                color: Colors.white,
+                elevation: 2,
+                borderRadius: BorderRadius.circular(16),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () {
+                    if (prescription['file'] != null) {
+                      _showPrescriptionImage(prescription['file']);
+                    }
+                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(prescription['status']),
-                          shape: BoxShape.circle,
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(16)),
+                          child: prescription['file'] != null
+                              ? CachedNetworkImage(
+                                  imageUrl: prescription['file'],
+                                  fit: BoxFit.cover,
+                                  memCacheWidth: 300,
+                                  memCacheHeight: 300,
+                                  maxWidthDiskCache: 400,
+                                  maxHeightDiskCache: 400,
+                                  placeholder: (context, url) => Container(
+                                    color: Colors.grey[200],
+                                    child: const Center(
+                                      child: Icon(Icons.image,
+                                          color: Colors.grey, size: 32),
+                                    ),
+                                  ),
+                                  errorWidget: (context, url, error) => Icon(
+                                    Icons.medical_services_outlined,
+                                    size: 40,
+                                    color: Colors.green.shade700,
+                                  ),
+                                )
+                              : Container(
+                                  color: Colors.grey[100],
+                                  child: Icon(
+                                    Icons.medical_services_outlined,
+                                    size: 40,
+                                    color: Colors.green.shade700,
+                                  ),
+                                ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Status: ${prescription['status'] ?? 'Pending'}',
-                        style: TextStyle(
-                          color: _getStatusColor(prescription['status']),
-                          fontWeight: FontWeight.w500,
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'ID: ${prescription['id']}',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15),
+                                ),
+                                const Spacer(),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: _getStatusColor(status)
+                                        .withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    status[0].toUpperCase() +
+                                        status.substring(1),
+                                    style: TextStyle(
+                                      color: _getStatusColor(status),
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (uploadDate.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Icon(Icons.calendar_today,
+                                      size: 13, color: Colors.grey),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    uploadDate.toString().split('T').first,
+                                    style: const TextStyle(
+                                        fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  if (prescription['file'] != null)
-                    Text(
-                      'Image: Available',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                ],
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                if (prescription['file'] != null) {
-                  _showPrescriptionImage(prescription['file']);
-                }
-              },
-            ),
+                ),
+              );
+            },
           );
         },
       ),

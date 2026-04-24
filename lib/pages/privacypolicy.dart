@@ -3,13 +3,60 @@ import 'package:flutter/material.dart';
 import '../config/app_routes.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'app_back_button.dart';
 
-class PrivacyPolicyScreen extends StatelessWidget {
+class PrivacyPolicyScreen extends StatefulWidget {
   const PrivacyPolicyScreen({super.key});
 
   @override
+  State<PrivacyPolicyScreen> createState() => _PrivacyPolicyScreenState();
+}
+
+class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> {
+  static final Uri _privacyUri =
+      Uri.parse('https://eclcommerce.ernestchemists.com.gh/privacy-policy');
+  bool _launchFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _openPrivacyLink();
+    });
+  }
+
+  Future<void> _openPrivacyLink() async {
+    try {
+      final opened = await launchUrl(
+        _privacyUri,
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!mounted) return;
+      if (opened) {
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      } else {
+        setState(() => _launchFailed = true);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _launchFailed = true);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (!_launchFailed) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     final theme = Theme.of(context);
     return Scaffold(
       body: Column(

@@ -59,7 +59,8 @@ class ImagePreloader {
       CachedNetworkImageProvider(imageUrl),
       context,
       onError: (exception, stackTrace) {
-        debugPrint('Skipping homepage preload image (may be missing): $imageUrl');
+        debugPrint(
+            'Skipping homepage preload image (may be missing): $imageUrl');
       },
     );
   }
@@ -543,7 +544,7 @@ class HomePageState extends State<HomePage>
   void _seedSectionsFromProducts(List<Product> allProducts) {
     if (allProducts.isEmpty) return;
     drugsSectionProducts = allProducts
-        .where((p) => p.drug?.toLowerCase() == 'drug')
+        .where((p) => p.drug?.toLowerCase() == 'drug' && p.otcpom?.toLowerCase() != 'pom')
         .toList(growable: false);
     prescribedProducts = allProducts
         .where((p) => p.otcpom?.toLowerCase() == 'pom')
@@ -1580,7 +1581,7 @@ class HomePageState extends State<HomePage>
                 child: Padding(
                   padding: const EdgeInsets.only(top: 16),
                   child: _buildProductSection(
-                    'Drugs',
+                    'Medication',
                     Colors.green[700]!,
                     _getLimitedProducts(drugsSectionProducts),
                     'drugs',
@@ -2773,6 +2774,21 @@ String getProductImageUrl(String? url) {
 }
 
 Widget buildSectionHeading(String title, Color color, {bool hideIcon = false}) {
+  String? assetPath;
+  switch (title.toLowerCase()) {
+    case 'medication':
+      assetPath = 'assets/images/medication_logo.png';
+      break;
+    case 'wellness':
+      assetPath = 'assets/images/wellness_logo.png';
+      break;
+    case 'selfcare':
+    case 'self care':
+      assetPath = 'assets/images/selfcare.png';
+      break;
+    default:
+      assetPath = null;
+  }
   return Row(mainAxisSize: MainAxisSize.min, children: [
     Container(
       width: 3,
@@ -2797,7 +2813,9 @@ Widget buildSectionHeading(String title, Color color, {bool hideIcon = false}) {
         decoration: BoxDecoration(
             color: color.withOpacity(0.08),
             borderRadius: BorderRadius.circular(4)),
-        child: Icon(_getIconForSection(title), color: color, size: 16),
+        child: assetPath != null
+          ? Image.asset(assetPath, height: 32, width: 32, fit: BoxFit.contain)
+          : Icon(_getIconForSection(title), color: color, size: 24),
       ),
       const SizedBox(width: 8),
     ],

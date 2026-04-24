@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'terms_and_conditions_page.dart';
+import 'privacypolicy.dart';
 
 class TermsAcceptancePage extends StatefulWidget {
   const TermsAcceptancePage({super.key});
@@ -73,6 +74,15 @@ class _TermsAcceptancePageState extends State<TermsAcceptancePage> {
       context,
       MaterialPageRoute(
         builder: (context) => const TermsAndConditionsPage(),
+      ),
+    );
+  }
+
+  void _showPrivacyPolicy() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const PrivacyPolicyScreen(),
       ),
     );
   }
@@ -172,6 +182,17 @@ class _TermsAcceptancePageState extends State<TermsAcceptancePage> {
                                       ),
                                       recognizer: TapGestureRecognizer()
                                         ..onTap = _showTermsDialog,
+                                    ),
+                                    const TextSpan(text: ' and '),
+                                    TextSpan(
+                                      text: 'Privacy Policy',
+                                      style: const TextStyle(
+                                        color: Color(0xFF4CAF50),
+                                        fontWeight: FontWeight.w600,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                      recognizer: TapGestureRecognizer()
+                                        ..onTap = _showPrivacyPolicy,
                                     ),
                                   ],
                                 ),

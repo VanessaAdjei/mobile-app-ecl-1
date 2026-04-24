@@ -210,8 +210,8 @@ class AboutUsScreen extends StatelessWidget {
                     title: 'Contact Us',
                     content:
                         'Have questions or need assistance? Reach out to us:\n\n'
-                        '📧 **Email:** info@ecl.com.gh\n'
-                        '📞 **Phone:** (+233) 302 908674/5\n'
+                        '📧 **Email:** commerce@ecl.com.gh\n'
+                        '📞 **Phone:** 0302908674, 0302908675\n'
                         '💬 **WhatsApp:** 0508411184\n'
                         '📍 **Address:** Nester Square, 21 south Liberation Link, Airport City, Accra-Ghana',
                   ),

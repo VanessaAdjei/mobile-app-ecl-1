@@ -138,7 +138,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                 'Non-Returnable Items: For safety and hygiene reasons, the following cannot be returned once opened, Personal care items (e.g., thermometers, supports/braces, toothbrushes, shavers). Baby formula and foods. Items marked as "Reduce to clear".',
                 'For online orders, return shipping costs are the responsibility of the customer unless the item was sent in error.',
                 'How to Initiate a Return In-Store: Bring the item and your receipt to our customer service desk.',
-                'Online: Contact our support team at info@ecl.com.gh or WhatsApp on 0508411184 with your order number to receive a Return Authorization (RA) number.',
+                'Online: Contact our support team at commerce@ecl.com.gh or WhatsApp on 0508411184 with your order number to receive a Return Authorization (RA) number.',
               ],
             ),
 
@@ -239,8 +239,8 @@ class TermsAndConditionsPage extends StatelessWidget {
               'Contact Information',
               'For support, complaints, or inquiries:',
               bulletPoints: [
-                'Email: info@ecl.com.gh',
-                'Phone: (+233) 302 908674/5',
+                'Email: commerce@ecl.com.gh',
+                'Phone: 0302908674, 0302908675',
                 'WhatsApp: 0508411184',
                 'Address: Nester Square, 21 south Liberation Link, Airport City, Accra-Ghana',
               ],

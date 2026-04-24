@@ -18,6 +18,138 @@ class PrescriptionUploadStandalone extends StatefulWidget {
 
 class _PrescriptionUploadStandaloneState
     extends State<PrescriptionUploadStandalone> {
+  Future<void> _checkAuth() async {
+    final isLoggedIn = await AuthService.isLoggedIn();
+    if (!isLoggedIn && mounted) {
+      final action = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF20AF67).withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  padding: const EdgeInsets.all(18),
+                  child: const Icon(Icons.lock_outline,
+                      color: Color(0xFF20AF67), size: 38),
+                ),
+                const SizedBox(height: 22),
+                Text(
+                  'Sign In Required',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'You must sign in to upload a prescription. Please sign in to continue.',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Colors.black54,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF20AF67),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 0,
+                    ),
+                    onPressed: () {
+                      Navigator.of(ctx).pop('signin');
+                    },
+                    child: const Text(
+                      'Sign In',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(
+                          color: Color(0xFF20AF67), width: 1.5),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.of(ctx).pop('home');
+                    },
+                    child: const Text(
+                      'Go Back Home',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF20AF67),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (!mounted) return;
+
+      if (action == 'signin') {
+        Navigator.of(context).pushReplacementNamed('/signin');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/');
+      }
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuth();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final userData = await AuthService.getCurrentUser();
+      if (userData != null) {
+        if (mounted) {
+          setState(() {
+            _nameController.text = userData['name'] ?? '';
+            _emailController.text = userData['email'] ?? '';
+            _phoneController.text = userData['phone'] ?? '';
+          });
+        }
+      }
+    } catch (e) {
+      // Optionally handle error
+    }
+  }
+
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
   bool _isSubmitting = false;
@@ -28,7 +160,6 @@ class _PrescriptionUploadStandaloneState
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
 
-  String _selectedDeliveryOption = 'delivery';
   String _selectedCountryCode = '+233';
 
   @override
@@ -275,7 +406,6 @@ class _PrescriptionUploadStandaloneState
       request.fields['name'] = _nameController.text;
       request.fields['email'] = _emailController.text;
       request.fields['phone'] = '$_selectedCountryCode${_phoneController.text}';
-      request.fields['delivery_option'] = _selectedDeliveryOption;
       if (_noteController.text.isNotEmpty) {
         request.fields['note'] = _noteController.text;
       }
@@ -326,7 +456,7 @@ class _PrescriptionUploadStandaloneState
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.grey.shade900 : Colors.grey.shade50,
+      backgroundColor: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight + 30),
         child: AppHeaderBar(
@@ -334,120 +464,236 @@ class _PrescriptionUploadStandaloneState
           showCart: false,
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        child: Column(
-          children: [
-            // Contact Info Card
-            _buildCard(
-              isDark,
-              [
-                _buildField(
-                  isDark,
-                  label: 'Full name',
-                  controller: _nameController,
-                  hint: 'Enter your name',
+      body: Container(
+        decoration: isDark
+            ? const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF232526), Color(0xFF414345)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                const SizedBox(height: 12),
-                _buildField(
-                  isDark,
-                  label: 'Email',
-                  controller: _emailController,
-                  hint: 'your.email@example.com',
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 12),
-                _buildPhoneField(isDark),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Upload Card
-            _buildCard(
-              isDark,
-              [
-                Text(
-                  'Prescription',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? Colors.white : Colors.black87,
+              )
+            : null,
+        width: double.infinity,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 32),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 420),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey.shade900 : Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.07),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
                   ),
-                ),
-                const SizedBox(height: 8),
-                _buildUploadBox(isDark, _selectedImage != null, () {
-                  if (_selectedImage == null) _scanPrescription();
-                }),
-                const SizedBox(height: 12),
-                Text(
-                  'Insurance (Optional)',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? Colors.white : Colors.black87,
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Prescription Upload',
+                    style: GoogleFonts.poppins(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                ),
-                const SizedBox(height: 8),
-                _buildUploadBox(isDark, false, _chooseFromGallery),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Options Card
-            _buildCard(
-              isDark,
-              [
-                _buildDropdown(
-                  isDark,
-                  label: 'Delivery',
-                  value: _selectedDeliveryOption,
-                  items: [
-                    ('pickup', 'Pick up from store'),
-                    ('delivery', 'Home delivery'),
-                  ],
-                  onChanged: (v) =>
-                      setState(() => _selectedDeliveryOption = v as String),
-                ),
-                const SizedBox(height: 12),
-                _buildField(
-                  isDark,
-                  label: 'Notes',
-                  controller: _noteController,
-                  hint: 'Add any notes...',
-                  maxLines: 3,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Submit Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isSubmitting
-                    ? null
-                    : (_selectedImage != null ? _submitPrescription : null),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF20AF67),
-                  disabledBackgroundColor: Colors.grey.shade400,
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                  const SizedBox(height: 18),
+                  _buildField(
+                    isDark,
+                    label: 'Full name',
+                    controller: _nameController,
+                    hint: 'Enter your name',
                   ),
-                  elevation: 0,
-                ),
-                child: Text(
-                  _isSubmitting ? 'Uploading...' : 'Submit',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                  const SizedBox(height: 14),
+                  _buildField(
+                    isDark,
+                    label: 'Email',
+                    controller: _emailController,
+                    hint: 'your.email@example.com',
+                    keyboardType: TextInputType.emailAddress,
                   ),
-                ),
+                  const SizedBox(height: 14),
+                  _buildPhoneField(isDark),
+                  const SizedBox(height: 22),
+                  Text(
+                    'Prescription Image',
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (_selectedImage != null)
+                    Column(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            _selectedImage!,
+                            height: 140,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: () =>
+                              setState(() => _selectedImage = null),
+                          icon: const Icon(Icons.close, size: 18),
+                          label: const Text('Remove'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    _buildUploadBox(isDark, false, () async {
+                      final option = await showModalBottomSheet<String>(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.vertical(top: Radius.circular(18)),
+                        ),
+                        builder: (ctx) {
+                          final theme = Theme.of(ctx);
+                          return SafeArea(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: theme.scaffoldBackgroundColor,
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(22),
+                                ),
+                              ),
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(18, 10, 18, 20),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 42,
+                                      height: 5,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade400,
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    Text(
+                                      'Add Prescription',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Choose how you want to upload your file',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 18),
+                                    _SheetActionTile(
+                                      icon: Icons.photo_library_outlined,
+                                      title: 'From Gallery',
+                                      subtitle:
+                                          'Select an image from your phone',
+                                      onTap: () =>
+                                          Navigator.pop(ctx, 'gallery'),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    _SheetActionTile(
+                                      icon: Icons.camera_alt_outlined,
+                                      title: 'Scan with Camera',
+                                      subtitle: 'Take a photo now',
+                                      onTap: () => Navigator.pop(ctx, 'camera'),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx),
+                                      child: Text(
+                                        'Cancel',
+                                        style: GoogleFonts.poppins(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                      if (option == 'gallery') _chooseFromGallery();
+                      if (option == 'camera') _scanPrescription();
+                    }),
+                  const SizedBox(height: 14),
+                  _buildField(
+                    isDark,
+                    label: 'Notes',
+                    controller: _noteController,
+                    hint: 'Add any notes...',
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 28),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : (_selectedImage != null
+                              ? _submitPrescription
+                              : null),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF20AF67),
+                        disabledBackgroundColor: Colors.grey.shade400,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            _isSubmitting
+                                ? Icons.hourglass_top_rounded
+                                : Icons.cloud_upload_rounded,
+                            size: 20,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            _isSubmitting ? 'Uploading...' : 'Submit',
+                            style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 20),
-          ],
+          ),
         ),
       ),
     );
@@ -600,52 +846,6 @@ class _PrescriptionUploadStandaloneState
     );
   }
 
-  Widget _buildDropdown(
-    bool isDark, {
-    required String label,
-    required String value,
-    required List<(String, String)> items,
-    required Function(Object?) onChanged,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: isDark ? Colors.white : Colors.black87,
-          ),
-        ),
-        const SizedBox(height: 5),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: isDark ? Colors.grey.shade600 : Colors.grey.shade300,
-            ),
-            borderRadius: BorderRadius.circular(8),
-            color: isDark ? Colors.grey.shade700 : Colors.white,
-          ),
-          child: DropdownButton<String>(
-            value: value,
-            isExpanded: true,
-            underline: const SizedBox(),
-            style: GoogleFonts.poppins(fontSize: 13),
-            items: items
-                .map((item) => DropdownMenuItem(
-                      value: item.$1,
-                      child: Text(item.$2),
-                    ))
-                .toList(),
-            onChanged: onChanged,
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildUploadBox(bool isDark, bool isSelected, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -686,6 +886,73 @@ class _PrescriptionUploadStandaloneState
                   color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetActionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _SheetActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFF20AF67).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: const Color(0xFF20AF67)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade500),
           ],
         ),
       ),

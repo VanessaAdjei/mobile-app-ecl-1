@@ -694,6 +694,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 '/clearance-admin': (context) => const ClearanceAdminPage(),
                 '/prescription-upload': (context) =>
                     const PrescriptionUploadStandalone(),
+                '/signin': (context) => const SignInScreen(),
               },
             ),
           );

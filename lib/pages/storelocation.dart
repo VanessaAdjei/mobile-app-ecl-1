@@ -913,7 +913,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Find a Store',
+                          'Retail Outlets',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w500,

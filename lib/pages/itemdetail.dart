@@ -803,7 +803,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                     maxScale: 3.0,
                     child: SingleChildScrollView(
                       physics: AlwaysScrollableScrollPhysics(),
-                      padding: EdgeInsets.only(bottom: 24),
+                      padding:
+                          EdgeInsets.only(bottom: 8), // Reduced bottom padding
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1109,7 +1110,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             delay: 100.ms)
       ],
       child: Container(
-        margin: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        margin: EdgeInsets.symmetric(horizontal: 12, vertical: 2),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -1127,7 +1128,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           ],
         ),
         child: Padding(
-          padding: EdgeInsets.all(12),
+          padding: EdgeInsets.fromLTRB(12, 10, 12, 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1180,28 +1181,27 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 ],
               ),
 
-              SizedBox(height: 8),
-
               // Product name
-              Text(
-                product.name.isNotEmpty
-                    ? product.name
-                    : product.urlName
-                        .replaceAll('-', ' ')
-                        .split(' ')
-                        .map((word) => word.isNotEmpty
-                            ? word[0].toUpperCase() + word.substring(1)
-                            : '')
-                        .join(' '),
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade900,
-                  height: 1.3,
+              Padding(
+                padding: const EdgeInsets.only(top: 2, bottom: 2),
+                child: Text(
+                  product.name.isNotEmpty
+                      ? product.name
+                      : product.urlName
+                          .replaceAll('-', ' ')
+                          .split(' ')
+                          .map((word) => word.isNotEmpty
+                              ? word[0].toUpperCase() + word.substring(1)
+                              : '')
+                          .join(' '),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade900,
+                    height: 1.3,
+                  ),
                 ),
               ),
-
-              SizedBox(height: 6),
 
               // Price
               Row(
@@ -1238,9 +1238,9 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
               // Prescription information section
               if (isPrescription) ...[
-                SizedBox(height: 10),
+                SizedBox(height: 8),
                 Container(
-                  padding: EdgeInsets.all(10),
+                  padding: EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Colors.red.shade100,
                     borderRadius: BorderRadius.circular(6),
@@ -1266,11 +1266,22 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 ),
               ],
 
-              SizedBox(height: isPrescription ? 0 : 6),
-
-              // Description (only for non-prescription items)
-              if (!isPrescription && product.description.isNotEmpty)
-                ProductDescription(description: product.description),
+              // Description (always show if available)
+              if (product.description.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 12),
+                    child: ProductDescription(description: product.description),
+                  ),
+                ),
             ],
           ),
         ),
@@ -2161,15 +2172,38 @@ class _ProductDescriptionState extends State<ProductDescription> {
     // Use a key to measure the rendered height
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Render the HTML in an offstage widget to measure height
+        // Style HTML for better readability
         final htmlWidget = Html(
           data: description,
           style: {
             "body": Style(
-              fontSize: FontSize(13),
-              color: Colors.black54,
-              lineHeight: LineHeight(1.4),
+              fontSize: FontSize(14),
+              color: Colors.black87,
+              lineHeight: LineHeight(1.5),
               margin: Margins.zero,
+              padding: HtmlPaddings.zero,
+            ),
+            "ul": Style(
+              padding: HtmlPaddings.only(left: 18),
+              margin: Margins.only(top: 0, bottom: 8),
+            ),
+            "li": Style(
+              fontSize: FontSize(14),
+              color: Colors.black87,
+              lineHeight: LineHeight(1.5),
+              margin: Margins.only(bottom: 4),
+            ),
+            "strong": Style(
+              fontWeight: FontWeight.bold,
+              color: Colors.green.shade800,
+            ),
+            "hr": Style(
+              margin: Margins.only(top: 12, bottom: 12),
+              border: Border(
+                  top: BorderSide(color: Colors.grey.shade300, width: 1)),
+            ),
+            "p": Style(
+              margin: Margins.only(bottom: 8),
             ),
           },
         );

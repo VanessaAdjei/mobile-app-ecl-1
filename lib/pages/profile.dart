@@ -686,19 +686,19 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     primaryColor,
                     2,
                   ),
-                  _buildEnhancedProfileOption(
-                    context,
-                    Icons.medical_services_outlined,
-                    "Upload Prescription",
-                    "Upload your prescription directly",
-                    () => _navigateTo(AppRoutes.prescriptionUpload),
-                    Colors.blue.shade700,
-                    cardColor,
-                    textColor,
-                    subtextColor,
-                    Colors.blue.shade700,
-                    3,
-                  ),
+                  // _buildEnhancedProfileOption(
+                  //   context,
+                  //   Icons.medical_services_outlined,
+                  //   "Upload Prescription",
+                  //   "Upload your prescription directly",
+                  //   () => _navigateTo(AppRoutes.prescriptionUpload),
+                  //   Colors.blue.shade700,
+                  //   cardColor,
+                  //   textColor,
+                  //   subtextColor,
+                  //   Colors.blue.shade700,
+                  //   3,
+                  // ),
                   _buildEnhancedProfileOption(
                     context,
                     Icons.refresh,
@@ -802,19 +802,19 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
 
                   // Enhanced Support Options
 
-                  _buildEnhancedProfileOption(
-                    context,
-                    Icons.info_outline,
-                    "About Us",
-                    "Learn more about our company",
-                    () => _navigateTo(AppRoutes.aboutUs),
-                    primaryColor,
-                    cardColor,
-                    textColor,
-                    subtextColor,
-                    primaryColor,
-                    8,
-                  ),
+                  // _buildEnhancedProfileOption(
+                  //   context,
+                  //   Icons.info_outline,
+                  //   "About Us",
+                  //   "Learn more about our company",
+                  //   () => _navigateTo(AppRoutes.aboutUs),
+                  //   primaryColor,
+                  //   cardColor,
+                  //   textColor,
+                  //   subtextColor,
+                  //   primaryColor,
+                  //   8,
+                  // ),
                   _buildEnhancedProfileOption(
                     context,
                     Icons.description_outlined,
@@ -830,6 +830,24 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                   ),
                   _buildEnhancedProfileOption(
                     context,
+                    Icons.privacy_tip_outlined,
+                    "Privacy Policy",
+                    "Read how we handle your data",
+                    () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PrivacyPolicyScreen(),
+                      ),
+                    ),
+                    primaryColor,
+                    cardColor,
+                    textColor,
+                    subtextColor,
+                    primaryColor,
+                    10,
+                  ),
+                  _buildEnhancedProfileOption(
+                    context,
                     Icons.assignment_return_outlined,
                     "Return & Refund Policy",
                     "View our return policy",
@@ -839,7 +857,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     textColor,
                     subtextColor,
                     primaryColor,
-                    10,
+                    11,
                   ),
 
                   if (_userLoggedIn) ...[
@@ -855,7 +873,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                       textColor,
                       subtextColor,
                       primaryColor,
-                      11,
+                      12,
                     ),
                   ],
 

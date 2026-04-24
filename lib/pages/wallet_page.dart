@@ -336,28 +336,71 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
               },
               child: Column(
                 children: [
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
 
                   // e-card widget
                   _buildECard(themeProvider),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
+
+                  _buildBalanceOverview(themeProvider, cardColor, textColor),
+
+                  const SizedBox(height: 10),
 
                   // Transaction History Section (moved up)
                   _buildTransactionHistorySection(
                       cardColor, textColor, primaryColor),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
 
                   // Wallet Info Section
                   _buildWalletInfoSection(primaryColor, cardColor, textColor),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
 
                   // cashback info section
                   _buildCashbackInfoSection(primaryColor, cardColor, textColor),
+                  const SizedBox(height: 14),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBalanceOverview(
+      WalletProvider provider, Color cardColor, Color textColor) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildSimpleStatItem(
+              'Available',
+              '$_currencySymbol${provider.balance.toStringAsFixed(2)}',
+              Colors.green.shade700,
+            ),
+          ),
+          Container(width: 1, height: 36, color: Colors.grey.shade300),
+          Expanded(
+            child: _buildSimpleStatItem(
+              'Transactions',
+              provider.transactions.length.toString(),
+              textColor,
             ),
           ),
         ],
@@ -411,34 +454,71 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Transaction History',
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
+                  ),
+                ),
+                Text(
+                  '${transactions.length} total',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
             child: Text(
-              'Transaction History',
+              'Track all wallet movements in one place',
               style: GoogleFonts.poppins(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: textColor,
+                fontSize: 11,
+                color: Colors.grey.shade600,
               ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            padding: const EdgeInsets.symmetric(horizontal: 10.0),
             child: TabBar(
               controller: _historyTabController,
               labelColor: accentColor,
               unselectedLabelColor: Colors.grey.shade500,
-              indicatorColor: accentColor,
+              indicator: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              padding: EdgeInsets.zero,
+              labelStyle: GoogleFonts.poppins(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+              unselectedLabelStyle: GoogleFonts.poppins(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+              ),
               isScrollable: true,
-              tabs: const [
-                Tab(text: 'All Transactions'),
-                Tab(text: 'Refunds'),
-                Tab(text: 'Returns'),
-                Tab(text: 'Points Activity'),
+              tabs: [
+                _buildHistoryTab(Icons.receipt_long_rounded, 'All'),
+                _buildHistoryTab(Icons.refresh_rounded, 'Refunds'),
+                _buildHistoryTab(Icons.assignment_return_rounded, 'Returns'),
+                _buildHistoryTab(Icons.loyalty_rounded, 'Points'),
               ],
             ),
           ),
           SizedBox(
-            height: 180,
+            height: 215,
             child: TabBarView(
               controller: _historyTabController,
               children: [
@@ -471,12 +551,29 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
       Color cardColor, ScrollController controller) {
     if (transactions.isEmpty) {
       return Center(
-        child: Text(
-          'No transactions yet.',
-          style: GoogleFonts.poppins(
-            fontSize: 15,
-            color: Colors.grey.shade500,
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.receipt_long_outlined,
+                color: Colors.grey.shade400, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              'No transactions yet',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              'Activity will appear here once your wallet is used',
+              style: GoogleFonts.poppins(
+                fontSize: 10,
+                color: Colors.grey.shade500,
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -485,11 +582,12 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
         Scrollbar(
           controller: controller,
           thumbVisibility: true,
+          radius: const Radius.circular(10),
           child: ListView.separated(
             controller: controller,
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
             itemCount: transactions.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 8),
+            separatorBuilder: (context, index) => const SizedBox(height: 7),
             itemBuilder: (context, index) {
               final t = transactions[index];
               final isCredit = t.type == 'credit' ||
@@ -499,13 +597,17 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
               final icon = _getTransactionIcon(t.type);
               final iconColor = isCredit ? Colors.green : Colors.red;
               return Container(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(11),
                 decoration: BoxDecoration(
-                  color: cardColor.withOpacity(0.95),
+                  color: cardColor.withValues(alpha: 0.95),
                   borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: iconColor.withValues(alpha: 0.18),
+                    width: 1,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withAlpha((255 * 0.04).toInt()),
+                      color: Colors.black.withAlpha((255 * 0.03).toInt()),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -516,12 +618,12 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: iconColor.withOpacity(0.12),
+                        color: iconColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(icon, color: iconColor, size: 22),
+                      child: Icon(icon, color: iconColor, size: 18),
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -529,7 +631,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
                           Text(
                             t.description ?? '',
                             style: GoogleFonts.poppins(
-                              fontSize: 15,
+                              fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: textColor,
                             ),
@@ -538,7 +640,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
                           Text(
                             t.reference ?? '',
                             style: GoogleFonts.poppins(
-                              fontSize: 12,
+                              fontSize: 11,
                               color: Colors.grey.shade500,
                             ),
                           ),
@@ -553,7 +655,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
                               _currencySymbol +
                               t.amount.toStringAsFixed(2),
                           style: GoogleFonts.poppins(
-                            fontSize: 15,
+                            fontSize: 13,
                             fontWeight: FontWeight.bold,
                             color: iconColor,
                           ),
@@ -562,7 +664,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
                         Text(
                           _formatDate(t.createdAt),
                           style: GoogleFonts.poppins(
-                            fontSize: 11,
+                            fontSize: 10,
                             color: Colors.grey.shade400,
                           ),
                         ),
@@ -579,7 +681,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
           left: 0,
           right: 0,
           bottom: 0,
-          height: 32,
+          height: 24,
           child: IgnorePointer(
             child: Container(
               decoration: BoxDecoration(
@@ -596,6 +698,19 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildHistoryTab(IconData icon, String label) {
+    return Tab(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14),
+          const SizedBox(width: 6),
+          Text(label),
+        ],
+      ),
     );
   }
 
@@ -630,7 +745,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: cardColor,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withAlpha((255 * 0.06).toInt()),
@@ -644,7 +759,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
           // header with gradient background
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
@@ -655,8 +770,8 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
                 ],
               ),
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
               ),
             ),
             child: Row(
@@ -681,7 +796,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
                       Text(
                         'How Your Wallet Works',
                         style: GoogleFonts.poppins(
-                          fontSize: 18,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: textColor,
                         ),
@@ -703,7 +818,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
 
           // content section
           Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(18),
             child: Column(
               children: [
                 _buildEnhancedInfoItem(
@@ -746,7 +861,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: cardColor,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withAlpha((255 * 0.06).toInt()),
@@ -760,7 +875,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
           // header with gradient background
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
@@ -771,8 +886,8 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
                 ],
               ),
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
               ),
             ),
             child: Row(
@@ -796,9 +911,9 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '🎁 Automatic Cashback',
+                        'Automatic Cashback',
                         style: GoogleFonts.poppins(
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
                           color: textColor,
                         ),
@@ -820,7 +935,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
 
           // content section
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(18),
             child: Column(
               children: [
                 _buildCashbackRule(

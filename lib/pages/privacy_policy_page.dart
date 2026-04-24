@@ -15,7 +15,7 @@ class PrivacyPolicyPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Privacy Policy',
+          'Privacy Statement',
           style: TextStyle(
             color: Colors.white,
             fontSize: 18,
@@ -109,7 +109,7 @@ class PrivacyPolicyPage extends StatelessWidget {
             _buildSection(
               '7.0',
               'Data Retention',
-              'We retain your personal information for as long as necessary to fulfill the purposes outlined in this Privacy Policy, unless a longer retention period is required or permitted by law. Prescription records are retained in accordance with pharmaceutical regulations.',
+              'We retain your personal information for as long as necessary to fulfill the purposes outlined in this Privacy Statement, unless a longer retention period is required or permitted by law. Prescription records are retained in accordance with pharmaceutical regulations.',
             ),
 
             _buildSection(
@@ -149,7 +149,7 @@ class PrivacyPolicyPage extends StatelessWidget {
             _buildSection(
               '12.0',
               'Changes to This Policy',
-              'We may update this Privacy Policy from time to time to reflect changes in our practices or legal requirements. We will notify you of any material changes through the app or via email. Continued use of our services after changes constitutes acceptance of the updated policy.',
+              'We may update this Privacy Statement from time to time to reflect changes in our practices or legal requirements. We will notify you of any material changes through the app or via email. Continued use of our services after changes constitutes acceptance of the updated policy.',
             ),
 
             _buildSection(
@@ -179,10 +179,10 @@ class PrivacyPolicyPage extends StatelessWidget {
             _buildSection(
               '16.0',
               'Contact Information',
-              'For questions, concerns, or requests regarding this Privacy Policy or our data practices, please contact us:',
+              'For questions, concerns, or requests regarding this Privacy Statement or our data practices, please contact us:',
               bulletPoints: [
-                'Email: info@ecl.com.gh',
-                'Phone: (+233) 302 908674/5',
+                'Email: commerce@ecl.com.gh',
+                'Phone: 0302908674, 0302908675',
                 'WhatsApp: 0508411184',
                 'Address: Nester Square, 21 south Liberation Link, Airport City, Accra-Ghana',
               ],

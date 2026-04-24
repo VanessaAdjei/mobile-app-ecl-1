@@ -380,7 +380,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                             _buildMenuOption(
                               context,
                               icon: Icons.location_on_rounded,
-                              title: 'Locate a store',
+                              title: 'Locate a retail outlet',
                               subtitle: 'See nearby branches on the map',
                               color: Colors.blue.shade600,
                               onTap: () {
@@ -502,9 +502,10 @@ class _CustomBottomNavState extends State<CustomBottomNav>
   }
 
   void _showContactOptions(BuildContext context) {
-    const String phoneNumber = '+233508411184';
-    const String email = 'info@ecl.com.gh';
-    const String alternatePhone = '+233302908674';
+    const String phoneNumber1 = '0302908674';
+    const String phoneNumber2 = '0302908675';
+    const String whatsapp = '0508411184';
+    const String email = 'commerce@ecl.com.gh';
 
     showModalBottomSheet(
       context: context,
@@ -554,11 +555,42 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                           context,
                           icon: Icons.phone_rounded,
                           title: 'Call Us',
-                          subtitle: '(+233) 302 908674/5 or 0508411184',
+                          subtitle: '0302908674, 0302908675',
                           color: Colors.green.shade600,
-                          onTap: () {
+                          onTap: () async {
                             Navigator.pop(context);
-                            _launchPhoneDialer(alternatePhone);
+                            // Show dialog to pick which number to call
+                            final selected = await showModalBottomSheet<String>(
+                              context: context,
+                              builder: (ctx) => SafeArea(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ListTile(
+                                      leading: const Icon(Icons.phone),
+                                      title: const Text('Call 0302908674'),
+                                      onTap: () =>
+                                          Navigator.pop(ctx, phoneNumber1),
+                                    ),
+                                    ListTile(
+                                      leading: const Icon(Icons.phone),
+                                      title: const Text('Call 0302908675'),
+                                      onTap: () =>
+                                          Navigator.pop(ctx, phoneNumber2),
+                                    ),
+                                    ListTile(
+                                      leading: const Icon(Icons.phone),
+                                      title: const Text(
+                                          'Call 0508411184 (WhatsApp)'),
+                                      onTap: () => Navigator.pop(ctx, whatsapp),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                            if (selected != null) {
+                              _launchPhoneDialer(selected);
+                            }
                           },
                         ),
                         const Divider(height: 1),
@@ -570,7 +602,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                           color: const Color(0xFF25D366),
                           onTap: () {
                             Navigator.pop(context);
-                            _launchWhatsApp(phoneNumber,
+                            _launchWhatsApp(whatsapp,
                                 "Hello! I need help with the ECL app. Can you assist me?");
                           },
                         ),

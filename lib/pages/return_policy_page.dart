@@ -77,7 +77,7 @@ class ReturnPolicyPage extends StatelessWidget {
               'How to Initiate a Return',
               bulletPoints: [
                 'In-Store: Bring the item and your receipt to our customer service desk.',
-                'Online: Contact our support team at info@ecl.com.gh or WhatsApp on 0508411184 with your order number to receive a Return Authorization (RA) number.',
+                'Online: Contact our support team at commerce@ecl.com.gh or WhatsApp on 0508411184 with your order number to receive a Return Authorization (RA) number.',
               ],
             ),
 
@@ -85,8 +85,8 @@ class ReturnPolicyPage extends StatelessWidget {
               'Contact Us',
               'If you have any questions regarding our return policy, please reach out:',
               bulletPoints: [
-                'Email: info@ecl.com.gh',
-                'Phone: (+233) 302 908674/5',
+                'Email: commerce@ecl.com.gh',
+                'Phone: 0302908674, 0302908675',
                 'WhatsApp: 0508411184',
                 'Address: Nester Square, 21 south Liberation Link, Airport City, Accra-Ghana',
               ],
