@@ -19,6 +19,7 @@ class CartProvider with ChangeNotifier {
   String? _currentUserId;
   // Flag to prevent loading guest cart after logout - cart should stay empty until login
   bool _shouldLoadGuestCart = true;
+  bool _isDisposed = false;
 
   String? _pendingOriginalProductId;
   String? _pendingItemName;
@@ -1761,5 +1762,17 @@ class CartProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('❌ Error cleaning up server duplicates: $e');
     }
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (_isDisposed) return;
+    super.notifyListeners();
   }
 }

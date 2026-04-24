@@ -179,6 +179,10 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
     debugPrint('========================');
 
     try {
+      // Ensure a valid image is always set
+      final String defaultImage = 'assets/images/default_product.png';
+      final String image =
+          (product.thumbnail.isNotEmpty) ? product.thumbnail : defaultImage;
       final cartItem = CartItem(
         // Use server cart ID only; start with empty and update after server response
         id: '',
@@ -187,7 +191,7 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
         name: product.name,
         price: product.clearancePrice,
         quantity: this.quantity,
-        image: product.thumbnail,
+        image: image,
         batchNo: product.batchNo,
         urlName: product.urlName,
         totalPrice: product.clearancePrice * this.quantity,

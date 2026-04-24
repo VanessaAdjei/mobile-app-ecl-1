@@ -469,7 +469,14 @@ class ComprehensiveOptimizationService {
     for (final imageUrl in imageUrls.take(20)) {
       if (!_preloadedImages.containsKey(imageUrl)) {
         _preloadedImages[imageUrl] = true;
-        precacheImage(CachedNetworkImageProvider(imageUrl), context);
+        precacheImage(
+          CachedNetworkImageProvider(imageUrl),
+          context,
+          onError: (exception, stackTrace) {
+            debugPrint(
+                'Skipping preload comprehensive image (may be missing): $imageUrl');
+          },
+        );
       }
     }
   }

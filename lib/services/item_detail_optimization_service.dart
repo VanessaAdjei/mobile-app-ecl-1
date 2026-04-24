@@ -217,7 +217,16 @@ class ItemDetailOptimizationService implements ItemDetailServiceInterface {
       for (final imageUrl in images.take(5)) {
         // Limit to 5 images
         if (imageUrl.isNotEmpty) {
-          precacheImage(CachedNetworkImageProvider(imageUrl), context);
+          precacheImage(
+            CachedNetworkImageProvider(imageUrl),
+            context,
+            onError: (exception, stackTrace) {
+              developer.log(
+                'Skipping preload product image (may be missing): $imageUrl',
+                name: 'ItemDetailService',
+              );
+            },
+          );
         }
       }
     } catch (e) {

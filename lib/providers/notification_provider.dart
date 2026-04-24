@@ -7,6 +7,7 @@ class NotificationProvider extends ChangeNotifier {
   bool _hasShownSnackbar = false;
   int _newOrderCount = 0;
   int _lastShownUnreadCount = 0; // Track the unread count that was last shown
+  bool _isDisposed = false;
 
   int get unreadCount => _unreadCount;
   bool get hasShownSnackbar => _hasShownSnackbar;
@@ -167,5 +168,17 @@ class NotificationProvider extends ChangeNotifier {
     _hasShownSnackbar = false;
     _lastShownUnreadCount = 0;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (_isDisposed) return;
+    super.notifyListeners();
   }
 }

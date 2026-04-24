@@ -623,7 +623,13 @@ class HomepageOptimizationService {
     for (final imageUrl in imageUrls) {
       if (!_preloadedImages.containsKey(imageUrl)) {
         _preloadedImages[imageUrl] = true;
-        precacheImage(CachedNetworkImageProvider(imageUrl), context);
+        precacheImage(
+          CachedNetworkImageProvider(imageUrl),
+          context,
+          onError: (exception, stackTrace) {
+            debugPrint('Skipping preload image (may be missing): $imageUrl');
+          },
+        );
       }
     }
   }
@@ -671,7 +677,13 @@ class HomepageOptimizationService {
     for (final imageUrl in imageUrls) {
       if (!_preloadedImages.containsKey(imageUrl)) {
         _preloadedImages[imageUrl] = true;
-        precacheImage(CachedNetworkImageProvider(imageUrl), context);
+        precacheImage(
+          CachedNetworkImageProvider(imageUrl),
+          context,
+          onError: (exception, stackTrace) {
+            debugPrint('Skipping preload image (may be missing): $imageUrl');
+          },
+        );
       }
     }
     debugPrint('Preloaded ${imageUrls.length} product images');

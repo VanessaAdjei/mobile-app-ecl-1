@@ -82,8 +82,7 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
 
       final response = await http
           .get(
-            Uri.parse(
-                ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)),
+            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)),
           )
           .timeout(const Duration(seconds: 15));
 
@@ -167,15 +166,22 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
     try {
       final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
+      // Ensure a valid image is always set
+      final String defaultImage = 'assets/images/default_product.png';
+      final String image = (product['product']['thumbnail'] != null &&
+              (product['product']['thumbnail'] as String).isNotEmpty)
+          ? product['product']['thumbnail']
+          : (product['product']['image'] != null &&
+                  (product['product']['image'] as String).isNotEmpty)
+              ? product['product']['image']
+              : defaultImage;
       final cartItem = CartItem(
         id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
         productId: product['product']['id'].toString(),
         name: product['product']['name'],
         price: double.tryParse(product['price'].toString()) ?? 0.0,
         quantity: 1,
-        image: product['product']['thumbnail'] ??
-            product['product']['image'] ??
-            '',
+        image: image,
         batchNo: product['batch_no'] ?? '',
         lastModified: DateTime.now(),
         urlName: product['product']['url_name'] ?? '',
@@ -383,8 +389,8 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
                                         'isPrescribed': product['product']
                                                     ['otcpom']
                                                 ?.toString()
-                                                  .toLowerCase() ==
-                                              'pom',
+                                                .toLowerCase() ==
+                                            'pom',
                                       },
                                     );
                                   },

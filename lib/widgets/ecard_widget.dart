@@ -1,7 +1,6 @@
 // widgets/ecard_widget.dart
 
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class ECardWidget extends StatefulWidget {
@@ -37,20 +36,27 @@ class _ECardWidgetState extends State<ECardWidget> {
     );
   }
 
+  String _formatCardNumber(String cardNumber) {
+    // Simple formatter: group by 4
+    return cardNumber
+        .replaceAllMapped(RegExp(r'.{1,4}'), (match) => '${match.group(0)} ')
+        .trim();
+  }
+
   Widget _buildFrontCard() {
     return Container(
       width: double.infinity,
-      height: 240,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      height: 150,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF1B5E20), // Darker Green
-            Color(0xFF2E7D32), // Dark Green
-            Color(0xFF4CAF50), // Green
+            Color(0xFF1B5E20),
+            Color(0xFF2E7D32),
+            Color(0xFF4CAF50),
           ],
           stops: [0.0, 0.6, 1.0],
         ),
@@ -60,298 +66,192 @@ class _ECardWidgetState extends State<ECardWidget> {
             blurRadius: 25,
             offset: const Offset(0, 8),
           ),
-          BoxShadow(
-            color: const Color(0xFF4CAF50).withOpacity(0.2),
-            blurRadius: 40,
-            offset: const Offset(0, 12),
-          ),
         ],
       ),
-      child: Stack(
-        children: [
-          // Subtle background pattern
-          Positioned.fill(
-            child: CustomPaint(
-              painter: ModernCardPatternPainter(),
-            ),
-          ),
-
-          // Decorative elements
-          Positioned(
-            top: -20,
-            right: -20,
-            child: Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    Colors.white.withOpacity(0.1),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          Positioned(
-            bottom: -30,
-            left: -30,
-            child: Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFFE53935).withOpacity(0.1),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Card content
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 320,
+            height: 130,
+            child: Stack(
               children: [
-                // Header with logo and chip
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // ECL Logo
-                    Image.asset(
-                      'assets/images/png.png',
-                      height: 70,
-                      width: 140,
-                      fit: BoxFit.contain,
-                    ),
-
-                    // Modern chip
-                    Container(
-                      width: 35,
-                      height: 25,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE53935),
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFE53935).withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.credit_card,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    ),
-                  ],
+                // Top row: Logo left, Balance right
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  child: Image.asset(
+                    'assets/images/png.png',
+                    height: 38,
+                    width: 68,
+                    fit: BoxFit.contain,
+                  ),
                 ),
-
-                const Spacer(),
-
-                // Card number with decorative background
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
-                      width: 1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Balance',
+                        style: GoogleFonts.poppins(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                      Text(
+                        '${widget.currency} ${widget.balance.toStringAsFixed(2)}',
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ],
                   ),
-                  child: Text(
-                    _formatCardNumber(widget.cardNumber),
-                    style: GoogleFonts.robotoMono(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 2,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
+                ),
+                // Card chip
+                Positioned(
+                  left: 0,
+                  top: 38,
+                  child: Container(
+                    width: 28,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE53935),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFE53935).withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
+                    child: const Icon(
+                      Icons.credit_card,
+                      color: Colors.white,
+                      size: 12,
+                    ),
                   ),
                 ),
-
-                const SizedBox(height: 20),
-
-                // User info - clean layout
-                Row(
-                  children: [
-                    // Left side - Name
-                    Expanded(
-                      flex: 2,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'CARD HOLDER',
-                            style: GoogleFonts.poppins(
-                              color: Colors.white.withOpacity(0.8),
-                              fontSize: 9,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 1.2,
+                // Card number centered
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 60,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.18),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        _formatCardNumber(widget.cardNumber),
+                        style: GoogleFonts.robotoMono(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 2,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
                             ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            widget.cardHolderName.toUpperCase(),
-                            style: GoogleFonts.poppins(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-
-                    // Right side - Contact info
-                    Expanded(
-                      flex: 3,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          // Email
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE53935).withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              widget.userEmail,
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-
-                          // Phone
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE53935).withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              widget.userPhone,
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
+                  ),
+                ),
+                // Bottom left: Cardholder
+                Positioned(
+                  left: 0,
+                  bottom: 0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'CARD HOLDER',
+                        style: GoogleFonts.poppins(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 8,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 1.2,
+                        ),
                       ),
-                    ),
-                  ],
+                      Text(
+                        widget.cardHolderName.toUpperCase(),
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Bottom right: Email and phone
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE53935).withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          widget.userEmail,
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE53935).withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          widget.userPhone,
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
-    ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.2, end: 0);
-  }
-
-  String _formatCardNumber(String cardNumber) {
-    if (cardNumber.length < 16) {
-      cardNumber = cardNumber.padRight(16, '*');
-    }
-    return cardNumber
-        .replaceAllMapped(
-          RegExp(r'.{4}'),
-          (match) => '${match.group(0)} ',
-        )
-        .trim();
-  }
-}
-
-class ModernCardPatternPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(0.05)
-      ..style = PaintingStyle.fill;
-
-    // Draw subtle geometric pattern
-    for (int i = 0; i < 15; i++) {
-      for (int j = 0; j < 8; j++) {
-        final x = (i * size.width / 15) + (j % 2 == 0 ? 0 : size.width / 30);
-        final y = (j * size.height / 8) + (i % 2 == 0 ? 0 : size.height / 16);
-
-        // Draw small circles
-        canvas.drawCircle(Offset(x, y), 1.0, paint);
-
-        // Draw small squares
-        if (i % 3 == 0 && j % 3 == 0) {
-          canvas.drawRect(
-            Rect.fromCenter(center: Offset(x, y), width: 2, height: 2),
-            paint,
-          );
-        }
-      }
-    }
-
-    // Add some decorative lines
-    final linePaint = Paint()
-      ..color = Colors.white.withOpacity(0.08)
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke;
-
-    // Diagonal lines
-    canvas.drawLine(
-      Offset(0, size.height * 0.3),
-      Offset(size.width * 0.4, 0),
-      linePaint,
     );
-
-    canvas.drawLine(
-      Offset(size.width * 0.6, size.height),
-      Offset(size.width, size.height * 0.7),
-      linePaint,
-    );
-
-    // Add some accent dots
-    final accentPaint = Paint()
-      ..color = const Color(0xFFE53935).withOpacity(0.1)
-      ..style = PaintingStyle.fill;
-
-    canvas.drawCircle(
-        Offset(size.width * 0.8, size.height * 0.2), 3, accentPaint);
-    canvas.drawCircle(
-        Offset(size.width * 0.2, size.height * 0.8), 2, accentPaint);
   }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

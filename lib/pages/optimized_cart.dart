@@ -16,6 +16,8 @@ import '../providers/cart_provider.dart';
 import 'app_back_button.dart';
 import '../services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'homepage.dart';
 import '../services/universal_page_optimization_service.dart';
 
 import '../models/cart_item.dart';
@@ -215,7 +217,7 @@ class OptimizedCartState extends State<OptimizedCart> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cart'),
-        leading: BackButtonUtils.simple(),
+        leading: BackButtonUtils.simple(fallbackPage: HomePage()),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
@@ -542,7 +544,11 @@ class OptimizedCartState extends State<OptimizedCart> {
 
   void _proceedToCheckout() {
     if (!_isLoggedIn) {
-      Navigator.pushNamed(context, AppRoutes.signIn);
+      Navigator.pushNamed(
+        context,
+        AppRoutes.signIn,
+        arguments: {'returnTo': AppRoutes.cart},
+      );
     } else {
       Navigator.pushNamed(context, AppRoutes.delivery);
     }

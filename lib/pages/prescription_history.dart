@@ -639,6 +639,10 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
       await precacheImage(
         CachedNetworkImageProvider(imageUrl),
         context,
+        onError: (exception, stackTrace) {
+          debugPrint(
+              'Skipping prescription preload image (may be missing): $imageUrl');
+        },
       );
       _imageLoadingStates[imageUrl] = false;
     } catch (e) {

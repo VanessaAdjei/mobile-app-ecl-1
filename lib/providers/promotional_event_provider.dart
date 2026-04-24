@@ -13,6 +13,7 @@ class PromotionalEventProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   bool _isInitialized = false;
+  bool _isDisposed = false;
 
   // getters to access the data
   PromotionalEvent? get activeEvent => _activeEvent;
@@ -256,6 +257,13 @@ class PromotionalEventProvider extends ChangeNotifier {
   // clean up when done
   @override
   void dispose() {
+    _isDisposed = true;
     super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (_isDisposed) return;
+    super.notifyListeners();
   }
 }

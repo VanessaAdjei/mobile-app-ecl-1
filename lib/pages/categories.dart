@@ -86,6 +86,9 @@ class CategoryImagePreloader {
         maxHeight: 300,
       ),
       context,
+      onError: (exception, stackTrace) {
+        debugPrint('Skipping category preload image (may be missing): $imageUrl');
+      },
     );
   }
 

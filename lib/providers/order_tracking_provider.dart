@@ -44,6 +44,7 @@ class OrderTrackingProvider extends ChangeNotifier {
   Timer? _manualRefreshTimer;
   DateTime? _firstEmptyResponseTime;
   int _emptyResponseCount = 0;
+  bool _isDisposed = false;
 
   OrderTrackingModel get order => _order;
   bool get isLoading => _isLoading;
@@ -70,11 +71,13 @@ class OrderTrackingProvider extends ChangeNotifier {
   }
 
   Future<void> refreshTracking() async {
+    if (_isDisposed) return;
     try {
       final previousStage = _order.stage;
       _isRefreshing = true;
-      notifyListeners();
+      _notifyListenersSafely();
       _order = await _service.refreshOrder(_order);
+      if (_isDisposed) return;
       _errorMessage = null;
       if (previousStage != OrderTrackingStage.delivered &&
           _order.stage == OrderTrackingStage.delivered) {
@@ -92,22 +95,25 @@ class OrderTrackingProvider extends ChangeNotifier {
     } catch (e) {
       _errorMessage = e.toString().replaceFirst('Exception: ', '');
     } finally {
+      if (_isDisposed) return;
       _isLoading = false;
       _isRefreshing = false;
-      notifyListeners();
+      _notifyListenersSafely();
     }
   }
 
   Future<void> _checkPaymentStatus({bool isInitialLoad = false}) async {
+    if (_isDisposed) return;
     try {
       if (isInitialLoad) {
         _isLoading = true;
       } else {
         _isRefreshing = true;
       }
-      notifyListeners();
+      _notifyListenersSafely();
 
       final result = await _service.checkPaymentStatus();
+      if (_isDisposed) return;
       _handleEmptyResponses(result);
       _order = _service.applyPaymentStatus(_order, result);
       _errorMessage = null;
@@ -120,13 +126,15 @@ class OrderTrackingProvider extends ChangeNotifier {
     } catch (e) {
       _errorMessage = e.toString().replaceFirst('Exception: ', '');
     } finally {
+      if (_isDisposed) return;
       _isLoading = false;
       _isRefreshing = false;
-      notifyListeners();
+      _notifyListenersSafely();
     }
   }
 
   Future<void> _handleSuccessfulOrder() async {
+    if (_isDisposed) return;
     _stopPaymentPolling();
     _showManualRefresh = false;
 
@@ -135,10 +143,12 @@ class OrderTrackingProvider extends ChangeNotifier {
       final onOrderConfirmed = _onOrderConfirmed;
       if (onOrderConfirmed != null) {
         await onOrderConfirmed(_order);
+        if (_isDisposed) return;
       }
     }
 
     _order = await _service.refreshOrder(_order);
+    if (_isDisposed) return;
     _startTrackingPolling();
   }
 
@@ -185,9 +195,15 @@ class OrderTrackingProvider extends ChangeNotifier {
   void _scheduleManualRefresh() {
     _manualRefreshTimer?.cancel();
     _manualRefreshTimer = Timer(_manualRefreshDelay, () {
+      if (_isDisposed) return;
       _showManualRefresh = true;
-      notifyListeners();
+      _notifyListenersSafely();
     });
+  }
+
+  void _notifyListenersSafely() {
+    if (_isDisposed) return;
+    notifyListeners();
   }
 
   void _stopPaymentPolling() {
@@ -199,6 +215,7 @@ class OrderTrackingProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _paymentPollTimer?.cancel();
     _trackingPollTimer?.cancel();
     _manualRefreshTimer?.cancel();

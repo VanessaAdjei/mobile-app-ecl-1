@@ -634,13 +634,18 @@ class WishlistService {
       );
 
       // turn the wishlist item into a cart item
+      // Ensure a valid image is always set
+      final String defaultImage = 'assets/images/default_product.png';
+      final String image = (itemToMove.product.thumbnail.isNotEmpty)
+          ? itemToMove.product.thumbnail
+          : defaultImage;
       final cartItem = CartItem(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         productId: itemToMove.product.id.toString(),
         name: itemToMove.product.name,
         price: double.tryParse(itemToMove.product.price) ?? 0.0,
         quantity: 1, // Default quantity when moving from wishlist
-        image: itemToMove.product.thumbnail,
+        image: image,
         batchNo: itemToMove.product.batchNo,
         urlName: itemToMove.product.urlName,
         totalPrice: double.tryParse(itemToMove.product.price) ?? 0.0,

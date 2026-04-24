@@ -362,74 +362,81 @@ class PaymentPageState extends State<PaymentPage> {
       }
       debugPrint('[DEBUG] Finished expresspay API call');
 
-      if (response.statusCode == 200) {
-        final redirectUrl = response.body.trim();
-
-        if (redirectUrl.isEmpty) {
-          throw Exception('Received empty payment URL from server.');
-        }
-
-        if (!mounted) return;
-
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PaymentWebView(
-              url: redirectUrl,
-              paymentParams: params,
-              purchasedItems: purchasedItems,
-              paymentMethod: selectedPaymentMethod,
-              deliveryAddress: widget.deliveryAddress ?? '',
-              contactNumber: widget.contactNumber ?? _phoneNumber,
-              deliveryOption: widget.deliveryOption,
-              estimatedDeliveryTime:
-                  widget.estimatedDeliveryTime ?? 'Calculating ETA',
-              // deliveryFee removed
-              discount: _discountAmount,
-              onPaymentComplete: (success, token) async {
-                if (success && token != null) {
-                  try {
-                    final result =
-                        await _verifyPayment(token, transactionId.toString());
-                    debugPrint('[CHECK PAYMENT API RESULT] $result');
-                    final statusText =
-                        result['status']?.toString().toLowerCase() ?? '';
-
-                    final isDeclined = statusText.contains('declined');
-                    final isCompleted = statusText.contains('completed');
-
-                    if (result['verified'] == true &&
-                        isCompleted &&
-                        !isDeclined) {
-                      // Payment verified and completed
-                    } else {
-                      // Payment not completed or declined
-                    }
-                  } catch (e) {
-                    debugPrint('[CHECK PAYMENT API ERROR] $e');
-                    throw Exception(
-                        'Failed to verify payment status. Please contact support.');
-                  }
-                }
-              },
-            ),
-          ),
-        );
-
-        // WebView was closed - user either completed payment or cancelled
-        // Don't automatically navigate to confirmation page
-        // Let the WebView handle the navigation based on payment completion
-      } else if (response.statusCode == 401) {
-        throw Exception('Payment Failed, try again');
-      } else if (response.statusCode == 403) {
-        throw Exception('Payment Failed, try again');
-      } else if (response.statusCode == 404) {
-        throw Exception('Payment Failed, try again');
-      } else if (response.statusCode >= 500) {
-        throw Exception('Payment Failed, try again');
-      } else {
-        throw Exception('Payment Failed, try again');
+      // Status code gate intentionally disabled as requested.
+      // if (response.statusCode == 200) {
+      // Use API response directly; only strip wrapping quotes if present.
+      String redirectUrl = response.body;
+      if (redirectUrl.length >= 2 &&
+          redirectUrl.startsWith('"') &&
+          redirectUrl.endsWith('"')) {
+        redirectUrl = redirectUrl.substring(1, redirectUrl.length - 1);
       }
+
+      if (redirectUrl.isEmpty) {
+        throw Exception('Received empty payment URL from server.');
+      }
+
+      if (!mounted) return;
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PaymentWebView(
+            url: redirectUrl,
+            paymentParams: params,
+            purchasedItems: purchasedItems,
+            paymentMethod: selectedPaymentMethod,
+            deliveryAddress: widget.deliveryAddress ?? '',
+            contactNumber: widget.contactNumber ?? _phoneNumber,
+            deliveryOption: widget.deliveryOption,
+            estimatedDeliveryTime:
+                widget.estimatedDeliveryTime ?? 'Calculating ETA',
+            // deliveryFee removed
+            discount: _discountAmount,
+            onPaymentComplete: (success, token) async {
+              if (success && token != null) {
+                try {
+                  final result =
+                      await _verifyPayment(token, transactionId.toString());
+                  debugPrint('[CHECK PAYMENT API RESULT] $result');
+                  final statusText =
+                      result['status']?.toString().toLowerCase() ?? '';
+
+                  final isDeclined = statusText.contains('declined');
+                  final isCompleted = statusText.contains('completed');
+
+                  if (result['verified'] == true &&
+                      isCompleted &&
+                      !isDeclined) {
+                    // Payment verified and completed
+                  } else {
+                    // Payment not completed or declined
+                  }
+                } catch (e) {
+                  debugPrint('[CHECK PAYMENT API ERROR] $e');
+                  throw Exception(
+                      'Failed to verify payment status. Please contact support.');
+                }
+              }
+            },
+          ),
+        ),
+      );
+
+      // WebView was closed - user either completed payment or cancelled
+      // Don't automatically navigate to confirmation page
+      // Let the WebView handle the navigation based on payment completion
+      // } else if (response.statusCode == 401) {
+      //   throw Exception('Payment Failed, try again');
+      // } else if (response.statusCode == 403) {
+      //   throw Exception('Payment Failed, try again');
+      // } else if (response.statusCode == 404) {
+      //   throw Exception('Payment Failed, try again');
+      // } else if (response.statusCode >= 500) {
+      //   throw Exception('Payment Failed, try again');
+      // } else {
+      //   throw Exception('Payment Failed, try again');
+      // }
     } catch (e) {
       if (mounted) {
         setState(() {

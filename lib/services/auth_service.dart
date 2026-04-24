@@ -49,7 +49,10 @@ class AuthService {
   // this handles those annoying keychain errors
   static Future<String?> _safeRead(String key) async {
     try {
-      return await _secureStorage.read(key: key);
+      final value = await _secureStorage.read(key: key);
+      debugPrint(
+          '[_safeRead] Read from secure storage: key=$key, value=$value');
+      return value;
     } on PlatformException catch (e) {
       // if we get that keychain error, just use regular storage
       if (e.code == '-34018' || e.message?.contains('34018') == true) {
@@ -58,7 +61,10 @@ class AuthService {
         // try regular storage instead
         try {
           final prefs = await SharedPreferences.getInstance();
-          return prefs.getString('secure_$key');
+          final value = prefs.getString('secure_$key');
+          debugPrint(
+              '[_safeRead] Read from SharedPreferences fallback: key=secure_$key, value=$value');
+          return value;
         } catch (e2) {
           debugPrint('SharedPreferences fallback failed for $key: $e2');
           return null;
@@ -70,7 +76,10 @@ class AuthService {
       // try regular storage if secure storage fails
       try {
         final prefs = await SharedPreferences.getInstance();
-        return prefs.getString('secure_$key');
+        final value = prefs.getString('secure_$key');
+        debugPrint(
+            '[_safeRead] Read from SharedPreferences fallback: key=secure_$key, value=$value');
+        return value;
       } catch (e2) {
         debugPrint('SharedPreferences fallback failed for $key: $e2');
         return null;
@@ -84,6 +93,8 @@ class AuthService {
     bool keychainFailed = false;
     try {
       await _secureStorage.write(key: key, value: value);
+      debugPrint(
+          '[_safeWrite] Wrote to secure storage: key=$key, value=$value');
     } on PlatformException catch (e) {
       // handle keychain errors
       if (e.code == '-34018' || e.message?.contains('34018') == true) {
@@ -103,7 +114,8 @@ class AuthService {
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('secure_$key', value);
-        debugPrint('Successfully wrote $key to SharedPreferences fallback');
+        debugPrint(
+            '[_safeWrite] Wrote to SharedPreferences fallback: key=secure_$key, value=$value');
       } catch (e) {
         debugPrint('SharedPreferences fallback failed for $key: $e');
       }
@@ -670,6 +682,7 @@ class AuthService {
     _lastTokenVerification = DateTime.now();
 
     try {
+      debugPrint('[saveToken] Saving token: $token');
       await _safeWrite(authTokenKey, token);
       _startTokenRefreshTimer();
     } catch (e) {
@@ -687,13 +700,17 @@ class AuthService {
         _authToken = token;
         _isLoggedIn = true;
         _lastTokenVerification = DateTime.now();
+        debugPrint(
+            '[forceUpdateAuthState] Token found and state updated: $token');
       } else {
         _isLoggedIn = false;
         _authToken = null;
+        debugPrint('[forceUpdateAuthState] No token found, state cleared');
       }
     } catch (e) {
       _isLoggedIn = false;
       _authToken = null;
+      debugPrint('[forceUpdateAuthState] Error: $e');
     }
   }
 

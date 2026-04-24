@@ -20,6 +20,12 @@ class PrescriptionUploadStandalone extends StatefulWidget {
 
 class _PrescriptionUploadStandaloneState
     extends State<PrescriptionUploadStandalone> {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _checkLoginStatus();
+  }
+
   File? _prescriptionImage;
   final ImagePicker _picker = ImagePicker();
   bool _isSubmitting = false;
@@ -237,10 +243,21 @@ class _PrescriptionUploadStandaloneState
       }
 
       final userId = await AuthService.getCurrentUserID();
+      final token = await AuthService.getBearerToken();
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('${ApiConfig.baseUrl}/prescription-upload'),
+        Uri.parse('${ApiConfig.baseUrl}/create-precription'),
       );
+
+      // Add Authorization header if available
+      if (token != null) {
+        request.headers['Authorization'] = token;
+      }
+      // Debug print the Authorization header
+      print('=== /create-precription REQUEST HEADERS ===');
+      print(request.headers);
+      print('=== /create-precription TOKEN ===');
+      print(token);
 
       // Add form fields
       request.fields['name'] = _nameController.text.trim();
@@ -280,6 +297,10 @@ class _PrescriptionUploadStandaloneState
       );
 
       final responseData = await response.stream.bytesToString();
+      // Print the raw API response to the terminal for debugging
+      // ignore: avoid_print
+      print('API /create-prescription response:');
+      print(responseData);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         if (mounted) {

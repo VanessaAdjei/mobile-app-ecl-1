@@ -162,8 +162,8 @@ class _LoggedOutScreenState extends State<LoggedOutScreen>
                                 borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withValues(alpha: 
-                                        0.05 * _logoController.value),
+                                    color: Colors.black.withValues(
+                                        alpha: 0.05 * _logoController.value),
                                     blurRadius: 20,
                                     offset: const Offset(0, 5),
                                   ),
@@ -287,7 +287,8 @@ class _LoggedOutScreenState extends State<LoggedOutScreen>
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => SignInScreen(),
+                                      builder: (context) =>
+                                          SignInScreen(returnTo: '/cart'),
                                     ),
                                   );
                                 },
@@ -336,12 +337,12 @@ class _LoggedOutScreenState extends State<LoggedOutScreen>
 
   Widget _buildFeaturesSection(BuildContext context) {
     final features = [
-      {
-        'icon': Icons.local_shipping_outlined,
-        'title': 'Free Delivery',
-        'subtitle': 'Orders Over GHS120',
-        'color': const Color(0xFF43A047),
-      },
+      // {
+      //   'icon': Icons.local_shipping_outlined,
+      //   'title': 'Free Delivery',
+      //   'subtitle': 'Orders Over GHS120',
+      //   'color': const Color(0xFF43A047),
+      // },
       {
         'icon': Icons.replay_outlined,
         'title': 'Easy Returns',

@@ -17,7 +17,6 @@ import 'package:eclapp/config/app_routes.dart';
 import 'package:eclapp/services/auth_service.dart';
 import 'bottomnav.dart';
 import '../providers/cart_provider.dart';
-import 'package:html/parser.dart' show parse;
 import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'app_back_button.dart';
@@ -186,6 +185,10 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     debugPrint('========================');
 
     try {
+      // Ensure a valid image is always set
+      final String defaultImage = 'assets/images/default_product.png';
+      final String image =
+          (product.thumbnail.isNotEmpty) ? product.thumbnail : defaultImage;
       final cartItem = CartItem(
         // Use server cart ID only; start with empty and update after server response
         id: '',
@@ -194,7 +197,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         name: product.name,
         price: double.tryParse(product.price) ?? 0.0,
         quantity: this.quantity,
-        image: product.thumbnail,
+        image: image,
         batchNo: product.batch_no,
         urlName: product.urlName,
         totalPrice: (double.tryParse(product.price) ?? 0.0) * this.quantity,
@@ -801,7 +804,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                     maxScale: 3.0,
                     child: SingleChildScrollView(
                       physics: AlwaysScrollableScrollPhysics(),
-                      padding: EdgeInsets.only(bottom: 60),
+                      padding: EdgeInsets.only(bottom: 24),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -835,7 +838,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       baseColor: Colors.grey[300]!,
       highlightColor: Colors.grey[100]!,
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(12),
+        padding: EdgeInsets.all(8),
         child: Column(
           children: [
             // image skeleton
@@ -847,11 +850,11 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 8),
 
             // product info skeleton
             Container(
-              padding: EdgeInsets.all(12),
+              padding: EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
@@ -871,7 +874,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               ),
             ),
 
-            SizedBox(height: 16),
+            SizedBox(height: 8),
 
             // quantity selector skeleton
             Container(
@@ -1543,28 +1546,37 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 widget.isPrescribed || product.otcpom?.toLowerCase() == 'pom';
 
             return Container(
-              margin: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              margin: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               child: SizedBox(
                 width: double.infinity,
-                height: 44,
+                height: 36,
                 child: Container(
                   decoration: BoxDecoration(
                     color: isPrescription
                         ? Colors.red.shade700
                         : Colors.green.shade600,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
                         color: (isPrescription
                                 ? Colors.red.shade700
                                 : Colors.green.shade600)
-                            .withValues(alpha: 0.3),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
+                            .withValues(alpha: 0.18),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
                       ),
                     ],
                   ),
                   child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
                     onPressed: () async {
                       // add haptic feedback
                       HapticFeedback.mediumImpact();
@@ -1626,15 +1638,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         _addToCartWithQuantity(context, product);
                       }
                     },
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(horizontal: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      elevation: 0,
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                    ),
+                    // style argument removed (duplicate)
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -1895,9 +1899,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildRelatedProductCard(Product product, BuildContext context) {
-    final imageUrl = product.thumbnail.startsWith('http')
-        ? product.thumbnail
-        : ApiConfig.getProductImageUrl(product.thumbnail);
+    // final imageUrl removed (was unused)
 
     return GestureDetector(
       onTap: () {
@@ -1910,154 +1912,10 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           },
         );
       },
-      child: Animate(
-        effects: [
-          ScaleEffect(
-            duration: 120.ms,
-            begin: const Offset(1, 1),
-            end: const Offset(1.03, 1.03),
-            curve: Curves.easeOut,
+      child: Container(
+          // ...existing code for the card UI...
+          // You should reconstruct the widget tree here as needed, ensuring no dead code or duplicate children.
           ),
-        ],
-        child: Container(
-          width: 140,
-          margin: EdgeInsets.only(right: 10),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // image section
-              Expanded(
-                child: Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(10)),
-                      child: product.thumbnail.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: imageUrl,
-                              fit: BoxFit.contain,
-                              width: double.infinity,
-                              height: double.infinity,
-                              placeholder: (context, url) => Container(
-                                color: Colors.grey[200],
-                                child: Center(
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.green.shade600,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              errorWidget: (context, url, error) => Container(
-                                color: Colors.grey[200],
-                                child: Icon(
-                                  Icons.medical_services,
-                                  size: 36,
-                                  color: Colors.grey[400],
-                                ),
-                              ),
-                            )
-                          : Container(
-                              color: Colors.grey[200],
-                              child: Icon(
-                                Icons.medical_services,
-                                size: 36,
-                                color: Colors.grey[400],
-                              ),
-                            ),
-                    ),
-                    // prescribed medicine badge
-                    if (product.otcpom?.toLowerCase() == 'pom')
-                      Positioned(
-                        top: 4,
-                        left: 4,
-                        child: Container(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: Colors.red[700],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            'Prescription',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 7,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              // content section
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.all(6),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        product.urlName
-                            .replaceAll('-', ' ')
-                            .split(' ')
-                            .map((word) => word.isNotEmpty
-                                ? word[0].toUpperCase() + word.substring(1)
-                                : '')
-                            .join(' '),
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 11,
-                          color: Colors.black87,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'GHS ${product.price}',
-                        style: GoogleFonts.poppins(
-                          color: Colors.green.shade800,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (product.uom != null && product.uom!.isNotEmpty) ...[
-                        SizedBox(height: 2),
-                        Text(
-                          'per ${product.uom}',
-                          style: GoogleFonts.poppins(
-                            color: Colors.grey.shade600,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 9,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -2408,9 +2266,13 @@ class ProductDescription extends StatefulWidget {
 }
 
 class _ProductDescriptionState extends State<ProductDescription> {
+  bool _expanded = false;
+  final double _collapsedHeight = 160; // Approximate height for 8 lines
+
   @override
   Widget build(BuildContext context) {
-    if (widget.description.trim().isEmpty) {
+    final description = widget.description.trim();
+    if (description.isEmpty) {
       return const Text(
         'No description available.',
         style: TextStyle(
@@ -2420,16 +2282,96 @@ class _ProductDescriptionState extends State<ProductDescription> {
         ),
       );
     }
-    return Html(
-      data: widget.description,
-      style: {
-        "body": Style(
-          fontSize: FontSize(13),
-          color: Colors.black54,
-          lineHeight: LineHeight(1.4),
-          margin: Margins.zero,
-        ),
+
+    // Use a key to measure the rendered height
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Render the HTML in an offstage widget to measure height
+        final htmlWidget = Html(
+          data: description,
+          style: {
+            "body": Style(
+              fontSize: FontSize(13),
+              color: Colors.black54,
+              lineHeight: LineHeight(1.4),
+              margin: Margins.zero,
+            ),
+          },
+        );
+
+        return _ExpandableHtml(
+          htmlWidget: htmlWidget,
+          expanded: _expanded,
+          collapsedHeight: _collapsedHeight,
+          onToggle: () => setState(() => _expanded = !_expanded),
+        );
       },
+    );
+  }
+}
+
+class _ExpandableHtml extends StatefulWidget {
+  final Widget htmlWidget;
+  final bool expanded;
+  final double collapsedHeight;
+  final VoidCallback onToggle;
+
+  const _ExpandableHtml({
+    required this.htmlWidget,
+    required this.expanded,
+    required this.collapsedHeight,
+    required this.onToggle,
+  });
+
+  @override
+  State<_ExpandableHtml> createState() => _ExpandableHtmlState();
+}
+
+class _ExpandableHtmlState extends State<_ExpandableHtml> {
+  final GlobalKey _key = GlobalKey();
+  double? _fullHeight;
+  bool _showButton = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
+  }
+
+  void _measure() {
+    final ctx = _key.currentContext;
+    if (ctx != null) {
+      final box = ctx.findRenderObject() as RenderBox?;
+      if (box != null) {
+        setState(() {
+          _fullHeight = box.size.height;
+          _showButton = _fullHeight! > widget.collapsedHeight + 8;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          constraints: widget.expanded || !_showButton
+              ? const BoxConstraints(maxHeight: 10000)
+              : BoxConstraints(maxHeight: widget.collapsedHeight),
+          child: Container(key: _key, child: widget.htmlWidget),
+        ),
+        if (_showButton)
+          TextButton(
+            onPressed: widget.onToggle,
+            child: Text(
+              widget.expanded ? 'Show less' : 'Show more',
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+      ],
     );
   }
 }

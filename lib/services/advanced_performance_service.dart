@@ -244,7 +244,16 @@ class AdvancedPerformanceService {
           );
 
           _imageProviders[imageUrl] = provider;
-          await precacheImage(provider, context);
+          await precacheImage(
+            provider,
+            context,
+            onError: (exception, stackTrace) {
+              developer.log(
+                'Skipping preload image (may be missing): $imageUrl',
+                name: 'Performance',
+              );
+            },
+          );
 
           _trackEvent('image_preloaded', {'url': imageUrl});
         } catch (e) {

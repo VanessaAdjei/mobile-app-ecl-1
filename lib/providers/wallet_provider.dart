@@ -9,6 +9,7 @@ class WalletProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   bool _isInitialized = false;
+  bool _isDisposed = false;
 
   // getters to access the wallet data
   Wallet? get wallet => _wallet;
@@ -405,5 +406,17 @@ class WalletProvider extends ChangeNotifier {
   // Get transaction status color
   int getTransactionStatusColor(String status) {
     return WalletService.getTransactionStatusColor(status);
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (_isDisposed) return;
+    super.notifyListeners();
   }
 }

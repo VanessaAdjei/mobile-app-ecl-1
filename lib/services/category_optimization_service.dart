@@ -424,7 +424,14 @@ class CategoryOptimizationService {
       if (!_preloadedImages.containsKey(imageUrl)) {
         _preloadedImages[imageUrl] = true;
         try {
-          precacheImage(CachedNetworkImageProvider(imageUrl), context);
+          precacheImage(
+            CachedNetworkImageProvider(imageUrl),
+            context,
+            onError: (exception, stackTrace) {
+              debugPrint(
+                  'Skipping preload category image (may be missing): $imageUrl');
+            },
+          );
         } catch (e) {
           debugPrint('Failed to preload category image: $imageUrl - $e');
         }

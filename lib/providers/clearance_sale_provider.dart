@@ -13,6 +13,7 @@ class ClearanceSaleProvider extends ChangeNotifier {
   ClearanceSaleData? _clearanceData;
   bool _isLoading = false;
   String? _error;
+  bool _isDisposed = false;
 
   // getters to access the data
   bool get isActive => _isActive;
@@ -253,6 +254,13 @@ class ClearanceSaleProvider extends ChangeNotifier {
   // clean up when done
   @override
   void dispose() {
+    _isDisposed = true;
     super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (_isDisposed) return;
+    super.notifyListeners();
   }
 }

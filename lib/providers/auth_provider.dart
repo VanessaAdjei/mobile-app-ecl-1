@@ -5,6 +5,7 @@ import 'package:eclapp/services/auth_service.dart';
 class AuthProvider with ChangeNotifier {
   bool _isLoggedIn = false;
   bool _isInitialized = false;
+  bool _isDisposed = false;
 
   bool get isLoggedIn => _isLoggedIn;
   bool get isInitialized => _isInitialized;
@@ -47,5 +48,17 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> refreshAuthState() async {
     await login();
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (_isDisposed) return;
+    super.notifyListeners();
   }
 }

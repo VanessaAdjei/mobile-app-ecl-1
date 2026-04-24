@@ -412,6 +412,10 @@ class BannerCacheService {
           precacheImage(
             NetworkImage(imageUrl),
             context,
+            onError: (exception, stackTrace) {
+              debugPrint(
+                  'Skipping preload banner image (may be missing): $imageUrl');
+            },
           );
         } catch (e) {
           debugPrint('Failed to preload banner image: $imageUrl - $e');
