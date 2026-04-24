@@ -424,6 +424,8 @@ class HomePageState extends State<HomePage>
   List<Product> _products = [];
   List<Product> filteredProducts = [];
   List<Product> popularProducts = [];
+  static List<Product> _lastKnownProducts = [];
+  static List<Product> _lastKnownPopularProducts = [];
 
   List<Product> drugsSectionProducts = [];
   List<Product> prescribedProducts = [];
@@ -459,6 +461,7 @@ class HomePageState extends State<HomePage>
   // pull-to-refresh or reloadHomePage().
   bool _hasBeenLoaded = false;
   bool _isLoadingContent = false;
+  Future<void>? _bootstrapFuture;
 
   @override
   bool get wantKeepAlive => true;
@@ -471,18 +474,21 @@ class HomePageState extends State<HomePage>
 
     _checkAndShowWelcomeMessage();
 
+    // Restore last in-memory snapshot immediately when page is recreated.
+    _restoreSnapshotToState();
+
     // Show whatever is in cache immediately (no skeleton if cache exists)
     _applyCacheToState();
 
-    // Load persistent cache + optimization service in background
-    unawaited(_initializeServicesInBackground());
+    // Load persistent cache + optimization service before first fetch.
+    _bootstrapFuture = _initializeServicesInBackground();
 
     _loadSectionShuffleTimeSync();
 
     // Trigger real fetch only on first open
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !_hasBeenLoaded) {
-        _loadAllContent();
+        unawaited(_bootstrapAndLoadContent());
       }
     });
 
@@ -507,6 +513,52 @@ class HomePageState extends State<HomePage>
 
   /// Instantly populate state from whatever is already in ProductCache.
   /// If cache is warm the user sees content immediately with no skeleton.
+  void _restoreSnapshotToState() {
+    if (_lastKnownProducts.isEmpty && _lastKnownPopularProducts.isEmpty) return;
+    setState(() {
+      if (_products.isEmpty && _lastKnownProducts.isNotEmpty) {
+        _products = List<Product>.from(_lastKnownProducts);
+        filteredProducts = List<Product>.from(_lastKnownProducts);
+        _seedSectionsFromProducts(_products);
+        _isLoading = false;
+      }
+      if (popularProducts.isEmpty && _lastKnownPopularProducts.isNotEmpty) {
+        popularProducts = List<Product>.from(_lastKnownPopularProducts);
+        _isLoadingPopular = false;
+      }
+    });
+  }
+
+  void _persistSnapshot() {
+    if (_products.isNotEmpty) {
+      _lastKnownProducts = List<Product>.from(_products);
+    }
+    if (popularProducts.isNotEmpty) {
+      _lastKnownPopularProducts = List<Product>.from(popularProducts);
+    }
+  }
+
+  // Seed section lists immediately so homepage sections render
+  // while isolate-based processing is still running.
+  void _seedSectionsFromProducts(List<Product> allProducts) {
+    if (allProducts.isEmpty) return;
+    drugsSectionProducts = allProducts
+        .where((p) => p.drug?.toLowerCase() == 'drug')
+        .toList(growable: false);
+    prescribedProducts = allProducts
+        .where((p) => p.otcpom?.toLowerCase() == 'pom')
+        .toList(growable: false);
+    wellnessProducts = allProducts
+        .where((p) => p.wellness?.toLowerCase() == 'wellness')
+        .toList(growable: false);
+    selfcareProducts = allProducts
+        .where((p) => p.selfcare?.toLowerCase() == 'selfcare')
+        .toList(growable: false);
+    accessoriesProducts = allProducts
+        .where((p) => p.accessories?.toLowerCase() == 'accessories')
+        .toList(growable: false);
+  }
+
   void _applyCacheToState() {
     final cachedAll = ProductCache.cachedProducts;
     final cachedPopular = ProductCache.cachedPopularProducts;
@@ -515,8 +567,10 @@ class HomePageState extends State<HomePage>
       if (cachedAll.isNotEmpty) {
         _products = cachedAll;
         filteredProducts = cachedAll;
+        _seedSectionsFromProducts(cachedAll);
         _isLoading = false;
-      } else {
+      } else if (_products.isEmpty) {
+        // Show skeleton only when we truly have nothing to render yet.
         _isLoading = true;
       }
 
@@ -529,6 +583,7 @@ class HomePageState extends State<HomePage>
 
       _error = null;
     });
+    _persistSnapshot();
   }
 
   Future<void> _initializeServicesInBackground() async {
@@ -537,6 +592,12 @@ class HomePageState extends State<HomePage>
 
     // After storage load, re-apply cache (may now have persisted products)
     if (mounted) _applyCacheToState();
+  }
+
+  Future<void> _bootstrapAndLoadContent() async {
+    await (_bootstrapFuture ?? Future.value());
+    if (!mounted || _hasBeenLoaded) return;
+    await _loadAllContent();
   }
 
   // ─── Content loading ──────────────────────────────────────────────────────
@@ -607,7 +668,6 @@ class HomePageState extends State<HomePage>
           );
         }).toList();
 
-        allProducts.shuffle();
         ProductCache.cacheProducts(allProducts);
 
         // Preload first 8 images immediately
@@ -618,8 +678,10 @@ class HomePageState extends State<HomePage>
           setState(() {
             _products = allProducts;
             filteredProducts = allProducts;
+            _seedSectionsFromProducts(allProducts);
             _isLoading = false;
           });
+          _persistSnapshot();
         }
 
         await _processProducts(allProducts);
@@ -648,9 +710,11 @@ class HomePageState extends State<HomePage>
         setState(() {
           _products = cached;
           filteredProducts = cached;
+          _seedSectionsFromProducts(cached);
           _isLoading = false;
           _error = null;
         });
+        _persistSnapshot();
       }
       unawaited(_processProducts(cached));
     } else if (error != null && mounted) {
@@ -734,7 +798,6 @@ class HomePageState extends State<HomePage>
           );
         }).toList();
 
-        list.shuffle();
         ProductCache.cachePopularProducts(list);
 
         if (mounted) {
@@ -742,6 +805,7 @@ class HomePageState extends State<HomePage>
             popularProducts = list;
             _isLoadingPopular = false;
           });
+          _persistSnapshot();
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) _startPopularProductsAutoScroll();
           });
@@ -767,6 +831,7 @@ class HomePageState extends State<HomePage>
         _isLoadingPopular = false;
         _popularError = null;
       });
+      _persistSnapshot();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _startPopularProductsAutoScroll();
       });
@@ -1405,9 +1470,10 @@ class HomePageState extends State<HomePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final shouldShowSkeleton = _isLoading && _products.isEmpty;
     return Scaffold(
       body: Stack(children: [
-        _isLoading ? _buildSkeletonWithLoading() : _buildMainContent(),
+        shouldShowSkeleton ? _buildSkeletonWithLoading() : _buildMainContent(),
         const SmartTips(),
       ]),
       bottomNavigationBar: CustomBottomNav(initialIndex: 0),

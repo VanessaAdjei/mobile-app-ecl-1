@@ -134,6 +134,8 @@ class CategoryPageState extends State<CategoryPage> {
   final CategoryOptimizationService _categoryService =
       CategoryOptimizationService();
   final GlobalKey _searchBarKey = GlobalKey();
+  final List<Map<String, dynamic>> _searchIndex = [];
+  Future<void>? _searchIndexWarmupFuture;
 
   @override
   void initState() {
@@ -141,7 +143,8 @@ class CategoryPageState extends State<CategoryPage> {
     debugPrint('🔍 CategoryPage initState() called');
     _initializeCategoryService();
     debugPrint('🔍 Calling _prefetchAllProducts()...');
-    _prefetchAllProducts(); // Prefetch all products on page load
+    _searchIndexWarmupFuture =
+        _prefetchAllProducts(); // Prefetch all products on page load
     _loadCategoriesOptimized();
 
     _searchFocusNode.addListener(() {
@@ -365,6 +368,7 @@ class CategoryPageState extends State<CategoryPage> {
       });
 
       final results = await _searchAllCategories(query);
+      if (!mounted || _searchController.text.trim() != query.trim()) return;
 
       setState(() {
         _searchResults = results.take(30).toList();
@@ -384,137 +388,46 @@ class CategoryPageState extends State<CategoryPage> {
 
     final searchQuery = query.toLowerCase().trim();
     final stopwatch = Stopwatch()..start();
-    List<dynamic> allResults = [];
+    await _ensureSearchIndexReady();
 
-    // First, try to use cached products (instant search)
-    // But only if they have category info (from our search cache)
+    final allResults = <dynamic>[];
+    for (final indexed in _searchIndex) {
+      final productName = indexed['name_lower'] as String;
+      if (productName.contains(searchQuery)) {
+        allResults.add(indexed['product']);
+        if (allResults.length >= 30) break;
+      }
+    }
+
+    stopwatch.stop();
+    debugPrint(
+        '🔍 Search index lookup: Found ${allResults.length} products in ${stopwatch.elapsedMilliseconds}ms');
+    return allResults;
+  }
+
+  Future<void> _ensureSearchIndexReady() async {
+    if (_searchIndex.isNotEmpty) return;
+
     final cachedProducts = CategoryCache.cachedAllProducts;
     if (cachedProducts.isNotEmpty) {
-      // Check if cache has category info (flattened format)
-      final hasCategoryInfo = cachedProducts[0]['category_id'] != null;
-
-      if (hasCategoryInfo) {
-        debugPrint(
-            '🔍 Using cached products with category info for instant search: ${cachedProducts.length} products');
-
-        // Optimized search: use early termination for better performance
-        for (final product in cachedProducts) {
-          final productName = product['name']?.toString().toLowerCase() ?? '';
-          if (productName.contains(searchQuery)) {
-            allResults.add(product);
-            if (allResults.length >= 30) break; // Early termination
-          }
-        }
-
-        stopwatch.stop();
-        if (allResults.isNotEmpty) {
-          debugPrint(
-              '🔍 Instant search from cache: Found ${allResults.length} products in ${stopwatch.elapsedMilliseconds}ms');
-          return allResults;
-        } else {
-          debugPrint(
-              '🔍 No matches found in cache for: "$query" (searched ${cachedProducts.length} products in ${stopwatch.elapsedMilliseconds}ms)');
-        }
-      } else {
-        debugPrint(
-            '🔍 Cache exists but missing category info - will fetch from API');
-      }
-    } else {
-      debugPrint('🔍 Cache is empty - will fetch from API');
+      _buildSearchIndex(cachedProducts);
+      return;
     }
 
-    // If cache is empty or no results, fetch from API
-    try {
-      debugPrint('🔍 Cache miss - fetching from API for: "$query"');
-      stopwatch.reset();
-      stopwatch.start();
+    _searchIndexWarmupFuture ??= _prefetchAllProducts();
+    await _searchIndexWarmupFuture;
+  }
 
-      final response = await http
-          .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
-          .timeout(Duration(seconds: 8));
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        final List<dynamic> dataList = responseData['data'];
-
-        // Cache the raw data for future searches
-        final productsToCache = <dynamic>[];
-
-        // filter products by what they searched
-        for (final item in dataList) {
-          final productData = item['product'] as Map<String, dynamic>;
-          final productName =
-              productData['name']?.toString().toLowerCase() ?? '';
-
-          if (productName.contains(searchQuery)) {
-            final product = {
-              'id': productData['id'],
-              'name': productData['name'],
-              'thumbnail':
-                  productData['thumbnail'] ?? productData['image'] ?? '',
-              'price': item['price'] ?? 0,
-              'description': productData['description'] ?? '',
-              // Include category/subcategory info for instant navigation
-              'category_id': item['category_id'],
-              'category_name': item['category_name'],
-              'subcategory_id': item['subcategory_id'],
-              'subcategory_name': item['subcategory_name'],
-            };
-            allResults.add(product);
-
-            // Also add to cache format
-            productsToCache.add({
-              'id': productData['id'],
-              'name': productData['name'],
-              'thumbnail':
-                  productData['thumbnail'] ?? productData['image'] ?? '',
-              'price': item['price'] ?? 0,
-              'description': productData['description'] ?? '',
-              'category_id': item['category_id'],
-              'category_name': item['category_name'],
-              'subcategory_id': item['subcategory_id'],
-              'subcategory_name': item['subcategory_name'],
-            });
-
-            if (allResults.length >= 30) break;
-          }
-        }
-
-        // Cache all products (not just search results) for future instant searches
-        if (productsToCache.length < dataList.length) {
-          // Cache all products from API for future searches
-          final allProductsForCache = dataList.map<dynamic>((item) {
-            final productData = item['product'] as Map<String, dynamic>;
-            return {
-              'id': productData['id'],
-              'name': productData['name'],
-              'thumbnail':
-                  productData['thumbnail'] ?? productData['image'] ?? '',
-              'price': item['price'] ?? 0,
-              'description': productData['description'] ?? '',
-              'category_id': item['category_id'],
-              'category_name': item['category_name'],
-              'subcategory_id': item['subcategory_id'],
-              'subcategory_name': item['subcategory_name'],
-            };
-          }).toList();
-
-          CategoryCache.cacheAllProducts(allProductsForCache);
-          debugPrint(
-              '🔍 Cached ${allProductsForCache.length} products for future searches');
-        }
-
-        stopwatch.stop();
-        debugPrint(
-            '🔍 API search completed: Found ${allResults.length} products in ${stopwatch.elapsedMilliseconds}ms');
-        return allResults;
-      } else {
-        throw Exception('Failed to load products from API');
-      }
-    } catch (e) {
-      debugPrint('🔍 Error in API search: $e');
-      return [];
-    }
+  void _buildSearchIndex(List<dynamic> products) {
+    _searchIndex
+      ..clear()
+      ..addAll(products.map<Map<String, dynamic>>((product) {
+        final name = product['name']?.toString() ?? '';
+        return {
+          'product': product,
+          'name_lower': name.toLowerCase(),
+        };
+      }));
   }
 
   Future<Map<String, dynamic>?> _findProductInAllCategories(
@@ -1991,6 +1904,7 @@ class CategoryPageState extends State<CategoryPage> {
 
         _allProducts = flattenedProducts;
         CategoryCache.cacheAllProducts(flattenedProducts);
+        _buildSearchIndex(flattenedProducts);
         debugPrint(
             '🔍 Prefetch: cached ${flattenedProducts.length} flattened products for instant search');
 
