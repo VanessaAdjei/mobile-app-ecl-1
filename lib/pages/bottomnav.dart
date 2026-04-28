@@ -306,7 +306,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
         showModalBottomSheet(
           context: context,
           backgroundColor: Colors.transparent,
-          isScrollControlled: false,
+          isScrollControlled: true,
           enableDrag: true,
           isDismissible: true,
           useSafeArea: true,
@@ -316,14 +316,14 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 12,
-                      offset: const Offset(0, -2),
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 24,
+                      offset: const Offset(0, -6),
                     ),
                   ],
                 ),
@@ -333,8 +333,8 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                     children: [
                       // Handle bar
                       Container(
-                        margin: const EdgeInsets.only(top: 10, bottom: 4),
-                        width: 38,
+                        margin: const EdgeInsets.only(top: 12, bottom: 8),
+                        width: 42,
                         height: 4,
                         decoration: BoxDecoration(
                           color: Colors.grey.shade300,
@@ -342,70 +342,129 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 8),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+                        child: Row(
                           children: [
-                            _buildMenuOption(
-                              context,
-                              icon: Icons.upload_file_rounded,
-                              title: 'Upload prescription',
-                              subtitle: 'Upload your medical prescription',
-                              color: Colors.purple.shade600,
-                              onTap: () {
-                                Navigator.pop(context);
-                                Navigator.pushNamed(
-                                  context,
-                                  AppRoutes.prescriptionUpload,
-                                );
-                              },
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE8F5E9),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.apps_rounded,
+                                color: Color(0xFF15803D),
+                                size: 20,
+                              ),
                             ),
-                            const Divider(height: 1),
-                            _buildMenuOption(
-                              context,
-                              icon: Icons.medical_services_rounded,
-                              title: 'Meet your pharmacist',
-                              subtitle: 'Chat or schedule a consultation',
-                              color: Colors.green.shade600,
-                              onTap: () {
-                                Navigator.pop(context);
-                                Navigator.pushNamed(
-                                  context,
-                                  AppRoutes.pharmacists,
-                                );
-                              },
-                            ),
-                            const Divider(height: 1),
-                            _buildMenuOption(
-                              context,
-                              icon: Icons.location_on_rounded,
-                              title: 'Locate a retail outlet',
-                              subtitle: 'See nearby branches on the map',
-                              color: Colors.blue.shade600,
-                              onTap: () {
-                                Navigator.pop(context);
-                                Navigator.pushNamed(
-                                  context,
-                                  AppRoutes.storeSelection,
-                                );
-                              },
-                            ),
-                            const Divider(height: 1),
-                            _buildMenuOption(
-                              context,
-                              icon: Icons.contact_support_rounded,
-                              title: 'Contact us',
-                              subtitle: 'Call or email customer care',
-                              color: Colors.orange.shade600,
-                              onTap: () {
-                                Navigator.pop(context);
-                                _showContactOptions(context);
-                              },
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Quick Actions',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF111827),
+                                    ),
+                                  ),
+                                  Text(
+                                    'Choose what you want to do',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
                       ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 4),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildMenuOption(
+                                    context,
+                                    icon: Icons.upload_file_rounded,
+                                    title: 'Upload',
+                                    subtitle: 'Prescription',
+                                    color: Colors.purple.shade600,
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      Navigator.pushNamed(
+                                        context,
+                                        AppRoutes.prescriptionUpload,
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _buildMenuOption(
+                                    context,
+                                    icon: Icons.medical_services_rounded,
+                                    title: 'Pharmacist',
+                                    subtitle: 'Consultation',
+                                    color: Colors.green.shade600,
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      Navigator.pushNamed(
+                                        context,
+                                        AppRoutes.pharmacists,
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildMenuOption(
+                                    context,
+                                    icon: Icons.location_on_rounded,
+                                    title: 'Locator',
+                                    subtitle: 'Retail outlets',
+                                    color: Colors.blue.shade600,
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      Navigator.pushNamed(
+                                        context,
+                                        AppRoutes.storeSelection,
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _buildMenuOption(
+                                    context,
+                                    icon: Icons.contact_support_rounded,
+                                    title: 'Contact',
+                                    subtitle: 'Support team',
+                                    color: Colors.orange.shade600,
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      _showContactOptions(context);
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                     ],
                   ),
                 ),
@@ -427,73 +486,62 @@ class _CustomBottomNavState extends State<CustomBottomNav>
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        height: 76,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.08),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 28,
+              height: 28,
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  center: const Alignment(0, -0.4),
-                  radius: 1.1,
-                  colors: [
-                    color.withValues(alpha: 0.18),
-                    color.withValues(alpha: 0.05),
-                  ],
-                ),
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Container(
-                margin: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  icon,
-                  color: color,
-                  size: 20,
-                ),
-              ),
+              child: Icon(icon, color: color, size: 15),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 8),
             Expanded(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF111827),
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 1),
                   Text(
                     subtitle,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 9.5,
                       color: Colors.grey.shade600,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
-            ),
-            Icon(
-              Icons.chevron_right,
-              color: Colors.grey.shade400,
-              size: 20,
             ),
           ],
         ),

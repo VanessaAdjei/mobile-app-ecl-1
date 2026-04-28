@@ -1,4 +1,6 @@
 // utils/responsive_utils.dart
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 class ResponsiveUtils {
@@ -6,6 +8,78 @@ class ResponsiveUtils {
   static const double mobileBreakpoint = 600;
   static const double tabletBreakpoint = 900;
   static const double desktopBreakpoint = 1200;
+
+  /// When true, the app root centers content with [appContentMaxWidth] (tablets, desktop, web).
+  /// Uses [shortestSide] so phone landscape is not treated as a tablet.
+  static bool useAppContentFrame(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    if (size.shortestSide < 600) return false;
+    if (size.width < 600) return false;
+    return true;
+  }
+
+  /// Max width for the main app column on large screens.
+  static double appContentMaxWidth(double width) {
+    if (width < 600) return width;
+    if (width < 900) return math.min(720, width * 0.92);
+    if (width < 1200) return math.min(900, width * 0.88);
+    return 1000;
+  }
+
+  /// Horizontal padding that scales with window width (for manual use in pages).
+  static double pageHorizontalPadding(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    if (w < 360) return 8;
+    if (w < 600) return 12;
+    if (w < 900) return 16;
+    return 20;
+  }
+
+  /// Scales a dimension (e.g. font, icon) using width vs a design baseline (e.g. 375).
+  static double widthScale(
+    BuildContext context, {
+    double baselineWidth = 375,
+    double minScale = 0.9,
+    double maxScale = 1.1,
+  }) {
+    final w = MediaQuery.sizeOf(context).width;
+    return (w / baselineWidth).clamp(minScale, maxScale);
+  }
+
+  /// Wraps a route/page so it respects [appContentMaxWidth] when the app frame is not used
+  /// (e.g. modal or nested navigator). Use sparingly; prefer the global [appFrame] wrapper.
+  static Widget boundedContent(
+    BuildContext context, {
+    required Widget child,
+  }) {
+    if (!useAppContentFrame(context)) {
+      return child;
+    }
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: appContentMaxWidth(MediaQuery.sizeOf(context).width),
+        ),
+        child: child,
+      ),
+    );
+  }
+
+  /// Root [MaterialApp.builder] — centers content on tablets/web; passes through on phones.
+  static Widget appFrame(BuildContext context, Widget? child) {
+    final c = child ?? const SizedBox.shrink();
+    if (!useAppContentFrame(context)) return c;
+    final maxW = appContentMaxWidth(MediaQuery.sizeOf(context).width);
+    return ColoredBox(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxW),
+          child: c,
+        ),
+      ),
+    );
+  }
 
   // Check device type
   static bool isMobile(BuildContext context) =>

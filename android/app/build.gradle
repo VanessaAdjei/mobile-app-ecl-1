@@ -17,8 +17,12 @@ if (localPropertiesFile.exists()) {
 }
 def mapsApiKey = localProperties.getProperty("MAPS_API_KEY", "YOUR_GOOGLE_MAPS_API_KEY")
 
+if (!keystorePropertiesFile.exists()) {
+    throw new GradleException("Missing android/key.properties. Release builds must be signed with a release keystore.")
+}
+
 android {
-    namespace "com.example.eclapp"
+    namespace "com.ecl.ecl_commerce"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -49,7 +53,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.eclapp"
+        applicationId = "com.ecl.ecl_commerce"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -60,7 +64,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig = keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"

@@ -1,35 +1,19 @@
 // pages/profile.dart
 
-import 'package:eclapp/pages/aboutus.dart';
 import 'package:eclapp/pages/loggedout.dart';
 import 'package:eclapp/pages/privacypolicy.dart';
-import 'package:eclapp/pages/profilescreen.dart';
-import 'package:eclapp/pages/purchases.dart';
-import 'package:eclapp/pages/tandc.dart';
 import 'package:eclapp/providers/theme_provider.dart';
-import 'package:eclapp/pages/wallet_page.dart';
-import 'package:eclapp/pages/homepage.dart' as home;
-import 'package:eclapp/pages/refill_page.dart';
-import 'package:eclapp/pages/wishlist_page.dart';
 import 'package:eclapp/services/wishlist_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import 'bottomnav.dart';
-import 'notifications.dart';
 import '../widgets/app_header_bar.dart';
-
-import 'app_back_button.dart';
 import '../config/app_routes.dart';
 import '../providers/cart_provider.dart';
 import '../main.dart';
-import 'package:eclapp/pages/prescription_history.dart';
-import 'package:eclapp/pages/signinpage.dart';
-import '../widgets/cart_icon_button.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 
@@ -436,7 +420,8 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = themeProvider.isDarkMode;
     final primaryColor = isDark ? Colors.green.shade400 : Colors.green.shade700;
-    final backgroundColor = isDark ? Colors.grey.shade900 : Colors.grey.shade50;
+    final backgroundColor =
+        isDark ? const Color(0xFF0F172A) : const Color(0xFFF3F6FB);
     final cardColor = isDark ? Colors.grey.shade800 : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
     final subtextColor = isDark ? Colors.white70 : Colors.black54;
@@ -450,8 +435,8 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
           // Unified app header
           SliverToBoxAdapter(
             child: AppHeaderBar(
-              title: 'Your Profile',
-              subtitle: 'Manage your account settings',
+              title: 'Profile',
+              subtitle: 'Manage your account and preferences',
               onBack: () {
                 if (Navigator.canPop(context)) {
                   Navigator.pop(context);
@@ -485,15 +470,31 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 24, horizontal: 20),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: cardColor,
-                      borderRadius: BorderRadius.circular(20),
+                      gradient: isDark
+                          ? const LinearGradient(
+                              colors: [Color(0xFF1E293B), Color(0xFF334155)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : const LinearGradient(
+                              colors: [Color(0xFFF7FAFF), Color(0xFFEEF6FF)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                      borderRadius: BorderRadius.circular(24),
                       border: Border.all(
-                        color: primaryColor.withValues(alpha: 0.1),
+                        color: primaryColor.withValues(alpha: 0.14),
                         width: 1,
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: primaryColor.withValues(alpha: 0.12),
+                          blurRadius: 22,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
                     ),
                     child: Column(
                       children: [
@@ -503,9 +504,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                           width: 80,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: primaryColor.withValues(alpha: 0.1),
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : Colors.white,
                             border: Border.all(
-                              color: primaryColor.withValues(alpha: 0.2),
+                              color: primaryColor.withValues(alpha: 0.25),
                               width: 2,
                             ),
                           ),
@@ -520,8 +523,9 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                           _userLoggedIn ? _userName : "Guest User",
                           style: GoogleFonts.poppins(
                             fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
+                            fontWeight: FontWeight.w700,
+                            color:
+                                isDark ? Colors.white : const Color(0xFF0F172A),
                             letterSpacing: -0.3,
                           ),
                         ),
@@ -531,7 +535,9 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                                 _userEmail,
                                 style: GoogleFonts.poppins(
                                   fontSize: 13,
-                                  color: subtextColor,
+                                  color: isDark
+                                      ? Colors.white70
+                                      : const Color(0xFF64748B),
                                   fontWeight: FontWeight.w400,
                                 ),
                               )
@@ -546,8 +552,8 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 14, vertical: 8),
                                   decoration: BoxDecoration(
-                                    color: primaryColor.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(12),
+                                    color: primaryColor.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(999),
                                     border: Border.all(
                                       color:
                                           primaryColor.withValues(alpha: 0.2),
@@ -585,10 +591,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     child: Text(
                       "Your Account",
                       style: GoogleFonts.poppins(
-                        fontSize: 16,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: subtextColor,
-                        letterSpacing: 0.2,
+                        color:
+                            isDark ? Colors.white70 : const Color(0xFF64748B),
+                        letterSpacing: 0.4,
                       ),
                     ),
                   ),
@@ -792,10 +799,11 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     child: Text(
                       "Support & Information",
                       style: GoogleFonts.poppins(
-                        fontSize: 16,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: subtextColor,
-                        letterSpacing: 0.2,
+                        color:
+                            isDark ? Colors.white70 : const Color(0xFF64748B),
+                        letterSpacing: 0.4,
                       ),
                     ),
                   ),
@@ -905,47 +913,51 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
   }) {
     return TweenAnimationBuilder(
       tween: Tween<double>(begin: 0, end: 1),
-      duration: Duration(milliseconds: 600 + (index * 150)),
+      duration: Duration(milliseconds: 280 + (index * 45)),
       builder: (context, double value, child) {
         return Transform.translate(
-          offset: Offset(0, 40 * (1 - value)),
+          offset: Offset(0, 16 * (1 - value)),
           child: Opacity(
             opacity: value,
-            child: Transform.scale(
-              scale: 0.9 + (0.1 * value),
-              child: child,
-            ),
+            child: child,
           ),
         );
       },
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 3),
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
         decoration: BoxDecoration(
           color: cardColor,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: primaryColor.withValues(alpha: 0.05),
+            color: primaryColor.withValues(alpha: 0.07),
             width: 1,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
               child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: iconColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
+                      color: iconColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(11),
                     ),
                     child: Icon(icon, color: iconColor, size: 20),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -953,18 +965,18 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         Text(
                           title,
                           style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
                             color: textColor,
-                            letterSpacing: -0.2,
+                            letterSpacing: -0.1,
                           ),
                         ),
                         if (subtitle.isNotEmpty) ...[
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 2),
                           Text(
                             subtitle,
                             style: GoogleFonts.poppins(
-                              fontSize: 12,
+                              fontSize: 11.5,
                               color: subtextColor,
                               height: 1.3,
                             ),
@@ -977,7 +989,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     children: [
                       if (badgeCount != null && badgeCount > 0)
                         Container(
-                          margin: const EdgeInsets.only(right: 10),
+                          margin: const EdgeInsets.only(right: 8),
                           padding: const EdgeInsets.symmetric(
                               horizontal: 7, vertical: 3),
                           decoration: BoxDecoration(
@@ -995,8 +1007,8 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                         ),
                       Icon(
                         Icons.chevron_right_rounded,
-                        size: 20,
-                        color: subtextColor.withValues(alpha: 0.5),
+                        size: 19,
+                        color: subtextColor.withValues(alpha: 0.6),
                       ),
                     ],
                   ),

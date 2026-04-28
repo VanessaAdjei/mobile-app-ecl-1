@@ -14,6 +14,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:eclapp/pages/map_picker_page.dart';
+import '../widgets/checkout_progress_stepper.dart';
 
 class DeliveryPage extends StatefulWidget {
   const DeliveryPage({super.key});
@@ -443,33 +444,11 @@ class DeliveryPageState extends State<DeliveryPage> {
                         ),
                         // Progress steps
                         Container(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildProgressStep('Cart',
-                                    isActive: false,
-                                    isCompleted: true,
-                                    step: 1),
-                                _buildProgressLine(isActive: false),
-                                _buildProgressStep('Delivery',
-                                    isActive: true,
-                                    isCompleted: false,
-                                    step: 2),
-                                _buildProgressLine(isActive: false),
-                                _buildProgressStep('Payment',
-                                    isActive: false,
-                                    isCompleted: false,
-                                    step: 3),
-                                _buildProgressLine(isActive: false),
-                                _buildProgressStep('Confirmation',
-                                    isActive: false,
-                                    isCompleted: false,
-                                    step: 4),
-                              ],
-                            ),
+                          padding: const EdgeInsets.fromLTRB(16, 2, 16, 14),
+                          child: const CheckoutProgressStepper(
+                            steps: ['Cart', 'Delivery', 'Payment', 'Confirmation'],
+                            activeStep: 2,
+                            completedSteps: {1},
                           ),
                         ),
                       ],
@@ -497,7 +476,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                                 ],
                                 child: _buildDeliveryOptions(),
                               ),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 10),
                               _buildUrgentOption(),
                               const SizedBox(height: 20),
                               if (deliveryOption == 'pickup')
@@ -578,99 +557,40 @@ class DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  static const double _cardRadius = 14;
-  static const double _fieldRadius = 10;
+  static const double _cardRadius = 18;
+  static const double _fieldRadius = 12;
   static const Color _cardShadow = Color(0x0A000000);
   static const Color _accent = Color(0xFF2E7D32);
 
-  Widget _buildProgressLine({required bool isActive}) {
-    return Container(
-      width: 36,
-      height: 2,
-      margin: const EdgeInsets.symmetric(horizontal: 6),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(1),
-      ),
-    );
-  }
-
-  Widget _buildProgressStep(String text,
-      {required bool isActive, required bool isCompleted, required int step}) {
-    final color = isCompleted
-        ? Colors.white
-        : isActive
-            ? Colors.white
-            : Colors.white.withValues(alpha: 0.65);
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: isCompleted || isActive
-                ? Colors.white.withValues(alpha: 0.25)
-                : Colors.transparent,
-            border: Border.all(color: color, width: 1.5),
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: isCompleted
-                ? Icon(Icons.check_rounded, size: 16, color: Colors.white)
-                : Text(
-                    step.toString(),
-                    style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11,
-                    ),
-                  ),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          text,
-          style: TextStyle(
-            color: color,
-            fontSize: 11,
-            fontWeight:
-                isActive || isCompleted ? FontWeight.w600 : FontWeight.w500,
-            letterSpacing: 0.2,
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildDeliveryOptions() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(18),
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(_cardRadius),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
             color: _cardShadow,
             blurRadius: 10,
-            offset: const Offset(0, 2),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionLabel('How do you want to receive your order?'),
-          const SizedBox(height: 14),
+          _buildSectionLabel('How do you want to receive your order?',
+              compact: false),
+          const SizedBox(height: 10),
           // Segmented control
           Container(
-            padding: const EdgeInsets.all(4),
+            padding: const EdgeInsets.all(3),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(_fieldRadius),
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
             child: Row(
               children: [
@@ -698,24 +618,27 @@ class DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  Widget _buildSectionLabel(String text) {
+  Widget _buildSectionLabel(String text, {bool compact = false}) {
     return Row(
       children: [
         Container(
-          width: 4,
-          height: 18,
+          width: compact ? 3 : 4,
+          height: compact ? 14 : 18,
           decoration: BoxDecoration(
             color: _accent,
             borderRadius: BorderRadius.circular(2),
           ),
         ),
-        const SizedBox(width: 10),
-        Text(
-          text,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-            color: Colors.grey.shade800,
+        SizedBox(width: compact ? 6 : 10),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: compact ? 12 : 14,
+              height: compact ? 1.2 : null,
+              color: Colors.grey.shade800,
+            ),
           ),
         ),
       ],
@@ -732,29 +655,34 @@ class DeliveryPageState extends State<DeliveryPage> {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(5),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
           decoration: BoxDecoration(
             color: isSelected ? _accent : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(5),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 icon,
-                size: 18,
+                size: 14,
                 color: isSelected ? Colors.white : Colors.grey.shade600,
               ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: isSelected ? Colors.white : Colors.grey.shade700,
+              const SizedBox(width: 3),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    color: isSelected ? Colors.white : Colors.grey.shade700,
+                  ),
                 ),
               ),
             ],

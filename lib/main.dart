@@ -44,6 +44,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'services/notification_service.dart';
 import 'services/http_client_service.dart';
 import 'config/app_routes.dart';
+import 'utils/responsive_utils.dart';
 
 bool _isKeychainError(dynamic e) {
   final s = e.toString().toLowerCase();
@@ -520,10 +521,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             child: MaterialApp(
               title: 'ECL App',
               debugShowCheckedModeBanner: false,
-              // hide keychain errors here too
+              // hide keychain errors here too; tablet/desktop: centered max-width column
               builder: (context, widget) {
-                // Wrap widget to catch and suppress errors
-                return widget ?? const SizedBox.shrink();
+                return ResponsiveUtils.appFrame(
+                  context,
+                  widget ?? const SizedBox.shrink(),
+                );
               },
               themeMode:
                   themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,

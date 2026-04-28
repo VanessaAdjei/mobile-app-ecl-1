@@ -384,13 +384,13 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F3F5),
+      backgroundColor: const Color(0xFFF6F8FC),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF6F8FC),
         elevation: 0,
         centerTitle: true,
         leading: BackButtonUtils.withConfirmation(
-          backgroundColor: Colors.grey.shade100,
+          backgroundColor: Colors.white,
           title: 'Leave Upload',
           message:
               'Are you sure you want to leave? Your uploaded prescription will be lost.',
@@ -398,26 +398,66 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
         title: Text(
           'Upload Prescription',
           style: GoogleFonts.poppins(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey.shade900,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF0F172A),
           ),
         ),
-        iconTheme: IconThemeData(color: Colors.grey.shade800),
+        iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: _accent.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.assignment_rounded,
+                      size: 16,
+                      color: _accent,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Step 1: Add a clear prescription image, then submit',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF334155),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ).animate().fadeIn(duration: 220.ms),
+
+            const SizedBox(height: 14),
+
             // Prescription required notice
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
-                color: _accent.withValues(alpha: 0.08),
+                color: const Color(0xFFECFDF3),
                 borderRadius: BorderRadius.circular(_fieldRadius),
-                border: Border.all(color: _accent.withValues(alpha: 0.25)),
+                border: Border.all(color: const Color(0xFFBBF7D0)),
               ),
               child: Row(
                 children: [
@@ -491,7 +531,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                   ),
                 ],
               ),
-            ).animate().fadeIn(duration: 350.ms),
+            ).animate().fadeIn(duration: 300.ms),
 
             const SizedBox(height: 20),
 
@@ -502,13 +542,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(_cardRadius),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -541,7 +575,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                   ),
                 ],
               ),
-            ).animate().fadeIn(duration: 380.ms),
+            ).animate().fadeIn(duration: 340.ms),
 
             const SizedBox(height: 20),
 
@@ -552,13 +586,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(_cardRadius),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -578,7 +606,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                         height: 172,
                         decoration: BoxDecoration(
                           color: _image == null
-                              ? Colors.grey.shade50
+                              ? const Color(0xFFF8FAFC)
                               : _accent.withValues(alpha: 0.06),
                           borderRadius: BorderRadius.circular(_fieldRadius),
                           border: Border.all(
@@ -595,7 +623,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                                   Icon(
                                     Icons.add_photo_alternate_rounded,
                                     size: 44,
-                                    color: Colors.grey.shade400,
+                                    color: const Color(0xFF94A3B8),
                                   ),
                                   const SizedBox(height: 12),
                                   Text(
@@ -603,7 +631,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                                     style: GoogleFonts.poppins(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
-                                      color: Colors.grey.shade600,
+                                      color: const Color(0xFF475569),
                                     ),
                                   ),
                                   const SizedBox(height: 4),
@@ -611,7 +639,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                                     'JPG, JPEG or PNG',
                                     style: GoogleFonts.poppins(
                                       fontSize: 12,
-                                      color: Colors.grey.shade500,
+                                      color: const Color(0xFF64748B),
                                     ),
                                   ),
                                   if (_isUploading) ...[
@@ -757,7 +785,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                   ),
                 ],
               ),
-            ).animate().fadeIn(duration: 400.ms),
+            ).animate().fadeIn(duration: 380.ms),
 
             const SizedBox(height: 20),
 
@@ -768,13 +796,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(_cardRadius),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

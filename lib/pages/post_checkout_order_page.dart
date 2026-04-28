@@ -1983,6 +1983,7 @@ class _PulsingIconState extends State<_PulsingIcon>
       child: Container(
         width: 88,
         height: 88,
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: Colors.white,
           shape: BoxShape.circle,
@@ -1999,9 +2000,10 @@ class _PulsingIconState extends State<_PulsingIcon>
             ),
           ],
         ),
-        child: ClipOval(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: FittedBox(
+            fit: BoxFit.contain,
             child: Image.asset(
               'assets/images/png.png',
               fit: BoxFit.contain,

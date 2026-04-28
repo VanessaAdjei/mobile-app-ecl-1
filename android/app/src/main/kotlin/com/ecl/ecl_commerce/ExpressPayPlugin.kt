@@ -1,4 +1,4 @@
-package com.example.eclapp
+package com.ecl.ecl_commerce
 
 import android.app.Activity
 import android.content.Intent

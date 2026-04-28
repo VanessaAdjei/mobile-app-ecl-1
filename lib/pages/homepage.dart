@@ -2256,24 +2256,16 @@ class HomePageState extends State<HomePage>
           ),
           TextButton(
             onPressed: () {
-              final key = title.toLowerCase();
-              final filtered = _products.where((p) {
-                switch (key) {
-                  case 'wellness':
-                    return p.wellness?.toLowerCase() == 'wellness';
-                  case 'selfcare':
-                    return p.selfcare?.toLowerCase() == 'selfcare';
-                  case 'accessories':
-                    return p.accessories?.toLowerCase() == 'accessories';
-                  case 'drugs':
-                  case 'drug':
-                    return p.drug?.toLowerCase() == 'drug';
-                  case 'otc':
-                    return p.otcpom?.toLowerCase() == 'otc';
-                  default:
-                    return p.category.toLowerCase() == key;
-                }
-              }).toList();
+              // The section cards are capped on homepage; "See More" should open
+              // the full backing list for that section.
+              final filtered = switch (category.toLowerCase()) {
+                'drugs' => List<Product>.from(drugsSectionProducts),
+                'wellness' => List<Product>.from(wellnessProducts),
+                'selfcare' => List<Product>.from(selfcareProducts),
+                'accessories' => List<Product>.from(accessoriesProducts),
+                'prescribed' => List<Product>.from(prescribedProducts),
+                _ => List<Product>.from(products),
+              };
               Navigator.push(
                 context,
                 MaterialPageRoute(

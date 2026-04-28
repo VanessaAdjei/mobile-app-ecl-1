@@ -22,11 +22,15 @@ class Item {
   final String name;
   final String categoryId;
   final String subCategoryId;
-  Item({required this.name, required this.categoryId, required this.subCategoryId});
+  Item(
+      {required this.name,
+      required this.categoryId,
+      required this.subCategoryId});
 }
 
 // --- Providers & Indexes ---
-final categoriesProvider = Provider<List<Category>>((ref) => []); // Fill with your data
+final categoriesProvider =
+    Provider<List<Category>>((ref) => []); // Fill with your data
 final itemsProvider = Provider<List<Item>>((ref) => []); // Fill with your data
 
 final byCategoryProvider = Provider<Map<String, List<Item>>>((ref) {
@@ -65,7 +69,8 @@ final filteredItemsProvider = Provider<List<Item>>((ref) {
     items = byCategory[catId]!;
   }
   if (query.isNotEmpty) {
-    items = items.where((item) => item.name.toLowerCase().contains(query)).toList();
+    items =
+        items.where((item) => item.name.toLowerCase().contains(query)).toList();
   }
   return items;
 });
@@ -111,10 +116,12 @@ class _CategorySearchPageState extends ConsumerState<CategorySearchPage> {
               value: selectedCategory,
               hint: const Text('Select Category'),
               isExpanded: true,
-              items: categories.map((cat) => DropdownMenuItem(
-                value: cat.id,
-                child: Text(cat.name),
-              )).toList(),
+              items: categories
+                  .map((cat) => DropdownMenuItem(
+                        value: cat.id,
+                        child: Text(cat.name),
+                      ))
+                  .toList(),
               onChanged: (catId) {
                 ref.read(selectedCategoryProvider.notifier).state = catId;
                 ref.read(selectedSubCategoryProvider.notifier).state = null;
@@ -128,12 +135,13 @@ class _CategorySearchPageState extends ConsumerState<CategorySearchPage> {
                 hint: const Text('Select Subcategory'),
                 isExpanded: true,
                 items: categories
-                  .firstWhere((cat) => cat.id == selectedCategory)
-                  .subCategories
-                  .map((sub) => DropdownMenuItem(
-                    value: sub.id,
-                    child: Text(sub.name),
-                  )).toList(),
+                    .firstWhere((cat) => cat.id == selectedCategory)
+                    .subCategories
+                    .map((sub) => DropdownMenuItem(
+                          value: sub.id,
+                          child: Text(sub.name),
+                        ))
+                    .toList(),
                 onChanged: (subId) {
                   ref.read(selectedSubCategoryProvider.notifier).state = subId;
                 },
@@ -159,7 +167,8 @@ class _CategorySearchPageState extends ConsumerState<CategorySearchPage> {
                         final item = filteredItems[idx];
                         return ListTile(
                           title: Text(item.name),
-                          subtitle: Text('Category: ${item.categoryId}, Sub: ${item.subCategoryId}'),
+                          subtitle: Text(
+                              'Category: ${item.categoryId}, Sub: ${item.subCategoryId}'),
                         );
                       },
                     ),

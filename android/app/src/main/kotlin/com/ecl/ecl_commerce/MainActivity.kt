@@ -1,4 +1,4 @@
-package com.example.eclapp
+package com.ecl.ecl_commerce
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -28,9 +28,9 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        
+
         println("🔧 Android: MainActivity configureFlutterEngine called")
-        
+
         // Set up notification channel
         println("🔧 Android: Setting up notification method channel...")
         val binaryMessenger = flutterEngine.dartExecutor.binaryMessenger
@@ -52,7 +52,7 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
                     val title = call.argument<String>("title") ?: ""
                     val body = call.argument<String>("body") ?: ""
                     val payload = call.argument<String>("payload")
-                    
+
                     println("🔧 Android: Showing notification - ID: $id, Title: $title, Body: $body")
                     showNotification(id, title, body, payload)
                     result.success(null)
@@ -85,7 +85,7 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
             }
         }
         println("🔧 Android: Notification method channel setup complete")
-        
+
         val expressPayChannel = MethodChannel(binaryMessenger, CHANNEL)
         expressPayChannel.setMethodCallHandler { call, result ->
             if (call.method == "startExpressPay") {
@@ -166,21 +166,21 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
     override fun onExpressPayPaymentFinished(paymentCompleted: Boolean, errorMessage: String?) {
         handlePaymentResult(paymentCompleted, errorMessage)
     }
-    
+
     // Handle when app is opened from notification
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         println("🔧 Android: onNewIntent called")
-        
+
         val payload = intent.getStringExtra("notification_payload")
         val action = intent.action
-        
+
         println("🔧 Android: Intent action: $action")
         println("🔧 Android: Received notification payload: $payload")
-        
+
         if (payload != null) {
             notificationPayload = payload
-            
+
             // Immediately send the payload to Flutter with action
             try {
                 val binaryMessenger = flutterEngine?.dartExecutor?.binaryMessenger
@@ -201,7 +201,7 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
             }
         }
     }
-    
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -217,15 +217,15 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
             notificationManager.createNotificationChannel(channel)
         }
     }
-    
+
     private fun showNotification(id: Int, title: String, body: String, payload: String?) {
         createNotificationChannel()
-        
+
         // Create optimized intent for faster app launch
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("notification_payload", payload)
-            
+
             // Add specific action for faster routing
             if (payload != null && payload.contains("order_placed")) {
                 action = "OPEN_ORDER_TRACKING"
@@ -258,11 +258,11 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(id, notification)
     }
-    
+
     private fun requestNotificationPermissions(result: MethodChannel.Result) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             // Android 13+ requires explicit notification permission request
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                 == PackageManager.PERMISSION_GRANTED) {
                 println("🔧 Android: Notification permission already granted")
                 result.success(mapOf("granted" to true, "message" to "Permission already granted"))
@@ -270,8 +270,8 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
                 println("🔧 Android: Requesting notification permission")
                 notificationPermissionResult = result
                 ActivityCompat.requestPermissions(
-                    this, 
-                    arrayOf(Manifest.permission.POST_NOTIFICATIONS), 
+                    this,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
                     NOTIFICATION_PERMISSION_REQUEST_CODE
                 )
             }
@@ -281,18 +281,18 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
             result.success(mapOf("granted" to true, "message" to "Permission not required for this Android version"))
         }
     }
-    
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        
+
         if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE) {
             val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
             println("🔧 Android: Notification permission result: $granted")
-            
+
             notificationPermissionResult?.success(mapOf(
                 "granted" to granted,
                 "message" to if (granted) "Permission granted" else "Permission denied"

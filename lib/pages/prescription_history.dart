@@ -349,9 +349,10 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF6F8FC),
       body: Column(
         children: [
-          // Enhanced header with better design (matching notifications)
+          // Modern page header
           Container(
             padding:
                 EdgeInsets.only(top: MediaQuery.of(context).padding.top * 0.5),
@@ -377,7 +378,7 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
             child: SafeArea(
               child: Padding(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
                 child: Row(
                   children: [
                     AppBackButton(
@@ -392,17 +393,17 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                           Text(
                             'Uploaded Prescriptions',
                             style: GoogleFonts.poppins(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 21,
+                              fontWeight: FontWeight.w700,
                               color: Colors.white,
-                              letterSpacing: 0.5,
+                              letterSpacing: 0.3,
                             ),
                           ),
-                          const SizedBox(height: 1),
+                          const SizedBox(height: 3),
                           Text(
                             'View your prescription history',
                             style: GoogleFonts.poppins(
-                              fontSize: 14,
+                              fontSize: 13,
                               color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
@@ -441,34 +442,50 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   Widget _buildEmptyState() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.medical_services_outlined,
-              size: 100,
-              color: Colors.green[200],
-            ),
-            const SizedBox(height: 30),
-            Text(
-              'No Prescriptions Yet',
-              style: TextStyle(
-                fontSize: 24,
-                color: Colors.green[700],
-                fontWeight: FontWeight.bold,
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFECFDF3),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  Icons.medical_services_outlined,
+                  size: 42,
+                  color: Colors.green.shade700,
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'You haven\'t uploaded any prescriptions yet.',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
+              const SizedBox(height: 16),
+              Text(
+                'No Prescriptions Yet',
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  color: const Color(0xFF0F172A),
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                'You haven\'t uploaded any prescriptions yet.',
+                style: GoogleFonts.poppins(
+                  fontSize: 13.5,
+                  color: const Color(0xFF64748B),
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -477,134 +494,177 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   Widget _buildPrescriptionsList() {
     return RefreshIndicator(
       onRefresh: _refreshPrescriptions,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final crossAxisCount = constraints.maxWidth > 600
-              ? 3
-              : constraints.maxWidth > 400
-                  ? 2
-                  : 1;
-          return GridView.builder(
-            controller: _scrollController,
-            padding: const EdgeInsets.all(16),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 0.85,
+      child: ListView.separated(
+        controller: _scrollController,
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 20),
+        itemCount: _prescriptions.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final prescription = _prescriptions[index];
+          final status = (prescription['status'] ?? 'pending').toString();
+          final uploadDate =
+              (prescription['created_at'] ?? prescription['date'] ?? '')
+                  .toString();
+          final pharmacistNote = _extractPharmacistNote(prescription);
+          final hasPharmacistNote = pharmacistNote.isNotEmpty;
+          final imageUrl = prescription['file']?.toString();
+
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            itemCount: _prescriptions.length,
-            itemBuilder: (context, index) {
-              final prescription = _prescriptions[index];
-              final status = (prescription['status'] ?? 'pending').toString();
-              final uploadDate =
-                  prescription['created_at'] ?? prescription['date'] ?? '';
-              return Material(
-                color: Colors.white,
-                elevation: 2,
-                borderRadius: BorderRadius.circular(16),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () {
-                    if (prescription['file'] != null) {
-                      _showPrescriptionImage(prescription['file']);
-                    }
-                  },
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(16)),
-                          child: prescription['file'] != null
-                              ? CachedNetworkImage(
-                                  imageUrl: prescription['file'],
-                                  fit: BoxFit.cover,
-                                  memCacheWidth: 300,
-                                  memCacheHeight: 300,
-                                  maxWidthDiskCache: 400,
-                                  maxHeightDiskCache: 400,
-                                  placeholder: (context, url) => Container(
-                                    color: Colors.grey[200],
-                                    child: const Center(
-                                      child: Icon(Icons.image,
-                                          color: Colors.grey, size: 32),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: imageUrl != null ? () => _showPrescriptionImage(imageUrl) : null,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 88,
+                          height: 88,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: imageUrl != null
+                                ? CachedNetworkImage(
+                                    imageUrl: imageUrl,
+                                    fit: BoxFit.cover,
+                                    memCacheWidth: 180,
+                                    memCacheHeight: 180,
+                                    placeholder: (_, __) => const Icon(
+                                      Icons.image_outlined,
+                                      color: Color(0xFF94A3B8),
                                     ),
-                                  ),
-                                  errorWidget: (context, url, error) => Icon(
+                                    errorWidget: (_, __, ___) => Icon(
+                                      Icons.medical_services_outlined,
+                                      color: Colors.green.shade700,
+                                    ),
+                                  )
+                                : Icon(
                                     Icons.medical_services_outlined,
-                                    size: 40,
                                     color: Colors.green.shade700,
                                   ),
-                                )
-                              : Container(
-                                  color: Colors.grey[100],
-                                  child: Icon(
-                                    Icons.medical_services_outlined,
-                                    size: 40,
-                                    color: Colors.green.shade700,
-                                  ),
-                                ),
+                          ),
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  'ID: ${prescription['id']}',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Prescription #${prescription['id']}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF0F172A),
                                 ),
-                                const Spacer(),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: _getStatusColor(status)
-                                        .withOpacity(0.12),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    status[0].toUpperCase() +
-                                        status.substring(1),
-                                    style: TextStyle(
-                                      color: _getStatusColor(status),
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (uploadDate.isNotEmpty) ...[
-                              const SizedBox(height: 6),
+                              ),
+                              const SizedBox(height: 4),
                               Row(
                                 children: [
-                                  Icon(Icons.calendar_today,
-                                      size: 13, color: Colors.grey),
+                                  const Icon(
+                                    Icons.calendar_today,
+                                    size: 12,
+                                    color: Color(0xFF94A3B8),
+                                  ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    uploadDate.toString().split('T').first,
-                                    style: const TextStyle(
-                                        fontSize: 12, color: Colors.grey),
+                                    uploadDate.isNotEmpty
+                                        ? uploadDate.split('T').first
+                                        : 'No date',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 11.5,
+                                      color: const Color(0xFF64748B),
+                                    ),
                                   ),
                                 ],
                               ),
                             ],
-                          ],
+                          ),
                         ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color:
+                                _getStatusColor(status).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            status[0].toUpperCase() + status.substring(1),
+                            style: TextStyle(
+                              color: _getStatusColor(status),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 11.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
                       ),
-                    ],
-                  ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(
+                                Icons.medical_information_outlined,
+                                size: 14,
+                                color: Color(0xFF475569),
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                'Pharmacist note',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF334155),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            hasPharmacistNote
+                                ? pharmacistNote
+                                : 'No pharmacist note yet.',
+                            maxLines: 4,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: hasPharmacistNote
+                                  ? const Color(0xFF0F172A)
+                                  : const Color(0xFF64748B),
+                              height: 1.35,
+                              fontStyle: hasPharmacistNote
+                                  ? FontStyle.normal
+                                  : FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              );
-            },
+              ),
+            ),
           );
         },
       ),
@@ -622,6 +682,47 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
       default:
         return Colors.grey;
     }
+  }
+
+  String _extractPharmacistNote(Map<String, dynamic> prescription) {
+    const possibleKeys = [
+      'pharmacist_note',
+      'pharmacist_notes',
+      'pharmacist_comment',
+      'review_note',
+      'admin_note',
+      'note',
+      'notes',
+      'comment',
+    ];
+
+    String? readFromMap(Map<String, dynamic> map) {
+      for (final key in possibleKeys) {
+        final value = map[key];
+        if (value != null && value is! Map && value is! List) {
+          final text = value.toString().trim();
+          if (text.isNotEmpty) return text;
+        }
+      }
+
+      for (final entry in map.entries) {
+        final value = entry.value;
+        if (value is Map<String, dynamic>) {
+          final nested = readFromMap(value);
+          if (nested != null && nested.isNotEmpty) return nested;
+        } else if (value is List) {
+          for (final item in value) {
+            if (item is Map<String, dynamic>) {
+              final nested = readFromMap(item);
+              if (nested != null && nested.isNotEmpty) return nested;
+            }
+          }
+        }
+      }
+      return null;
+    }
+
+    return readFromMap(prescription) ?? '';
   }
 
   // Preload images for better performance

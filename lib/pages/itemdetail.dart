@@ -2154,10 +2154,57 @@ class ProductDescription extends StatefulWidget {
 class _ProductDescriptionState extends State<ProductDescription> {
   bool _expanded = false;
   final double _collapsedHeight = 160; // Approximate height for 8 lines
+  final HtmlEscape _htmlEscape = const HtmlEscape();
+
+  String _normalizeDescriptionToHtml(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return '';
+
+    // If backend already returns HTML, keep it.
+    final hasHtmlTag = RegExp(r'<[a-zA-Z][^>]*>').hasMatch(trimmed);
+    if (hasHtmlTag) return trimmed;
+
+    final lines = trimmed
+        .split(RegExp(r'\r?\n'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+
+    if (lines.isEmpty) {
+      return '<p>${_htmlEscape.convert(trimmed)}</p>';
+    }
+
+    final buffer = StringBuffer();
+    bool inList = false;
+
+    for (final line in lines) {
+      final bulletMatch = RegExp(r'^(\-|\*|•)\s+').firstMatch(line);
+      if (bulletMatch != null) {
+        if (!inList) {
+          buffer.writeln('<ul>');
+          inList = true;
+        }
+        final cleanLine = line.replaceFirst(RegExp(r'^(\-|\*|•)\s+'), '');
+        buffer.writeln('<li>${_htmlEscape.convert(cleanLine)}</li>');
+      } else {
+        if (inList) {
+          buffer.writeln('</ul>');
+          inList = false;
+        }
+        buffer.writeln('<p>${_htmlEscape.convert(line)}</p>');
+      }
+    }
+
+    if (inList) {
+      buffer.writeln('</ul>');
+    }
+
+    return buffer.toString();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final description = widget.description.trim();
+    final description = _normalizeDescriptionToHtml(widget.description);
     if (description.isEmpty) {
       return const Text(
         'No description available.',
@@ -2178,20 +2225,25 @@ class _ProductDescriptionState extends State<ProductDescription> {
           style: {
             "body": Style(
               fontSize: FontSize(14),
-              color: Colors.black87,
-              lineHeight: LineHeight(1.5),
+              color: const Color(0xFF1F2937),
+              lineHeight: LineHeight.number(1.6),
               margin: Margins.zero,
               padding: HtmlPaddings.zero,
             ),
+            "h1, h2, h3, h4": Style(
+              color: Colors.green.shade800,
+              fontWeight: FontWeight.w700,
+              margin: Margins.only(top: 8, bottom: 8),
+            ),
             "ul": Style(
-              padding: HtmlPaddings.only(left: 18),
-              margin: Margins.only(top: 0, bottom: 8),
+              padding: HtmlPaddings.only(left: 20),
+              margin: Margins.only(top: 0, bottom: 10),
             ),
             "li": Style(
               fontSize: FontSize(14),
-              color: Colors.black87,
-              lineHeight: LineHeight(1.5),
-              margin: Margins.only(bottom: 4),
+              color: const Color(0xFF1F2937),
+              lineHeight: LineHeight.number(1.55),
+              margin: Margins.only(bottom: 6),
             ),
             "strong": Style(
               fontWeight: FontWeight.bold,
@@ -2203,7 +2255,7 @@ class _ProductDescriptionState extends State<ProductDescription> {
                   top: BorderSide(color: Colors.grey.shade300, width: 1)),
             ),
             "p": Style(
-              margin: Margins.only(bottom: 8),
+              margin: Margins.only(bottom: 10),
             ),
           },
         );
