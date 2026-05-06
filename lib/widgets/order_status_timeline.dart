@@ -26,6 +26,10 @@ class OrderStatusTimeline extends StatelessWidget {
         return 'Your order is on its way.';
       case 'delivered':
         return 'Your order has been delivered!';
+      case 'readyForPickup':
+        return 'Your order is ready to be pickup.';
+      case 'pickedUp':
+        return 'Your order has been picked up!';
       default:
         return 'In progress';
     }
@@ -44,6 +48,10 @@ class OrderStatusTimeline extends StatelessWidget {
       case 'outForDelivery':
         return Icons.delivery_dining_rounded;
       case 'delivered':
+        return Icons.check_circle_rounded;
+      case 'readyForPickup':
+        return Icons.storefront_rounded;
+      case 'pickedUp':
         return Icons.check_circle_rounded;
       default:
         return Icons.circle;
@@ -68,8 +76,8 @@ class OrderStatusTimeline extends StatelessWidget {
             Column(
               children: [
                 Container(
-                  width: 32,
-                  height: 32,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
                     color: isPending
                         ? Colors.grey.shade100
@@ -80,30 +88,30 @@ class OrderStatusTimeline extends StatelessWidget {
                   ),
                   child: Icon(
                     _iconForStep(step.id),
-                    size: 16,
+                    size: 14,
                     color: isPending ? Colors.grey.shade400 : color,
                   ),
                 ),
                 if (index < steps.length - 1)
                   Container(
                     width: 2,
-                    height: 36,
-                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    height: 28,
+                    margin: const EdgeInsets.symmetric(vertical: 3),
                     color: isDone ? color : Colors.grey.shade200,
                   ),
               ],
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.only(top: 4, bottom: 8),
+                padding: const EdgeInsets.only(top: 2, bottom: 5),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       step.title,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.2,
                         color: isPending
@@ -117,15 +125,15 @@ class OrderStatusTimeline extends StatelessWidget {
                     Text(
                       _messageForStep(step.id),
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         color: isPending
                             ? Colors.grey.shade400
                             : Colors.grey.shade600,
-                        height: 1.35,
+                        height: 1.2,
                         letterSpacing: 0.1,
                       ),
                       overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
+                      maxLines: 1,
                     ),
                   ],
                 ),

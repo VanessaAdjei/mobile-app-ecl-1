@@ -296,6 +296,10 @@ class PaymentPageState extends State<PaymentPage> {
         'redirect_url': ApiConfig.paymentRedirectUrl,
         'shipping_type': widget.deliveryOption,
         'order_urgent': widget.isOrderUrgent,
+        if (widget.lat != null) 'lat': widget.lat,
+        if (widget.lng != null) 'lng': widget.lng,
+        if (widget.lat != null) 'latitude': widget.lat,
+        if (widget.lng != null) 'longitude': widget.lng,
       };
 
       // Only include selected items in purchased items

@@ -2303,7 +2303,6 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   final ScrollController scrollController = ScrollController();
   final ScrollController _sideNavScrollController = ScrollController();
   bool showScrollToTop = false;
-  String sortOption = 'Latest';
   int? highlightedProductId;
   Timer? highlightTimer;
   bool isSidebarVisible = true;
@@ -2832,16 +2831,6 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                                   fontWeight: FontWeight.w700,
                                 ),
                           ),
-                          const SizedBox(height: 1),
-                          Text(
-                            'Select a subcategory to browse products',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                ),
-                          ),
                         ],
                       ),
                     ),
@@ -2915,87 +2904,20 @@ class SubcategoryPageState extends State<SubcategoryPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Sidebar + grid both visible; balanced widths so everything fits
-        bool isTablet = constraints.maxWidth > 600;
-        double sideNavWidth = isTablet ? 220 : constraints.maxWidth * 0.30;
-        double minWidth = 160.0;
-        double maxWidth = constraints.maxWidth * 0.40;
-        if (minWidth > maxWidth) minWidth = maxWidth * 0.85;
-        sideNavWidth = sideNavWidth.clamp(minWidth, maxWidth);
+        final isTablet = constraints.maxWidth > 700;
+        final sideNavWidth = isTablet ? 210.0 : 128.0;
 
-        // Only force hide sidebar if screen is extremely narrow
-        bool isScreenTooNarrow = constraints.maxWidth < 250;
-        if (isScreenTooNarrow && isSidebarVisible) {
-          isSidebarVisible = false;
-        }
-
-        return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 280),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeInCubic,
+        return Container(
+          color: const Color(0xFFF6F8FA),
           child: Row(
-            key: ValueKey('subcat_layout_${isSidebarVisible ? 'open' : 'closed'}'),
-          children: [
-            // Sidebar - only render when visible
-            if (isSidebarVisible)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeOutCubic,
+            children: [
+              SizedBox(
                 width: sideNavWidth,
                 child: buildSideNavigation(),
               ),
-            // Toggle button when sidebar is hidden
-            if (!isSidebarVisible)
-              Container(
-                margin: EdgeInsets.only(left: 16, top: 16),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.green.shade600, Colors.green.shade800],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.green.withValues(alpha: 0.4),
-                        blurRadius: 12,
-                        offset: Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: () {
-                        setState(() {
-                          isSidebarVisible = true;
-                        });
-                      },
-                      child: Container(
-                        padding: EdgeInsets.all(12),
-                        child: Icon(
-                          Icons.grid_view_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            // Main content
-            Expanded(
-              child: AnimatedSlide(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                offset: isSidebarVisible ? Offset.zero : const Offset(0.015, 0),
-                child: Container(
-                color: const Color(0xFFF6F8FA),
+              Expanded(
                 child: Column(
                   children: [
-                    // Sticky subcategory header
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -3003,19 +2925,19 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.05),
                             blurRadius: 4,
-                            offset: Offset(0, 2),
+                            offset: const Offset(0, 2),
                           ),
                         ],
                       ),
                       child: subcategories.isNotEmpty
                           ? buildSubcategoryHeader()
                           : Container(
-                              padding: EdgeInsets.all(8),
+                              padding: const EdgeInsets.all(8),
                               child: Row(
                                 children: [
                                   Icon(Icons.category_outlined,
                                       size: 18, color: Colors.grey.shade600),
-                                  SizedBox(width: 8),
+                                  const SizedBox(width: 8),
                                   Text(
                                     'Categories',
                                     style: TextStyle(
@@ -3028,15 +2950,12 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                               ),
                             ),
                     ),
-                    // Products content
                     Expanded(child: _buildProductsContent()),
                   ],
                 ),
-                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         );
       },
     );
@@ -3235,7 +3154,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
             : {'name': 'All Products', 'id': null};
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border(
@@ -3245,18 +3164,18 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(8),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: const Color(0xFFE8F5E9),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(
+            child: const Icon(
               Icons.category_outlined,
-              color: const Color(0xFF2E7D32),
+              color: Color(0xFF2E7D32),
               size: 18,
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -3266,19 +3185,19 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                   selectedSubcategoryId != null
                       ? (selectedSubcategory['name'] ?? 'All Products')
                       : 'All Products',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 15.5,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF1F2937),
+                    color: Color(0xFF1F2937),
                     height: 1.2,
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
                   '${products.length} products available',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 12,
-                    color: const Color(0xFF64748B),
+                    color: Color(0xFF64748B),
                     height: 1.2,
                   ),
                 ),
@@ -3331,26 +3250,34 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   Widget buildProductsGrid() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Aspect ratio so sidebar + grid both fit; cards readable, not squeezed
-        double childAspectRatio = 0.56;
+        // Balanced size: readable cards without feeling oversized.
+        double childAspectRatio = 0.58;
         bool isTablet = MediaQuery.of(context).size.width > 600;
 
         if (isTablet) {
-          childAspectRatio = 0.85;
-        } else if (!isSidebarVisible) {
-          childAspectRatio = 0.62;
+          childAspectRatio = 0.68;
         } else {
-          childAspectRatio = 0.56;
+          childAspectRatio = 0.58;
         }
+
+        // Keep 2 per row while preserving roomy cards.
+        final crossAxisCount = 2;
+        final horizontalPadding = isTablet ? 14.0 : 10.0;
+        final spacing = isTablet ? 14.0 : 8.0;
 
         return GridView.builder(
           controller: scrollController,
-          padding: EdgeInsets.fromLTRB(12, 12, 12, 18),
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            14,
+            horizontalPadding,
+            24,
+          ),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: isTablet ? 3 : 2,
+            crossAxisCount: crossAxisCount,
             childAspectRatio: childAspectRatio,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
           ),
           itemCount: products.length,
           itemBuilder: (context, index) {
@@ -3632,8 +3559,8 @@ class _ProductCardState extends State<ProductCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AspectRatio(
-              aspectRatio: 1.1,
+            Expanded(
+              flex: 5,
               child: Stack(
                 children: [
                   Container(
@@ -3704,66 +3631,71 @@ class _ProductCardState extends State<ProductCard> {
               ),
             ),
             // Product Info
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if ((productData['brand_name'] ?? '').toString().isNotEmpty)
-                    Text(
-                      productData['brand_name'].toString(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF64748B),
+            Expanded(
+              flex: 5,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if ((productData['brand_name'] ?? '').toString().isNotEmpty)
+                      Text(
+                        productData['brand_name'].toString(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                    if ((productData['brand_name'] ?? '').toString().isNotEmpty)
+                      const SizedBox(height: 2),
+                    Expanded(
+                      child: Text(
+                        productName,
+                        maxLines: 4,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          color: Color(0xFF1F2937),
+                          height: 1.22,
+                        ),
                       ),
                     ),
-                  if ((productData['brand_name'] ?? '').toString().isNotEmpty)
-                    const SizedBox(height: 3),
-                  Text(
-                    productName,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11.5,
-                      color: Color(0xFF1F2937),
-                      height: 1.25,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          priceLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF16A34A),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            priceLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF16A34A),
+                            ),
                           ),
                         ),
-                      ),
-                      Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE8F5E9),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 14,
-                          color: Color(0xFF166534),
-                        ),
-                      )
-                    ],
-                  ),
-                ],
+                        Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F5E9),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 14,
+                            color: Color(0xFF166534),
+                          ),
+                        )
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

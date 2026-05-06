@@ -537,6 +537,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 secondaryHeaderColor: Colors.green.shade400,
                 scaffoldBackgroundColor: Color(0xFFF8F9FA),
                 cardColor: Colors.white,
+                snackBarTheme: const SnackBarThemeData(
+                  behavior: SnackBarBehavior.floating,
+                  dismissDirection: DismissDirection.down,
+                  showCloseIcon: true,
+                ),
                 appBarTheme: AppBarTheme(
                   backgroundColor: Colors.green.shade700,
                   elevation: 2,
@@ -602,6 +607,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 secondaryHeaderColor: Colors.green.shade200,
                 scaffoldBackgroundColor: Colors.grey.shade900,
                 cardColor: Colors.grey.shade800,
+                snackBarTheme: const SnackBarThemeData(
+                  behavior: SnackBarBehavior.floating,
+                  dismissDirection: DismissDirection.down,
+                  showCloseIcon: true,
+                ),
                 appBarTheme: AppBarTheme(
                   backgroundColor: Colors.green.shade400,
                   elevation: 2,

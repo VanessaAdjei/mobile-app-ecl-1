@@ -610,8 +610,10 @@ class NotificationsScreenState extends State<NotificationsScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Notification deleted'),
+        content: const Text('Notification deleted • Swipe down to dismiss'),
         behavior: SnackBarBehavior.floating,
+        dismissDirection: DismissDirection.down,
+        showCloseIcon: true,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
@@ -638,8 +640,13 @@ class NotificationsScreenState extends State<NotificationsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('No order information found in this notification'),
+            content: const Text(
+                'No order information found in this notification • Swipe down to dismiss'),
             backgroundColor: Colors.orange,
+            dismissDirection: DismissDirection.down,
+            showCloseIcon: true,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -763,11 +770,12 @@ class NotificationsScreenState extends State<NotificationsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error navigating to tracking page: $e'),
-            duration: const Duration(seconds: 3),
+            content:
+                Text('Error navigating to tracking page: $e • Swipe down to dismiss'),
+            duration: const Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.only(
-                bottom: MediaQuery.of(context).size.height - 100),
+            dismissDirection: DismissDirection.down,
+            showCloseIcon: true,
           ),
         );
       }

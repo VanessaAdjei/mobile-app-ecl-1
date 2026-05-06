@@ -66,22 +66,47 @@ class _NotificationPermissionPageState extends State<NotificationPermissionPage>
           // Show success message and navigate back
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Row(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Notifications enabled successfully! 🎉',
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w500,
+                  Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: Colors.white),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Notifications enabled successfully! 🎉',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.swipe_down_alt_rounded,
+                          color: Colors.white.withValues(alpha: 0.8), size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Swipe down to dismiss',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
               backgroundColor: Colors.green[600],
               behavior: SnackBarBehavior.floating,
+              dismissDirection: DismissDirection.down,
+              showCloseIcon: true,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -94,22 +119,47 @@ class _NotificationPermissionPageState extends State<NotificationPermissionPage>
           // Show error message
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Row(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.error_outline, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      result['message'] ?? 'Permission denied',
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w500,
+                  Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.white),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          result['message'] ?? 'Permission denied',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.swipe_down_alt_rounded,
+                          color: Colors.white.withValues(alpha: 0.8), size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Swipe down to dismiss',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
               backgroundColor: Colors.red[600],
               behavior: SnackBarBehavior.floating,
+              dismissDirection: DismissDirection.down,
+              showCloseIcon: true,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -122,8 +172,38 @@ class _NotificationPermissionPageState extends State<NotificationPermissionPage>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $e'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Error: $e'),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.swipe_down_alt_rounded,
+                        color: Colors.white.withValues(alpha: 0.8), size: 14),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Swipe down to dismiss',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
             backgroundColor: Colors.red[600],
+            behavior: SnackBarBehavior.floating,
+            dismissDirection: DismissDirection.down,
+            showCloseIcon: true,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            margin: const EdgeInsets.all(16),
           ),
         );
       }

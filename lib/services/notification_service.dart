@@ -105,16 +105,16 @@ class NotificationService {
                         color: Colors.white.withValues(alpha: 0.9),
                       ),
                     ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Swipe down to dismiss',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.85),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              IconButton(
-                onPressed: () {
-                  _messengerKey.currentState?.hideCurrentSnackBar();
-                },
-                icon: Icon(Icons.close, color: Colors.white, size: 18),
-                padding: EdgeInsets.zero,
-                constraints: BoxConstraints(minWidth: 32, minHeight: 32),
               ),
             ],
           ),
@@ -125,6 +125,8 @@ class NotificationService {
         duration: duration,
         margin: EdgeInsets.only(top: 16, left: 16, right: 16),
         elevation: 8,
+        dismissDirection: DismissDirection.down,
+        showCloseIcon: true,
       ),
     );
   }
@@ -260,16 +262,16 @@ class NotificationService {
                         color: Colors.white.withValues(alpha: 0.9),
                       ),
                     ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Swipe down to dismiss',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.85),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              IconButton(
-                onPressed: () {
-                  _messengerKey.currentState?.hideCurrentSnackBar();
-                },
-                icon: Icon(Icons.close, color: Colors.white, size: 18),
-                padding: EdgeInsets.zero,
-                constraints: BoxConstraints(minWidth: 32, minHeight: 32),
               ),
             ],
           ),
@@ -280,6 +282,8 @@ class NotificationService {
         duration: duration,
         margin: EdgeInsets.all(16),
         elevation: 8,
+        dismissDirection: DismissDirection.down,
+        showCloseIcon: true,
       ),
     );
   }
@@ -339,16 +343,16 @@ class NotificationService {
                         color: Colors.white.withValues(alpha: 0.9),
                       ),
                     ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Swipe down to dismiss',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.85),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              IconButton(
-                onPressed: () {
-                  _messengerKey.currentState?.hideCurrentSnackBar();
-                },
-                icon: Icon(Icons.close, color: Colors.white, size: 18),
-                padding: EdgeInsets.zero,
-                constraints: BoxConstraints(minWidth: 32, minHeight: 32),
               ),
             ],
           ),
@@ -359,6 +363,8 @@ class NotificationService {
         duration: duration,
         margin: EdgeInsets.all(16),
         elevation: 8,
+        dismissDirection: DismissDirection.down,
+        showCloseIcon: true,
       ),
     );
   }

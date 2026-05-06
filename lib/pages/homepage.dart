@@ -463,9 +463,42 @@ class HomePageState extends State<HomePage>
   bool _hasBeenLoaded = false;
   bool _isLoadingContent = false;
   Future<void>? _bootstrapFuture;
+  bool _isRoutePushInProgress = false;
 
   @override
   bool get wantKeepAlive => true;
+
+  /// Prevent duplicate route pushes when users tap repeatedly.
+  Future<T?> _pushOnce<T>(Route<T> route) async {
+    if (!mounted || _isRoutePushInProgress) return null;
+    _isRoutePushInProgress = true;
+    try {
+      return await Navigator.push<T>(context, route);
+    } finally {
+      if (mounted) {
+        await Future.delayed(const Duration(milliseconds: 250));
+        _isRoutePushInProgress = false;
+      }
+    }
+  }
+
+  Future<T?> _pushNamedOnce<T extends Object?>(String routeName,
+      {Object? arguments}) async {
+    if (!mounted || _isRoutePushInProgress) return null;
+    _isRoutePushInProgress = true;
+    try {
+      return await Navigator.pushNamed<T>(
+        context,
+        routeName,
+        arguments: arguments,
+      );
+    } finally {
+      if (mounted) {
+        await Future.delayed(const Duration(milliseconds: 250));
+        _isRoutePushInProgress = false;
+      }
+    }
+  }
 
   // ─── Init ─────────────────────────────────────────────────────────────────
   @override
@@ -967,8 +1000,7 @@ class HomePageState extends State<HomePage>
   Future<bool> requireAuth(BuildContext context) async {
     if (await AuthService.isLoggedIn()) return true;
     if (!context.mounted) return false;
-    final result = await Navigator.push<bool>(
-      context,
+    final result = await _pushOnce<bool>(
       MaterialPageRoute(
         builder: (context) =>
             SignInScreen(returnTo: ModalRoute.of(context)?.settings.name),
@@ -1150,35 +1182,16 @@ class HomePageState extends State<HomePage>
   // ─── Snackbar ──────────────────────────────────────────────────────────────
   void showTopSnackBar(BuildContext context, String message,
       {Duration? duration}) {
-    final overlay = Overlay.of(context);
-    late final OverlayEntry entry;
-    entry = OverlayEntry(
-      builder: (context) => Positioned(
-        top: MediaQuery.of(context).padding.top + 50,
-        left: 20,
-        right: 20,
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-                color: Colors.green[900],
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2))
-                ]),
-            child: Text(message,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-                textAlign: TextAlign.center),
-          ),
-        ),
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('$message • Swipe down to dismiss'),
+        duration: duration ?? const Duration(seconds: 2),
+        dismissDirection: DismissDirection.down,
+        showCloseIcon: true,
       ),
     );
-    overlay.insert(entry);
-    Future.delayed(duration ?? const Duration(seconds: 2), entry.remove);
   }
 
   // ─── Contact bottom sheet ──────────────────────────────────────────────────
@@ -1709,8 +1722,7 @@ class HomePageState extends State<HomePage>
               controller: _searchController,
               onSubmitted: (value) {
                 if (value.trim().isNotEmpty) {
-                  Navigator.push(
-                    context,
+                  _pushOnce(
                     MaterialPageRoute(
                         builder: (context) => SearchResultsPage(
                             query: value.trim(), products: _products)),
@@ -1818,16 +1830,14 @@ class HomePageState extends State<HomePage>
                               p.name == suggestion.name,
                           orElse: () => suggestion);
                       if (suggestion.name == '__VIEW_MORE__') {
-                        Navigator.push(
-                          context,
+                        _pushOnce(
                           MaterialPageRoute(
                               builder: (context) => SearchResultsPage(
                                   query: _searchController.text,
                                   products: _products)),
                         ).then((_) => _clearSearch());
                       } else {
-                        Navigator.push(
-                          context,
+                        _pushOnce(
                           MaterialPageRoute(
                               builder: (context) => ItemPage(
                                   urlName: m.urlName.isNotEmpty
@@ -1897,16 +1907,14 @@ class HomePageState extends State<HomePage>
                     (p) => p.id == suggestion.id || p.name == suggestion.name,
                     orElse: () => suggestion);
                 if (suggestion.name == '__VIEW_MORE__') {
-                  Navigator.push(
-                    context,
+                  _pushOnce(
                     MaterialPageRoute(
                         builder: (context) => SearchResultsPage(
                             query: _searchController.text,
                             products: _products)),
                   ).then((_) => _clearSearch());
                 } else {
-                  Navigator.push(
-                    context,
+                  _pushOnce(
                     MaterialPageRoute(
                         builder: (context) => ItemPage(
                             urlName: m.urlName.isNotEmpty
@@ -1984,8 +1992,7 @@ class HomePageState extends State<HomePage>
             Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: () =>
-                    Navigator.pushNamed(context, AppRoutes.categoryPage),
+                onTap: () => _pushNamedOnce(AppRoutes.categoryPage),
                 borderRadius: BorderRadius.circular(4),
                 child: Padding(
                   padding:
@@ -2049,16 +2056,14 @@ class HomePageState extends State<HomePage>
                   child: InkWell(
                     onTap: () {
                       if (hasSubcategories) {
-                        Navigator.push(
-                          context,
+                        _pushOnce(
                           MaterialPageRoute(
                               builder: (context) => SubcategoryPage(
                                   categoryName: categoryName,
                                   categoryId: category['id'])),
                         );
                       } else {
-                        Navigator.push(
-                          context,
+                        _pushOnce(
                           MaterialPageRoute(
                               builder: (context) => ProductListPage(
                                   categoryName: categoryName,
@@ -2266,8 +2271,7 @@ class HomePageState extends State<HomePage>
                 'prescribed' => List<Product>.from(prescribedProducts),
                 _ => List<Product>.from(products),
               };
-              Navigator.push(
-                context,
+              _pushOnce(
                 MaterialPageRoute(
                     builder: (context) => SectionProductsPage(
                         sectionTitle: title, products: filtered)),

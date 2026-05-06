@@ -21,6 +21,49 @@ class DeliveryService {
   static const double baseDeliveryDistanceKm = 3.0;
   static const double defaultRatePerKm = 3.0; // X: change this if needed
 
+  /// Extract list payload from common API response shapes.
+  static List<dynamic> _extractListPayload(dynamic decodedBody) {
+    if (decodedBody is List) return decodedBody;
+    if (decodedBody is! Map<String, dynamic>) return [];
+
+    final data = decodedBody['data'];
+    if (data is List) return data;
+
+    // Handle nested wrappers: { data: { data: [...] } }
+    if (data is Map<String, dynamic>) {
+      final nested = data['data'];
+      if (nested is List) return nested;
+    }
+
+    // Fallback keys used by some backends.
+    for (final key in const ['regions', 'cities', 'stores', 'results', 'items']) {
+      final value = decodedBody[key];
+      if (value is List) return value;
+    }
+
+    return [];
+  }
+
+  /// Ensure UI-facing records always have a `description` field.
+  static List<Map<String, dynamic>> _normalizeDescriptionField(List<dynamic> items) {
+    return items
+        .whereType<Map>()
+        .map((raw) => Map<String, dynamic>.from(raw))
+        .map((item) {
+          final label = (item['description'] ??
+                  item['name'] ??
+                  item['title'] ??
+                  item['label'] ??
+                  '')
+              .toString();
+          if (item['description'] == null && label.isNotEmpty) {
+            item['description'] = label;
+          }
+          return item;
+        })
+        .toList();
+  }
+
   /// Call /add-xpress-fee API to add express/urgent delivery fee
   static Future<Map<String, dynamic>?> addXpressFee() async {
     try {
@@ -109,7 +152,7 @@ class DeliveryService {
       }
 
       // build the request body with all the info
-      final requestBody = {
+      final Map<String, dynamic> requestBody = {
         'fname': name, // their name
         'email': email, // email address
         'phone': phone, // phone number
@@ -122,6 +165,8 @@ class DeliveryService {
       }
       if (notes != null && notes.isNotEmpty) {
         requestBody['notes'] = notes;
+        // Backend billing address schema expects this field for location hints.
+        requestBody['landmark'] = notes;
       }
 
       // different fields depending on if its delivery or pickup
@@ -133,8 +178,11 @@ class DeliveryService {
 
         // add the map coordinates if we have them
         if (lat != null && lng != null) {
-          requestBody['lat'] = lat.toString();
-          requestBody['lng'] = lng.toString();
+          requestBody['lat'] = lat;
+          requestBody['lng'] = lng;
+          // Backward-compatible aliases used by some backend handlers
+          requestBody['latitude'] = lat;
+          requestBody['longitude'] = lng;
         }
       } else if (deliveryOption == 'pickup') {
         // if theyre picking it up, we need the store info
@@ -162,17 +210,22 @@ class DeliveryService {
         },
       };
 
+      final saveAddressUrl =
+          ApiConfig.getEndpointUrl(ApiConfig.saveBillingAddress);
       final response = await http
           .post(
-            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.saveBillingAddress)),
+            Uri.parse(saveAddressUrl),
             headers: headers,
             body: json.encode(requestBody),
           )
           .timeout(_apiTimeout);
 
-      debugPrint('Save delivery info response status: ${response.statusCode}');
-      debugPrint('Save delivery info response headers: ${response.headers}');
-      debugPrint('Save delivery info response body: ${response.body}');
+      debugPrint('===== SAVE ADDRESS API RESPONSE =====');
+      debugPrint('URL: $saveAddressUrl');
+      debugPrint('STATUS: ${response.statusCode}');
+      debugPrint('HEADERS: ${response.headers}');
+      debugPrint('RAW BODY: ${response.body}');
+      debugPrint('====================================');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
@@ -332,6 +385,7 @@ class DeliveryService {
           'city': billingAddr['city'] ?? '',
           'address': billingAddr['addr_1'] ?? '',
           'notes': billingAddr['notes'] ?? '',
+          'landmark': billingAddr['landmark'] ?? '',
           'pickup_region': billingAddr['pickup_region'] ?? '',
           'pickup_city': billingAddr['pickup_city'] ?? '',
           'pickup_site': billingAddr['pickup_site'] ??
@@ -578,14 +632,16 @@ class DeliveryService {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-      ).timeout(_apiTimeout);
+      ).timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        final normalized =
+            _normalizeDescriptionField(_extractListPayload(data));
 
         return {
           'success': true,
-          'data': data['data'],
+          'data': normalized,
           'message': 'Regions fetched successfully',
         };
       } else {
@@ -640,20 +696,22 @@ class DeliveryService {
         headers: {
           'Accept': 'application/json',
         },
-      ).timeout(const Duration(seconds: 3));
+      ).timeout(const Duration(seconds: 8));
 
       debugPrint('Get cities response status: ${response.statusCode}');
       debugPrint('Get cities response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        final normalized =
+            _normalizeDescriptionField(_extractListPayload(data));
         debugPrint('=== API GET CITIES SUCCESS ===');
         debugPrint('Cities data: ${json.encode(data)}');
         debugPrint('==============================');
 
         return {
           'success': true,
-          'data': data['data'],
+          'data': normalized,
           'message': 'Cities fetched successfully',
         };
       } else {
@@ -687,20 +745,22 @@ class DeliveryService {
         headers: {
           'Accept': 'application/json',
         },
-      ).timeout(const Duration(seconds: 3));
+      ).timeout(const Duration(seconds: 8));
 
       debugPrint('Get stores response status: ${response.statusCode}');
       debugPrint('Get stores response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        final normalized =
+            _normalizeDescriptionField(_extractListPayload(data));
         debugPrint('=== API GET STORES SUCCESS ===');
         debugPrint('Stores data: ${json.encode(data)}');
         debugPrint('==============================');
 
         return {
           'success': true,
-          'data': data['data'],
+          'data': normalized,
           'message': 'Stores fetched successfully',
         };
       } else {

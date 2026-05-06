@@ -15,6 +15,8 @@ class TrackingMap extends StatefulWidget {
     required this.order,
     this.height,
     this.accent,
+    this.shopCoordinates,
+    this.deliveryCoordinates,
     /// Optional shop/store address to geocode. If null, a default location (Accra) is used.
     this.shopAddress,
   });
@@ -22,6 +24,8 @@ class TrackingMap extends StatefulWidget {
   final OrderTrackingModel order;
   final double? height;
   final Color? accent;
+  final LatLng? shopCoordinates;
+  final LatLng? deliveryCoordinates;
   final String? shopAddress;
 
   @override
@@ -71,8 +75,10 @@ class _TrackingMapState extends State<TrackingMap> {
       final locationService = LocationService();
 
       // Resolve shop position: geocode if provided, else use default
-      LatLng shop = _defaultCenter;
-      if (shopAddress != null && shopAddress.trim().isNotEmpty) {
+      LatLng shop = widget.shopCoordinates ?? _defaultCenter;
+      if (widget.shopCoordinates == null &&
+          shopAddress != null &&
+          shopAddress.trim().isNotEmpty) {
         final coords = await locationService.getCoordinatesFromAddress(shopAddress.trim());
         if (coords != null) {
           shop = LatLng(coords['lat']!, coords['lon']!);
@@ -80,8 +86,8 @@ class _TrackingMapState extends State<TrackingMap> {
       }
 
       // Resolve delivery position
-      LatLng delivery = _defaultCenter;
-      if (deliveryAddress.trim().isNotEmpty) {
+      LatLng delivery = widget.deliveryCoordinates ?? _defaultCenter;
+      if (widget.deliveryCoordinates == null && deliveryAddress.trim().isNotEmpty) {
         final coords = await locationService.getCoordinatesFromAddress(deliveryAddress.trim());
         if (coords != null) {
           delivery = LatLng(coords['lat']!, coords['lon']!);
@@ -178,7 +184,6 @@ class _TrackingMapState extends State<TrackingMap> {
 
   @override
   Widget build(BuildContext context) {
-    final color = widget.accent ?? Colors.green.shade700;
     final mediaHeight = MediaQuery.of(context).size.height;
     final center = _deliveryPosition ?? _shopPosition ?? _defaultCenter;
 
@@ -238,45 +243,6 @@ class _TrackingMapState extends State<TrackingMap> {
                 ),
               ),
             ),
-          Positioned(
-            top: 20,
-            right: 20,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.06),
-                    blurRadius: 20,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.schedule_rounded, size: 18, color: color),
-                  const SizedBox(width: 10),
-                  Text(
-                    widget.order.estimatedDeliveryTime,
-                    style: TextStyle(
-                      color: const Color(0xFF1A1A1A),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -475,38 +441,6 @@ class _MockMapPanel extends StatelessWidget {
             ),
           ),
           Positioned(
-            top: 18,
-            right: 18,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.schedule_rounded, size: 16, color: accent),
-                  const SizedBox(width: 8),
-                  Text(
-                    order.estimatedDeliveryTime,
-                    style: TextStyle(
-                      color: Colors.grey.shade900,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
             left: 18,
             right: 18,
             bottom: 18,
@@ -526,24 +460,7 @@ class _MockMapPanel extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Estimated arrival',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    order.estimatedDeliveryTime,
-                    style: TextStyle(
-                      color: Colors.grey.shade900,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 2),
                   Text(
                     order.liveTrackingNote ??
                         'Live courier updates will appear here when available.',

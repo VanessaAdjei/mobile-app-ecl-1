@@ -224,64 +224,8 @@ class _CustomBottomNavState extends State<CustomBottomNav>
       final notificationProvider =
           Provider.of<NotificationProvider>(context, listen: false);
 
-      // only show snackbar if there are NEW unread notifications (count increased)
-      if (mounted &&
-          !_disposed &&
-          notificationProvider.shouldShowSnackbar(unreadCount)) {
-        // mark as shown globally with the current unread count
-        notificationProvider.markSnackbarAsShown(unreadCount);
-
-        // Use post frame callback to show snackbar safely
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted || _disposed || !context.mounted) return;
-
-          final scaffoldMessenger = ScaffoldMessenger.of(context);
-
-          // Clear any existing snackbars first, then show new one
-          scaffoldMessenger.clearSnackBars();
-
-          // Show the snackbar
-          scaffoldMessenger.showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.notifications_active, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'You have $unreadCount new notification${unreadCount > 1 ? 's' : ''}!',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-              action: SnackBarAction(
-                label: 'View',
-                textColor: Colors.white,
-                onPressed: () {
-                  scaffoldMessenger.hideCurrentSnackBar();
-                  if (mounted && !_disposed && context.mounted) {
-                    // reset the notification tracking since they're viewing notifications
-                    notificationProvider.resetOnNotificationsRead();
-
-                    // go directly to notifications page and scroll to top
-                    Navigator.pushNamed(
-                      context,
-                      AppRoutes.notifications,
-                      arguments: {'scrollToTop': true},
-                    );
-                  }
-                },
-              ),
-            ),
-          );
-        });
-      } else if (unreadCount == 0) {
+      // Disable "new notifications" popups; keep unread badge/count updates only.
+      if (unreadCount == 0) {
         // if there are no unread notifications, reset everything
         notificationProvider.resetOnNotificationsRead();
       }

@@ -1,16 +1,17 @@
 import 'package:eclapp/config/api_config.dart';
 import 'package:eclapp/config/app_routes.dart';
 import 'package:eclapp/models/cart_item.dart';
+import 'package:eclapp/models/order_status_step.dart';
 import 'package:eclapp/models/order_tracking_model.dart';
 import 'package:eclapp/pages/app_back_button.dart';
 import 'package:eclapp/providers/cart_provider.dart';
 import 'package:eclapp/providers/order_tracking_provider.dart';
-import 'package:eclapp/services/auth_service.dart';
 import 'package:eclapp/services/order_notification_service.dart';
 import 'package:eclapp/services/order_tracking_service.dart';
 import 'package:eclapp/widgets/live_tracking_placeholder_card.dart';
 import 'package:eclapp/widgets/order_status_timeline.dart';
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -51,6 +52,66 @@ class PostCheckoutOrderPage extends StatefulWidget {
 
 class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
   static const String _supportPhoneNumber = '+233508411184';
+  bool _hasNavigatedAway = false;
+  bool _hasShownOrderPlacedBanner = false;
+  bool _isPickupOrderFor(OrderTrackingModel order) {
+    final candidates = <String?>[
+      widget.deliveryOption,
+      order.deliveryOption,
+      order.paymentParams['delivery_option']?.toString(),
+      order.paymentParams['shipping_type']?.toString(),
+    ];
+    return candidates.any(
+      (value) => (value ?? '').toLowerCase().replaceAll('-', '').contains('pickup'),
+    );
+  }
+
+  List<OrderStatusStep> _pickupTimelineSteps(OrderTrackingModel order) {
+    return order.timelineSteps.map((step) {
+      var title = step.title;
+      var id = step.id;
+      final normalized = title.toLowerCase().trim();
+      if (normalized == 'out for delivery') {
+        title = 'Ready to be picked up';
+        id = 'readyForPickup';
+      } else if (normalized == 'delivered') {
+        title = 'Picked up';
+        id = 'pickedUp';
+      }
+      return OrderStatusStep(
+        id: id,
+        title: title,
+        isCompleted: step.isCompleted,
+        isCurrent: step.isCurrent,
+      );
+    }).toList(growable: false);
+  }
+
+  double? _parseCoordinate(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
+  }
+
+  Future<void> _openPickupDirections(String pickupLocation) async {
+    final destination = pickupLocation.trim();
+    if (destination.isEmpty) return;
+
+    final mapsUrl = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=${Uri.encodeComponent(destination)}&travelmode=driving',
+    );
+
+    if (await canLaunchUrl(mapsUrl)) {
+      await launchUrl(mapsUrl, mode: LaunchMode.externalApplication);
+      return;
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Unable to open maps right now.'),
+      ),
+    );
+  }
 
   bool get _isEmergencyOrder {
     final v = widget.paymentParams['order_urgent'];
@@ -123,13 +184,11 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
   }
 
   Future<void> _createOrderNotification(OrderTrackingModel order) async {
-    final isLoggedIn = await AuthService.isLoggedIn();
-    if (!isLoggedIn) return;
-
     await OrderNotificationService.createOrderPlacedNotification({
-      'id': order.orderId,
+      'id': order.orderId.isNotEmpty ? order.orderId : order.transactionId,
       'transaction_id': order.transactionId,
-      'order_number': order.orderNumber,
+      'order_number':
+          order.orderNumber.isNotEmpty ? order.orderNumber : order.transactionId,
       'total_amount': order.totalAmount.toStringAsFixed(2),
       'status': order.stageLabel,
       'payment_method': order.paymentMethod,
@@ -146,6 +205,33 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
     });
   }
 
+  void _showOrderPlacedBannerIfNeeded(OrderTrackingProvider provider) {
+    if (!mounted || _hasShownOrderPlacedBanner) return;
+    if (provider.isAwaitingPaymentConfirmation) return;
+
+    final order = provider.order;
+    if (order.stage == OrderTrackingStage.failed) return;
+
+    _hasShownOrderPlacedBanner = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final orderRef =
+          order.orderNumber.isNotEmpty ? order.orderNumber : order.transactionId;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Order #$orderRef placed successfully'),
+          backgroundColor: const Color(0xFF0D7A4C),
+          behavior: SnackBarBehavior.floating,
+          dismissDirection: DismissDirection.down,
+          showCloseIcon: true,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    });
+  }
+
   Future<void> _callSupport() async {
     final uri = Uri.parse('tel:$_supportPhoneNumber');
     if (await canLaunchUrl(uri)) {
@@ -159,6 +245,8 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
   }
 
   void _goHome() {
+    if (_hasNavigatedAway || !mounted) return;
+    _hasNavigatedAway = true;
     Navigator.pushNamedAndRemoveUntil(
       context,
       AppRoutes.home,
@@ -167,6 +255,8 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
   }
 
   void _goToCart() {
+    if (_hasNavigatedAway || !mounted) return;
+    _hasNavigatedAway = true;
     Navigator.pushNamedAndRemoveUntil(
       context,
       AppRoutes.cart,
@@ -928,6 +1018,322 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
     );
   }
 
+  Widget _buildPickupTrackingBody(
+    OrderTrackingModel order,
+    OrderTrackingProvider provider,
+    Color accent,
+  ) {
+    final paymentConfirmed = !provider.isAwaitingPaymentConfirmation &&
+        order.stage != OrderTrackingStage.pendingPayment &&
+        order.stage != OrderTrackingStage.failed;
+    final pickupLocation = order.deliveryAddress
+        .replaceFirst(RegExp(r'^Pickup at\s*', caseSensitive: false), '')
+        .trim();
+    final pickupLat = _parseCoordinate(order.paymentParams['lat']) ??
+        _parseCoordinate(order.paymentParams['latitude']) ??
+        _parseCoordinate(order.paymentParams['store_lat']) ??
+        _parseCoordinate(order.paymentParams['store_latitude']);
+    final pickupLng = _parseCoordinate(order.paymentParams['lng']) ??
+        _parseCoordinate(order.paymentParams['longitude']) ??
+        _parseCoordinate(order.paymentParams['store_lng']) ??
+        _parseCoordinate(order.paymentParams['store_longitude']);
+
+    return RefreshIndicator(
+      onRefresh: provider.refreshTracking,
+      color: accent,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: paymentConfirmed
+                  ? const Color(0xFFEFFAF4)
+                  : const Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: paymentConfirmed
+                    ? const Color(0xFFBBF7D0)
+                    : const Color(0xFFFED7AA),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  paymentConfirmed
+                      ? Icons.verified_rounded
+                      : Icons.hourglass_top_rounded,
+                  color: paymentConfirmed
+                      ? const Color(0xFF15803D)
+                      : const Color(0xFFB45309),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        paymentConfirmed
+                            ? 'Payment confirmed'
+                            : 'Payment confirmation pending',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: paymentConfirmed
+                              ? const Color(0xFF166534)
+                              : const Color(0xFF92400E),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        paymentConfirmed
+                            ? 'Your payment has been received and your pickup order is confirmed.'
+                            : 'We are still waiting for payment verification.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade100),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: accent.withValues(alpha: 0.12),
+                  child:
+                      Icon(Icons.location_on_rounded, size: 16, color: accent),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Pickup location',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF1A1A1A),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        pickupLocation.isNotEmpty
+                            ? pickupLocation
+                            : 'Selected store location',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade700,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade100),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
+                  child: SizedBox(
+                    height: 170,
+                    child: TrackingMap(
+                      order: order.copyWith(deliveryAddress: pickupLocation),
+                      accent: accent,
+                      shopCoordinates: (pickupLat != null && pickupLng != null)
+                          ? LatLng(pickupLat, pickupLng)
+                          : null,
+                      deliveryCoordinates:
+                          (pickupLat != null && pickupLng != null)
+                              ? LatLng(pickupLat, pickupLng)
+                              : null,
+                      shopAddress: pickupLocation,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openPickupDirections(pickupLocation),
+                      icon: const Icon(Icons.navigation_rounded, size: 18),
+                      
+                      label: const Text('Get directions to pickup location'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: accent,
+                        side: BorderSide(color: accent.withValues(alpha: 0.45)),
+                        padding: const EdgeInsets.symmetric(vertical: 9),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Order progress',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                OrderStatusTimeline(
+                  steps: _pickupTimelineSteps(order),
+                  accent: accent,
+                ),
+              ],
+            ),
+          ),
+          if (order.items.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.shade100, width: 1),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Order items',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () => _showItemsSheet(order),
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 2),
+                          child: Text(
+                            'View details',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: accent,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  ...order.items.asMap().entries.map(
+                        (e) => _OrderItemRow(
+                          item: e.value,
+                          isLast: e.key == order.items.length - 1,
+                        ),
+                      ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _goHome,
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(Icons.home_rounded, size: 18, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text(
+                      'Back to home',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showItemsSheet(OrderTrackingModel order) {
     showModalBottomSheet<void>(
       context: context,
@@ -952,6 +1358,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
       value: _provider,
       child: Consumer<OrderTrackingProvider>(
         builder: (context, provider, _) {
+          _showOrderPlacedBannerIfNeeded(provider);
           final order = provider.order;
           final accent = const Color(0xFF0D7A4C); // Refined emerald
 
@@ -1034,10 +1441,16 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                       ? const Center(child: CircularProgressIndicator())
                       : order.stage == OrderTrackingStage.failed
                           ? _buildFailedBody(order, accent)
-                          : order.stage == OrderTrackingStage.delivered
-                              ? _buildDeliveredBody(order, accent)
-                              : provider.isAwaitingPaymentConfirmation
-                                  ? _buildPendingBody(order, provider, accent)
+                          : provider.isAwaitingPaymentConfirmation
+                              ? _buildPendingBody(order, provider, accent)
+                              : _isPickupOrderFor(order)
+                                  ? _buildPickupTrackingBody(
+                                      order,
+                                      provider,
+                                      accent,
+                                    )
+                              : order.stage == OrderTrackingStage.delivered
+                                  ? _buildDeliveredBody(order, accent)
                                   : Stack(
                                       children: [
                                         Positioned.fill(
@@ -1445,11 +1858,11 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                                         ),
                                                       ),
                                                     ],
-                                                    const SizedBox(height: 8),
+                                                    const SizedBox(height: 4),
                                                     Container(
                                                       padding:
-                                                          const EdgeInsets.all(
-                                                              12),
+                                                          const EdgeInsets.fromLTRB(
+                                                              9, 7, 9, 7),
                                                       decoration: BoxDecoration(
                                                         color: Colors.white,
                                                         borderRadius:
@@ -1477,7 +1890,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                                             'Order progress',
                                                             style: GoogleFonts
                                                                 .poppins(
-                                                              fontSize: 12,
+                                                              fontSize: 11.5,
                                                               fontWeight:
                                                                   FontWeight
                                                                       .w600,
@@ -1486,7 +1899,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                                             ),
                                                           ),
                                                           const SizedBox(
-                                                              height: 6),
+                                                              height: 2),
                                                           OrderStatusTimeline(
                                                             steps: order
                                                                 .timelineSteps,
@@ -1497,7 +1910,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                                     ),
                                                     if (order
                                                         .items.isNotEmpty) ...[
-                                                      const SizedBox(height: 8),
+                                                      const SizedBox(height: 6),
                                                       Container(
                                                         padding:
                                                             const EdgeInsets
@@ -1981,8 +2394,8 @@ class _PulsingIconState extends State<_PulsingIcon>
         );
       },
       child: Container(
-        width: 88,
-        height: 88,
+        width: 96,
+        height: 96,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: Colors.white,
@@ -2001,12 +2414,24 @@ class _PulsingIconState extends State<_PulsingIcon>
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: FittedBox(
-            fit: BoxFit.contain,
-            child: Image.asset(
-              'assets/images/png.png',
-              fit: BoxFit.contain,
+          padding: const EdgeInsets.all(6),
+          child: ClipOval(
+            child: ColoredBox(
+              color: Colors.white,
+              child: Center(
+                child: Image.asset(
+                  'assets/images/png.png',
+                  width: 72,
+                  height: 72,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                  errorBuilder: (_, __, ___) => Icon(
+                    Icons.local_pharmacy_rounded,
+                    size: 44,
+                    color: widget.accent,
+                  ),
+                ),
+              ),
             ),
           ),
         ),

@@ -24,6 +24,21 @@ class DeliveryPage extends StatefulWidget {
 }
 
 class DeliveryPageState extends State<DeliveryPage> {
+  bool _isNavigatingToNextPage = false;
+
+  Future<T?> _pushPageOnce<T>(Route<T> route) async {
+    if (!mounted || _isNavigatingToNextPage) return null;
+    _isNavigatingToNextPage = true;
+    try {
+      return await Navigator.push<T>(context, route);
+    } finally {
+      if (mounted) {
+        await Future.delayed(const Duration(milliseconds: 250));
+        _isNavigatingToNextPage = false;
+      }
+    }
+  }
+
   void _onAddressFieldsChanged() {
     // Only trigger if all fields are non-empty
     if (_regionController.text.trim().isNotEmpty &&
@@ -477,8 +492,10 @@ class DeliveryPageState extends State<DeliveryPage> {
                                 child: _buildDeliveryOptions(),
                               ),
                               const SizedBox(height: 10),
-                              _buildUrgentOption(),
-                              const SizedBox(height: 20),
+                              if (deliveryOption == 'delivery') ...[
+                                _buildUrgentOption(),
+                                const SizedBox(height: 20),
+                              ],
                               if (deliveryOption == 'pickup')
                                 Animate(
                                   key: pickupSectionKey,
@@ -1415,6 +1432,14 @@ class DeliveryPageState extends State<DeliveryPage> {
       print('📦 API Response received');
       print(json.encode(result));
 
+      final wasSuccessful = result['success'] == true;
+      if (!wasSuccessful) {
+        final errorMessage = (result['message'] ?? 'Failed to save delivery information')
+            .toString();
+        print('❌ [DELIVERY] Save failed: $errorMessage');
+        return false;
+      }
+
       // Extract closest store safely
       final closestStore =
           result['closest_store'] ?? result['data']?['closest_store'];
@@ -1648,9 +1673,37 @@ class DeliveryPageState extends State<DeliveryPage> {
                 });
               } else {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Failed to add urgent delivery fee.')),
+                  final messenger = ScaffoldMessenger.of(context);
+                  messenger.hideCurrentSnackBar();
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text('Failed to add urgent delivery fee.'),
+                          SizedBox(height: 4),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.swipe_down_alt_rounded,
+                                  color: Colors.white70, size: 14),
+                              SizedBox(width: 4),
+                              Text(
+                                'Swipe down to dismiss',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      dismissDirection: DismissDirection.down,
+                      showCloseIcon: true,
+                      duration: const Duration(seconds: 2),
+                    ),
                   );
                 }
               }
@@ -1727,7 +1780,8 @@ class DeliveryPageState extends State<DeliveryPage> {
   Widget _buildOrderSummary(CartProvider cart) {
     final subtotal = cart.calculateSubtotal();
     final emergencyOrderFee = _emergencyOrderFee ?? 0.0;
-    final total = subtotal + deliveryFee + emergencyOrderFee;
+    final effectiveDeliveryFee = deliveryOption == 'pickup' ? 0.0 : deliveryFee;
+    final total = subtotal + effectiveDeliveryFee + emergencyOrderFee;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -1759,9 +1813,11 @@ class DeliveryPageState extends State<DeliveryPage> {
               children: [
                 _buildSummaryRow('Subtotal', subtotal,
                     icon: Icons.shopping_cart_rounded),
-                const SizedBox(height: 12),
-                _buildSummaryRow('Delivery fee', deliveryFee,
-                    icon: Icons.local_shipping_rounded),
+                if (deliveryOption == 'delivery') ...[
+                  const SizedBox(height: 12),
+                  _buildSummaryRow('Delivery fee', effectiveDeliveryFee,
+                      icon: Icons.local_shipping_rounded),
+                ],
                 if (emergencyOrderFee > 0) ...[
                   const SizedBox(height: 12),
                   _buildSummaryRow('Emergency Order Fee', emergencyOrderFee,
@@ -1933,18 +1989,44 @@ class DeliveryPageState extends State<DeliveryPage> {
               }
               message += missing.join(', ');
 
-              ScaffoldMessenger.of(context).showSnackBar(
+              final messenger = ScaffoldMessenger.of(context);
+              messenger.hideCurrentSnackBar();
+              messenger.showSnackBar(
                 SnackBar(
-                  content: Row(
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.error_outline, color: Colors.white),
-                      SizedBox(width: 8),
-                      Expanded(child: Text(message)),
+                      Row(
+                        children: [
+                          Icon(Icons.error_outline, color: Colors.white),
+                          SizedBox(width: 8),
+                          Expanded(child: Text(message)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.swipe_down_alt_rounded,
+                              color: Colors.white70, size: 14),
+                          SizedBox(width: 4),
+                          Text(
+                            'Swipe down to dismiss',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                   backgroundColor: Colors.red[600],
                   behavior: SnackBarBehavior.floating,
-                  duration: Duration(seconds: 4),
+                  dismissDirection: DismissDirection.down,
+                  showCloseIcon: true,
+                  duration: Duration(seconds: 2),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -2003,62 +2085,6 @@ class DeliveryPageState extends State<DeliveryPage> {
                 _apiDeliveryTime = null;
               }
 
-              // Show success message at the top of the screen
-              if (mounted) {
-                OverlayEntry overlayEntry = OverlayEntry(
-                  builder: (context) => Positioned(
-                    top: MediaQuery.of(context).padding.top +
-                        16, // Top with safe area padding
-                    left: 16,
-                    right: 16,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: _accent,
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.2),
-                              blurRadius: 8,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.check_circle_rounded,
-                                color: Colors.white),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Delivery information saved successfully',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-
-                Overlay.of(context).insert(overlayEntry);
-
-                // Remove the overlay after 2 seconds
-                Future.delayed(Duration(seconds: 2), () {
-                  if (mounted) {
-                    overlayEntry.remove();
-                  }
-                });
-              }
-
               // Navigate to payment page with delivery details
               _proceedToPayment();
             } catch (e) {
@@ -2097,12 +2123,24 @@ class DeliveryPageState extends State<DeliveryPage> {
     _resetHighlights();
     setState(() {
       deliveryOption = option;
+      // Urgent order applies to deliveries only.
+      if (option == 'pickup') {
+        _isOrderUrgent = false;
+        _emergencyOrderFee = null;
+      }
     });
   }
 
   void _proceedToPayment() {
+    double? parseCoord(dynamic value) {
+      if (value is num) return value.toDouble();
+      return double.tryParse(value?.toString() ?? '');
+    }
+
     // Create delivery address based on option
     String deliveryAddress;
+    double? paymentLat = _latitude;
+    double? paymentLng = _longitude;
     if (deliveryOption == 'delivery') {
       deliveryAddress =
           '${_addressController.text.trim()}, ${_cityController.text.trim()}, ${_regionController.text.trim()}';
@@ -2112,6 +2150,20 @@ class DeliveryPageState extends State<DeliveryPage> {
           ? '${selectedPickupSite!['description']}, ${selectedCity!['description']}, ${selectedRegion!['description']}'
           : '${selectedCity?['description'] ?? 'Selected'}, ${selectedRegion?['description'] ?? 'Location'}';
       deliveryAddress = 'Pickup at $pickupLocation';
+
+      // Prefer selected store coordinates for pickup confirmation map/directions.
+      if (selectedPickupSite != null) {
+        paymentLat = parseCoord(selectedPickupSite!['lat']) ??
+            parseCoord(selectedPickupSite!['latitude']) ??
+            parseCoord(selectedPickupSite!['store_lat']) ??
+            parseCoord(selectedPickupSite!['store_latitude']) ??
+            paymentLat;
+        paymentLng = parseCoord(selectedPickupSite!['lng']) ??
+            parseCoord(selectedPickupSite!['longitude']) ??
+            parseCoord(selectedPickupSite!['store_lng']) ??
+            parseCoord(selectedPickupSite!['store_longitude']) ??
+            paymentLng;
+      }
     }
 
     // Navigate to payment page with delivery details
@@ -2135,16 +2187,15 @@ class DeliveryPageState extends State<DeliveryPage> {
       print('⚠️ [DELIVERY] No coordinates available to pass to PaymentPage');
     }
 
-    Navigator.push(
-      context,
+    _pushPageOnce(
       MaterialPageRoute(
         builder: (context) => PaymentPage(
           deliveryAddress: deliveryAddress,
           contactNumber: _phoneController.text,
           deliveryOption: deliveryOption,
           guestEmail: _emailController.text.trim(),
-          lat: _latitude,
-          lng: _longitude,
+          lat: paymentLat,
+          lng: paymentLng,
           estimatedDeliveryTime: _apiDeliveryTime,
           distanceKm: _distanceKm,
           isOrderUrgent: _isOrderUrgent,
@@ -2271,8 +2322,7 @@ class DeliveryPageState extends State<DeliveryPage> {
     print(
         '🗺️ [MAP PICKER] [iOS DEBUG] - Data type check: ${initialLat.runtimeType}, ${initialLng.runtimeType}');
 
-    Navigator.push(
-      context,
+    _pushPageOnce(
       MaterialPageRoute(
         builder: (context) => MapPickerPage(
           initialLatitude: initialLat,
