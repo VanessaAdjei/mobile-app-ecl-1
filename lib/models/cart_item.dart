@@ -1,6 +1,8 @@
 // models/cart_item.dart
 import 'package:flutter/cupertino.dart';
 
+import '../utils/product_image_url.dart';
+
 class CartItem {
   final String id;
   final String productId;
@@ -93,7 +95,7 @@ class CartItem {
           ? _parseDouble(json['original_price'])
           : null,
       quantity: quantity,
-      image: json['product_img'] ?? json['image'] ?? '',
+      image: coerceProductImageSource(json['product_img'] ?? json['image']),
       batchNo: json['batch_no'] ?? '',
       purchaseDate: _parseDate(json['purchase_date']),
       lastModified: _parseDate(json['last_modified']),
@@ -124,7 +126,7 @@ class CartItem {
       name: json['product_name']?.toString() ?? 'Unknown Item',
       price: price,
       quantity: correctQuantity,
-      image: json['product_img']?.toString() ?? '',
+      image: coerceProductImageSource(json['product_img'] ?? json['image']),
       batchNo: json['batch_no']?.toString() ?? '',
       urlName: json['url_name']?.toString() ?? '',
       totalPrice: totalPrice,

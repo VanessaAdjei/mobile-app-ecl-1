@@ -67,6 +67,16 @@ class OrderTrackingService {
     return _repository.checkPaymentStatus();
   }
 
+  Future<void> handleOrderConfirmed({
+    required OrderTrackingModel order,
+    String? initialTransactionId,
+  }) {
+    return _repository.handleOrderConfirmed(
+      order: order,
+      initialTransactionId: initialTransactionId,
+    );
+  }
+
   Future<OrderTrackingModel> refreshOrder(
       OrderTrackingModel currentOrder) async {
     final snapshot = await _repository.fetchLatestOrderSnapshot(

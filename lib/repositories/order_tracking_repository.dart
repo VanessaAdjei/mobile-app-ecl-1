@@ -1,3 +1,4 @@
+import '../database/order_tracking/order_tracking_local_data_source.dart';
 import '../database/order_tracking/order_tracking_remote_data_source.dart';
 import '../models/order_tracking_model.dart';
 
@@ -9,14 +10,24 @@ abstract class OrderTrackingRepository {
     required String orderNumber,
     required String transactionId,
   });
+
+  Future<void> handleOrderConfirmed({
+    required OrderTrackingModel order,
+    String? initialTransactionId,
+  });
 }
 
 class OrderTrackingRepositoryImpl implements OrderTrackingRepository {
-  OrderTrackingRepositoryImpl([OrderTrackingRemoteDataSource? remoteDataSource])
+  OrderTrackingRepositoryImpl([
+    OrderTrackingRemoteDataSource? remoteDataSource,
+    OrderTrackingLocalDataSource? localDataSource,
+  ])
       : _remoteDataSource =
-            remoteDataSource ?? OrderTrackingRemoteDataSourceImpl();
+            remoteDataSource ?? OrderTrackingRemoteDataSourceImpl(),
+        _localDataSource = localDataSource ?? OrderTrackingLocalDataSourceImpl();
 
   final OrderTrackingRemoteDataSource _remoteDataSource;
+  final OrderTrackingLocalDataSource _localDataSource;
 
   @override
   Future<PaymentStatusResult> checkPaymentStatus() {
@@ -34,5 +45,17 @@ class OrderTrackingRepositoryImpl implements OrderTrackingRepository {
       orderNumber: orderNumber,
       transactionId: transactionId,
     );
+  }
+
+  @override
+  Future<void> handleOrderConfirmed({
+    required OrderTrackingModel order,
+    String? initialTransactionId,
+  }) async {
+    await _localDataSource.storeOrderAmounts(
+      order: order,
+      initialTransactionId: initialTransactionId,
+    );
+    await _localDataSource.createOrderPlacedNotification(order);
   }
 }

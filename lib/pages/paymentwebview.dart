@@ -2,8 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../models/cart_item.dart';
-import 'post_checkout_order_page.dart';
 import '../services/auth_service.dart';
+import '../utils/payment_redirect_url.dart';
+import 'post_checkout_order_page.dart';
 
 class PaymentWebView extends StatefulWidget {
   final String url;
@@ -38,9 +39,10 @@ class PaymentWebView extends StatefulWidget {
 }
 
 class PaymentWebViewState extends State<PaymentWebView> {
-  late final WebViewController _controller;
+  WebViewController? _controller;
   bool _isLoading = true;
   bool _isShowingDialog = false;
+  String? _loadError;
 
   Future<void> _checkAndRefreshAuth() async {
     try {
@@ -127,18 +129,33 @@ class PaymentWebViewState extends State<PaymentWebView> {
   @override
   void dispose() {
     // clean up webview resources so we dont leak memory
-    _controller.clearCache();
+    _controller?.clearCache();
     super.dispose();
   }
 
   // set up webview with crash prevention
   void _initializeWebView() {
-    _controller = WebViewController()
+    final resolved = parsePaymentRedirectUrl(widget.url) ?? widget.url.trim();
+    final parsed = Uri.tryParse(resolved);
+    if (parsed == null ||
+        !parsed.hasScheme ||
+        (!parsed.scheme.toLowerCase().startsWith('http'))) {
+      setState(() {
+        _loadError = 'Invalid payment link. Please go back and try again.';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (String url) {
-            setState(() => _isLoading = true);
+            setState(() {
+              _isLoading = true;
+              _loadError = null;
+            });
           },
           onPageFinished: (String url) async {
             setState(() => _isLoading = false);
@@ -198,8 +215,18 @@ class PaymentWebViewState extends State<PaymentWebView> {
       ..setBackgroundColor(Colors.white)
       ..enableZoom(false)
       ..setUserAgent(
-          'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36')
-      ..loadRequest(Uri.parse(widget.url));
+          'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36');
+    _controller = controller;
+    try {
+      controller.loadRequest(parsed);
+    } catch (e, st) {
+      debugPrint('PaymentWebView loadRequest failed: $e\n$st');
+      setState(() {
+        _loadError = 'Could not open the payment page. Please try again.';
+        _isLoading = false;
+        _controller = null;
+      });
+    }
   }
 
   @override
@@ -356,7 +383,7 @@ class PaymentWebViewState extends State<PaymentWebView> {
         }
       },
       child: Scaffold(
-        backgroundColor: Colors.grey[50],
+        backgroundColor: Colors.white,
         body: Stack(
           children: [
             Column(
@@ -574,11 +601,40 @@ class PaymentWebViewState extends State<PaymentWebView> {
                 ),
                 Expanded(
                   child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      WebViewWidget(controller: _controller),
-                      if (_isLoading)
-                        const Center(
-                          child: CircularProgressIndicator(),
+                      const ColoredBox(color: Colors.white),
+                      if (_loadError != null)
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.error_outline,
+                                    size: 48, color: Colors.orange.shade800),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _loadError!,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    color: Colors.grey.shade800,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else if (_controller != null)
+                        WebViewWidget(controller: _controller!),
+                      if (_isLoading && _loadError == null)
+                        const ColoredBox(
+                          color: Colors.white,
+                          child: Center(
+                            child: CircularProgressIndicator(),
+                          ),
                         ),
                     ],
                   ),

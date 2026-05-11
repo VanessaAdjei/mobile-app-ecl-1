@@ -3,6 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../models/order_tracking_model.dart';
 import '../services/location_service.dart';
+import '../utils/non_ui_error_reporter.dart';
 
 /// Default center when address cannot be geocoded (Accra, Ghana). Also used as default shop location.
 const LatLng _defaultCenter = LatLng(5.6037, -0.1870);
@@ -147,33 +148,41 @@ class _TrackingMapState extends State<TrackingMap> {
   }
 
   void _fitBothMarkers() {
-    if (_shopPosition == null || _deliveryPosition == null || _controller == null) return;
-    final samePoint = _shopPosition!.latitude == _deliveryPosition!.latitude &&
-        _shopPosition!.longitude == _deliveryPosition!.longitude;
-    if (samePoint) {
-      _controller!.animateCamera(
-        CameraUpdate.newLatLngZoom(_shopPosition!, 14),
+    final controller = _controller;
+    final shop = _shopPosition;
+    final delivery = _deliveryPosition;
+    if (shop == null || delivery == null || controller == null) return;
+
+    try {
+      final samePoint = shop.latitude == delivery.latitude &&
+          shop.longitude == delivery.longitude;
+      if (samePoint) {
+        controller.animateCamera(
+          CameraUpdate.newLatLngZoom(shop, 14),
+        );
+        return;
+      }
+      final sw = LatLng(
+        shop.latitude < delivery.latitude ? shop.latitude : delivery.latitude,
+        shop.longitude < delivery.longitude ? shop.longitude : delivery.longitude,
       );
-      return;
+      final ne = LatLng(
+        shop.latitude > delivery.latitude ? shop.latitude : delivery.latitude,
+        shop.longitude > delivery.longitude ? shop.longitude : delivery.longitude,
+      );
+      final bounds = LatLngBounds(southwest: sw, northeast: ne);
+      // Large padding (e.g. 80) on short embedded maps (e.g. 170px) can assert or fail on the platform.
+      controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 24));
+    } catch (e, st) {
+      NonUiErrorReporter.report('TrackingMap._fitBothMarkers', e, st);
+      try {
+        controller.animateCamera(
+          CameraUpdate.newLatLngZoom(shop, 14),
+        );
+      } catch (e2, st2) {
+        NonUiErrorReporter.report('TrackingMap._fitBothMarkers.fallback', e2, st2);
+      }
     }
-    final sw = LatLng(
-      _shopPosition!.latitude < _deliveryPosition!.latitude
-          ? _shopPosition!.latitude
-          : _deliveryPosition!.latitude,
-      _shopPosition!.longitude < _deliveryPosition!.longitude
-          ? _shopPosition!.longitude
-          : _deliveryPosition!.longitude,
-    );
-    final ne = LatLng(
-      _shopPosition!.latitude > _deliveryPosition!.latitude
-          ? _shopPosition!.latitude
-          : _deliveryPosition!.latitude,
-      _shopPosition!.longitude > _deliveryPosition!.longitude
-          ? _shopPosition!.longitude
-          : _deliveryPosition!.longitude,
-    );
-    final bounds = LatLngBounds(southwest: sw, northeast: ne);
-    _controller!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
   }
 
   @override

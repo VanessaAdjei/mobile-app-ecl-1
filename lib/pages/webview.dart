@@ -38,6 +38,7 @@ class WebViewPageState extends State<WebViewPage> {
     super.initState();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.white)
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (int progress) {
@@ -67,6 +68,7 @@ class WebViewPageState extends State<WebViewPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -104,7 +106,9 @@ class WebViewPageState extends State<WebViewPage> {
         ),
       ),
       body: Stack(
+        fit: StackFit.expand,
         children: [
+          const ColoredBox(color: Colors.white),
           if (_webViewError != null)
             Center(
               child: Padding(
@@ -142,8 +146,11 @@ class WebViewPageState extends State<WebViewPage> {
           else
             WebViewWidget(controller: _controller),
           if (_isLoading && _webViewError == null)
-            const Center(
-              child: CircularProgressIndicator(),
+            const ColoredBox(
+              color: Colors.white,
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
             ),
         ],
       ),

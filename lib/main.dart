@@ -45,6 +45,7 @@ import 'services/notification_service.dart';
 import 'services/http_client_service.dart';
 import 'config/app_routes.dart';
 import 'utils/responsive_utils.dart';
+import 'utils/non_ui_error_reporter.dart';
 
 bool _isKeychainError(dynamic e) {
   final s = e.toString().toLowerCase();
@@ -53,6 +54,53 @@ bool _isKeychainError(dynamic e) {
       s.contains('required entitlement') ||
       s.contains('unexpected security result code') ||
       s.contains('security result code');
+}
+
+/// Shown in debug/profile when a widget fails to build. Same details as the red
+/// [ErrorWidget], but readable, scrollable, and copy-friendly (also logged via
+/// [FlutterError.onError] → [NonUiErrorReporter]).
+Widget _buildPhaseErrorPanel(FlutterErrorDetails details) {
+  final message = details.exceptionAsString();
+  final stack = details.stack?.toString() ?? '';
+  return Material(
+    color: const Color(0xFF18181B),
+    child: SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.orange.shade300),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Build failed',
+                    style: TextStyle(
+                      color: Colors.grey.shade100,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SelectableText(
+              '$message\n\n$stack',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                height: 1.35,
+                color: Colors.grey.shade400,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 void main() async {
@@ -66,7 +114,34 @@ void main() async {
       if (_isKeychainError(d.exception.toString())) {
         return const SizedBox.shrink();
       }
-      return ErrorWidget(d.exception);
+      // In debug/profile, keep Flutter's default error widget so failures are obvious.
+      // In release, avoid flashing the technical error UI; still report for diagnostics.
+      if (kReleaseMode) {
+        NonUiErrorReporter.report(
+          'ErrorWidget.builder',
+          d.exception,
+          d.stack,
+        );
+        return const Material(
+          color: Color(0xFFF4F4F5),
+          child: Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Text(
+                'Something went wrong loading this screen.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Color(0xFF52525B),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+      // Debug / profile: avoid default red [ErrorWidget]; same info, easier to read and copy.
+      // (Already reported in [FlutterError.onError].)
+      return _buildPhaseErrorPanel(d);
     };
 
     FlutterError.onError = (FlutterErrorDetails d) {
@@ -78,7 +153,18 @@ void main() async {
               true) {
         return;
       }
-      FlutterError.presentError(d);
+      NonUiErrorReporter.report(
+        'FlutterError.onError',
+        d.exception,
+        d.stack,
+      );
+      // In debug/profile, [presentError] adds a second red fullscreen layer on top of
+      // [ErrorWidget]. Console dump + our [ErrorWidget.builder] panel is enough.
+      if (kReleaseMode) {
+        FlutterError.presentError(d);
+      } else {
+        FlutterError.dumpErrorToConsole(d);
+      }
     };
 
     PlatformDispatcher.instance.onError = (error, stack) {

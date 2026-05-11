@@ -6,8 +6,8 @@ import 'package:eclapp/models/order_tracking_model.dart';
 import 'package:eclapp/pages/app_back_button.dart';
 import 'package:eclapp/providers/cart_provider.dart';
 import 'package:eclapp/providers/order_tracking_provider.dart';
-import 'package:eclapp/services/order_notification_service.dart';
 import 'package:eclapp/services/order_tracking_service.dart';
+import 'package:eclapp/utils/non_ui_error_reporter.dart';
 import 'package:eclapp/widgets/live_tracking_placeholder_card.dart';
 import 'package:eclapp/widgets/order_status_timeline.dart';
 import 'package:flutter/material.dart';
@@ -15,7 +15,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PostCheckoutOrderPage extends StatefulWidget {
@@ -141,7 +140,8 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
 
     _provider = OrderTrackingProvider(
       initialOrder: initialOrder,
-      onOrderConfirmed: _handleConfirmedOrder,
+      initialTransactionId: widget.initialTransactionId,
+      onOrderConfirmed: _handleOrderConfirmedUi,
     )..initialize();
 
     // When a push (order_status/delivery) arrives, refresh tracking immediately.
@@ -157,52 +157,19 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
     super.dispose();
   }
 
-  Future<void> _handleConfirmedOrder(OrderTrackingModel order) async {
+  Future<void> _handleOrderConfirmedUi(OrderTrackingModel _) async {
     if (!mounted) return;
 
-    final cartProvider = Provider.of<CartProvider>(context, listen: false);
-    cartProvider.clearCart();
-
-    await _storeOrderAmounts(order);
-    await _createOrderNotification(order);
-  }
-
-  Future<void> _storeOrderAmounts(OrderTrackingModel order) async {
-    final orderId = order.transactionId;
-    if (orderId.isEmpty) return;
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('order_total_$orderId', order.totalAmount);
-
-    if (widget.initialTransactionId != orderId &&
-        widget.initialTransactionId.isNotEmpty) {
-      await prefs.setDouble(
-        'order_total_${widget.initialTransactionId}',
-        order.totalAmount,
+    try {
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
+      cartProvider.clearCart();
+    } catch (e, st) {
+      NonUiErrorReporter.report(
+        'PostCheckoutOrderPage._handleOrderConfirmedUi',
+        e,
+        st,
       );
     }
-  }
-
-  Future<void> _createOrderNotification(OrderTrackingModel order) async {
-    await OrderNotificationService.createOrderPlacedNotification({
-      'id': order.orderId.isNotEmpty ? order.orderId : order.transactionId,
-      'transaction_id': order.transactionId,
-      'order_number':
-          order.orderNumber.isNotEmpty ? order.orderNumber : order.transactionId,
-      'total_amount': order.totalAmount.toStringAsFixed(2),
-      'status': order.stageLabel,
-      'payment_method': order.paymentMethod,
-      'items': order.items
-          .map((item) => {
-                'name': item.name,
-                'price': item.price,
-                'quantity': item.quantity,
-                'imageUrl': item.imageUrl,
-                'batchNo': item.batchNo,
-              })
-          .toList(),
-      'created_at': order.createdAt.toIso8601String(),
-    });
   }
 
   void _showOrderPlacedBannerIfNeeded(OrderTrackingProvider provider) {

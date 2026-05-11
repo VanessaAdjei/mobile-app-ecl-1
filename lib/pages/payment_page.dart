@@ -18,7 +18,12 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../services/order_notification_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config/api_config.dart';
+import '../utils/payment_redirect_url.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// Shown in the UI when online payment fails; technical details are only logged.
+const String kUserFacingPaymentFailureMessage =
+    'Payment did not go through. No charge was made—please try again.';
 
 class ExpressPayChannel {
   static const MethodChannel _channel =
@@ -134,7 +139,7 @@ class PaymentPageState extends State<PaymentPage> {
 
   void queryPayment(String token) {
     setState(() {
-      _paymentError = 'Query payment is not implemented in platform channel.';
+      _paymentError = kUserFacingPaymentFailureMessage;
     });
   }
 
@@ -368,16 +373,13 @@ class PaymentPageState extends State<PaymentPage> {
 
       // Status code gate intentionally disabled as requested.
       // if (response.statusCode == 200) {
-      // Use API response directly; only strip wrapping quotes if present.
-      String redirectUrl = response.body;
-      if (redirectUrl.length >= 2 &&
-          redirectUrl.startsWith('"') &&
-          redirectUrl.endsWith('"')) {
-        redirectUrl = redirectUrl.substring(1, redirectUrl.length - 1);
-      }
-
-      if (redirectUrl.isEmpty) {
-        throw Exception('Received empty payment URL from server.');
+      // API may return a bare URL, quoted string, or JSON { "redirect_url": "..." }.
+      final redirectUrl = parsePaymentRedirectUrl(response.body);
+      if (redirectUrl == null || redirectUrl.isEmpty) {
+        throw Exception(
+          'Could not read a payment page URL from the server. '
+          'Please try again or contact support if this continues.',
+        );
       }
 
       if (!mounted) return;
@@ -441,12 +443,13 @@ class PaymentPageState extends State<PaymentPage> {
       // } else {
       //   throw Exception('Payment Failed, try again');
       // }
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[Payment] Online payment failed: $e\n$st');
       if (mounted) {
         setState(() {
-          _paymentError = e.toString();
+          _paymentError = kUserFacingPaymentFailureMessage;
         });
-        _showPaymentFailureDialog(e.toString());
+        _showPaymentFailureDialog(e, st);
       }
     } finally {
       if (mounted) {
@@ -700,11 +703,14 @@ class PaymentPageState extends State<PaymentPage> {
                                           ),
                                           const SizedBox(height: 1),
                                           Text(
-                                            "Please try again",
+                                            _paymentError!,
                                             style: TextStyle(
                                               fontSize: 11,
                                               color: Colors.red.shade600,
+                                              height: 1.25,
                                             ),
+                                            maxLines: 5,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ],
                                       ),
@@ -1861,13 +1867,11 @@ class PaymentPageState extends State<PaymentPage> {
     });
   }
 
-  void _showPaymentFailureDialog(String error) {
-    final displayMessage =
-        error.replaceFirst(RegExp(r'^Exception:\s*'), '').trim();
-    final message = displayMessage.isNotEmpty &&
-            displayMessage != 'Payment Failed, try again'
-        ? displayMessage
-        : 'Something went wrong. Please check your details and try again.';
+  void _showPaymentFailureDialog(Object error, [StackTrace? stackTrace]) {
+    debugPrint('[Payment] Failure dialog (details above): $error');
+    if (stackTrace != null) {
+      debugPrint('$stackTrace');
+    }
 
     showDialog(
       context: context,
@@ -1940,7 +1944,7 @@ class PaymentPageState extends State<PaymentPage> {
 
                 // Message
                 Text(
-                  message,
+                  kUserFacingPaymentFailureMessage,
                   style: TextStyle(
                     fontSize: 15,
                     color: Colors.grey.shade600,
@@ -3284,7 +3288,7 @@ class WebViewPageState extends State<WebViewPage> {
   void _initWebView() {
     _webViewController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.transparent)
+      ..setBackgroundColor(Colors.white)
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (url) {
@@ -3330,12 +3334,18 @@ class WebViewPageState extends State<WebViewPage> {
           onPressed: () => Navigator.pop(context, false),
         ),
       ),
+      backgroundColor: Colors.white,
       body: Stack(
+        fit: StackFit.expand,
         children: [
+          const ColoredBox(color: Colors.white),
           WebViewWidget(controller: _webViewController),
           if (_isLoading)
-            const Center(
-              child: CircularProgressIndicator(),
+            const ColoredBox(
+              color: Colors.white,
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
             ),
         ],
       ),

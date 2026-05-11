@@ -5,14 +5,17 @@ import 'package:flutter/foundation.dart';
 import '../models/order_tracking_model.dart';
 import '../services/order_notification_service.dart';
 import '../services/order_tracking_service.dart';
+import '../utils/non_ui_error_reporter.dart';
 
 class OrderTrackingProvider extends ChangeNotifier {
   OrderTrackingProvider({
     required OrderTrackingModel initialOrder,
     OrderTrackingService? service,
+    String? initialTransactionId,
     Future<void> Function(OrderTrackingModel order)? onOrderConfirmed,
   })  : _order = initialOrder,
         _service = service ?? OrderTrackingService(),
+        _initialTransactionId = initialTransactionId,
         _onOrderConfirmed = onOrderConfirmed;
 
   static const Duration _paymentPollInterval = Duration(seconds: 5);
@@ -31,6 +34,7 @@ class OrderTrackingProvider extends ChangeNotifier {
   static const int _maxEmptyResponseMinutes = 3;
 
   final OrderTrackingService _service;
+  final String? _initialTransactionId;
   final Future<void> Function(OrderTrackingModel order)? _onOrderConfirmed;
 
   OrderTrackingModel _order;
@@ -81,19 +85,27 @@ class OrderTrackingProvider extends ChangeNotifier {
       _errorMessage = null;
       if (previousStage != OrderTrackingStage.delivered &&
           _order.stage == OrderTrackingStage.delivered) {
-        await OrderNotificationService.createOrderStatusNotification(
-          orderId: _order.orderId,
-          orderNumber: _order.orderNumber,
-          status: _order.rawStatus,
-          title: 'Order Delivered',
-          message:
-              'Your order #${_order.orderNumber} has been delivered. Thank you for shopping with us!',
-          totalAmount: _order.totalAmount.toString(),
-          items: _order.items.map((e) => e.toMap()).toList(),
-        );
+        try {
+          await OrderNotificationService.createOrderStatusNotification(
+            orderId: _order.orderId,
+            orderNumber: _order.orderNumber,
+            status: _order.rawStatus,
+            title: 'Order Delivered',
+            message:
+                'Your order #${_order.orderNumber} has been delivered. Thank you for shopping with us!',
+            totalAmount: _order.totalAmount.toString(),
+            items: _order.items.map((e) => e.toMap()).toList(),
+          );
+        } catch (e, st) {
+          NonUiErrorReporter.report(
+            'OrderTrackingProvider.createOrderStatusNotification',
+            e,
+            st,
+          );
+        }
       }
-    } catch (e) {
-      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+    } catch (e, st) {
+      NonUiErrorReporter.report('OrderTrackingProvider.refreshTracking', e, st);
     } finally {
       if (_isDisposed) return;
       _isLoading = false;
@@ -123,8 +135,12 @@ class OrderTrackingProvider extends ChangeNotifier {
       } else if (result.status == 'failed') {
         _stopPaymentPolling();
       }
-    } catch (e) {
-      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+    } catch (e, st) {
+      NonUiErrorReporter.report(
+        'OrderTrackingProvider._checkPaymentStatus',
+        e,
+        st,
+      );
     } finally {
       if (_isDisposed) return;
       _isLoading = false;
@@ -138,17 +154,48 @@ class OrderTrackingProvider extends ChangeNotifier {
     _stopPaymentPolling();
     _showManualRefresh = false;
 
+    // Backend first: authoritative snapshot before any local backup or UI side effects.
+    try {
+      _order = await _service.refreshOrder(_order);
+    } catch (e, st) {
+      NonUiErrorReporter.report(
+        'OrderTrackingProvider._handleSuccessfulOrder.refreshOrder',
+        e,
+        st,
+      );
+    }
+    if (_isDisposed) return;
+
     if (!_didHandleSuccessfulOrder) {
       _didHandleSuccessfulOrder = true;
+      try {
+        await _service.handleOrderConfirmed(
+          order: _order,
+          initialTransactionId: _initialTransactionId,
+        );
+      } catch (e, st) {
+        NonUiErrorReporter.report(
+          'OrderTrackingProvider._handleSuccessfulOrder.handleOrderConfirmed',
+          e,
+          st,
+        );
+      }
+      if (_isDisposed) return;
       final onOrderConfirmed = _onOrderConfirmed;
       if (onOrderConfirmed != null) {
-        await onOrderConfirmed(_order);
+        try {
+          await onOrderConfirmed(_order);
+        } catch (e, st) {
+          NonUiErrorReporter.report(
+            'OrderTrackingProvider._handleSuccessfulOrder.onOrderConfirmed',
+            e,
+            st,
+          );
+        }
         if (_isDisposed) return;
       }
     }
 
-    _order = await _service.refreshOrder(_order);
-    if (_isDisposed) return;
     _startTrackingPolling();
   }
 

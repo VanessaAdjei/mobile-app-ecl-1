@@ -1,3 +1,4 @@
+import '../utils/product_image_url.dart';
 import 'cart_item.dart';
 import 'order_status_step.dart';
 
@@ -55,8 +56,9 @@ class OrderTrackingItem {
           map['product_name']?.toString() ?? map['name']?.toString() ?? 'Item',
       price: parseDouble(map['price']),
       quantity: parseInt(map['qty'] ?? map['quantity']),
-      imageUrl:
-          map['product_img']?.toString() ?? map['image']?.toString() ?? '',
+      imageUrl: coerceProductImageSource(
+        map['product_img'] ?? map['image'],
+      ),
       batchNo: map['batch_no']?.toString() ?? '',
     );
   }

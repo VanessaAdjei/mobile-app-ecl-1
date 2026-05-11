@@ -2,6 +2,8 @@
 // all the api urls and endpoints in one place
 // makes it easier to change stuff later
 
+import '../utils/product_image_url.dart';
+
 class ApiConfig {
   // ==================== BASE URLs ====================
 
@@ -211,30 +213,40 @@ class ApiConfig {
 
   // build the full url for a product image
   static String getProductImageUrl(String? imagePath) {
-    if (imagePath == null || imagePath.isEmpty) {
+    final normalized = coerceProductImageSource(imagePath);
+    if (normalized.isEmpty) {
       return '';
     }
 
     // if its already a full url, just return it
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return imagePath;
+    if (normalized.startsWith('http://') ||
+        normalized.startsWith('https://')) {
+      return normalized;
     }
 
     // if it starts with /, use the admin base url
-    if (imagePath.startsWith('/')) {
-      return '$adminBaseUrl$imagePath';
+    if (normalized.startsWith('/')) {
+      return '$adminBaseUrl$normalized';
     }
 
     // otherwise assume its just a filename and add it to the product image url
-    return '$productImageBaseUrl/$imagePath';
+    return '$productImageBaseUrl/$normalized';
   }
 
   /// Build URL for image or storage path (uploads/, storage/, or product filename).
   static String getImageOrStorageUrl(String url) {
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    if (url.startsWith('/uploads/')) return '$adminBaseUrl$url';
-    if (url.startsWith('/storage/')) return '$appBaseUrl$url';
-    return '$productImageBaseUrl/$url';
+    final normalized = coerceProductImageSource(url);
+    if (normalized.isEmpty) return '';
+    if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+      return normalized;
+    }
+    if (normalized.startsWith('/uploads/')) {
+      return '$adminBaseUrl$normalized';
+    }
+    if (normalized.startsWith('/storage/')) {
+      return '$appBaseUrl$normalized';
+    }
+    return '$productImageBaseUrl/$normalized';
   }
 
   /// Build URL for storage path (e.g. categories, banners).
