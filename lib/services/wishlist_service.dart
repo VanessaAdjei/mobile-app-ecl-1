@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'api_service.dart';
 import '../config/api_config.dart';
 import 'auth_service.dart';
+import 'category_optimization_service.dart';
 
 class WishlistService {
   static const String _wishlistKey = 'wishlist_items';
@@ -19,6 +20,85 @@ class WishlistService {
 
   // Prevent multiple simultaneous API calls
   Future<List<WishlistItem>>? _pendingRequest;
+
+  Map<String, dynamic>? _asProductCatalogEntry(dynamic raw) {
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) return raw.map((k, v) => MapEntry(k.toString(), v));
+    return null;
+  }
+
+  bool _needsPriceRepair(WishlistItem item) {
+    final raw = item.product.price.trim();
+    if (raw.isEmpty) return true;
+    final v = double.tryParse(raw);
+    return v == null || v <= 0;
+  }
+
+  static String _normUrl(String? u) => (u ?? '').trim().toLowerCase();
+
+  /// When `/get-wishlist` omits sell price, match to the get-all-products cache.
+  /// Prefer **url_name**: the catalog often has several rows per product `id`
+  /// (batches); id-only lookup can attach the wrong row's price. Fallback: id.
+  Future<List<WishlistItem>> _enrichWishlistPricesFromCatalog(
+    List<WishlistItem> items,
+  ) async {
+    if (items.isEmpty) return items;
+    if (!items.any(_needsPriceRepair)) return items;
+
+    try {
+      final category = CategoryOptimizationService();
+      var catalog = category.cachedProducts;
+      if (catalog.isEmpty) {
+        catalog = await category.getProducts(forceRefresh: false);
+      }
+      if (catalog.isEmpty) return items;
+
+      final priceByProductId = <int, String>{};
+      final priceByUrl = <String, String>{};
+
+      for (final raw in catalog) {
+        final map = _asProductCatalogEntry(raw);
+        if (map == null) continue;
+
+        final p = map['price']?.toString().trim() ?? '';
+        if (p.isEmpty) continue;
+        if ((double.tryParse(p) ?? 0) <= 0) continue;
+
+        final urlKey = _normUrl(map['url_name']?.toString());
+        if (urlKey.isNotEmpty) {
+          priceByUrl[urlKey] = p;
+        }
+
+        final idVal = map['id'];
+        final pid = idVal is int
+            ? idVal
+            : (idVal is num ? idVal.toInt() : int.tryParse('$idVal'));
+        if (pid != null && pid > 0) {
+          priceByProductId[pid] = p;
+        }
+      }
+
+      if (priceByProductId.isEmpty && priceByUrl.isEmpty) return items;
+
+      return items.map((item) {
+        if (!_needsPriceRepair(item)) return item;
+
+        final urlKey = _normUrl(item.product.urlName);
+        final byUrl = urlKey.isNotEmpty ? priceByUrl[urlKey] : null;
+        final byId = priceByProductId[item.product.id];
+        final hit = byUrl ?? byId;
+
+        if (hit == null) return item;
+        debugPrint(
+          '🛒 Wishlist price enrich: id=${item.product.id} url=$urlKey -> GHS $hit',
+        );
+        return item.copyWith(product: item.product.copyWith(price: hit));
+      }).toList();
+    } catch (e) {
+      debugPrint('⚠️ Wishlist catalog price enrich skipped: $e');
+      return items;
+    }
+  }
 
   Future<List<WishlistItem>> getWishlistItems({bool useCache = true}) async {
     // If there's already a pending request, wait for it instead of making a new one
@@ -123,10 +203,12 @@ class WishlistService {
 
         // Filter out local-only items (timestamp IDs > 1 billion)
         // Only keep real API items
-        final apiItems = items.where((item) => item.id <= 1000000000).toList();
+        var apiItems = items.where((item) => item.id <= 1000000000).toList();
         debugPrint('Successfully parsed ${items.length} wishlist items');
         debugPrint(
             'Filtered to ${apiItems.length} real API items (removed ${items.length - apiItems.length} local-only items)');
+
+        apiItems = await _enrichWishlistPricesFromCatalog(apiItems);
 
         // Cache only API items locally (with error handling)
         try {
@@ -170,8 +252,9 @@ class WishlistService {
 
               // Filter out local-only items (timestamp IDs > 1 billion)
               // Only return real API items that were previously fetched from server
-              final apiItems =
+              var apiItems =
                   cachedItems.where((item) => item.id <= 1000000000).toList();
+              apiItems = await _enrichWishlistPricesFromCatalog(apiItems);
 
               debugPrint(
                   'Loaded ${apiItems.length} cached API items from local storage');

@@ -19,6 +19,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'homepage.dart';
 import '../services/universal_page_optimization_service.dart';
+import '../widgets/ecl_expandable_sliver_app_bar.dart';
 
 import '../models/cart_item.dart';
 
@@ -167,77 +168,105 @@ class OptimizedCartState extends State<OptimizedCart> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Cart'),
-        leading: BackButtonUtils.simple(fallbackPage: HomePage()),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
+    final header = EclExpandableSliverAppBar(
+      toolbarTitle: 'Cart',
+      heroTitle: 'Your cart',
+      heroSubtitle: 'Review items before checkout',
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 4),
+        child: BackButtonUtils.simple(
+          backgroundColor: Colors.white.withValues(alpha: 0.2),
+          fallbackPage: HomePage(),
+        ),
       ),
-      body: _buildBody(),
     );
-  }
 
-  Widget _buildBody() {
     if (_isLoading) {
-      return _optimizationService.buildLoadingWidget(
-        message: 'Loading cart...',
+      return Scaffold(
+        body: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            header,
+            SliverFillRemaining(
+              child: _optimizationService.buildLoadingWidget(
+                message: 'Loading cart...',
+              ),
+            ),
+          ],
+        ),
       );
     }
 
     if (_error != null) {
-      return _optimizationService.buildErrorWidget(
-        message: _error!,
-        onRetry: () {
-          setState(() {
-            _isLoading = true;
-            _error = null;
-          });
-          _initializeCart();
-        },
+      return Scaffold(
+        body: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            header,
+            SliverFillRemaining(
+              child: _optimizationService.buildErrorWidget(
+                message: _error!,
+                onRetry: () {
+                  setState(() {
+                    _isLoading = true;
+                    _error = null;
+                  });
+                  _initializeCart();
+                },
+              ),
+            ),
+          ],
+        ),
       );
     }
 
-    return Consumer<CartProvider>(
-      builder: (context, cartProvider, child) {
-        final cartItems = cartProvider.cartItems;
-        final totalItems = cartItems.length;
+    return Scaffold(
+      body: Consumer<CartProvider>(
+        builder: (context, cartProvider, child) {
+          final cartItems = cartProvider.cartItems;
+          final totalItems = cartItems.length;
 
-        if (totalItems == 0) {
-          return _optimizationService.buildEmptyStateWidget(
-            message: 'Your cart is empty',
-            icon: Icons.shopping_cart_outlined,
-            onAction: () =>
-                Navigator.pushReplacementNamed(context, AppRoutes.home),
-            actionText: 'Start Shopping',
+          if (totalItems == 0) {
+            return CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                header,
+                SliverFillRemaining(
+                  child: _optimizationService.buildEmptyStateWidget(
+                    message: 'Your cart is empty',
+                    icon: Icons.shopping_cart_outlined,
+                    onAction: () => Navigator.pushReplacementNamed(
+                        context, AppRoutes.home),
+                    actionText: 'Start Shopping',
+                  ),
+                ),
+              ],
+            );
+          }
+
+          return CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              header,
+              SliverPadding(
+                padding: const EdgeInsets.all(16),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final item = cartItems[index];
+                      return _buildCartItemCard(item, cartProvider);
+                    },
+                    childCount: cartItems.length,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _buildCartSummary(cartItems, cartProvider),
+              ),
+            ],
           );
-        }
-
-        return Column(
-          children: [
-            // Cart items list
-            Expanded(
-              child: _buildCartItemsList(cartItems, cartProvider),
-            ),
-
-            // Cart summary
-            _buildCartSummary(cartItems, cartProvider),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildCartItemsList(
-      List<CartItem> cartItems, CartProvider cartProvider) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: cartItems.length,
-      itemBuilder: (context, index) {
-        final item = cartItems[index];
-        return _buildCartItemCard(item, cartProvider);
-      },
+        },
+      ),
     );
   }
 

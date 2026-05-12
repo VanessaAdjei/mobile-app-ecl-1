@@ -57,7 +57,7 @@
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>Older iOS support</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app needs location access to function properly.</string>
+	<string>We use your location to show accurate delivery options, distances, and address suggestions.</string>
 	<key>NSPhoneUsageDescription</key>
 	<string>This app needs access to make phone calls.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

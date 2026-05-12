@@ -1,5 +1,12 @@
 // models/wallet.dart
 // wallet model for storing wallet info
+
+double _jsonDouble(dynamic v) {
+  if (v == null) return 0.0;
+  if (v is num) return v.toDouble();
+  return double.tryParse(v.toString().trim()) ?? 0.0;
+}
+
 class Wallet {
   final String id;
   final String userId;
@@ -25,7 +32,7 @@ class Wallet {
     return Wallet(
       id: json['id']?.toString() ?? '',
       userId: json['user_id']?.toString() ?? '',
-      balance: (json['balance'] ?? 0.0).toDouble(),
+      balance: _jsonDouble(json['balance']),
       currency: json['currency'] ?? 'GHS',
       status: json['status'] ?? 'active',
       createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
@@ -101,11 +108,12 @@ class WalletTransaction {
     return WalletTransaction(
       id: json['id']?.toString() ?? '',
       walletId: json['wallet_id']?.toString() ?? '',
-      type: json['type'] ?? 'debit',
-      amount: (json['amount'] ?? 0.0).toDouble(),
-      description: json['description'] ?? '',
-      reference: json['reference'] ?? '',
-      status: json['status'] ?? 'pending',
+      type: (json['type'] ?? 'debit').toString(),
+      amount: _jsonDouble(json['amount'] ?? json['value']),
+      description: (json['description'] ?? json['narration'] ?? '').toString(),
+      reference: (json['reference'] ?? json['ref'] ?? json['transaction_id'] ?? '')
+          .toString(),
+      status: (json['status'] ?? 'completed').toString(),
       createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
       metadata: json['metadata'] != null
           ? Map<String, dynamic>.from(json['metadata'])
@@ -132,7 +140,9 @@ class WalletTransaction {
       type == 'refund' ||
       type == 'cashback' ||
       type == 'bonus' ||
-      type == 'return';
+      type == 'return' ||
+      type == 'points' ||
+      type == 'top_up';
   bool get isDebit => type == 'debit';
   bool get isCompleted => status == 'completed';
   bool get isPending => status == 'pending';
@@ -143,4 +153,6 @@ class WalletTransaction {
   bool get isCashback => type == 'cashback';
   bool get isReturn => type == 'return';
   bool get isBonus => type == 'bonus';
+
+  bool get isPoints => type == 'points' || type == 'loyalty_points';
 }

@@ -50,7 +50,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
 
     try {
       _videoController =
-          VideoPlayerController.asset('assets/images/Mobile browsers.mp4');
+          VideoPlayerController.asset('assets/images/mobile_browsers.mp4');
       _videoController!.initialize().then((_) {
         if (mounted) {
           _videoController!.setLooping(true);

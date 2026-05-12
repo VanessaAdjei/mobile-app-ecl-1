@@ -72,8 +72,9 @@ class _PrescriptionUploadStandaloneState
                       alignment: Alignment.center,
                       child: Icon(
                         Icons.image_not_supported_rounded,
-                        color:
-                            isDark ? Colors.grey.shade500 : Colors.grey.shade400,
+                        color: isDark
+                            ? Colors.grey.shade500
+                            : Colors.grey.shade400,
                         size: 42,
                       ),
                     ),
@@ -525,13 +526,11 @@ class _PrescriptionUploadStandaloneState
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF6F8FC),
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight + 30),
-        child: AppHeaderBar(
-          title: 'Upload Prescription',
-          showCart: false,
-        ),
+      backgroundColor:
+          isDark ? const Color(0xFF0F172A) : const Color(0xFFF6F8FC),
+      appBar: AppHeaderBar(
+        title: 'Upload Prescription',
+        showCart: false,
       ),
       body: Container(
         width: double.infinity,
@@ -545,7 +544,9 @@ class _PrescriptionUploadStandaloneState
                 color: isDark ? const Color(0xFF111827) : Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                  color: isDark
+                      ? const Color(0xFF334155)
+                      : const Color(0xFFE2E8F0),
                 ),
               ),
               child: Column(
@@ -678,7 +679,8 @@ class _PrescriptionUploadStandaloneState
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: Colors.black.withValues(alpha: 0.55),
+                                      color:
+                                          Colors.black.withValues(alpha: 0.55),
                                       borderRadius: BorderRadius.circular(999),
                                     ),
                                     child: Text(
@@ -866,8 +868,9 @@ class _PrescriptionUploadStandaloneState
                               : null),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF20AF67),
-                        disabledBackgroundColor:
-                            isDark ? Colors.grey.shade700 : Colors.grey.shade400,
+                        disabledBackgroundColor: isDark
+                            ? Colors.grey.shade700
+                            : Colors.grey.shade400,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -970,7 +973,8 @@ class _PrescriptionUploadStandaloneState
               ),
             ),
             filled: true,
-            fillColor: isDark ? const Color(0xFF1F2937) : const Color(0xFFF8FAFC),
+            fillColor:
+                isDark ? const Color(0xFF1F2937) : const Color(0xFFF8FAFC),
           ),
         ),
       ],
@@ -999,7 +1003,8 @@ class _PrescriptionUploadStandaloneState
                   color: isDark ? Colors.grey.shade600 : Colors.grey.shade300,
                 ),
                 borderRadius: BorderRadius.circular(10),
-                color: isDark ? const Color(0xFF1F2937) : const Color(0xFFF8FAFC),
+                color:
+                    isDark ? const Color(0xFF1F2937) : const Color(0xFFF8FAFC),
               ),
               child: Text(
                 '+233',
@@ -1043,8 +1048,9 @@ class _PrescriptionUploadStandaloneState
                     ),
                   ),
                   filled: true,
-                  fillColor:
-                      isDark ? const Color(0xFF1F2937) : const Color(0xFFF8FAFC),
+                  fillColor: isDark
+                      ? const Color(0xFF1F2937)
+                      : const Color(0xFFF8FAFC),
                 ),
               ),
             ),

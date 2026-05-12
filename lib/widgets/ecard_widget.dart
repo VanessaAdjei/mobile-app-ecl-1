@@ -94,8 +94,26 @@ class _ECardWidgetState extends State<ECardWidget> {
               ),
             ),
           ),
+          // Brand mark: corner placement + natural aspect (no stretch like the old row layout).
+          Positioned(
+            top: 10,
+            right: 12,
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: 0.88,
+                child: Image.asset(
+                  'assets/images/png.png',
+                  height: 26,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.medium,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            padding: const EdgeInsets.fromLTRB(12, 10, 72, 10),
+            // Right padding keeps long text from sliding under the corner logo.
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -132,13 +150,6 @@ class _ECardWidgetState extends State<ECardWidget> {
                           ),
                         ],
                       ),
-                    ),
-                    const Spacer(),
-                    Image.asset(
-                      'assets/images/png.png',
-                      height: 34,
-                      width: 50,
-                      fit: BoxFit.fill,
                     ),
                   ],
                 ),

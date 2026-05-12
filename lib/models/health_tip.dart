@@ -21,7 +21,12 @@ class HealthTip {
     String content = json['Title'] ?? 'Health Tip';
     String category = json['Categories'] ?? 'Health';
     String url = json['AccessibleVersion'] ?? '';
-    String? imageUrl = json['ImageUrl'];
+    final dynamic imgRaw = json['ImageUrl'] ?? json['Image'] ?? json['imageUrl'];
+    String? imageUrl;
+    if (imgRaw != null) {
+      final s = imgRaw.toString().trim();
+      imageUrl = s.isEmpty ? null : s;
+    }
 
     // make a shorter title and a more detailed summary
     String title = content;

@@ -4,10 +4,15 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:eclapp/config/api_config.dart';
 import 'package:eclapp/services/auth_service.dart';
-import 'app_back_button.dart';
 import 'package:eclapp/widgets/error_display.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+
+import '../widgets/ecl_expandable_sliver_app_bar.dart';
+
+const Color _kRxAccent = Color(0xFF0D7A4C);
+const Color _kRxPageBg = Color(0xFFF6F8FA);
+const Color _kRxPageMint = Color(0xFFEFFCF4);
 
 class PrescriptionHistoryScreen extends StatefulWidget {
   const PrescriptionHistoryScreen({super.key});
@@ -169,84 +174,132 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
     await _fetchPrescriptions();
   }
 
-  Widget _buildLoadingSkeleton() {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
+  Widget _rxPageBackdrop({required bool isDark, required Widget child}) {
+    if (isDark) {
+      return SizedBox.expand(
+        child: ColoredBox(color: const Color(0xFF0F172A), child: child),
+      );
+    }
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_kRxPageMint, _kRxPageBg, _kRxPageBg],
+          stops: [0.0, 0.28, 1.0],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                shape: BoxShape.circle,
-              ),
-              child: CircularProgressIndicator(
-                color: Colors.green.shade700,
-                strokeWidth: 3,
-              ),
+      ),
+      child: SizedBox.expand(child: child),
+    );
+  }
+
+  Widget _buildLoadingSkeleton(bool isDark) {
+    final cardBg = isDark ? const Color(0xFF111827) : Colors.white;
+    final titleColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final muted = isDark ? Colors.white60 : const Color(0xFF64748B);
+    final chipBg = isDark ? _kRxAccent.withValues(alpha: 0.15) : _kRxPageMint;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
             ),
-            const SizedBox(height: 20),
-            Text(
-              'Loading Prescriptions',
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade800,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.07),
+                blurRadius: isDark ? 20 : 28,
+                offset: const Offset(0, 12),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Please wait while we fetch your prescription history...',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.grey.shade600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 6,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.green.shade100,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.medical_services_outlined,
-                    color: Colors.green.shade700,
-                    size: 16,
+              if (!isDark)
+                BoxShadow(
+                  color: _kRxAccent.withValues(alpha: 0.06),
+                  blurRadius: 32,
+                  offset: const Offset(0, 16),
+                  spreadRadius: -8,
+                ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _kRxAccent.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    color: _kRxAccent,
+                    strokeWidth: 3,
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Fetching your uploaded prescriptions',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: Colors.green.shade700,
-                      fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Loading prescriptions',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: titleColor,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Fetching your prescription history…',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: muted,
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: chipBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _kRxAccent.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.medical_services_outlined,
+                      color: _kRxAccent,
+                      size: 16,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Uploaded files will appear here',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: _kRxAccent,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -256,21 +309,32 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
+        final dlgDark = Theme.of(dialogContext).brightness == Brightness.dark;
+        final surface = dlgDark ? const Color(0xFF1E293B) : Colors.white;
+        final placeholderBg =
+            dlgDark ? const Color(0xFF334155) : Colors.grey.shade200;
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.all(20),
+          insetPadding: const EdgeInsets.all(16),
           child: Stack(
             children: [
               Container(
                 width: double.infinity,
-                height: double.infinity,
+                constraints: const BoxConstraints(maxHeight: 520),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  color: surface,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(18),
                   child: InteractiveViewer(
                     constrained: true,
                     minScale: 0.5,
@@ -278,44 +342,44 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                     child: CachedNetworkImage(
                       imageUrl: fileUrl,
                       fit: BoxFit.contain,
-                      // Full resolution image loading
                       memCacheWidth: 1200,
                       memCacheHeight: 1200,
                       maxWidthDiskCache: 1600,
                       maxHeightDiskCache: 1600,
-                      // Better placeholder
                       placeholder: (context, url) => Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                        height: 320,
+                        color: placeholderBg,
                         child: const Center(
                           child: CircularProgressIndicator(
                             strokeWidth: 3,
                             valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.green),
+                                AlwaysStoppedAnimation<Color>(_kRxAccent),
                           ),
                         ),
                       ),
-                      // Error handling
                       errorWidget: (context, url, error) => Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Center(
+                        height: 280,
+                        color: placeholderBg,
+                        child: Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(
-                                Icons.error_outline,
+                                Icons.error_outline_rounded,
                                 size: 48,
-                                color: Colors.grey,
+                                color: dlgDark
+                                    ? Colors.white54
+                                    : Colors.grey.shade600,
                               ),
-                              SizedBox(height: 8),
+                              const SizedBox(height: 8),
                               Text(
-                                'Failed to load image',
-                                style: TextStyle(color: Colors.grey),
+                                'Could not load image',
+                                style: GoogleFonts.poppins(
+                                  color: dlgDark
+                                      ? Colors.white70
+                                      : Colors.grey.shade700,
+                                  fontSize: 14,
+                                ),
                               ),
                             ],
                           ),
@@ -326,16 +390,14 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                 ),
               ),
               Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    shape: BoxShape.circle,
-                  ),
+                top: 6,
+                right: 6,
+                child: Material(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  shape: const CircleBorder(),
                   child: IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded, color: Colors.white),
+                    onPressed: () => Navigator.pop(dialogContext),
                   ),
                 ),
               ),
@@ -348,108 +410,113 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    const scrollPhysics = AlwaysScrollableScrollPhysics(
+      parent: BouncingScrollPhysics(),
+    );
+
+    Widget header() => const EclExpandableSliverAppBar(
+          toolbarTitle: 'Prescription history',
+          heroTitle: 'Prescription history',
+          heroSubtitle:
+              'Status, dates, and pharmacist notes for each upload',
+        );
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FC),
-      body: Column(
-        children: [
-          // Modern page header
-          Container(
-            padding:
-                EdgeInsets.only(top: MediaQuery.of(context).padding.top * 0.5),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.green.shade600,
-                  Colors.green.shade700,
-                  Colors.green.shade800,
+      backgroundColor: isDark ? const Color(0xFF0F172A) : _kRxPageBg,
+      body: _rxPageBackdrop(
+        isDark: isDark,
+        child: _isLoading
+            ? CustomScrollView(
+                controller: _scrollController,
+                physics: scrollPhysics,
+                slivers: [
+                  header(),
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _buildLoadingSkeleton(isDark),
+                  ),
                 ],
-                stops: [0.0, 0.5, 1.0],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-                child: Row(
-                  children: [
-                    AppBackButton(
-                      backgroundColor: Colors.white.withValues(alpha: 0.2),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Uploaded Prescriptions',
-                            style: GoogleFonts.poppins(
-                              fontSize: 21,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            'View your prescription history',
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              color: Colors.white.withValues(alpha: 0.9),
-                            ),
+              )
+            : _error != null
+                ? CustomScrollView(
+                    controller: _scrollController,
+                    physics: scrollPhysics,
+                    slivers: [
+                      header(),
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: _buildErrorState(),
+                      ),
+                    ],
+                  )
+                : _prescriptions.isEmpty
+                    ? CustomScrollView(
+                        controller: _scrollController,
+                        physics: scrollPhysics,
+                        slivers: [
+                          header(),
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: _buildEmptyState(isDark),
                           ),
                         ],
+                      )
+                    : RefreshIndicator(
+                        color: _kRxAccent,
+                        onRefresh: _refreshPrescriptions,
+                        child: CustomScrollView(
+                          controller: _scrollController,
+                          physics: scrollPhysics,
+                          slivers: [
+                            header(),
+                            ..._buildPrescriptionListSlivers(isDark),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Prescriptions content
-          Expanded(
-            child: _isLoading
-                ? _buildLoadingSkeleton()
-                : _error != null
-                    ? _buildErrorState()
-                    : _prescriptions.isEmpty
-                        ? _buildEmptyState()
-                        : _buildPrescriptionsList(),
-          ),
-        ],
       ),
     );
   }
 
   Widget _buildErrorState() {
     return ErrorDisplay(
-      title: 'Error Loading Prescriptions',
-      message: _error ?? 'An error occurred while loading your prescriptions',
+      title: 'Could not load prescriptions',
+      message: _error ??
+          'Something went wrong. Check your connection and try again.',
+      showRetry: true,
       onRetry: _refreshPrescriptions,
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(bool isDark) {
+    final cardBg = isDark ? const Color(0xFF111827) : Colors.white;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.fromLTRB(22, 28, 22, 28),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            color: cardBg,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.07),
+                blurRadius: isDark ? 20 : 28,
+                offset: const Offset(0, 12),
+              ),
+              if (!isDark)
+                BoxShadow(
+                  color: _kRxAccent.withValues(alpha: 0.07),
+                  blurRadius: 32,
+                  offset: const Offset(0, 16),
+                  spreadRadius: -8,
+                ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -457,30 +524,31 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFECFDF3),
-                  borderRadius: BorderRadius.circular(14),
+                  color: _kRxAccent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(
                   Icons.medical_services_outlined,
                   size: 42,
-                  color: Colors.green.shade700,
+                  color: _kRxAccent,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               Text(
-                'No Prescriptions Yet',
+                'No prescriptions yet',
                 style: GoogleFonts.poppins(
-                  fontSize: 20,
-                  color: const Color(0xFF0F172A),
+                  fontSize: 19,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
                   fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                'You haven\'t uploaded any prescriptions yet.',
+                'When you upload a prescription, it will show up here.',
                 style: GoogleFonts.poppins(
                   fontSize: 13.5,
-                  color: const Color(0xFF64748B),
+                  height: 1.45,
+                  color: isDark ? Colors.white60 : const Color(0xFF64748B),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -491,182 +559,238 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
     );
   }
 
-  Widget _buildPrescriptionsList() {
-    return RefreshIndicator(
-      onRefresh: _refreshPrescriptions,
-      child: ListView.separated(
-        controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 20),
-        itemCount: _prescriptions.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          final prescription = _prescriptions[index];
-          final status = (prescription['status'] ?? 'pending').toString();
-          final uploadDate =
-              (prescription['created_at'] ?? prescription['date'] ?? '')
-                  .toString();
-          final pharmacistNote = _extractPharmacistNote(prescription);
-          final hasPharmacistNote = pharmacistNote.isNotEmpty;
-          final imageUrl = prescription['file']?.toString();
+  List<Widget> _buildPrescriptionListSlivers(bool isDark) {
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+        sliver: SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              return Padding(
+                padding: EdgeInsets.only(top: index == 0 ? 0 : 12),
+                child: _buildPrescriptionItemAt(index, isDark),
+              );
+            },
+            childCount: _prescriptions.length,
+          ),
+        ),
+      ),
+    ];
+  }
 
-          return Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+  Widget _buildPrescriptionItemAt(int index, bool isDark) {
+    final cardBg = isDark ? const Color(0xFF111827) : Colors.white;
+    final borderColor =
+        isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final thumbBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
+    final noteSectionBg =
+        isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+
+    final prescription = _prescriptions[index];
+    final statusRaw = (prescription['status'] ?? 'pending').toString();
+    final status = statusRaw.trim();
+    final statusLabel = status.isEmpty
+        ? 'Pending'
+        : (status.length == 1
+            ? status.toUpperCase()
+            : '${status[0].toUpperCase()}${status.substring(1)}');
+    final uploadDate =
+        (prescription['created_at'] ?? prescription['date'] ?? '').toString();
+    final pharmacistNote = _extractPharmacistNote(prescription);
+    final hasPharmacistNote = pharmacistNote.isNotEmpty;
+    final imageUrl = prescription['file']?.toString();
+    final titleColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final muted = isDark ? Colors.white60 : const Color(0xFF64748B);
+    final noteTitleColor = isDark ? Colors.white70 : const Color(0xFF334155);
+    final noteBodyColor = isDark ? Colors.white70 : const Color(0xFF0F172A);
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: borderColor),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.06),
+              blurRadius: isDark ? 16 : 20,
+              offset: const Offset(0, 8),
             ),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: imageUrl != null ? () => _showPrescriptionImage(imageUrl) : null,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: imageUrl != null
+              ? () => _showPrescriptionImage(imageUrl)
+              : null,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(width: 4, color: _kRxAccent),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 88,
-                          height: 88,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: imageUrl != null
-                                ? CachedNetworkImage(
-                                    imageUrl: imageUrl,
-                                    fit: BoxFit.cover,
-                                    memCacheWidth: 180,
-                                    memCacheHeight: 180,
-                                    placeholder: (_, __) => const Icon(
-                                      Icons.image_outlined,
-                                      color: Color(0xFF94A3B8),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 88,
+                              height: 88,
+                              decoration: BoxDecoration(
+                                color: thumbBg,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: imageUrl != null
+                                    ? CachedNetworkImage(
+                                        imageUrl: imageUrl,
+                                        fit: BoxFit.cover,
+                                        memCacheWidth: 180,
+                                        memCacheHeight: 180,
+                                        placeholder: (_, __) => Icon(
+                                          Icons.image_outlined,
+                                          color: isDark
+                                              ? Colors.white38
+                                              : const Color(0xFF94A3B8),
+                                        ),
+                                        errorWidget: (_, __, ___) => Icon(
+                                          Icons.medical_services_outlined,
+                                          color: _kRxAccent,
+                                        ),
+                                      )
+                                    : Icon(
+                                        Icons.medical_services_outlined,
+                                        color: _kRxAccent,
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Prescription #${prescription['id']}',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: titleColor,
                                     ),
-                                    errorWidget: (_, __, ___) => Icon(
-                                      Icons.medical_services_outlined,
-                                      color: Colors.green.shade700,
-                                    ),
-                                  )
-                                : Icon(
-                                    Icons.medical_services_outlined,
-                                    color: Colors.green.shade700,
                                   ),
-                          ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.calendar_today_outlined,
+                                        size: 13,
+                                        color: isDark
+                                            ? Colors.white38
+                                            : const Color(0xFF94A3B8),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          uploadDate.isNotEmpty
+                                              ? uploadDate.split('T').first
+                                              : 'No date',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 12,
+                                            color: muted,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _getStatusColor(status)
+                                    .withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                statusLabel,
+                                style: GoogleFonts.poppins(
+                                  color: _getStatusColor(status),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: noteSectionBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: borderColor),
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'Prescription #${prescription['id']}',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF0F172A),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
                               Row(
                                 children: [
-                                  const Icon(
-                                    Icons.calendar_today,
-                                    size: 12,
-                                    color: Color(0xFF94A3B8),
+                                  Icon(
+                                    Icons.medical_information_outlined,
+                                    size: 15,
+                                    color: noteTitleColor,
                                   ),
-                                  const SizedBox(width: 4),
+                                  const SizedBox(width: 6),
                                   Text(
-                                    uploadDate.isNotEmpty
-                                        ? uploadDate.split('T').first
-                                        : 'No date',
+                                    'Pharmacist note',
                                     style: GoogleFonts.poppins(
-                                      fontSize: 11.5,
-                                      color: const Color(0xFF64748B),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: noteTitleColor,
                                     ),
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color:
-                                _getStatusColor(status).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            status[0].toUpperCase() + status.substring(1),
-                            style: TextStyle(
-                              color: _getStatusColor(status),
-                              fontWeight: FontWeight.w600,
-                              fontSize: 11.5,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: const [
-                              Icon(
-                                Icons.medical_information_outlined,
-                                size: 14,
-                                color: Color(0xFF475569),
-                              ),
-                              SizedBox(width: 6),
+                              const SizedBox(height: 6),
                               Text(
-                                'Pharmacist note',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF334155),
+                                hasPharmacistNote
+                                    ? pharmacistNote
+                                    : 'No pharmacist note yet.',
+                                maxLines: 4,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12.5,
+                                  color: hasPharmacistNote
+                                      ? noteBodyColor
+                                      : muted,
+                                  height: 1.35,
+                                  fontStyle: hasPharmacistNote
+                                      ? FontStyle.normal
+                                      : FontStyle.italic,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            hasPharmacistNote
-                                ? pharmacistNote
-                                : 'No pharmacist note yet.',
-                            maxLines: 4,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: hasPharmacistNote
-                                  ? const Color(0xFF0F172A)
-                                  : const Color(0xFF64748B),
-                              height: 1.35,
-                              fontStyle: hasPharmacistNote
-                                  ? FontStyle.normal
-                                  : FontStyle.italic,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
@@ -674,13 +798,13 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
   Color _getStatusColor(String? status) {
     switch (status?.toLowerCase()) {
       case 'approved':
-        return Colors.green;
+        return _kRxAccent;
       case 'rejected':
-        return Colors.red;
+        return const Color(0xFFDC2626);
       case 'pending':
-        return Colors.orange;
+        return const Color(0xFFF59E0B);
       default:
-        return Colors.grey;
+        return const Color(0xFF64748B);
     }
   }
 

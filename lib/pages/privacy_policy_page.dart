@@ -1,34 +1,26 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/ecl_expandable_sliver_app_bar.dart';
+
 class PrivacyPolicyPage extends StatelessWidget {
   const PrivacyPolicyPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      appBar: AppBar(
-        backgroundColor: Color(0xFF4CAF50),
-        elevation: 2,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Privacy Statement',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
+      backgroundColor: const Color(0xFFE5EDE8),
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          const EclExpandableSliverAppBar(
+            toolbarTitle: 'Privacy Statement',
+            heroTitle: 'Your privacy',
+            heroSubtitle: 'How we collect, use, and protect your data',
           ),
-        ),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          SliverPadding(
+            padding: const EdgeInsets.all(20),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
             _buildSection(
               '1.0',
               'Information We Collect',
@@ -219,9 +211,11 @@ class PrivacyPolicyPage extends StatelessWidget {
               ),
             ),
 
-            SizedBox(height: 20),
-          ],
-        ),
+            const SizedBox(height: 20),
+              ]),
+            ),
+          ),
+        ],
       ),
     );
   }

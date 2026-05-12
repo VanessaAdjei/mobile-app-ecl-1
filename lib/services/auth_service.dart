@@ -1525,6 +1525,28 @@ class AuthService {
     return await _safeRead('hashed_link');
   }
 
+  /// Parses GET /orders JSON — handles [Map<dynamic,dynamic>] and nested `data`.
+  static List<dynamic> _extractOrdersListFromOrdersResponse(dynamic decoded) {
+    if (decoded is! Map) return [];
+    final map = Map<String, dynamic>.from(decoded as Map);
+    final first = map['data'];
+    if (first is List) {
+      return List<dynamic>.from(first);
+    }
+    if (first is Map) {
+      final inner = Map<String, dynamic>.from(first as Map);
+      for (final key in <String>['data', 'orders', 'records', 'list', 'items']) {
+        final v = inner[key];
+        if (v is List) return List<dynamic>.from(v);
+      }
+    }
+    for (final key in <String>['orders', 'list']) {
+      final v = map[key];
+      if (v is List) return List<dynamic>.from(v);
+    }
+    return [];
+  }
+
   static Future<Map<String, dynamic>> getOrders() async {
     try {
       final token = await getToken();
@@ -1544,7 +1566,7 @@ class AuthService {
       debugPrint('Orders API response status: \\${response.statusCode}');
       debugPrint('Orders API response body: \\${response.body}');
 
-      final data = jsonDecode(response.body);
+      final decoded = jsonDecode(response.body);
 
       // Get locally stored cash on delivery orders
       final localOrders = await getLocalCashOnDeliveryOrders();
@@ -1552,9 +1574,8 @@ class AuthService {
       // Combine server orders with local orders
       List<dynamic> allOrders = [];
 
-      if (data is Map<String, dynamic> && data['data'] is List) {
-        allOrders.addAll(data['data'] as List);
-      }
+      // jsonDecode often yields Map<dynamic,dynamic> — do not require Map<String,dynamic>.
+      allOrders.addAll(_extractOrdersListFromOrdersResponse(decoded));
 
       for (final localOrder in localOrders) {
         final localOrderId =

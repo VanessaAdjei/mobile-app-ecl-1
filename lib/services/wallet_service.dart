@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../models/wallet.dart';
 import 'auth_service.dart';
+import 'order_history_transformer.dart';
 
 class WalletService {
   static const String _baseUrl =
@@ -20,7 +21,10 @@ class WalletService {
   static const String _transactionsCacheKey = 'transactions_cache';
   static const Duration _cacheDuration = Duration(minutes: 15);
 
-  // get wallet info for the current user (using mock data for now, no api)
+  /// Page size for [getTransactions] (keep in sync with [WalletProvider.loadMoreTransactions]).
+  static const int transactionsPageSize = 20;
+
+  // get wallet info for the current user — prefer live API, then cache, then mock.
   static Future<Wallet?> getWallet() async {
     try {
       final userId = await AuthService.getCurrentUserID();
@@ -29,13 +33,39 @@ class WalletService {
         throw Exception('User not authenticated');
       }
 
-      // check cache first
+      final token = await AuthService.getToken();
+      if (token != null) {
+        try {
+          final response = await http
+              .get(
+                Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.wallet)),
+                headers: {
+                  'Accept': 'application/json',
+                  'Authorization': 'Bearer $token',
+                },
+              )
+              .timeout(const Duration(seconds: 20));
+
+          if (response.statusCode == 200) {
+            final decoded = json.decode(response.body);
+            if (decoded is Map<String, dynamic>) {
+              final w = _parseWalletFromApiBody(decoded);
+              if (w != null) {
+                await _cacheWallet(w);
+                return w;
+              }
+            }
+          }
+        } catch (e) {
+          developer.log('Wallet API GET failed: $e', name: 'WalletService');
+        }
+      }
+
       final cachedWallet = await _getCachedWallet();
       if (cachedWallet != null) {
         return cachedWallet;
       }
 
-      // make a fake wallet since theres no api yet
       developer.log('Creating mock wallet for user: $userId',
           name: 'WalletService');
       final mockWallet = _createMockWallet(userId);
@@ -44,6 +74,22 @@ class WalletService {
     } catch (e) {
       developer.log('Error creating mock wallet: $e', name: 'WalletService');
       rethrow;
+    }
+  }
+
+  static Wallet? _parseWalletFromApiBody(Map<String, dynamic> body) {
+    final d = body['data'];
+    if (d is! Map) return null;
+    final m = Map<String, dynamic>.from(d);
+    try {
+      var w = Wallet.fromJson(m);
+      if (w.id.isEmpty && m['wallet'] is Map) {
+        w = Wallet.fromJson(Map<String, dynamic>.from(m['wallet'] as Map));
+      }
+      return w.id.isNotEmpty ? w : null;
+    } catch (e) {
+      developer.log('Wallet JSON parse error: $e', name: 'WalletService');
+      return null;
     }
   }
 
@@ -88,34 +134,171 @@ class WalletService {
 
   static Future<List<WalletTransaction>> getTransactions({
     int page = 1,
-    int limit = 20,
+    int limit = transactionsPageSize,
   }) async {
-    try {
-      final userId = await AuthService.getCurrentUserID();
-      if (userId == null) {
-        throw Exception('User not authenticated');
-      }
-
-      // check cache first
-      final cachedTransactions = await _getCachedTransactions();
-      if (cachedTransactions.isNotEmpty && page == 1) {
-        return cachedTransactions;
-      }
-
-      // return empty list since theres no api
-      developer.log('Returning empty transactions for user: $userId',
-          name: 'WalletService');
-      final emptyTransactions = _createEmptyTransactions(userId);
-
-      if (page == 1) {
-        await _cacheTransactions(emptyTransactions);
-      }
-
-      return emptyTransactions;
-    } catch (e) {
-      developer.log('Error getting transactions: $e', name: 'WalletService');
-      rethrow;
+    final userId = await AuthService.getCurrentUserID();
+    if (userId == null) {
+      developer.log('getTransactions: not authenticated', name: 'WalletService');
+      return [];
     }
+
+    try {
+      // Same API as Your Orders (PurchaseScreen): [AuthService.getOrders] → GET {ApiConfig.baseUrl}/orders (+ local COD merge). No /wallet/transactions.
+      final result = Map<String, dynamic>.from(await AuthService.getOrders());
+      final ok = result['status'] == 'success' ||
+          result['success'] == true ||
+          result['success'] == 1;
+      final rawList = _extractOrdersListFromGetOrdersResult(result);
+      if (ok && rawList != null) {
+        List<Map<String, dynamic>> rows;
+        try {
+          rows = OrderHistoryTransformer.processRawOrders(rawList);
+        } catch (e, st) {
+          developer.log(
+            'processRawOrders failed, using raw order rows: $e',
+            name: 'WalletService',
+            error: e,
+            stackTrace: st,
+          );
+          rows = _orderRowsFallbackWithoutGrouping(rawList);
+        }
+        if (rows.isEmpty && rawList.isNotEmpty) {
+          developer.log(
+            'WalletService: grouping yielded 0 rows from ${rawList.length} raw orders; using ungrouped list.',
+            name: 'WalletService',
+          );
+          rows = _orderRowsFallbackWithoutGrouping(rawList);
+        }
+        final all = <WalletTransaction>[];
+        for (final m in rows) {
+          try {
+            all.add(_walletTransactionFromOrderRow(m, userId));
+          } catch (e, st) {
+            developer.log(
+              'WalletService: skip row when mapping to transaction: $e',
+              name: 'WalletService',
+              error: e,
+              stackTrace: st,
+            );
+          }
+        }
+        final start = (page - 1) * limit;
+        if (start >= all.length) {
+          return [];
+        }
+        final end = (start + limit) > all.length ? all.length : start + limit;
+        final slice = all.sublist(start, end);
+        developer.log(
+          'Loaded ${slice.length} purchase rows as wallet history (page $page, total ${all.length})',
+          name: 'WalletService',
+        );
+        return slice;
+      }
+
+      developer.log(
+        'getTransactions: orders API not usable for table (ok=$ok rawListNull=${rawList == null} keys=${result.keys.toList()}). Same endpoint as Purchases: GET /orders.',
+        name: 'WalletService',
+      );
+      return [];
+    } catch (e) {
+      developer.log('Error getting transactions from orders: $e',
+          name: 'WalletService');
+      return [];
+    }
+  }
+
+  /// Accepts both `data: [...]` and `data: { orders: [...] }` shapes.
+  static List<dynamic>? _extractOrdersListFromGetOrdersResult(
+    Map<String, dynamic> result,
+  ) {
+    final data = result['data'];
+    if (data is List) {
+      return List<dynamic>.from(data);
+    }
+    if (data is Map) {
+      final m = Map<String, dynamic>.from(data as Map);
+      for (final key in <String>['orders', 'data', 'list', 'items']) {
+        final v = m[key];
+        if (v is List) return List<dynamic>.from(v);
+      }
+    }
+    return null;
+  }
+
+  /// One row per raw API object when grouping throws.
+  static List<Map<String, dynamic>> _orderRowsFallbackWithoutGrouping(
+    List<dynamic> raw,
+  ) {
+    final out = <Map<String, dynamic>>[];
+    for (final o in raw) {
+      if (o is! Map) continue;
+      try {
+        out.add(Map<String, dynamic>.from(o as Map));
+      } catch (_) {}
+    }
+    out.sort((a, b) {
+      final da = DateTime.tryParse(a['created_at']?.toString() ?? '') ??
+          DateTime(1970);
+      final db = DateTime.tryParse(b['created_at']?.toString() ?? '') ??
+          DateTime(1970);
+      return db.compareTo(da);
+    });
+    return out;
+  }
+
+  static WalletTransaction _walletTransactionFromOrderRow(
+    Map<String, dynamic> o,
+    String userId,
+  ) {
+    final ref = (o['transaction_id'] ?? o['order_id'] ?? o['delivery_id'] ?? '')
+        .toString();
+    final amount = _toAmount(o['total_price'] ?? o['price']);
+    final isMulti = o['is_multi_item'] == true;
+    final count = (o['item_count'] ?? 1) is num
+        ? (o['item_count'] as num).toInt()
+        : int.tryParse('${o['item_count'] ?? 1}') ?? 1;
+    final product = o['product_name']?.toString() ?? 'Purchase';
+    final desc = isMulti && count > 1
+        ? '$product (+${count - 1} more)'
+        : product;
+    final id = ref.isNotEmpty
+        ? ref
+        : '${o['created_at']}_$product'.hashCode.abs().toString();
+    return WalletTransaction(
+      id: id,
+      walletId: userId,
+      type: 'debit',
+      amount: amount,
+      description: desc,
+      reference: ref.isNotEmpty ? ref : (o['order_id']?.toString() ?? ''),
+      status: _orderStatusToWalletStatus(o['status']?.toString() ?? ''),
+      createdAt:
+          DateTime.tryParse(o['created_at']?.toString() ?? '') ?? DateTime.now(),
+      metadata: {
+        'source': 'orders',
+        'payment_method': o['payment_method'] ?? o['payment_type'],
+      },
+    );
+  }
+
+  static double _toAmount(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0;
+  }
+
+  static String _orderStatusToWalletStatus(String raw) {
+    final s = raw.toLowerCase();
+    if (s.contains('fail') ||
+        s.contains('cancel') ||
+        s.contains('declin') ||
+        s.contains('reject')) {
+      return 'failed';
+    }
+    if (s.contains('pending') || s.contains('process')) {
+      return 'pending';
+    }
+    return 'completed';
   }
 
   // add money to the wallet
@@ -416,41 +599,6 @@ class WalletService {
     return null;
   }
 
-  static Future<void> _cacheTransactions(
-      List<WalletTransaction> transactions) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final cacheData = {
-        'timestamp': DateTime.now().toIso8601String(),
-        'data': transactions.map((t) => t.toJson()).toList(),
-      };
-      await prefs.setString(_transactionsCacheKey, json.encode(cacheData));
-    } catch (e) {
-      developer.log('Error caching transactions: $e', name: 'WalletService');
-    }
-  }
-
-  static Future<List<WalletTransaction>> _getCachedTransactions() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final cached = prefs.getString(_transactionsCacheKey);
-      if (cached != null) {
-        final data = json.decode(cached);
-        final timestamp = DateTime.parse(data['timestamp']);
-
-        if (DateTime.now().difference(timestamp) < _cacheDuration) {
-          return (data['data'] as List)
-              .map((t) => WalletTransaction.fromJson(t))
-              .toList();
-        }
-      }
-    } catch (e) {
-      developer.log('Error reading cached transactions: $e',
-          name: 'WalletService');
-    }
-    return [];
-  }
-
   static Future<void> _clearCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -538,6 +686,7 @@ class WalletService {
 
 extension StringExtension on String {
   String capitalize() {
+    if (isEmpty) return this;
     return '${this[0].toUpperCase()}${substring(1).toLowerCase()}';
   }
 }

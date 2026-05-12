@@ -772,15 +772,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       ? OnboardingSplashPage(
                           onFinish: () async {
                             if (!mounted) return;
+                            // Swapping `home` replaces onboarding; `context` here is above
+                            // MaterialApp so Navigator.of(context) is invalid.
                             setState(() {
                               _isFirstLaunch = false;
                             });
-
-                            // Navigate to HomePage (which will handle showing the welcome message)
-                            await Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(
-                                  builder: (_) => const HomePage()),
-                            );
                           },
                         )
                       : const HomePage(),

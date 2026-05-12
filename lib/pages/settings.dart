@@ -17,10 +17,10 @@ import 'aboutus.dart';
 import 'loggedout.dart';
 import 'notifications.dart';
 
-import 'app_back_button.dart';
 import 'package:eclapp/services/auth_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/cart_icon_button.dart';
+import '../widgets/ecl_expandable_sliver_app_bar.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -179,60 +179,35 @@ class SettingsScreenState extends State<SettingsScreen> {
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                primaryColor,
-                primaryColor.withValues(alpha: 0.8),
-              ],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 8,
-                offset: Offset(0, 2),
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          EclExpandableSliverAppBar(
+            toolbarTitle: 'Settings',
+            heroTitle: 'Settings',
+            heroSubtitle: 'Your account & preferences',
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: CartIconButton(
+                    iconColor: Colors.white,
+                    iconSize: 24,
+                    backgroundColor: Colors.transparent,
+                  ),
+                ),
               ),
             ],
           ),
-        ),
-        leading: BackButtonUtils.simple(
-          backgroundColor: Colors.white.withValues(alpha: 0.2),
-        ),
-        title: Text(
-          'Settings',
-          style: GoogleFonts.poppins(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-            letterSpacing: 0.5,
-          ),
-        ),
-        actions: [
-          Container(
-            margin: EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: CartIconButton(
-              iconColor: Colors.white,
-              iconSize: 24,
-              backgroundColor: Colors.transparent,
-            ),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
             // Profile section
             Animate(
               effects: [
@@ -241,9 +216,20 @@ class SettingsScreenState extends State<SettingsScreen> {
                     duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
               ],
               child: Container(
-                color: primaryColor,
+                margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
                 padding: const EdgeInsets.only(
-                    left: 20, right: 20, top: 10, bottom: 30),
+                    left: 20, right: 20, top: 16, bottom: 24),
                 child: Column(
                   children: [
                     Row(
@@ -258,7 +244,7 @@ class SettingsScreenState extends State<SettingsScreen> {
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   border:
-                                      Border.all(color: Colors.white, width: 2),
+                                      Border.all(color: primaryColor, width: 2),
                                   color: Colors.grey[300],
                                   image: _profileImage != null
                                       ? DecorationImage(
@@ -293,7 +279,7 @@ class SettingsScreenState extends State<SettingsScreen> {
                                 style: GoogleFonts.poppins(
                                   fontSize: 22,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: textColor,
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -301,7 +287,7 @@ class SettingsScreenState extends State<SettingsScreen> {
                                 _userEmail,
                                 style: GoogleFonts.poppins(
                                   fontSize: 14,
-                                  color: Colors.white.withValues(alpha: 0.8),
+                                  color: Colors.grey.shade600,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -312,17 +298,18 @@ class SettingsScreenState extends State<SettingsScreen> {
                                       builder: (context) => Profile()),
                                 ),
                                 child: Container(
-                                  padding: EdgeInsets.symmetric(
+                                  padding: const EdgeInsets.symmetric(
                                       horizontal: 12, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.2),
+                                    color: primaryColor.withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                   child: Text(
                                     'Edit Profile',
                                     style: GoogleFonts.poppins(
                                       fontSize: 12,
-                                      color: Colors.white,
+                                      color: primaryColor,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ),
@@ -503,6 +490,8 @@ class SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 24),
           ],
         ),
+      ),
+        ],
       ),
     );
   }

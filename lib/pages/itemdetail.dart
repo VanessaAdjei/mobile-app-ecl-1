@@ -1,6 +1,7 @@
 // pages/itemdetail.dart
 import 'package:eclapp/pages/prescription.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -12,6 +13,8 @@ import 'dart:io';
 import '../models/cart_item.dart';
 import 'package:eclapp/models/product_model.dart';
 import 'package:eclapp/config/api_config.dart';
+import '../config/app_colors.dart';
+import 'package:eclapp/utils/product_image_url.dart';
 import 'package:eclapp/config/app_routes.dart';
 import 'package:eclapp/services/auth_service.dart';
 import 'bottomnav.dart';
@@ -21,12 +24,139 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/cart_icon_button.dart';
+import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import '../widgets/full_screen_image_viewer.dart';
 import '../widgets/optimized_quantity_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/universal_page_optimization_service.dart';
 
 import 'homepage.dart';
+
+/// CMS filenames often embed unix time `.../product/_1699123456_Name.png` — newer first
+/// surfaces the current photo when the API still lists an older/broken file first.
+int? _uploadEpochFromImageUrl(String url) {
+  final m = RegExp(r'_(\d{10,13})_').firstMatch(url);
+  if (m == null) return null;
+  return int.tryParse(m.group(1)!);
+}
+
+bool _looksLikePlaceholderImageUrl(String url) {
+  final u = url.toLowerCase();
+  return u.contains('placeholder') ||
+      u.contains('no-image') ||
+      u.contains('no_image') ||
+      u.contains('default_product') ||
+      u.contains('image-not-available') ||
+      u.contains('/0.png') ||
+      u.contains('/0.jpg');
+}
+
+/// Prefer real uploads and newer files; push placeholder-like URLs to the end.
+List<String> orderProductGalleryUrlsForDisplay(List<String> urls) {
+  if (urls.length < 2) return urls;
+  final copy = List<String>.from(urls);
+  copy.sort((a, b) {
+    final pa = _looksLikePlaceholderImageUrl(a);
+    final pb = _looksLikePlaceholderImageUrl(b);
+    if (pa != pb) return pa ? 1 : -1;
+    final ea = _uploadEpochFromImageUrl(a);
+    final eb = _uploadEpochFromImageUrl(b);
+    if (ea != null && eb != null && ea != eb) return eb.compareTo(ea);
+    if (ea != null && eb == null) return -1;
+    if (ea == null && eb != null) return 1;
+    return 0;
+  });
+  return copy;
+}
+
+/// Builds absolute image URLs from product `images` array and inventory fallbacks.
+List<String> _extractResolvedProductGalleryUrls(
+  dynamic imagesField,
+  Map<String, dynamic> inventoryData,
+) {
+  final out = <String>[];
+  void push(dynamic raw) {
+    final coerced = coerceProductImageSource(raw);
+    if (coerced.isEmpty) return;
+    final url = ApiConfig.getProductImageUrl(coerced);
+    if (url.isNotEmpty && !out.contains(url)) out.add(url);
+  }
+
+  if (imagesField is List) {
+    final mapItems = <Map<String, dynamic>>[];
+    final otherItems = <dynamic>[];
+    for (final item in imagesField) {
+      if (item is Map) {
+        mapItems.add(Map<String, dynamic>.from(item));
+      } else {
+        otherItems.add(item);
+      }
+    }
+    bool isPrimary(Map<String, dynamic> m) {
+      return m['is_primary'] == true ||
+          m['primary'] == true ||
+          m['is_default'] == true ||
+          m['default'] == true;
+    }
+
+    int mapImageId(Map<String, dynamic> m) {
+      final v = m['id'] ?? m['image_id'] ?? m['media_id'];
+      return int.tryParse(v?.toString() ?? '0') ?? 0;
+    }
+
+    mapItems.sort((a, b) {
+      final pa = isPrimary(a);
+      final pb = isPrimary(b);
+      if (pa != pb) return pa ? -1 : 1;
+      final ida = mapImageId(a);
+      final idb = mapImageId(b);
+      if (ida != idb) return idb.compareTo(ida);
+      final urlA = (a['url'] ?? a['src'] ?? '').toString();
+      final urlB = (b['url'] ?? b['src'] ?? '').toString();
+      final ea = _uploadEpochFromImageUrl(urlA);
+      final eb = _uploadEpochFromImageUrl(urlB);
+      if (ea != null && eb != null && ea != eb) return eb.compareTo(ea);
+      return 0;
+    });
+    for (final m in mapItems) {
+      push(m);
+    }
+    for (final item in otherItems) {
+      push(item);
+    }
+  }
+  if (out.isEmpty) {
+    push(inventoryData['image']);
+    push(inventoryData['thumbnail']);
+    push(inventoryData['product_img']);
+  }
+  return orderProductGalleryUrlsForDisplay(out);
+}
+
+/// When [imagesField] is not a list, still try product-level image keys.
+List<String> _galleryUrlsFromProductAndInventory(
+  Map<String, dynamic> productData,
+  Map<String, dynamic> inventoryData,
+) {
+  final fromList =
+      _extractResolvedProductGalleryUrls(productData['images'], inventoryData);
+  if (fromList.isNotEmpty) return fromList;
+  final out = <String>[];
+  void push(dynamic raw) {
+    final coerced = coerceProductImageSource(raw);
+    if (coerced.isEmpty) return;
+    final url = ApiConfig.getProductImageUrl(coerced);
+    if (url.isNotEmpty && !out.contains(url)) out.add(url);
+  }
+
+  push(productData['thumbnail']);
+  push(productData['image']);
+  push(productData['product_img']);
+  push(inventoryData['image']);
+  push(inventoryData['thumbnail']);
+  push(inventoryData['product_img']);
+  return orderProductGalleryUrlsForDisplay(out);
+}
 
 class ItemPage extends StatefulWidget {
   final String urlName;
@@ -51,7 +181,9 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   bool isDescriptionExpanded = false;
   PageController? _imagePageController;
   int _currentImageIndex = 0;
-  final List<String> _productImages = [];
+
+  /// When image URLs change (refresh / new product), reset [PageView] off a stale page index.
+  String _appliedGallerySig = '';
 
   // controllers for animations
   late AnimationController _fadeController;
@@ -111,7 +243,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     try {
       await Future.wait([_productFuture, _relatedProductsFuture]);
     } catch (e) {
-      debugPrint('Error loading data: $e');
+    debugPrint('Error loading data: $e');
     }
 
     // make sure skeleton showed for at least 800ms
@@ -174,15 +306,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   void _addToCartWithQuantity(BuildContext context, Product product) async {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
-    debugPrint('🔍 ADDING TO CART ===');
-    debugPrint('Product ID: ${product.id}');
-    debugPrint('Product Name: ${product.name}');
-    debugPrint('Batch Number: ${product.batch_no}');
-    debugPrint('Price: ${product.price}');
-    debugPrint('URL Name: ${product.urlName}');
-    debugPrint('Quantity: ${this.quantity}');
-    debugPrint('========================');
-
     try {
       // Ensure a valid image is always set
       final String defaultImage = 'assets/images/default_product.png';
@@ -202,12 +325,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         totalPrice: (double.tryParse(product.price) ?? 0.0) * this.quantity,
       );
 
-      debugPrint('🔍 CREATED CART ITEM ===');
-      debugPrint('Cart Item ID: ${cartItem.id}');
-      debugPrint('Cart Item Quantity: ${cartItem.quantity}');
-      debugPrint('Cart Item Total Price: ${cartItem.totalPrice}');
-      debugPrint('========================');
-
       // remember the original quantity for the success message
       final originalQuantity = this.quantity;
 
@@ -215,9 +332,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       setState(() {
         quantity = 1;
       });
-
-      debugPrint('✅ Quantity reset to 1 before adding to cart');
-      debugPrint('🔍 Current quantity after reset: $quantity');
 
       cartProvider.addToCart(cartItem);
 
@@ -350,9 +464,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Future<Product> fetchProductDetails(String urlName) async {
-    debugPrint('🔍 FETCHING PRODUCT DETAILS ===');
-    debugPrint('URL Name: $urlName');
-
     try {
       final response = await http
           .get(
@@ -365,44 +476,13 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         },
       );
 
-      debugPrint('🔍 HTTP RESPONSE RECEIVED ===');
-      debugPrint('Status Code: ${response.statusCode}');
-      debugPrint('Response Body: ${response.body}');
-
       if (response.statusCode == 200) {
         try {
           final Map<String, dynamic> data = json.decode(response.body);
 
-          // print the api response so we can see what we got
-          debugPrint('🔍 PRODUCT DETAILS API RESPONSE ===');
-          debugPrint('URL: ${ApiConfig.getProductDetailsUrl(urlName)}');
-          debugPrint('Response Status: ${response.statusCode}');
-          debugPrint('Response Body: ${response.body}');
-          debugPrint('  data keys: ${data.keys.toList()}');
-          if (data.containsKey('data')) {
-            debugPrint('  data.data keys: ${data['data'].keys.toList()}');
-            if (data['data'].containsKey('product')) {
-              debugPrint(
-                  '  data.data.product keys: ${data['data']['product'].keys.toList()}');
-            }
-            if (data['data'].containsKey('inventory')) {
-              debugPrint(
-                  '  data.data.inventory keys: ${data['data']['inventory'].keys.toList()}');
-            }
-          }
-          debugPrint('=====================================');
-
           if (data.containsKey('data')) {
             final productData = data['data']['product'] ?? {};
             final inventoryData = data['data']['inventory'] ?? {};
-
-            // print the raw api response so we can see the structure
-            debugPrint('🔍 RAW API RESPONSE STRUCTURE ===');
-            debugPrint('Product Data Keys: ${productData.keys.toList()}');
-            debugPrint('Inventory Data Keys: ${inventoryData.keys.toList()}');
-            debugPrint('Complete Product Data: $productData');
-            debugPrint('Complete Inventory Data: $inventoryData');
-            debugPrint('=====================================');
 
             if (productData.isEmpty || inventoryData.isEmpty) {
               throw Exception('Product data is incomplete or missing');
@@ -419,16 +499,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             if (productId == 0) {
               throw Exception('Invalid product ID');
             }
-
-            // print the product details we extracted
-            debugPrint('🔍 EXTRACTED PRODUCT DETAILS ===');
-            debugPrint('Product ID: $productId');
-            debugPrint('Product Name: ${inventoryData['url_name']}');
-            debugPrint('Batch Number: ${inventoryData['batch_no']}');
-            debugPrint('Price: ${inventoryData['price']}');
-            debugPrint('Status: ${inventoryData['status']}');
-            debugPrint('Quantity: ${inventoryData['quantity']}');
-            debugPrint('================================');
 
             // check everywhere the otcpom might be
             String otcpom = productData['otcpom'] ??
@@ -458,17 +528,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               );
               if (matchingProduct.id != 0) {
                 otcpom = matchingProduct.otcpom ?? '';
-                debugPrint('🔍 Found OTCPOM from cached products: $otcpom');
               }
             }
-
-            // print what otcpom data we got
-            debugPrint('🔍 OTCPOM Debug Info:');
-            debugPrint('  productData otcpom: ${productData['otcpom']}');
-            debugPrint('  inventoryData otcpom: ${inventoryData['otcpom']}');
-            debugPrint('  productData route: ${productData['route']}');
-            debugPrint('  inventoryData route: ${inventoryData['route']}');
-            debugPrint('  Final OTCPOM value: $otcpom');
 
             // get the unit of measure from wherever it might be
             final uom = productData['uom'] ??
@@ -477,34 +538,23 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 inventoryData['unit_of_measure'] ??
                 '';
 
-            // print what uom data we got
-            debugPrint('🔍 UOM Debug Info:');
-            debugPrint('  productData uom: ${productData['uom']}');
-            debugPrint('  inventoryData uom: ${inventoryData['uom']}');
-            debugPrint(
-                '  productData unit_of_measure: ${productData['unit_of_measure']}');
-            debugPrint(
-                '  inventoryData unit_of_measure: ${inventoryData['unit_of_measure']}');
-            debugPrint('  Final UOM value: $uom');
-
             List<String> tags = [];
             if (productData['tags'] != null && productData['tags'] is List) {
               tags = List<String>.from(
                   productData['tags'].map((tag) => tag.toString()));
             }
 
+            final invMap = inventoryData is Map<String, dynamic>
+                ? inventoryData
+                : <String, dynamic>{};
+            final prodMap = productData is Map<String, dynamic>
+                ? productData
+                : <String, dynamic>{};
+            final galleryUrls =
+                _galleryUrlsFromProductAndInventory(prodMap, invMap);
+
             final extractedName =
                 _extractProductName(inventoryData['url_name'] ?? '');
-            debugPrint('🔍 CREATING PRODUCT OBJECT ===');
-            debugPrint('Extracted Name: $extractedName');
-            debugPrint('Product ID: $productId');
-            debugPrint(
-                'Price: ${inventoryData['price']?.toString() ?? '0.00'}');
-            debugPrint('Batch No: ${inventoryData['batch_no'] ?? ''}');
-            debugPrint('Stock: ${inventoryData['stock']?.toString() ?? '0'}');
-            debugPrint(
-                'Category: ${(productData['categories'] != null && productData['categories'].isNotEmpty) ? productData['categories'][0]['description'] ?? '' : ''}');
-            debugPrint('UOM: $uom');
 
             final product = Product.fromJson({
               'id': productId,
@@ -513,10 +563,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               'url_name': inventoryData['url_name'] ?? '',
               'status': inventoryData['status'] ?? '',
               'price': inventoryData['price']?.toString() ?? '0.00',
-              'thumbnail': (productData['images'] != null &&
-                      productData['images'].isNotEmpty)
-                  ? productData['images'][0]['url'] ?? ''
-                  : '',
+              'thumbnail': galleryUrls.isNotEmpty ? galleryUrls.first : '',
+              'gallery_images': galleryUrls,
               'tags': tags,
               'quantity': inventoryData['stock']?.toString() ?? '',
               'category': (productData['categories'] != null &&
@@ -529,12 +577,11 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               'uom': uom,
             });
 
-            debugPrint('🔍 PRODUCT OBJECT CREATED ===');
-            debugPrint('Final Product Name: ${product.name}');
-            debugPrint('Final Product Price: ${product.price}');
-            debugPrint('Final Product Category: ${product.category}');
-            debugPrint('Final Product OTCPOM: ${product.otcpom}');
-            debugPrint('=====================================');
+            if (kDebugMode) {
+              debugPrint(
+                'item_detail: loaded "$urlName" → "${product.name}" (${product.price})',
+              );
+            }
 
             return product;
           } else {
@@ -566,19 +613,14 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   String _extractProductName(String urlName) {
     if (urlName.isEmpty) return 'Unknown Product';
 
-    debugPrint('🔍 EXTRACTING PRODUCT NAME ===');
-    debugPrint('Original URL Name: $urlName');
-
     // remove common suffixes that arent part of the name
     String cleanName = urlName;
 
     // remove random letter/number suffixes (like a8cfddbcd6)
     cleanName = cleanName.replaceAll(RegExp(r'-[a-f0-9]{8,}$'), '');
-    debugPrint('After removing alphanumeric suffix: $cleanName');
 
     // remove numbers at the end that arent part of the name
     cleanName = cleanName.replaceAll(RegExp(r'-\d+$'), '');
-    debugPrint('After removing trailing numbers: $cleanName');
 
     // turn kebab-case into title case
     final finalName = cleanName
@@ -588,9 +630,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             ? word[0].toUpperCase() + word.substring(1).toLowerCase()
             : '')
         .join(' ');
-
-    debugPrint('Final extracted name: $finalName');
-    debugPrint('================================');
 
     return finalName;
   }
@@ -712,55 +751,35 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     }
   }
 
+  /// Titles for [EclExpandableSliverAppBar] (toolbar / hero / subtitle).
+  void _itemPageHeaderCopy(
+    AsyncSnapshot<Product> snapshot, {
+    required void Function(String toolbar, String hero, String? subtitle) out,
+  }) {
+    if (snapshot.hasError) {
+      out('Product', 'Product', 'Couldn\'t load details');
+      return;
+    }
+    if (snapshot.hasData) {
+      final p = snapshot.data!;
+      final full = p.name.trim();
+      final name = full.isEmpty ? 'Product' : full;
+      const maxToolbar = 28;
+      final line = name.length > maxToolbar
+          ? '${name.substring(0, maxToolbar)}…'
+          : name;
+      // Same string for toolbar + hero so the bar never shows a second title line.
+      out(line, line, null);
+      return;
+    }
+    out('Product', 'Product', 'Loading details…');
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.green.shade700,
-                Colors.green.shade800,
-              ],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-        ),
-        leading: BackButtonUtils.withConfirmation(
-          backgroundColor: Colors.white.withValues(alpha: 0.2),
-          title: 'Leave Product',
-          message: 'Are you sure you want to leave this product page?',
-        ),
-        title: null,
-        actions: [
-          // cart button
-          Container(
-            margin: EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: CartIconButton(
-              iconColor: Colors.white,
-              iconSize: 24,
-              backgroundColor: Colors.transparent,
-            ),
-          ),
-        ],
-      ),
+      backgroundColor: const Color(0xFFE5EDE8),
       body: RefreshIndicator(
         onRefresh: () async {
           setState(() {
@@ -771,63 +790,104 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           await _productFuture;
           await _relatedProductsFuture;
         },
-        child: _showSkeleton
-            ? _buildLoadingSkeleton()
-            : FutureBuilder<Product>(
-                future: _productFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    debugPrint('Error: ${snapshot.error}');
-                  }
-                  if (snapshot.hasData) {
-                    debugPrint('Product Data: ${snapshot.data!.name}');
-                  }
-                  debugPrint('==========================');
+        color: AppColors.primary,
+        backgroundColor: Colors.white,
+        child: FutureBuilder<Product>(
+          future: _productFuture,
+          builder: (context, snapshot) {
+            if (snapshot.hasError && kDebugMode) {
+              debugPrint('item_detail FutureBuilder: ${snapshot.error}');
+            }
 
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return _buildLoadingSkeleton();
-                  }
+            var toolbarT = 'Product';
+            var heroT = 'Product';
+            String? subtitleT = 'Loading details…';
+            _itemPageHeaderCopy(
+              snapshot,
+              out: (t, h, s) {
+                toolbarT = t;
+                heroT = h;
+                subtitleT = s;
+              },
+            );
 
-                  if (snapshot.hasError) {
-                    return _buildErrorState(snapshot.error.toString());
-                  }
+            late final Widget bodySliver;
+            if (snapshot.hasError) {
+              bodySliver = SliverFillRemaining(
+                hasScrollBody: false,
+                child: _buildErrorState(snapshot.error.toString()),
+              );
+            } else if (!snapshot.hasData) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                bodySliver = SliverToBoxAdapter(child: _buildLoadingSkeleton());
+              } else {
+                bodySliver = SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildErrorState('No product data available'),
+                );
+              }
+            } else if (_showSkeleton) {
+              bodySliver = SliverToBoxAdapter(child: _buildLoadingSkeleton());
+            } else {
+              final product = snapshot.data!;
+              bodySliver = SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildProductImageGallery(product),
+                    _buildProductInfoCard(product, theme),
+                    _buildActionButtons(product),
+                    _buildQuantitySelector(product),
+                    _buildRelatedProductsSection(product),
+                  ],
+                ),
+              );
+            }
 
-                  if (!snapshot.hasData) {
-                    return _buildErrorState('No product data available');
-                  }
-
-                  final product = snapshot.data!;
-
-                  return InteractiveViewer(
-                    minScale: 0.5,
-                    maxScale: 3.0,
-                    child: SingleChildScrollView(
-                      physics: AlwaysScrollableScrollPhysics(),
-                      padding:
-                          EdgeInsets.only(bottom: 8), // Reduced bottom padding
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // product image gallery
-                          _buildProductImageGallery(product),
-
-                          // product info card
-                          _buildProductInfoCard(product, theme),
-
-                          // action buttons (add to cart, etc)
-                          _buildActionButtons(product),
-
-                          // quantity selector (only show if item is in cart)
-                          _buildQuantitySelector(product),
-
-                          // related products section
-                          _buildRelatedProductsSection(product),
-                        ],
+            return CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              slivers: [
+                EclExpandableSliverAppBar(
+                  toolbarTitle: toolbarT,
+                  heroTitle: heroT,
+                  heroSubtitle: subtitleT,
+                  centerTitle: false,
+                  leading: Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: BackButtonUtils.withConfirmation(
+                      backgroundColor: Colors.white.withValues(alpha: 0.2),
+                      title: 'Leave Product',
+                      message:
+                          'Are you sure you want to leave this product page?',
+                    ),
+                  ),
+                  actions: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: CartIconButton(
+                          iconColor: Colors.white,
+                          iconSize: 22,
+                          backgroundColor: Colors.transparent,
+                        ),
                       ),
                     ),
-                  );
-                },
-              ),
+                  ],
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  sliver: bodySliver,
+                ),
+              ],
+            );
+          },
+        ),
       ),
       bottomNavigationBar: CustomBottomNav(initialIndex: 0),
     );
@@ -837,8 +897,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     return Shimmer.fromColors(
       baseColor: Colors.grey[300]!,
       highlightColor: Colors.grey[100]!,
-      child: SingleChildScrollView(
-        padding: EdgeInsets.all(8),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
         child: Column(
           children: [
             // image skeleton
@@ -978,20 +1038,50 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     );
   }
 
+  /// Absolute URLs for gallery + single thumbnail fallback.
+  List<String> _resolvedGalleryUrls(Product product) {
+    final fromGallery = orderProductGalleryUrlsForDisplay(
+      product.galleryImages
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .map((e) => ApiConfig.getProductImageUrl(e))
+          .where((e) => e.isNotEmpty)
+          .toList(),
+    );
+    if (fromGallery.isNotEmpty) return fromGallery;
+    final t = product.thumbnail.trim();
+    if (t.isEmpty) return <String>[];
+    final u = ApiConfig.getProductImageUrl(t);
+    return u.isEmpty ? <String>[] : [u];
+  }
+
   Widget _buildProductImageGallery(Product product) {
-    final imageUrls =
-        _productImages.isNotEmpty ? _productImages : [product.thumbnail];
+    final imageUrls = _resolvedGalleryUrls(product);
+    final gallerySig = '${product.id}|${imageUrls.join('\x1E')}';
+    if (_appliedGallerySig != gallerySig) {
+      _appliedGallerySig = gallerySig;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_imagePageController?.hasClients ?? false) {
+          _imagePageController!.jumpToPage(0);
+        }
+        if (_currentImageIndex != 0) {
+          setState(() => _currentImageIndex = 0);
+        }
+      });
+    }
+
     return GestureDetector(
-      onTap: () => FullScreenImageViewer.show(
-        context,
-        imageUrls: imageUrls,
-        initialIndex: _currentImageIndex,
-      ),
+      onTap: imageUrls.isEmpty
+          ? null
+          : () => FullScreenImageViewer.show(
+                context,
+                imageUrls: imageUrls,
+                initialIndex: _currentImageIndex.clamp(0, imageUrls.length - 1),
+              ),
       child: Animate(
         effects: [
           FadeEffect(duration: 400.ms),
-          SlideEffect(
-              duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
         ],
         child: Container(
           height: 220,
@@ -1006,12 +1096,9 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                     _currentImageIndex = index;
                   });
                 },
-                itemCount:
-                    _productImages.isNotEmpty ? _productImages.length : 1,
+                itemCount: imageUrls.isEmpty ? 1 : imageUrls.length,
                 itemBuilder: (context, index) {
-                  final imageUrl = _productImages.isNotEmpty
-                      ? _productImages[index]
-                      : product.thumbnail;
+                  final imageUrl = imageUrls.isEmpty ? '' : imageUrls[index];
 
                   return Center(
                     child: Container(
@@ -1066,7 +1153,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               ),
 
               // image indicators (dots)
-              if (_productImages.length > 1)
+              if (imageUrls.length > 1)
                 Positioned(
                   bottom: 8,
                   left: 0,
@@ -1074,7 +1161,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(
-                      _productImages.length,
+                      imageUrls.length,
                       (index) => Container(
                         width: 6,
                         height: 6,
@@ -1181,27 +1268,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 ],
               ),
 
-              // Product name
-              Padding(
-                padding: const EdgeInsets.only(top: 2, bottom: 2),
-                child: Text(
-                  product.name.isNotEmpty
-                      ? product.name
-                      : product.urlName
-                          .replaceAll('-', ' ')
-                          .split(' ')
-                          .map((word) => word.isNotEmpty
-                              ? word[0].toUpperCase() + word.substring(1)
-                              : '')
-                          .join(' '),
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade900,
-                    height: 1.3,
-                  ),
-                ),
-              ),
+              // Name is shown only in [EclExpandableSliverAppBar] to avoid duplicating titles.
+              const SizedBox(height: 6),
 
               // Price
               Row(
@@ -1520,11 +1588,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             // check if product is already in cart
             final cartItems = cartProvider.cartItems;
 
-            for (int i = 0; i < cartItems.length; i++) {
-              debugPrint(
-                  'Cart Item $i: Name=${cartItems[i].name}, ID=${cartItems[i].productId}, Batch=${cartItems[i].batchNo}, Qty=${cartItems[i].quantity}');
-            }
-
             final productNameNorm =
                 CartProvider.normalizeProductName(product.name);
             final existingItem = cartItems
@@ -1541,11 +1604,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             // In cart if we have a matching item (by name+batch) - don't rely on id
             // since newly added items have id: '' until server sync completes
             final isInCart = match != null;
-            final cartQuantity = isInCart ? match.quantity : 0;
-
-            debugPrint('Is In Cart: $isInCart');
-            debugPrint('Cart Quantity: $cartQuantity');
-            debugPrint('========================');
 
             // Hide the entire button container if item is already in cart
             if (isInCart) {
@@ -1591,10 +1649,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                       // add haptic feedback
                       HapticFeedback.mediumImpact();
 
-                      debugPrint(
-                          'DEBUG: ItemPage urlName = \\${widget.urlName}');
-                      debugPrint(
-                          'DEBUG: isPrescribed = \\${widget.isPrescribed}');
                       if (isPrescription) {
                         final token = await AuthService.getToken();
                         Navigator.push(
@@ -2156,13 +2210,23 @@ class _ProductDescriptionState extends State<ProductDescription> {
   final double _collapsedHeight = 160; // Approximate height for 8 lines
   final HtmlEscape _htmlEscape = const HtmlEscape();
 
+  /// [flutter_html] maps `font-feature-settings` to [FontFeature]; CMS values like
+  /// `normal` become `FontFeature.enable("normal")` and crash (tag must be 4 chars).
+  /// Renaming the property avoids parsing entirely (unknown CSS keys are ignored).
+  String _sanitizeRichHtmlForFlutterHtml(String html) {
+    if (html.isEmpty) return html;
+    return html
+        .replaceAll(RegExp(r'font-feature-settings', caseSensitive: false), '_ffs_x_')
+        .replaceAll(RegExp(r'font-variation-settings', caseSensitive: false), '_fvs_x_');
+  }
+
   String _normalizeDescriptionToHtml(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return '';
 
     // If backend already returns HTML, keep it.
     final hasHtmlTag = RegExp(r'<[a-zA-Z][^>]*>').hasMatch(trimmed);
-    if (hasHtmlTag) return trimmed;
+    if (hasHtmlTag) return _sanitizeRichHtmlForFlutterHtml(trimmed);
 
     final lines = trimmed
         .split(RegExp(r'\r?\n'))
@@ -2199,7 +2263,7 @@ class _ProductDescriptionState extends State<ProductDescription> {
       buffer.writeln('</ul>');
     }
 
-    return buffer.toString();
+    return _sanitizeRichHtmlForFlutterHtml(buffer.toString());
   }
 
   @override

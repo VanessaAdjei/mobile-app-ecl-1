@@ -3,12 +3,14 @@ import 'package:eclapp/providers/theme_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+
+import '../config/app_colors.dart';
 import '../services/auth_service.dart';
-import 'bottomnav.dart';
-import 'loggedout.dart';
-import 'homepage.dart';
-import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
+import '../widgets/ecl_expandable_sliver_app_bar.dart';
+import 'bottomnav.dart';
+import 'homepage.dart';
+import 'loggedout.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -17,64 +19,37 @@ class ProfileScreen extends StatefulWidget {
   ProfileScreenState createState() => ProfileScreenState();
 }
 
-class ProfileScreenState extends State<ProfileScreen>
-    with TickerProviderStateMixin {
+class ProfileScreenState extends State<ProfileScreen> {
   String _userName = "User";
   String _userEmail = "No email available";
   String _phoneNumber = "";
 
-  late TextEditingController _userEmailController;
-  late TextEditingController _phoneNumberController;
-  late AnimationController _headerAnimationController;
-  late AnimationController _contentAnimationController;
-  late Animation<double> _headerAnimation;
-  late Animation<double> _contentAnimation;
+  static const Color _pageBgLight = Color(0xFFE5EDE8);
+  static const Color _bodyTextLight = Color(0xFF374151);
 
   @override
   void initState() {
     super.initState();
-    _userEmailController = TextEditingController(text: _userEmail);
-    _phoneNumberController = TextEditingController(text: _phoneNumber);
-
-    // Initialize animations
-    _headerAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    _contentAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-
-    _headerAnimation = CurvedAnimation(
-      parent: _headerAnimationController,
-      curve: Curves.easeOutCubic,
-    );
-
-    _contentAnimation = CurvedAnimation(
-      parent: _contentAnimationController,
-      curve: Curves.easeOutQuart,
-    );
-
     _loadUserData();
-    _startAnimations();
   }
 
-  @override
-  void dispose() {
-    _userEmailController.dispose();
-    _phoneNumberController.dispose();
-    _headerAnimationController.dispose();
-    _contentAnimationController.dispose();
-    super.dispose();
-  }
-
-  void _startAnimations() {
-    _headerAnimationController.forward();
-    Future.delayed(const Duration(milliseconds: 200), () {
-      _contentAnimationController.forward();
-    });
+  Future<void> _loadUserData() async {
+    try {
+      final userData = await AuthService.getCurrentUser();
+      if (!mounted) return;
+      setState(() {
+        _userName = userData?['name'] ?? "User";
+        _userEmail = userData?['email'] ?? "No email available";
+        _phoneNumber = userData?['phone'] ?? "";
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _userName = "User";
+        _userEmail = "No email available";
+        _phoneNumber = "";
+      });
+    }
   }
 
   void _showLogoutDialog() {
@@ -174,360 +149,363 @@ class ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Future<void> _loadUserData() async {
-    try {
-      final userData = await AuthService.getCurrentUser();
-
-      setState(() {
-        _userName = userData?['name'] ?? "User";
-        _userEmail = userData?['email'] ?? "No email available";
-        _phoneNumber = userData?['phone'] ?? "";
-
-        _userEmailController.text = _userEmail;
-        _phoneNumberController.text = _phoneNumber;
-      });
-    } catch (e) {
-      setState(() {
-        _userName = "User";
-        _userEmail = "No email available";
-        _phoneNumber = "";
-      });
+  String _initials(String name) {
+    final parts =
+        name.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) {
+      final s = parts[0];
+      return s.length >= 2 ? s.substring(0, 2).toUpperCase() : s.toUpperCase();
     }
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
 
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = themeProvider.isDarkMode;
-    final backgroundColor = isDark ? Colors.grey.shade900 : Colors.grey.shade50;
-    final cardColor = isDark ? Colors.grey.shade800 : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
-    final subtextColor = isDark ? Colors.white70 : Colors.black54;
+
+    final pageBg = isDark ? const Color(0xFF121212) : _pageBgLight;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final titleColor = isDark ? Colors.white : const Color(0xFF111827);
+    final subtitleColor = isDark ? Colors.white60 : _bodyTextLight;
+    final mutedColor = isDark ? Colors.white38 : const Color(0xFF9CA3AF);
+    final fieldBg =
+        isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFF3F4F6);
+    final fieldBorder =
+        isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE5E7EB);
 
     return Scaffold(
-      backgroundColor: backgroundColor,
-      body: CustomScrollView(
-        slivers: [
-          // Modern header with gradient
-          SliverToBoxAdapter(
-            child: Container(
-              padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top * 0.5),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.green.shade600,
-                    Colors.green.shade700,
-                    Colors.green.shade800,
-                  ],
-                  stops: [0.0, 0.5, 1.0],
+      backgroundColor: pageBg,
+      body: RefreshIndicator(
+        color: AppColors.primary,
+        onRefresh: _loadUserData,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          slivers: [
+            EclExpandableSliverAppBar(
+              toolbarTitle: 'Profile',
+              heroTitle: 'Your profile',
+              heroSubtitle: 'Account details we have on file',
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: CartIconButton(
+                    iconColor: Colors.white,
+                    iconSize: 22,
+                    backgroundColor: Colors.white.withValues(alpha: 0.15),
+                  ),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.green.shade600.withValues(alpha: 0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
+              ],
+              onBack: () => Navigator.pop(context),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  _ProfileHeroCard(
+                    cardColor: cardColor,
+                    titleColor: titleColor,
+                    subtitleColor: subtitleColor,
+                    userName: _userName,
+                    userEmail: _userEmail,
+                    initials: _initials(_userName),
+                  ),
+                  const SizedBox(height: 10),
+                  _InfoSectionCard(
+                    cardColor: cardColor,
+                    titleColor: titleColor,
+                    subtitleColor: subtitleColor,
+                    mutedColor: mutedColor,
+                    fieldBg: fieldBg,
+                    fieldBorder: fieldBorder,
+                    userName: _userName,
+                    userEmail: _userEmail,
+                    phoneDisplay:
+                        _phoneNumber.isEmpty ? "Not provided" : _phoneNumber,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'To change your name, email, or phone, contact customer support.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      height: 1.4,
+                      color: subtitleColor,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _SignOutCard(
+                    isDark: isDark,
+                    onPressed: _showLogoutDialog,
+                  ),
+                  const SizedBox(height: 16),
+                ]),
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: const CustomBottomNav(),
+    );
+  }
+}
+
+class _ProfileHeroCard extends StatelessWidget {
+  const _ProfileHeroCard({
+    required this.cardColor,
+    required this.titleColor,
+    required this.subtitleColor,
+    required this.userName,
+    required this.userEmail,
+    required this.initials,
+  });
+
+  final Color cardColor;
+  final Color titleColor;
+  final Color subtitleColor;
+  final String userName;
+  final String userEmail;
+  final String initials;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              height: 3,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primaryLight,
+                    AppColors.primary,
+                    AppColors.primaryDark,
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+              child: Column(
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          AppColors.primaryLight,
+                          AppColors.primary,
+                          AppColors.primaryDark,
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.28),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(2),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: cardColor,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        initials,
+                        style: GoogleFonts.poppins(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primaryDark,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    userName,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: titleColor,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    userEmail,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: subtitleColor,
+                    ),
                   ),
                 ],
               ),
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 20.0, vertical: 12.0),
-                  child: Row(
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoSectionCard extends StatelessWidget {
+  const _InfoSectionCard({
+    required this.cardColor,
+    required this.titleColor,
+    required this.subtitleColor,
+    required this.mutedColor,
+    required this.fieldBg,
+    required this.fieldBorder,
+    required this.userName,
+    required this.userEmail,
+    required this.phoneDisplay,
+  });
+
+  final Color cardColor;
+  final Color titleColor;
+  final Color subtitleColor;
+  final Color mutedColor;
+  final Color fieldBg;
+  final Color fieldBorder;
+  final String userName;
+  final String userEmail;
+  final String phoneDisplay;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              height: 3,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primaryLight,
+                    AppColors.primary,
+                    AppColors.primaryDark,
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      AppBackButton(
-                        backgroundColor: Colors.white.withValues(alpha: 0.2),
-                        onPressed: () => Navigator.pop(context),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.badge_outlined,
+                          color: AppColors.primary,
+                          size: 18,
+                        ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'My Profile',
+                              'Personal information',
                               style: GoogleFonts.poppins(
-                                fontSize: 24,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                letterSpacing: 0.5,
+                                color: titleColor,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 1),
                             Text(
-                              'Manage your account & preferences',
+                              'Signed-in account',
                               style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                color: Colors.white.withValues(alpha: 0.9),
-                                fontWeight: FontWeight.w400,
+                                fontSize: 11,
+                                color: mutedColor,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      CartIconButton(
-                        iconColor: Colors.white,
-                        iconSize: 24,
-                        backgroundColor: Colors.transparent,
-                      ),
                     ],
                   ),
-                ),
-              ),
-            ),
-          ),
-
-          // Profile Content
-          SliverToBoxAdapter(
-            child: AnimatedBuilder(
-              animation: _contentAnimation,
-              builder: (context, child) {
-                return Transform.translate(
-                  offset: Offset(0, 30 * (1 - _contentAnimation.value)),
-                  child: Opacity(
-                    opacity: _contentAnimation.value,
-                    child: child,
-                  ),
-                );
-              },
-              child: Column(
-                children: [
                   const SizedBox(height: 12),
-                  _buildModernProfileHeader(),
-                  const SizedBox(height: 12),
-                  _buildProfileDetails(cardColor, textColor, subtextColor),
-                  const SizedBox(height: 12),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: const CustomBottomNav(),
-    );
-  }
-
-  Widget _buildModernProfileHeader() {
-    return AnimatedBuilder(
-      animation: _headerAnimation,
-      builder: (context, child) {
-        return Transform.translate(
-          offset: Offset(0, 20 * (1 - _headerAnimation.value)),
-          child: Opacity(
-            opacity: _headerAnimation.value,
-            child: child,
-          ),
-        );
-      },
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.symmetric(horizontal: 20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white,
-              Colors.grey.shade50,
-            ],
-          ),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 30,
-              offset: const Offset(0, 15),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            children: [
-              // Profile Avatar with enhanced design
-              Container(
-                height: 65,
-                width: 65,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.green.shade100, width: 6),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.green.shade200.withValues(alpha: 0.4),
-                      blurRadius: 25,
-                      offset: const Offset(0, 12),
-                    ),
-                  ],
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.green.shade400,
-                      Colors.green.shade600,
-                    ],
+                  _InfoRow(
+                    icon: Icons.person_outline_rounded,
+                    label: 'Full name',
+                    value: userName,
+                    titleColor: titleColor,
+                    subtitleColor: subtitleColor,
+                    fieldBg: fieldBg,
+                    fieldBorder: fieldBorder,
                   ),
-                ),
-                child: Icon(
-                  Icons.person_rounded,
-                  size: 35,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _userName,
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.green.shade800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  _userEmail,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: Colors.grey.shade700,
-                    fontWeight: FontWeight.w500,
+                  const SizedBox(height: 6),
+                  _InfoRow(
+                    icon: Icons.mail_outline_rounded,
+                    label: 'Email',
+                    value: userEmail,
+                    titleColor: titleColor,
+                    subtitleColor: subtitleColor,
+                    fieldBg: fieldBg,
+                    fieldBorder: fieldBorder,
                   ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileDetails(
-      Color cardColor, Color textColor, Color subtextColor) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.person_outline_rounded,
-                    color: Colors.green.shade600,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Text(
-                  "Personal Information",
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _buildModernInfoField(
-              icon: Icons.person_rounded,
-              label: "Full Name",
-              value: _userName,
-              textColor: textColor,
-              subtextColor: subtextColor,
-            ),
-            const SizedBox(height: 8),
-            _buildModernInfoField(
-              icon: Icons.email_rounded,
-              label: "Email Address",
-              value: _userEmail,
-              textColor: textColor,
-              subtextColor: subtextColor,
-            ),
-            const SizedBox(height: 8),
-            _buildModernInfoField(
-              icon: Icons.phone_rounded,
-              label: "Phone Number",
-              value: _phoneNumber.isEmpty ? "Not provided" : _phoneNumber,
-              textColor: textColor,
-              subtextColor: subtextColor,
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.red.shade400,
-                    Colors.red.shade500,
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.red.shade200.withValues(alpha: 0.4),
-                    blurRadius: 15,
-                    offset: const Offset(0, 8),
+                  const SizedBox(height: 6),
+                  _InfoRow(
+                    icon: Icons.phone_android_rounded,
+                    label: 'Phone',
+                    value: phoneDisplay,
+                    titleColor: titleColor,
+                    subtitleColor: subtitleColor,
+                    fieldBg: fieldBg,
+                    fieldBorder: fieldBorder,
                   ),
                 ],
-              ),
-              child: ElevatedButton(
-                onPressed: _showLogoutDialog,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 56),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: 0,
-                  shadowColor: Colors.transparent,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.logout_rounded,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      "Sign Out",
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ),
           ],
@@ -535,36 +513,41 @@ class ProfileScreenState extends State<ProfileScreen>
       ),
     );
   }
+}
 
-  Widget _buildModernInfoField({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color textColor,
-    required Color subtextColor,
-  }) {
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.titleColor,
+    required this.subtitleColor,
+    required this.fieldBg,
+    required this.fieldBorder,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color titleColor;
+  final Color subtitleColor;
+  final Color fieldBg;
+  final Color fieldBorder;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200, width: 1),
+        color: fieldBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: fieldBorder),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Icon(
-              icon,
-              color: Colors.green.shade600,
-              size: 12,
-            ),
-          ),
-          const SizedBox(width: 12),
+          Icon(icon, size: 17, color: AppColors.primary),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -572,16 +555,69 @@ class ProfileScreenState extends State<ProfileScreen>
                 Text(
                   label,
                   style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    color: subtextColor,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
+                    color: subtitleColor,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   value,
                   style: GoogleFonts.poppins(
-                    fontSize: 14,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: titleColor,
+                    height: 1.25,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SignOutCard extends StatelessWidget {
+  const _SignOutCard({
+    required this.isDark,
+    required this.onPressed,
+  });
+
+  final bool isDark;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isDark ? const Color(0xFF2C1515) : const Color(0xFFFEF2F2);
+    final border = isDark ? const Color(0xFF5C2A2A) : const Color(0xFFFECACA);
+    final iconColor = isDark ? const Color(0xFFF87171) : Colors.red.shade600;
+    final textColor = isDark ? const Color(0xFFFECACA) : Colors.red.shade700;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(12),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: border),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.logout_rounded, color: iconColor, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  'Sign out',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: textColor,
                   ),
@@ -589,12 +625,7 @@ class ProfileScreenState extends State<ProfileScreen>
               ],
             ),
           ),
-          Icon(
-            Icons.chevron_right_rounded,
-            color: Colors.grey.shade400,
-            size: 16,
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -1619,7 +1619,7 @@ class HomePageState extends State<HomePage>
                   isTablet: isTablet,
                 ),
               ),
-              // Popular Products header
+              // Popular right now header
               SliverToBoxAdapter(
                 child: Padding(
                   padding:
@@ -1652,7 +1652,7 @@ class HomePageState extends State<HomePage>
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text('Popular Products',
+                        child: Text('Popular right now',
                             style: GoogleFonts.poppins(
                                 color: Colors.white,
                                 fontSize: 13,
@@ -2155,7 +2155,7 @@ class HomePageState extends State<HomePage>
     ]);
   }
 
-  // ─── Popular products ──────────────────────────────────────────────────────
+  // ─── Popular right now ─────────────────────────────────────────────────────
   Widget _buildPopularProducts({bool isTablet = false}) {
     if (_isLoadingPopular) {
       return const Padding(
@@ -2173,7 +2173,7 @@ class HomePageState extends State<HomePage>
     }
     if (popularProducts.isEmpty) {
       return EmptyStateWidget(
-          message: 'No popular products available', icon: Icons.star_border);
+          message: 'Nothing popular right now', icon: Icons.star_border);
     }
 
     final baseProducts = popularProducts.take(6).toList();
@@ -2841,6 +2841,7 @@ Widget buildSectionHeading(String title, Color color, {bool hideIcon = false}) {
 IconData _getIconForSection(String title) {
   switch (title.toLowerCase()) {
     case 'popular products':
+    case 'popular right now':
       return Icons.trending_up;
     case 'wellness':
       return Icons.favorite;

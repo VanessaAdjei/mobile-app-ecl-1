@@ -1,6 +1,72 @@
 // models/wishlist_item.dart
 import 'product.dart';
 
+Map<String, dynamic>? _asJsonMap(dynamic value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) {
+    return value.map((k, v) => MapEntry(k.toString(), v));
+  }
+  return null;
+}
+
+Map<String, dynamic>? _firstListElementMap(dynamic list) {
+  if (list is! List || list.isEmpty) return null;
+  return _asJsonMap(list.first);
+}
+
+/// [Product.fromJson] reads `price` from the wrapper map (sibling of `product`),
+/// not from the nested catalog object. Wishlist rows often mirror list APIs:
+/// price on the row, on a sibling `inventory` map, or only inside list shapes.
+String _wishlistResolvedPriceString(
+  Map<String, dynamic> itemJson,
+  Map<String, dynamic>? nestedProduct,
+) {
+  String? pick(Map<String, dynamic>? map) {
+    if (map == null) return null;
+    const keys = <String>[
+      'price',
+      'product_price',
+      'unit_price',
+      'selling_price',
+      'sale_price',
+      'retail_price',
+      'amount',
+      'cost',
+    ];
+    for (final k in keys) {
+      if (!map.containsKey(k) || map[k] == null) continue;
+      final s = map[k].toString().trim();
+      if (s.isNotEmpty) return s;
+    }
+    return null;
+  }
+
+  final candidates = <Map<String, dynamic>?>[
+    itemJson,
+    nestedProduct,
+    _asJsonMap(itemJson['inventory']),
+    _asJsonMap(itemJson['batch']),
+    _firstListElementMap(itemJson['inventories']),
+    _firstListElementMap(itemJson['batches']),
+    _firstListElementMap(itemJson['stocks']),
+    _asJsonMap(itemJson['data']),
+    if (nestedProduct != null) ...[
+      _asJsonMap(nestedProduct['inventory']),
+      _asJsonMap(nestedProduct['batch']),
+      _firstListElementMap(nestedProduct['inventories']),
+      _firstListElementMap(nestedProduct['batches']),
+      _firstListElementMap(nestedProduct['stocks']),
+      _asJsonMap(nestedProduct['data']),
+    ],
+  ];
+
+  for (final map in candidates) {
+    final p = pick(map);
+    if (p != null) return p;
+  }
+  return '0';
+}
+
 class WishlistItem {
   final int id;
   final Product product;
@@ -13,19 +79,20 @@ class WishlistItem {
   });
 
   factory WishlistItem.fromJson(Map<String, dynamic> json) {
- 
     int wishlistItemId = json['id'] ?? 0;
 
     Map<String, dynamic> productData;
 
     if (json.containsKey('product') && json['product'] is Map) {
       // Wishlist API format: product is nested
-      // We need to wrap it for Product.fromJson which expects {product: {...}, batch_no: ..., price: ...}
+      // Product.fromJson expects { product: {...}, batch_no: ..., price: ... }
       final nestedProduct = json['product'] as Map<String, dynamic>;
+      final batchNo =
+          (json['batch_no'] ?? nestedProduct['batch_no'] ?? '').toString();
       productData = {
         'product': nestedProduct,
-        'batch_no': '', // Wishlist doesn't include batch info
-        'price': '0', // Wishlist doesn't include price
+        'batch_no': batchNo,
+        'price': _wishlistResolvedPriceString(json, nestedProduct),
       };
     } else {
       // Fallback: try to use root level data
@@ -34,14 +101,14 @@ class WishlistItem {
         productData = {
           'product': json['product'],
           'batch_no': json['batch_no'] ?? '',
-          'price': json['price'] ?? '0',
+          'price': _wishlistResolvedPriceString(json, null),
         };
       } else {
         // Root level is product data - wrap it
         productData = {
           'product': json,
-          'batch_no': '',
-          'price': '0',
+          'batch_no': json['batch_no']?.toString() ?? '',
+          'price': _wishlistResolvedPriceString(json, json),
         };
       }
     }

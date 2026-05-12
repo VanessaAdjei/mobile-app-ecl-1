@@ -53,6 +53,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
   static const String _supportPhoneNumber = '+233508411184';
   bool _hasNavigatedAway = false;
   bool _hasShownOrderPlacedBanner = false;
+  bool _orderPlacedSnackBarPending = false;
   bool _isPickupOrderFor(OrderTrackingModel order) {
     final candidates = <String?>[
       widget.deliveryOption,
@@ -144,6 +145,11 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
       onOrderConfirmed: _handleOrderConfirmedUi,
     )..initialize();
 
+    _provider.addListener(_onOrderTrackingChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _showOrderPlacedBannerIfNeeded(_provider);
+    });
+
     // When a push (order_status/delivery) arrives, refresh tracking immediately.
     OrderTrackingProvider.onOrderStatusUpdateFromPush = () {
       _provider.refreshTracking();
@@ -152,9 +158,15 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
 
   @override
   void dispose() {
+    _provider.removeListener(_onOrderTrackingChanged);
     OrderTrackingProvider.onOrderStatusUpdateFromPush = null;
     _provider.dispose();
     super.dispose();
+  }
+
+  void _onOrderTrackingChanged() {
+    if (!mounted) return;
+    _showOrderPlacedBannerIfNeeded(_provider);
   }
 
   Future<void> _handleOrderConfirmedUi(OrderTrackingModel _) async {
@@ -175,16 +187,24 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
   void _showOrderPlacedBannerIfNeeded(OrderTrackingProvider provider) {
     if (!mounted || _hasShownOrderPlacedBanner) return;
     if (provider.isAwaitingPaymentConfirmation) return;
+    if (provider.order.stage == OrderTrackingStage.failed) return;
+    if (_orderPlacedSnackBarPending) return;
 
-    final order = provider.order;
-    if (order.stage == OrderTrackingStage.failed) return;
-
-    _hasShownOrderPlacedBanner = true;
+    _orderPlacedSnackBarPending = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      _orderPlacedSnackBarPending = false;
+      if (!mounted || _hasShownOrderPlacedBanner) return;
+      if (_provider.isAwaitingPaymentConfirmation) return;
+      if (_provider.order.stage == OrderTrackingStage.failed) return;
+
+      final order = _provider.order;
       final orderRef =
           order.orderNumber.isNotEmpty ? order.orderNumber : order.transactionId;
-      final messenger = ScaffoldMessenger.of(context);
+      if (orderRef.isEmpty) return;
+
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      if (messenger == null) return;
+
       messenger.hideCurrentSnackBar();
       messenger.showSnackBar(
         SnackBar(
@@ -193,9 +213,10 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
           behavior: SnackBarBehavior.floating,
           dismissDirection: DismissDirection.down,
           showCloseIcon: true,
-          duration: const Duration(seconds: 2),
+          duration: const Duration(seconds: 4),
         ),
       );
+      _hasShownOrderPlacedBanner = true;
     });
   }
 
@@ -1325,7 +1346,6 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
       value: _provider,
       child: Consumer<OrderTrackingProvider>(
         builder: (context, provider, _) {
-          _showOrderPlacedBannerIfNeeded(provider);
           final order = provider.order;
           final accent = const Color(0xFF0D7A4C); // Refined emerald
 

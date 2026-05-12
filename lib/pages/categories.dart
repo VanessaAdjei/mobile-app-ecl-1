@@ -11,13 +11,205 @@ import 'package:eclapp/models/product_model.dart';
 import 'package:eclapp/pages/app_back_button.dart';
 import 'package:eclapp/widgets/cart_icon_button.dart';
 import 'package:eclapp/config/api_config.dart';
-import '../widgets/app_header_bar.dart';
+import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import 'package:eclapp/pages/bulk_purchase_page.dart';
 import 'package:eclapp/pages/bottomnav.dart';
 import '../services/category_optimization_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:animations/animations.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+
+/// List/subcategory APIs often send `url_name` or `slug`; [ItemPage] needs that slug.
+/// Skips full `http` URLs so we do not pass an image URL as [urlName].
+String? slugForProductDetailPage(dynamic product) {
+  if (product is! Map) return null;
+  final p = Map<String, dynamic>.from(product);
+  String? pick(dynamic v) {
+    if (v == null) return null;
+    final s = v.toString().trim();
+    if (s.isEmpty) return null;
+    if (s.startsWith('http://') || s.startsWith('https://')) return null;
+    return s;
+  }
+
+  for (final key in <String>[
+    'urlname',
+    'url_name',
+    'slug',
+    'url_slug',
+    'permalink',
+  ]) {
+    final v = pick(p[key]);
+    if (v != null) return v;
+  }
+
+  final inv = p['inventory'];
+  if (inv is Map) {
+    final im = Map<String, dynamic>.from(inv);
+    for (final key in <String>['urlname', 'url_name', 'slug']) {
+      final v = pick(im[key]);
+      if (v != null) return v;
+    }
+  }
+
+  final nested = p['product'];
+  if (nested is Map) {
+    final pm = Map<String, dynamic>.from(nested);
+    for (final key in <String>['urlname', 'url_name', 'slug']) {
+      final v = pick(pm[key]);
+      if (v != null) return v;
+    }
+  }
+
+  final route = pick(p['route']);
+  if (route != null && route.contains('/')) {
+    final segs = route.split('/').where((s) => s.trim().isNotEmpty).toList();
+    if (segs.isNotEmpty) return segs.last;
+  }
+
+  return null;
+}
+
+int? _parseIntId(dynamic v) {
+  if (v == null) return null;
+  if (v is int) return v;
+  return int.tryParse(v.toString());
+}
+
+/// Subcategory list rows often omit `url_name`; fill from catalog maps (product id / name).
+void mergeUrlNameFromCatalogMaps(
+  List<dynamic> items,
+  Map<int, String> urlByProductId,
+  Map<String, String> urlByNameLower,
+) {
+  for (var i = 0; i < items.length; i++) {
+    final raw = items[i];
+    if (raw is! Map) continue;
+    final p = Map<String, dynamic>.from(raw);
+    if (slugForProductDetailPage(p) != null) continue;
+
+    String? found;
+    for (final key in <String>['id', 'product_id', 'inventory_id']) {
+      final id = _parseIntId(p[key]);
+      if (id != null) {
+        final u = urlByProductId[id];
+        if (u != null && u.isNotEmpty) {
+          found = u;
+          break;
+        }
+      }
+    }
+    if (found == null || found.isEmpty) {
+      final nested = p['product'];
+      if (nested is Map) {
+        final nm = Map<String, dynamic>.from(nested);
+        for (final key in <String>['id', 'product_id']) {
+          final id = _parseIntId(nm[key]);
+          if (id != null) {
+            final u = urlByProductId[id];
+            if (u != null && u.isNotEmpty) {
+              found = u;
+              break;
+            }
+          }
+        }
+      }
+    }
+    if (found == null || found.isEmpty) {
+      final name = p['name']?.toString().toLowerCase().trim();
+      if (name != null && name.isNotEmpty) {
+        found = urlByNameLower[name];
+      }
+    }
+    if (found != null && found.isNotEmpty) {
+      p['url_name'] = found;
+      items[i] = p;
+    }
+  }
+}
+
+/// Detail API uses slug path segments, not numeric product ids.
+String? resolveProductDetailUrlName(dynamic product) {
+  bool validSlug(String? s) {
+    if (s == null) return false;
+    final t = s.trim();
+    if (t.isEmpty) return false;
+    if (RegExp(r'^\d+$').hasMatch(t)) return false;
+    return true;
+  }
+
+  final s = slugForProductDetailPage(product);
+  if (s != null && validSlug(s)) return s.trim();
+
+  if (product is! Map) return null;
+  final cached = ProductCache.cachedProducts;
+  if (cached.isEmpty) return null;
+
+  final name = product['name']?.toString().toLowerCase().trim();
+  Map<String, dynamic>? nestedProduct;
+  final np = product['product'];
+  if (np is Map<String, dynamic>) {
+    nestedProduct = np;
+  } else if (np is Map) {
+    nestedProduct = Map<String, dynamic>.from(np);
+  }
+  final id = _parseIntId(product['id']) ??
+      _parseIntId(product['product_id']) ??
+      (nestedProduct != null
+          ? _parseIntId(nestedProduct['id']) ??
+              _parseIntId(nestedProduct['product_id'])
+          : null);
+
+  if (id != null) {
+    for (final p in cached) {
+      if (p.id == id && p.urlName.isNotEmpty) return p.urlName;
+    }
+  }
+  if (name != null && name.isNotEmpty) {
+    for (final p in cached) {
+      if (p.name.toLowerCase().trim() == name && p.urlName.isNotEmpty) {
+        return p.urlName;
+      }
+    }
+  }
+  return null;
+}
+
+Widget _productDetailSlugMissingScaffold(
+    BuildContext context, String? productName) {
+  return Scaffold(
+    appBar: AppBar(
+      leading: IconButton(
+        icon: const Icon(Icons.close),
+        onPressed: () => Navigator.of(context).maybePop(),
+      ),
+      title: const Text('Product'),
+    ),
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.link_off, size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(
+              productName ?? 'This product',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Product link is unavailable. Open the home page once so the catalog can sync, then try again.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
 // cache categories and products so we dont have to load them every time
 class CategoryCache {
@@ -986,12 +1178,16 @@ class CategoryPageState extends State<CategoryPage> {
         body: Stack(
           clipBehavior: Clip.none,
           children: [
-            // Main content column
-            Column(
-              children: [
-                AppHeaderBar(
-                  title: 'Shop',
-                  subtitle: 'Browse all products',
+            CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              slivers: [
+                EclExpandableSliverAppBar(
+                  toolbarTitle: 'Shop',
+                  heroTitle: 'Shop',
+                  heroSubtitle: 'Browse all products',
+                  centerTitle: false,
                   onBack: () {
                     if (widget.isBulkPurchase) {
                       Navigator.pushReplacement(
@@ -1009,107 +1205,127 @@ class CategoryPageState extends State<CategoryPage> {
                       );
                     }
                   },
-                ),
-                // Modern search bar
-                Container(
-                  key: _searchBarKey,
-                  color: Colors.transparent,
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 14,
-                          offset: const Offset(0, 4),
-                          spreadRadius: 0,
+                  actions: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      ],
+                        child: const CartIconButton(
+                          iconColor: Colors.white,
+                          iconSize: 22,
+                          backgroundColor: Colors.transparent,
+                        ),
+                      ),
                     ),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE8F5E9),
-                            borderRadius: BorderRadius.circular(10),
+                  ],
+                ),
+                SliverToBoxAdapter(
+                  child: Container(
+                    key: _searchBarKey,
+                    color: Colors.transparent,
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 14,
+                            offset: const Offset(0, 4),
+                            spreadRadius: 0,
                           ),
-                          child: const Icon(
-                            Icons.search_rounded,
-                            color: Color(0xFF16A34A),
-                            size: 19,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            focusNode: _searchFocusNode,
-                            onChanged: (value) {
-                              setState(() {}); // Update for clear button
-                              _searchProduct(value);
-                            },
-                            onTap: () {
-                              if (_searchController.text.isNotEmpty) {
-                                setState(() {
-                                  _showSearchDropdown = true;
-                                });
-                              }
-                            },
-                            style: const TextStyle(
-                              fontSize: 14.5,
-                              color: Colors.black87,
+                        ],
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F5E9),
+                              borderRadius: BorderRadius.circular(10),
                             ),
-                            decoration: InputDecoration(
-                              hintText: "Search category products...",
-                              hintStyle: TextStyle(
-                                color: Colors.grey.shade400,
-                                fontSize: 15,
+                            child: const Icon(
+                              Icons.search_rounded,
+                              color: Color(0xFF16A34A),
+                              size: 19,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              focusNode: _searchFocusNode,
+                              onChanged: (value) {
+                                setState(() {}); // Update for clear button
+                                _searchProduct(value);
+                              },
+                              onTap: () {
+                                if (_searchController.text.isNotEmpty) {
+                                  setState(() {
+                                    _showSearchDropdown = true;
+                                  });
+                                }
+                              },
+                              style: const TextStyle(
+                                fontSize: 14.5,
+                                color: Colors.black87,
                               ),
-                              border: InputBorder.none,
-                              contentPadding:
-                                  const EdgeInsets.symmetric(vertical: 11),
+                              decoration: InputDecoration(
+                                hintText: "Search category products...",
+                                hintStyle: TextStyle(
+                                  color: Colors.grey.shade400,
+                                  fontSize: 15,
+                                ),
+                                border: InputBorder.none,
+                                contentPadding:
+                                    const EdgeInsets.symmetric(vertical: 11),
+                              ),
                             ),
                           ),
-                        ),
-                        if (_searchController.text.isNotEmpty)
-                          IconButton(
-                            icon: Icon(
-                              Icons.clear_rounded,
-                              color: Colors.grey.shade400,
-                              size: 20,
+                          if (_searchController.text.isNotEmpty)
+                            IconButton(
+                              icon: Icon(
+                                Icons.clear_rounded,
+                                color: Colors.grey.shade400,
+                                size: 20,
+                              ),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _showSearchDropdown = false;
+                                  _searchResults = [];
+                                  _filteredCategories = _categories;
+                                });
+                                _searchFocusNode.unfocus();
+                              },
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 36,
+                                minHeight: 36,
+                              ),
                             ),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {
-                                _showSearchDropdown = false;
-                                _searchResults = [];
-                                _filteredCategories = _categories;
-                              });
-                              _searchFocusNode.unfocus();
-                            },
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                              minWidth: 36,
-                              minHeight: 36,
-                            ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-                // Main content
-                Expanded(
-                  child: _isLoading
-                      ? _buildSkeletonWithLoading()
-                      : _buildMainContent(),
-                ),
+                if (_isLoading)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _buildSkeletonWithLoading(),
+                  )
+                else
+                  SliverToBoxAdapter(
+                    child: _buildMainContent(),
+                  ),
               ],
             ),
             // Backdrop to close search dropdown when tapping outside
@@ -1132,9 +1348,9 @@ class CategoryPageState extends State<CategoryPage> {
               Builder(
                 builder: (context) {
                   // Use fixed position calculation that doesn't change
-                  // Status bar + AppHeaderBar (~90px) + search bar padding (12px top + 8px bottom) + search bar height (~56px) + gap (4px)
                   final statusBarHeight = MediaQuery.of(context).padding.top;
-                  final headerHeight = 90.0; // AppHeaderBar approximate height
+                  // Status bar + sliver header (~100px) + search bar padding + search bar + gap
+                  final headerHeight = 100.0; // EclExpandableSliverAppBar approximate height
                   final searchBarTopPadding = 12.0;
                   final searchBarBottomPadding = 8.0;
                   final searchBarHeight = 56.0; // Approximate search bar height
@@ -1763,11 +1979,7 @@ class CategoryPageState extends State<CategoryPage> {
                 icon: icon,
                 iconColor: iconColor,
                 available: available is int ? available : null,
-                onTap: () {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    openContainer();
-                  });
-                },
+                onTap: openContainer,
               ),
             );
           },
@@ -2305,7 +2517,9 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   bool showScrollToTop = false;
   int? highlightedProductId;
   Timer? highlightTimer;
-  bool isSidebarVisible = true;
+  /// When false, subcategory list becomes a compact rail (more room for products).
+  bool _subcategoryRailExpanded = true;
+  static const double _kSubcategoryRailCollapsedWidth = 72;
 
   // Cache for subcategories and products
   static final Map<int, List<dynamic>> _subcategoriesCache = {};
@@ -2427,6 +2641,9 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     if (_productsCache.containsKey(subcategoryId) &&
         _isCacheValid(subcategoryId)) {
       final cachedProducts = _productsCache[subcategoryId]!;
+
+      await _enhanceProductsWithOtcpom(cachedProducts);
+      _productsCache[subcategoryId] = cachedProducts;
 
       if (mounted) {
         setState(() {
@@ -2577,6 +2794,34 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     _cacheTimestamps.remove(widget.categoryId);
   }
 
+  /// When [ProductCache] is partial, fill `url_name` from get-all-products (same source as full catalog).
+  Future<void> _mergeUrlNamesFromGetAllProductsApi(List<dynamic> products) async {
+    try {
+      final response = await http
+          .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode != 200) return;
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final dataList = data['data'] as List<dynamic>? ?? const [];
+      final Map<int, String> urlByProductId = {};
+      final Map<String, String> urlByNameLower = {};
+      for (final item in dataList) {
+        final pdRaw = item['product'];
+        if (pdRaw is! Map) continue;
+        final pd = Map<String, dynamic>.from(pdRaw);
+        final u = pd['url_name']?.toString().trim() ?? '';
+        if (u.isEmpty) continue;
+        final id = _parseIntId(pd['id']);
+        if (id != null) urlByProductId[id] = u;
+        final pn = pd['name']?.toString().toLowerCase();
+        if (pn != null && pn.isNotEmpty) urlByNameLower[pn] = u;
+      }
+      mergeUrlNameFromCatalogMaps(products, urlByProductId, urlByNameLower);
+    } catch (e) {
+      debugPrint('🔍 Url merge from get-all-products failed: $e');
+    }
+  }
+
   // Optimized enhancement with better caching and performance
   Future<void> _enhanceProductsWithOtcpom(List<dynamic> products) async {
     debugPrint(
@@ -2597,11 +2842,17 @@ class SubcategoryPageState extends State<SubcategoryPage> {
 
       // Create a map of product names to otcpom data for quick lookup
       final Map<String, String?> otcpomMap = {};
+      final Map<int, String> urlByProductId = {};
+      final Map<String, String> urlByNameLower = {};
       for (final product in cachedProducts) {
         final productName = product.name.toString().toLowerCase();
         final otcpom = product.otcpom;
         if (productName.isNotEmpty) {
           otcpomMap[productName] = otcpom;
+        }
+        if (product.urlName.isNotEmpty) {
+          urlByProductId[product.id] = product.urlName;
+          urlByNameLower[productName] = product.urlName;
         }
       }
 
@@ -2619,6 +2870,13 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           products[i]['otcpom'] = otcpom;
           enhancedCount++;
         }
+      }
+
+      mergeUrlNameFromCatalogMaps(products, urlByProductId, urlByNameLower);
+
+      if (products.any(
+          (raw) => raw is Map && slugForProductDetailPage(raw) == null)) {
+        await _mergeUrlNamesFromGetAllProductsApi(products);
       }
 
       debugPrint(
@@ -2650,12 +2908,22 @@ class SubcategoryPageState extends State<SubcategoryPage> {
             '🔍 Fetched ${dataList.length} products from get-all-products API');
 
         final Map<String, String?> otcpomMap = {};
+        final Map<int, String> urlByProductId = {};
+        final Map<String, String> urlByNameLower = {};
         for (final item in dataList) {
           final productData = item['product'] as Map<String, dynamic>;
           final productName = productData['name']?.toString().toLowerCase();
           final otcpom = productData['otcpom'];
           if (productName != null && productName.isNotEmpty) {
             otcpomMap[productName] = otcpom;
+          }
+          final u = productData['url_name']?.toString().trim() ?? '';
+          if (u.isNotEmpty) {
+            final id = _parseIntId(productData['id']);
+            if (id != null) urlByProductId[id] = u;
+            if (productName != null && productName.isNotEmpty) {
+              urlByNameLower[productName] = u;
+            }
           }
         }
 
@@ -2671,6 +2939,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
             enhancedCount++;
           }
         }
+
+        mergeUrlNameFromCatalogMaps(products, urlByProductId, urlByNameLower);
 
         debugPrint(
             '🔍 Enhanced $enhancedCount out of ${products.length} products via API');
@@ -2911,9 +3181,29 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           color: const Color(0xFFF6F8FA),
           child: Row(
             children: [
-              SizedBox(
-                width: sideNavWidth,
-                child: buildSideNavigation(),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeOutCubic,
+                width: _subcategoryRailExpanded
+                    ? sideNavWidth
+                    : _kSubcategoryRailCollapsedWidth,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  border: const Border(
+                    right: BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 12,
+                      offset: const Offset(2, 0),
+                    ),
+                  ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _subcategoryRailExpanded
+                    ? buildSideNavigation()
+                    : _buildCollapsedSubcategoryRail(),
               ),
               Expanded(
                 child: Column(
@@ -3006,56 +3296,170 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     );
   }
 
-  Widget buildSideNavigation() {
-    return Container(
-      color: const Color(0xFFF8FAFC),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF8FAFC),
-              border: Border(
-                bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+  String _subcategoryNameInitial(dynamic name) {
+    final t = name?.toString().trim() ?? '';
+    if (t.isEmpty) return '?';
+    return t.substring(0, 1).toUpperCase();
+  }
+
+  /// Narrow column: expand affordance only in header + compact list rows.
+  Widget _buildCollapsedSubcategoryRail() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+          decoration: const BoxDecoration(
+            color: Color(0xFFF8FAFC),
+            border: Border(
+              bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+            ),
+          ),
+          child: Center(
+            child: Tooltip(
+              message: 'Expand subcategory list',
+              child: Material(
+                color: const Color(0xFFECFDF3),
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () =>
+                      setState(() => _subcategoryRailExpanded = true),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Icon(
+                      Icons.view_sidebar_rounded,
+                      color: Colors.green.shade800,
+                      size: 22,
+                    ),
+                  ),
+                ),
               ),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: const Text(
-                      'Subcategory',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF0F172A),
-                        letterSpacing: 0.3,
+          ),
+        ),
+        Expanded(
+          child: ListView.separated(
+            controller: _sideNavScrollController,
+            padding: const EdgeInsets.fromLTRB(6, 10, 6, 16),
+            itemCount: subcategories.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 6),
+            itemBuilder: (context, index) {
+              final sub = subcategories[index];
+              final isSelected = selectedSubcategoryId == sub['id'];
+              return Tooltip(
+                message: sub['name']?.toString() ?? 'Subcategory',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => onSubcategorySelected(sub['id']),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? const Color(0xFFECFDF3)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isSelected
+                            ? const Color(0xFFBBF7D0)
+                            : const Color(0xFFE2E8F0),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 3,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFF16A34A)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _subcategoryNameInitial(sub['name']),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: isSelected
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            color: isSelected
+                                ? const Color(0xFF166534)
+                                : const Color(0xFF475569),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildSideNavigation() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
+          decoration: const BoxDecoration(
+            color: Color(0xFFF8FAFC),
+            border: Border(
+              bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: const Text(
+                    'Subcategory',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+              ),
+              Tooltip(
+                message: 'Collapse list — more space for products',
+                child: Material(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(10),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () =>
+                        setState(() => _subcategoryRailExpanded = false),
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Icon(
+                        Icons.keyboard_double_arrow_left_rounded,
+                        size: 20,
+                        color: Colors.blue.shade800,
                       ),
                     ),
                   ),
                 ),
-                SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: IconButton(
-                    icon: const Icon(Icons.chevron_left,
-                        size: 18, color: Color(0xFF64748B)),
-                    onPressed: () {
-                      setState(() {
-                        isSidebarVisible = false;
-                      });
-                    },
-                    padding: EdgeInsets.zero,
-                    constraints: BoxConstraints(minWidth: 24, minHeight: 24),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          Expanded(
-            child: ListView.builder(
+        ),
+        Expanded(
+          child: ListView.builder(
               controller: _sideNavScrollController,
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
               itemCount: subcategories.length,
@@ -3137,7 +3541,6 @@ class SubcategoryPageState extends State<SubcategoryPage> {
             ),
           ),
         ],
-      ),
     );
   }
 
@@ -3305,42 +3708,25 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 openBuilder: (context, _) {
-                  String? itemDetailURL = product['urlname'] ??
-                      product['url'] ??
-                      product['inventory']?['urlname'] ??
-                      product['route']?.split('/').last;
-
-                  if (itemDetailURL != null && itemDetailURL.isNotEmpty) {
-                    final isPrescribed =
-                        product['otcpom']?.toString().toLowerCase() == 'pom';
+                  final slug = resolveProductDetailUrlName(product);
+                  final isPrescribed =
+                      product['otcpom']?.toString().toLowerCase() == 'pom';
+                  if (slug != null && slug.isNotEmpty) {
                     debugPrint(
-                        '🔍 Navigation Debug - Product: ${product['name']}, otcpom: ${product['otcpom']}, isPrescribed: $isPrescribed');
+                        '🔍 Subcategory → ItemPage slug: $slug (${product['name']})');
                     return ItemPage(
-                      urlName: itemDetailURL,
+                      urlName: slug,
                       isPrescribed: isPrescribed,
                     );
-                  } else {
-                    final productId = product['id']?.toString();
-                    if (productId != null) {
-                      return ItemPage(
-                        urlName: productId,
-                        isPrescribed:
-                            product['otcpom']?.toString().toLowerCase() ==
-                                'pom',
-                      );
-                    } else {
-                      // Fallback to a default page if navigation fails
-                      return CategoryPage();
-                    }
                   }
+                  return _productDetailSlugMissingScaffold(
+                    context,
+                    product['name']?.toString(),
+                  );
                 },
                 closedBuilder: (context, openContainer) => ProductCard(
                   product: product,
-                  onTap: () {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      openContainer();
-                    });
-                  },
+                  onTap: openContainer,
                 ),
               ),
             );
@@ -3542,6 +3928,7 @@ class _ProductCardState extends State<ProductCard> {
         : 'View product';
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: widget.onTap,
       child: Container(
         decoration: BoxDecoration(
@@ -4107,41 +4494,23 @@ class ProductListPageState extends State<ProductListPage> {
                 borderRadius: BorderRadius.circular(16),
               ),
               openBuilder: (context, _) {
-                String? itemDetailURL = product['urlname'] ??
-                    product['url'] ??
-                    product['inventory']?['urlname'] ??
-                    product['route']?.split('/').last;
-
-                if (itemDetailURL != null && itemDetailURL.isNotEmpty) {
-                  final isPrescribed =
-                      product['otcpom']?.toString().toLowerCase() == 'pom';
-                  debugPrint(
-                      '🔍 Navigation Debug - Product: ${product['name']}, otcpom: ${product['otcpom']}, isPrescribed: $isPrescribed');
+                final slug = resolveProductDetailUrlName(product);
+                final isPrescribed =
+                    product['otcpom']?.toString().toLowerCase() == 'pom';
+                if (slug != null && slug.isNotEmpty) {
                   return ItemPage(
-                    urlName: itemDetailURL,
+                    urlName: slug,
                     isPrescribed: isPrescribed,
                   );
-                } else {
-                  final productId = product['id']?.toString();
-                  if (productId != null) {
-                    return ItemPage(
-                      urlName: productId,
-                      isPrescribed:
-                          product['otcpom']?.toString().toLowerCase() == 'pom',
-                    );
-                  } else {
-                    // Fallback to a default page if navigation fails
-                    return CategoryPage();
-                  }
                 }
+                return _productDetailSlugMissingScaffold(
+                  context,
+                  product['name']?.toString(),
+                );
               },
               closedBuilder: (context, openContainer) => ProductCard(
                 product: product,
-                onTap: () {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    openContainer();
-                  });
-                },
+                onTap: openContainer,
               ),
             ),
           );
@@ -4380,10 +4749,7 @@ class ProductSearchDelegate extends SearchDelegate<String> {
       itemCount: filteredProducts.length,
       itemBuilder: (context, index) {
         final product = filteredProducts[index];
-        final itemDetailURL = product['urlname'] ??
-            product['url'] ??
-            product['inventory']?['urlname'] ??
-            product['route']?.split('/').last;
+        final itemDetailURL = resolveProductDetailUrlName(product);
         final categoryId = product['category_id'];
         final subcategoryId = product['subcategory_id'];
         final categoryName = product['category_name'];
@@ -4447,9 +4813,17 @@ class ProductSearchDelegate extends SearchDelegate<String> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => ItemPage(
-                    urlName: itemDetailURL!,
+                    urlName: itemDetailURL,
                     isPrescribed:
                         product['otcpom']?.toString().toLowerCase() == 'pom',
+                  ),
+                ),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Open the home page once to sync products, then try again.',
                   ),
                 ),
               );

@@ -5,14 +5,15 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
+import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import 'bottomnav.dart';
 import '../models/refill_medicine.dart';
 import '../models/product.dart';
 import '../services/auth_service.dart';
 import 'package:provider/provider.dart';
 import '../config/api_config.dart';
+import '../config/app_colors.dart';
 import '../providers/cart_provider.dart';
 
 class RefillPage extends StatefulWidget {
@@ -671,107 +672,156 @@ class RefillPageState extends State<RefillPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: Column(
-        children: [
-          // Enhanced header with better design (matching notifications)
-          Container(
-            padding:
-                EdgeInsets.only(top: MediaQuery.of(context).padding.top * 0.5),
+  Widget _refillHeaderSliver() {
+    return EclExpandableSliverAppBar(
+      toolbarTitle: 'Refill Medicines',
+      heroTitle: 'Refill Medicines',
+      heroSubtitle: 'Browse and reorder your refillable medications',
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: CartIconButton(
+            iconColor: Colors.white,
+            iconSize: 22,
+            backgroundColor: Colors.white.withValues(alpha: 0.15),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildMedicineSectionSlivers() {
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        sliver: SliverToBoxAdapter(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.green.shade600,
-                  Colors.green.shade700,
-                  Colors.green.shade800,
-                ],
-                stops: [0.0, 0.5, 1.0],
-              ),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 8,
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
               ],
             ),
-            child: SafeArea(
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: Row(
-                  children: [
-                    AppBackButton(
-                      backgroundColor: Colors.white.withValues(alpha: 0.2),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Refill Medicines',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineSmall
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                          const SizedBox(height: 1),
-                          Text(
-                            'Refill your prescribed medicines',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    CartIconButton(
-                      iconColor: Colors.white,
-                      iconSize: 22,
-                      backgroundColor: Colors.transparent,
-                    ),
-                  ],
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.medication_liquid,
+                    color: Colors.green.shade600,
+                    size: 20,
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Available for Refill',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                      Text(
+                        '${refillableMedicines.length} medicines ready to reorder',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade600,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${refillableMedicines.length}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          // Main content
-          Expanded(
-            child: _buildContent(),
+        ),
+      ),
+      const SliverToBoxAdapter(child: SizedBox(height: 30)),
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+        sliver: SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final medicine = refillableMedicines[index];
+              return _buildMedicineCard(medicine, index);
+            },
+            childCount: refillableMedicines.length,
           ),
-        ],
+        ),
+      ),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const scrollPhysics = AlwaysScrollableScrollPhysics(
+      parent: BouncingScrollPhysics(),
+    );
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFE5EDE8),
+      body: RefreshIndicator(
+        color: AppColors.primary,
+        onRefresh: () async {
+          await _loadRefillableMedicines();
+        },
+        child: CustomScrollView(
+          controller: _scrollController,
+          physics: scrollPhysics,
+          slivers: [
+            _refillHeaderSliver(),
+            if (isLoading)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: _buildLoadingState(),
+              )
+            else if (errorMessage != null)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: _buildErrorState(),
+              )
+            else if (refillableMedicines.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: _buildEmptyState(),
+              )
+            else
+              ..._buildMedicineSectionSlivers(),
+          ],
+        ),
       ),
       bottomNavigationBar: CustomBottomNav(initialIndex: 3),
     );
-  }
-
-  Widget _buildContent() {
-    if (isLoading) {
-      return _buildLoadingState();
-    }
-
-    if (errorMessage != null) {
-      return _buildErrorState();
-    }
-
-    if (refillableMedicines.isEmpty) {
-      return _buildEmptyState();
-    }
-
-    return _buildMedicinesList();
   }
 
   Widget _buildLoadingState() {
@@ -959,102 +1009,6 @@ class RefillPageState extends State<RefillPage> {
         ),
       ),
     ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.3, end: 0);
-  }
-
-  Widget _buildMedicinesList() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header with count
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade100,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.medication_liquid,
-                    color: Colors.green.shade600,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Available for Refill',
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade800,
-                        ),
-                      ),
-                      Text(
-                        '${refillableMedicines.length} medicines ready to reorder',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade600,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${refillableMedicines.length}',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 30),
-
-          // Medicines list
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: EdgeInsets.zero,
-              itemCount: refillableMedicines.length,
-              physics: const AlwaysScrollableScrollPhysics(),
-              itemBuilder: (context, index) {
-                final medicine = refillableMedicines[index];
-                return _buildMedicineCard(medicine, index);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildMedicineCard(RefillMedicine medicine, int index) {

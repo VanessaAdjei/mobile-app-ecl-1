@@ -7,8 +7,9 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/wallet_provider.dart';
 import '../widgets/cart_icon_button.dart';
+import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import '../widgets/ecard_widget.dart';
-import 'app_back_button.dart';
+import '../models/wallet.dart';
 import '../services/auth_service.dart';
 
 class WalletPage extends StatefulWidget {
@@ -19,10 +20,15 @@ class WalletPage extends StatefulWidget {
 }
 
 class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
+  static const int _kTransactionHistoryTabCount = 3;
+  static const int _kTransactionsPerPage = 5;
+
+  /// When true, wallet is non-interactive preview with a "Coming soon" callout.
+  static const bool _kWalletPageComingSoon = true;
+
   // Add scroll controllers for each tab
   final ScrollController _allTransactionsController = ScrollController();
   final ScrollController _refundsController = ScrollController();
-  final ScrollController _returnsController = ScrollController();
   final ScrollController _pointsController = ScrollController();
   Widget _buildECard(WalletProvider walletProvider) {
     return ECardWidget(
@@ -36,11 +42,14 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
   }
 
   late TabController _historyTabController;
-  late AnimationController _headerAnimationController;
   late AnimationController _contentAnimationController;
   late Animation<double> _contentAnimation;
 
   final TextEditingController _amountController = TextEditingController();
+
+  int _historyPageAll = 0;
+  int _historyPageRefunds = 0;
+  int _historyPagePoints = 0;
 
   // user data for the e-card
   String _userName = 'ECL USER';
@@ -60,13 +69,11 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
 
   @override
   void initState() {
-    _historyTabController = TabController(length: 4, vsync: this);
-    super.initState();
-
-    _headerAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+    _historyTabController = TabController(
+      length: _kTransactionHistoryTabCount,
       vsync: this,
     );
+    super.initState();
 
     _contentAnimationController = AnimationController(
       duration: const Duration(milliseconds: 600),
@@ -85,20 +92,28 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
   }
 
   @override
+  void reassemble() {
+    super.reassemble();
+    // Hot reload does not re-run [initState]; recreate tabs when count changes.
+    _historyTabController.dispose();
+    _historyTabController = TabController(
+      length: _kTransactionHistoryTabCount,
+      vsync: this,
+    );
+  }
+
+  @override
   void dispose() {
     _historyTabController.dispose();
-    _headerAnimationController.dispose();
     _contentAnimationController.dispose();
     _amountController.dispose();
     _allTransactionsController.dispose();
     _refundsController.dispose();
-    _returnsController.dispose();
     _pointsController.dispose();
     super.dispose();
   }
 
   void _startAnimations() {
-    _headerAnimationController.forward();
     Future.delayed(const Duration(milliseconds: 200), () {
       _contentAnimationController.forward();
     });
@@ -233,7 +248,6 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
   }
 
   Widget _buildWalletContent(BuildContext context) {
-    final themeProvider = Provider.of<WalletProvider>(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = Colors.green.shade700;
     final backgroundColor = isDark ? Colors.grey.shade900 : Colors.grey.shade50;
@@ -243,82 +257,21 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
     return Scaffold(
       backgroundColor: backgroundColor,
       body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
         slivers: [
-          SliverToBoxAdapter(
-            child: Animate(
-              effects: [
-                FadeEffect(duration: 400.ms),
-                SlideEffect(
-                    duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
-              ],
-              child: Container(
-                padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top * 0.5),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.green.shade600,
-                      Colors.green.shade700,
-                      Colors.green.shade800,
-                    ],
-                    stops: [0.0, 0.5, 1.0],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0, vertical: 8.0),
-                    child: Row(
-                      children: [
-                        AppBackButton(
-                          backgroundColor: Colors.white.withValues(alpha: 0.2),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'My Wallet',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 1),
-                              Text(
-                                'Manage your digital wallet',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        CartIconButton(
-                          iconColor: Colors.white,
-                          iconSize: 22,
-                          backgroundColor: Colors.transparent,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+          EclExpandableSliverAppBar(
+            toolbarTitle: 'My Wallet',
+            heroTitle: 'My Wallet',
+            heroSubtitle: _kWalletPageComingSoon
+                ? 'New experience · stay tuned'
+                : 'Manage your digital wallet',
+            actions: [
+              CartIconButton(
+                iconColor: Colors.white,
+                iconSize: 22,
+                backgroundColor: Colors.transparent,
               ),
-            ),
+            ],
           ),
 
           // wallet content
@@ -334,35 +287,314 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
                   ),
                 );
               },
-              child: Column(
-                children: [
-                  const SizedBox(height: 12),
+              child: _kWalletPageComingSoon
+                  ? _buildWalletComingSoonHero(
+                      context,
+                      Provider.of<WalletProvider>(context),
+                      cardColor,
+                      textColor,
+                      primaryColor,
+                      isDark,
+                    )
+                  : _buildWalletScrollableBody(
+                      Provider.of<WalletProvider>(context),
+                      cardColor,
+                      textColor,
+                      primaryColor,
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                  // e-card widget
-                  _buildECard(themeProvider),
+  Widget _buildWalletScrollableBody(
+    WalletProvider themeProvider,
+    Color cardColor,
+    Color textColor,
+    Color primaryColor,
+  ) {
+    return Column(
+      children: [
+        const SizedBox(height: 12),
+        _buildECard(themeProvider),
+        const SizedBox(height: 10),
+        _buildBalanceOverview(themeProvider, cardColor, textColor),
+        const SizedBox(height: 10),
+        _buildTransactionHistorySection(cardColor, textColor, primaryColor),
+        const SizedBox(height: 10),
+        _buildWalletInfoSection(primaryColor, cardColor, textColor),
+        const SizedBox(height: 10),
+        _buildCashbackInfoSection(primaryColor, cardColor, textColor),
+        const SizedBox(height: 14),
+      ],
+    );
+  }
 
-                  const SizedBox(height: 10),
+  Widget _buildComingSoonCardShowcase(
+      WalletProvider wallet, Color primaryColor) {
+    final labelColor = Colors.grey.shade500;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'YOUR ECL WALLET CARD',
+          style: GoogleFonts.poppins(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.35,
+            color: labelColor,
+          ),
+        ),
+        const SizedBox(height: 12),
+        IgnorePointer(
+          ignoring: true,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final w = constraints.maxWidth.isFinite
+                  ? constraints.maxWidth
+                  : MediaQuery.sizeOf(context).width - 44;
+              final glowW = w.clamp(220.0, 420.0);
+              return Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      Positioned(
+                        bottom: 2,
+                        child: Transform.scale(
+                          scaleX: 0.9,
+                          scaleY: 0.26,
+                          alignment: Alignment.center,
+                          child: Container(
+                            width: glowW,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(100),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: primaryColor.withValues(alpha: 0.48),
+                                  blurRadius: 44,
+                                  spreadRadius: 0,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Transform(
+                        alignment: FractionalOffset.center,
+                        transform: Matrix4.identity()
+                          ..setEntry(3, 2, 0.001)
+                          ..rotateX(-0.04)
+                          ..rotateY(0.024),
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 8, bottom: 20),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(22),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.34),
+                                blurRadius: 34,
+                                offset: const Offset(0, 22),
+                                spreadRadius: -8,
+                              ),
+                              BoxShadow(
+                                color: primaryColor.withValues(alpha: 0.2),
+                                blurRadius: 26,
+                                offset: const Offset(-8, 18),
+                              ),
+                            ],
+                          ),
+                          child: ECardWidget(
+                            cardNumber: _generateCardNumber(),
+                            cardHolderName: _userName,
+                            balance: wallet.balance,
+                            currency: _currencySymbol,
+                            userEmail: _userEmail,
+                            userPhone: _userPhone,
+                            onTap: null,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        )
+            .animate()
+            .fadeIn(duration: 450.ms, curve: Curves.easeOutCubic)
+            .scale(
+              begin: const Offset(0.9, 0.9),
+              duration: 520.ms,
+              curve: Curves.easeOutCubic,
+            ),
+        const SizedBox(height: 10),
+        Text(
+          'Preview — how your card will look',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.poppins(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey.shade500,
+          ),
+        ),
+      ],
+    );
+  }
 
-                  _buildBalanceOverview(themeProvider, cardColor, textColor),
+  Widget _buildWalletComingSoonHero(
+    BuildContext context,
+    WalletProvider wallet,
+    Color cardColor,
+    Color textColor,
+    Color primaryColor,
+    bool isDark,
+  ) {
+    final subtleBorder = isDark ? Colors.grey.shade700 : Colors.grey.shade300;
+    final minH = MediaQuery.sizeOf(context).height * 0.58;
 
-                  const SizedBox(height: 10),
-
-                  // Transaction History Section (moved up)
-                  _buildTransactionHistorySection(
-                      cardColor, textColor, primaryColor),
-
-                  const SizedBox(height: 10),
-
-                  // Wallet Info Section
-                  _buildWalletInfoSection(primaryColor, cardColor, textColor),
-
-                  const SizedBox(height: 10),
-
-                  // cashback info section
-                  _buildCashbackInfoSection(primaryColor, cardColor, textColor),
-                  const SizedBox(height: 14),
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: minH),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 12, 22, 32),
+        child: Column(
+          children: [
+            _buildComingSoonCardShowcase(wallet, primaryColor),
+            const SizedBox(height: 28),
+            Text(
+              'Wallet is on the way',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: textColor,
+                height: 1.15,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'We are crafting a calmer place for your balance and perks—'
+              'clear, simple, and built for how you shop.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                height: 1.55,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+            const SizedBox(height: 28),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              alignment: WrapAlignment.center,
+              children: [
+                _buildComingSoonChip(
+                  Icons.shield_outlined,
+                  'Secure',
+                  primaryColor,
+                  subtleBorder,
+                ),
+                _buildComingSoonChip(
+                  Icons.card_giftcard_outlined,
+                  'Rewards',
+                  primaryColor,
+                  subtleBorder,
+                ),
+                _buildComingSoonChip(
+                  Icons.flash_on_outlined,
+                  'Instant',
+                  primaryColor,
+                  subtleBorder,
+                ),
+              ],
+            ),
+            const SizedBox(height: 28),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                color: cardColor,
+                border: Border.all(color: subtleBorder),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
                 ],
               ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.notifications_active_outlined,
+                    color: primaryColor,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      'We will notify you when the wallet is ready to use.',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12.5,
+                        height: 1.45,
+                        color: textColor.withValues(alpha: 0.88),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'No setup needed yet',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildComingSoonChip(
+    IconData icon,
+    String label,
+    Color primaryColor,
+    Color borderColor,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor),
+        color: primaryColor.withValues(alpha: 0.07),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: primaryColor),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: primaryColor,
             ),
           ),
         ],
@@ -517,33 +749,56 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
               tabs: [
                 _buildHistoryTab(Icons.receipt_long_rounded, 'All'),
                 _buildHistoryTab(Icons.refresh_rounded, 'Refunds'),
-                _buildHistoryTab(Icons.assignment_return_rounded, 'Returns'),
                 _buildHistoryTab(Icons.loyalty_rounded, 'Points'),
               ],
             ),
           ),
           SizedBox(
-            height: 215,
+            height: 200,
             child: TabBarView(
               controller: _historyTabController,
               children: [
-                _buildTransactionList(transactions, textColor, cardColor,
-                    _allTransactionsController),
-                _buildTransactionList(
-                    transactions.where((t) => t.type == 'refund').toList(),
-                    textColor,
-                    cardColor,
-                    _refundsController),
-                _buildTransactionList(
-                    transactions.where((t) => t.type == 'return').toList(),
-                    textColor,
-                    cardColor,
-                    _returnsController),
-                _buildTransactionList(
-                    transactions.where((t) => t.type == 'points').toList(),
-                    textColor,
-                    cardColor,
-                    _pointsController),
+                _buildPagedTransactionTab(
+                  transactions,
+                  textColor,
+                  _allTransactionsController,
+                  _historyPageAll,
+                  (p) => setState(() {
+                    _historyPageAll = p;
+                    _allTransactionsController.jumpTo(0);
+                  }),
+                ),
+                _buildPagedTransactionTab(
+                  transactions
+                      .where((t) =>
+                          t.type == 'refund' || t.type == 'return')
+                      .toList(),
+                  textColor,
+                  _refundsController,
+                  _historyPageRefunds,
+                  (p) => setState(() {
+                    _historyPageRefunds = p;
+                    _refundsController.jumpTo(0);
+                  }),
+                  emptyTitle: 'No refunds yet',
+                  emptySubtitle: '',
+                  emptyIcon: Icons.refresh_rounded,
+                ),
+                _buildPagedTransactionTab(
+                  transactions
+                      .where((t) =>
+                          t.isPoints ||
+                          t.type == 'bonus' ||
+                          t.type == 'cashback')
+                      .toList(),
+                  textColor,
+                  _pointsController,
+                  _historyPagePoints,
+                  (p) => setState(() {
+                    _historyPagePoints = p;
+                    _pointsController.jumpTo(0);
+                  }),
+                ),
               ],
             ),
           ),
@@ -552,156 +807,223 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildTransactionList(List transactions, Color textColor,
-      Color cardColor, ScrollController controller) {
-    if (transactions.isEmpty) {
-      return Center(
+  Widget _buildEmptyTransactionList({
+    String title = 'No transactions yet',
+    String subtitle = 'Activity will appear here once your wallet is used',
+    IconData icon = Icons.receipt_long_outlined,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.receipt_long_outlined,
-                color: Colors.grey.shade400, size: 28),
+            Icon(icon, color: Colors.grey.shade400, size: 28),
             const SizedBox(height: 8),
             Text(
-              'No transactions yet',
+              title,
+              textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: Colors.grey.shade600,
               ),
             ),
-            const SizedBox(height: 3),
-            Text(
-              'Activity will appear here once your wallet is used',
-              style: GoogleFonts.poppins(
-                fontSize: 10,
-                color: Colors.grey.shade500,
+            if (subtitle.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 10,
+                  color: Colors.grey.shade500,
+                ),
               ),
-            ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  /// Right column wide enough for `-GHS 999999.99` with tabular digits.
+  static const double _kTransactionAmountColumnWidth = 118;
+
+  Widget _buildTransactionListPage(
+    List<WalletTransaction> pageItems,
+    Color textColor,
+    ScrollController controller,
+  ) {
+    final dividerColor = textColor.withValues(alpha: 0.08);
+    final amountStyle = GoogleFonts.poppins(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    return Scrollbar(
+      controller: controller,
+      thumbVisibility: true,
+      radius: const Radius.circular(10),
+      child: ListView.separated(
+        controller: controller,
+        padding: const EdgeInsets.fromLTRB(16, 2, 16, 4),
+        itemCount: pageItems.length,
+        separatorBuilder: (context, index) => Divider(
+          height: 1,
+          thickness: 1,
+          color: dividerColor,
+        ),
+        itemBuilder: (context, index) {
+          final t = pageItems[index];
+          final isCredit = t.isCredit;
+          final iconColor = isCredit ? Colors.green : Colors.red;
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Text(
+                    t.description,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.start,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: textColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: _kTransactionAmountColumnWidth,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      '${isCredit ? '+' : '-'}$_currencySymbol${t.amount.toStringAsFixed(2)}',
+                      textAlign: TextAlign.end,
+                      maxLines: 1,
+                      style: amountStyle.copyWith(color: iconColor),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPagedTransactionTab(
+    List<WalletTransaction> transactions,
+    Color textColor,
+    ScrollController controller,
+    int storedPage,
+    void Function(int newPage) setStoredPage, {
+    String? emptyTitle,
+    String? emptySubtitle,
+    IconData? emptyIcon,
+  }) {
+    if (transactions.isEmpty) {
+      return _buildEmptyTransactionList(
+        title: emptyTitle ?? 'No transactions yet',
+        subtitle: emptySubtitle ??
+            'Activity will appear here once your wallet is used',
+        icon: emptyIcon ?? Icons.receipt_long_outlined,
       );
     }
-    return Stack(
+    final totalPages =
+        (transactions.length + _kTransactionsPerPage - 1) ~/ _kTransactionsPerPage;
+    final safePage = storedPage.clamp(0, totalPages - 1);
+    if (safePage != storedPage) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setStoredPage(safePage);
+      });
+    }
+    final start = safePage * _kTransactionsPerPage;
+    final end = start + _kTransactionsPerPage > transactions.length
+        ? transactions.length
+        : start + _kTransactionsPerPage;
+    final pageItems = transactions.sublist(start, end);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Scrollbar(
-          controller: controller,
-          thumbVisibility: true,
-          radius: const Radius.circular(10),
-          child: ListView.separated(
-            controller: controller,
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-            itemCount: transactions.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 7),
-            itemBuilder: (context, index) {
-              final t = transactions[index];
-              final isCredit = t.type == 'credit' ||
-                  t.type == 'cashback' ||
-                  t.type == 'refund' ||
-                  t.type == 'bonus';
-              final icon = _getTransactionIcon(t.type);
-              final iconColor = isCredit ? Colors.green : Colors.red;
-              return Container(
-                padding: const EdgeInsets.all(11),
-                decoration: BoxDecoration(
-                  color: cardColor.withValues(alpha: 0.95),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: iconColor.withValues(alpha: 0.18),
-                    width: 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha((255 * 0.03).toInt()),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: iconColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(icon, color: iconColor, size: 18),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            t.description ?? '',
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: textColor,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            t.reference ?? '',
-                            style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              color: Colors.grey.shade500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          (isCredit ? '+' : '-') +
-                              _currencySymbol +
-                              t.amount.toStringAsFixed(2),
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: iconColor,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _formatDate(t.createdAt),
-                          style: GoogleFonts.poppins(
-                            fontSize: 10,
-                            color: Colors.grey.shade400,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
+        Expanded(
+          child: _buildTransactionListPage(pageItems, textColor, controller),
         ),
-        // Fading gradient at the bottom
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: 24,
-          child: IgnorePointer(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    cardColor.withOpacity(0.0),
-                    cardColor.withOpacity(0.85),
-                  ],
+        if (totalPages > 1)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 44,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                          minWidth: 40, minHeight: 36),
+                      icon: Icon(
+                        Icons.chevron_left_rounded,
+                        color: safePage > 0
+                            ? Colors.grey.shade800
+                            : Colors.grey.shade400,
+                      ),
+                      onPressed: safePage > 0
+                          ? () {
+                              setStoredPage(safePage - 1);
+                              controller.jumpTo(0);
+                            }
+                          : null,
+                    ),
+                  ),
                 ),
-              ),
+                Expanded(
+                  child: Text(
+                    '${safePage + 1} / $totalPages',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade700,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 44,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                          minWidth: 40, minHeight: 36),
+                      icon: Icon(
+                        Icons.chevron_right_rounded,
+                        color: safePage < totalPages - 1
+                            ? Colors.grey.shade800
+                            : Colors.grey.shade400,
+                      ),
+                      onPressed: safePage < totalPages - 1
+                          ? () {
+                              setStoredPage(safePage + 1);
+                              controller.jumpTo(0);
+                            }
+                          : null,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
       ],
     );
   }
@@ -717,31 +1039,6 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
         ],
       ),
     );
-  }
-
-  IconData _getTransactionIcon(String type) {
-    switch (type) {
-      case 'credit':
-        return Icons.arrow_downward_rounded;
-      case 'debit':
-        return Icons.arrow_upward_rounded;
-      case 'refund':
-        return Icons.refresh_rounded;
-      case 'cashback':
-        return Icons.card_giftcard_rounded;
-      case 'bonus':
-        return Icons.star_rounded;
-      case 'return':
-        return Icons.assignment_return_rounded;
-      case 'points':
-        return Icons.loyalty_rounded;
-      default:
-        return Icons.swap_horiz_rounded;
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    return "${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}";
   }
 
   Widget _buildWalletInfoSection(
@@ -828,7 +1125,7 @@ class _WalletPageState extends State<WalletPage> with TickerProviderStateMixin {
               children: [
                 _buildEnhancedInfoItem(
                   Icons.refresh_rounded,
-                  'Refunds & Returns',
+                  'Refunds',
                   'Money from cancelled orders, returns, or refunds automatically goes here',
                   Colors.blue.shade600,
                   cardColor,

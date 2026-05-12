@@ -17,7 +17,8 @@ class WalletProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isInitialized => _isInitialized;
-  double get balance => totalCashback + totalRefunds;
+  /// Prefer server-reported balance; sum of certain tx types was legacy-only.
+  double get balance => _wallet?.balance ?? 0.0;
   String get formattedBalance => WalletService.formatBalance(balance);
   bool get hasWallet => _wallet != null;
 
@@ -42,14 +43,16 @@ class WalletProvider extends ChangeNotifier {
     _clearError();
 
     try {
-      final wallet = await WalletService.getWallet();
-      if (wallet != null) {
-        _wallet = wallet;
-        await _loadTransactions();
-      }
+      _wallet = await WalletService.getWallet();
     } catch (e) {
       _setError(e.toString());
     } finally {
+      // Order history uses [AuthService.getOrders] and must load even if wallet GET fails.
+      try {
+        await _loadTransactions();
+      } catch (e) {
+        debugPrint('WalletProvider: transactions load failed: $e');
+      }
       _setLoading(false);
     }
   }
@@ -69,11 +72,16 @@ class WalletProvider extends ChangeNotifier {
   // load more transactions (for pagination)
   Future<void> loadMoreTransactions() async {
     if (_isLoading) return;
+    if (_transactions.isEmpty) return;
+    if (_transactions.length % WalletService.transactionsPageSize != 0) {
+      return;
+    }
 
     try {
-      final currentPage = (_transactions.length / 20).ceil() + 1;
+      final nextPage =
+          (_transactions.length ~/ WalletService.transactionsPageSize) + 1;
       final moreTransactions =
-          await WalletService.getTransactions(page: currentPage);
+          await WalletService.getTransactions(page: nextPage);
 
       if (moreTransactions.isNotEmpty) {
         _transactions.addAll(moreTransactions);

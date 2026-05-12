@@ -649,14 +649,17 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                                       height: 24,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(_accent),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                                _accent),
                                       ),
                                     ),
                                   ],
                                 ],
                               )
                             : ClipRRect(
-                                borderRadius: BorderRadius.circular(_fieldRadius),
+                                borderRadius:
+                                    BorderRadius.circular(_fieldRadius),
                                 child: Stack(
                                   fit: StackFit.expand,
                                   children: [
@@ -690,7 +693,8 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                                           shape: BoxShape.circle,
                                           boxShadow: [
                                             BoxShadow(
-                                              color: Colors.black.withValues(alpha: 0.2),
+                                              color: Colors.black
+                                                  .withValues(alpha: 0.2),
                                               blurRadius: 6,
                                               offset: const Offset(0, 2),
                                             ),
@@ -724,10 +728,12 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                                   height: 18,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(_accent),
+                                    valueColor:
+                                        AlwaysStoppedAnimation<Color>(_accent),
                                   ),
                                 )
-                              : Icon(Icons.photo_library_rounded, size: 20, color: _accent),
+                              : Icon(Icons.photo_library_rounded,
+                                  size: 20, color: _accent),
                           label: Text(
                             _image == null ? 'Choose image' : 'Change',
                             style: GoogleFonts.poppins(
@@ -751,14 +757,16 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                         Expanded(
                           flex: 2,
                           child: FilledButton.icon(
-                            onPressed: _isSubmitting ? null : _submitPrescription,
+                            onPressed:
+                                _isSubmitting ? null : _submitPrescription,
                             icon: _isSubmitting
                                 ? SizedBox(
                                     width: 20,
                                     height: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.white),
                                     ),
                                   )
                                 : const Icon(Icons.send_rounded, size: 20),
@@ -774,7 +782,8 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
                               foregroundColor: Colors.white,
                               minimumSize: const Size(double.infinity, 48),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(_fieldRadius),
+                                borderRadius:
+                                    BorderRadius.circular(_fieldRadius),
                               ),
                               elevation: 0,
                             ),

@@ -19,6 +19,8 @@ class Product {
   final String? accessories;
   final int? categoryId;
   final String? uom;
+  /// Resolved gallery URLs from product detail API (may be empty).
+  final List<String> galleryImages;
 
   Product({
     required this.id,
@@ -40,7 +42,16 @@ class Product {
     this.accessories,
     this.categoryId,
     this.uom,
+    this.galleryImages = const [],
   });
+
+  static List<String> _galleryImagesFromJson(dynamic raw) {
+    if (raw == null || raw is! List) return const [];
+    return raw
+        .map((e) => (e ?? '').toString().trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
 
   factory Product.fromJson(Map<String, dynamic> json) {
     final uomValue = json['uom'];
@@ -74,6 +85,7 @@ class Product {
       accessories: json['accessories'],
       categoryId: json['category_id'],
       uom: finalUom,
+      galleryImages: _galleryImagesFromJson(json['gallery_images']),
     );
   }
 
@@ -98,6 +110,7 @@ class Product {
       'accessories': accessories,
       'category_id': categoryId,
       'uom': uom,
+      'gallery_images': galleryImages,
     };
   }
 }

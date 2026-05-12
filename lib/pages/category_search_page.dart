@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
+import '../widgets/ecl_expandable_sliver_app_bar.dart';
+
 // --- Data Models ---
 class Category {
   final String id;
@@ -106,75 +108,87 @@ class _CategorySearchPageState extends ConsumerState<CategorySearchPage> {
     final selectedSubCategory = ref.watch(selectedSubCategoryProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Category Search')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            // Category Dropdown
-            DropdownButton<String?>(
-              value: selectedCategory,
-              hint: const Text('Select Category'),
-              isExpanded: true,
-              items: categories
-                  .map((cat) => DropdownMenuItem(
-                        value: cat.id,
-                        child: Text(cat.name),
-                      ))
-                  .toList(),
-              onChanged: (catId) {
-                ref.read(selectedCategoryProvider.notifier).state = catId;
-                ref.read(selectedSubCategoryProvider.notifier).state = null;
-              },
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          const EclExpandableSliverAppBar(
+            toolbarTitle: 'Category Search',
+            heroTitle: 'Category search',
+            heroSubtitle: 'Filter items by category',
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.all(16.0),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                DropdownButton<String?>(
+                  value: selectedCategory,
+                  hint: const Text('Select Category'),
+                  isExpanded: true,
+                  items: categories
+                      .map((cat) => DropdownMenuItem(
+                            value: cat.id,
+                            child: Text(cat.name),
+                          ))
+                      .toList(),
+                  onChanged: (catId) {
+                    ref.read(selectedCategoryProvider.notifier).state = catId;
+                    ref.read(selectedSubCategoryProvider.notifier).state = null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                if (selectedCategory != null)
+                  DropdownButton<String?>(
+                    value: selectedSubCategory,
+                    hint: const Text('Select Subcategory'),
+                    isExpanded: true,
+                    items: categories
+                        .firstWhere((cat) => cat.id == selectedCategory)
+                        .subCategories
+                        .map((sub) => DropdownMenuItem(
+                              value: sub.id,
+                              child: Text(sub.name),
+                            ))
+                        .toList(),
+                    onChanged: (subId) {
+                      ref.read(selectedSubCategoryProvider.notifier).state =
+                          subId;
+                    },
+                  ),
+                const SizedBox(height: 12),
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Search',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                  onChanged: _onSearchChanged,
+                ),
+                const SizedBox(height: 16),
+              ]),
             ),
-            const SizedBox(height: 12),
-            // SubCategory Dropdown
-            if (selectedCategory != null)
-              DropdownButton<String?>(
-                value: selectedSubCategory,
-                hint: const Text('Select Subcategory'),
-                isExpanded: true,
-                items: categories
-                    .firstWhere((cat) => cat.id == selectedCategory)
-                    .subCategories
-                    .map((sub) => DropdownMenuItem(
-                          value: sub.id,
-                          child: Text(sub.name),
-                        ))
-                    .toList(),
-                onChanged: (subId) {
-                  ref.read(selectedSubCategoryProvider.notifier).state = subId;
+          ),
+          if (filteredItems.isEmpty)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: Text('No items found.')),
+              ),
+            )
+          else
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, idx) {
+                  final item = filteredItems[idx];
+                  return ListTile(
+                    title: Text(item.name),
+                    subtitle: Text(
+                        'Category: ${item.categoryId}, Sub: ${item.subCategoryId}'),
+                  );
                 },
+                childCount: filteredItems.length,
               ),
-            const SizedBox(height: 12),
-            // Search Field
-            TextField(
-              decoration: const InputDecoration(
-                labelText: 'Search',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.search),
-              ),
-              onChanged: _onSearchChanged,
             ),
-            const SizedBox(height: 16),
-            // Results
-            Expanded(
-              child: filteredItems.isEmpty
-                  ? const Center(child: Text('No items found.'))
-                  : ListView.builder(
-                      itemCount: filteredItems.length,
-                      itemBuilder: (context, idx) {
-                        final item = filteredItems[idx];
-                        return ListTile(
-                          title: Text(item.name),
-                          subtitle: Text(
-                              'Category: ${item.categoryId}, Sub: ${item.subCategoryId}'),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }

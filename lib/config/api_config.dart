@@ -211,6 +211,20 @@ class ApiConfig {
   // ==================== HELPER METHODS ====================
   // functions to build full urls from endpoints
 
+  /// Backend sometimes returns filenames or paths with spaces; raw URLs then fail
+  /// [Uri.parse] / HTTP clients. Encode spaces as `%20` (path/query only).
+  static String _encodeSpacesInHttpOrPath(String value) {
+    if (!value.contains(' ')) return value;
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      try {
+        return Uri.parse(value).toString();
+      } catch (_) {
+        return value.replaceAll(' ', '%20');
+      }
+    }
+    return value.replaceAll(' ', '%20');
+  }
+
   // build the full url for a product image
   static String getProductImageUrl(String? imagePath) {
     final normalized = coerceProductImageSource(imagePath);
@@ -219,18 +233,17 @@ class ApiConfig {
     }
 
     // if its already a full url, just return it
-    if (normalized.startsWith('http://') ||
-        normalized.startsWith('https://')) {
-      return normalized;
+    if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+      return _encodeSpacesInHttpOrPath(normalized);
     }
 
     // if it starts with /, use the admin base url
     if (normalized.startsWith('/')) {
-      return '$adminBaseUrl$normalized';
+      return _encodeSpacesInHttpOrPath('$adminBaseUrl$normalized');
     }
 
     // otherwise assume its just a filename and add it to the product image url
-    return '$productImageBaseUrl/$normalized';
+    return _encodeSpacesInHttpOrPath('$productImageBaseUrl/$normalized');
   }
 
   /// Build URL for image or storage path (uploads/, storage/, or product filename).
@@ -238,15 +251,15 @@ class ApiConfig {
     final normalized = coerceProductImageSource(url);
     if (normalized.isEmpty) return '';
     if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
-      return normalized;
+      return _encodeSpacesInHttpOrPath(normalized);
     }
     if (normalized.startsWith('/uploads/')) {
-      return '$adminBaseUrl$normalized';
+      return _encodeSpacesInHttpOrPath('$adminBaseUrl$normalized');
     }
     if (normalized.startsWith('/storage/')) {
-      return '$appBaseUrl$normalized';
+      return _encodeSpacesInHttpOrPath('$appBaseUrl$normalized');
     }
-    return '$productImageBaseUrl/$normalized';
+    return _encodeSpacesInHttpOrPath('$productImageBaseUrl/$normalized');
   }
 
   /// Build URL for storage path (e.g. categories, banners).

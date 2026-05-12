@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../widgets/cart_icon_button.dart';
+import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/delivery_service.dart';
@@ -25,6 +26,8 @@ class OrderTrackingPage extends StatefulWidget {
 }
 
 class OrderTrackingPageState extends State<OrderTrackingPage> {
+  static const double _kTrackRadius = 20;
+
   String? _deliveryAddress;
   String? _contactNumber;
   String? _deliveryOption;
@@ -38,6 +41,87 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
   /// Timer for periodic order status refresh while page is open
   Timer? _refreshTimer;
   static const Duration _refreshInterval = Duration(seconds: 30);
+
+  /// Shown in the track-order sliver header (toolbar + expanded): order id only.
+  String _sliverHeaderOrderLabel() {
+    final o = widget.orderDetails;
+    final raw = o['order_number']?.toString() ??
+        o['delivery_id']?.toString() ??
+        o['transaction_id']?.toString() ??
+        o['order_id']?.toString() ??
+        o['id']?.toString() ??
+        '';
+    final t = raw.trim();
+    if (t.isEmpty || t.toUpperCase() == 'N/A') return 'Order';
+    return t.startsWith('#') ? t : '#$t';
+  }
+
+  bool _isPickupOrder() {
+    bool mentionsPickup(String? v) {
+      final n = (v ?? '').toLowerCase().replaceAll(RegExp(r'[\s_-]'), '');
+      return n.contains('pickup') ||
+          n.contains('instore') ||
+          n.contains('instorepickup') ||
+          n == 'collect';
+    }
+
+    final o = widget.orderDetails;
+    final candidates = <String?>[
+      _deliveryOption,
+      o['delivery_option']?.toString(),
+      o['shipping_type']?.toString(),
+      o['shipping_method']?.toString(),
+      o['delivery_method']?.toString(),
+      o['shipping']?.toString(),
+      o['fulfillment_type']?.toString(),
+      o['order_type']?.toString(),
+    ];
+    if (candidates.any(mentionsPickup)) return true;
+
+    for (final k in [
+      'pickup_site',
+      'pickup_location',
+      'pickup_city',
+      'pickup_region',
+    ]) {
+      if ((o[k]?.toString().trim().isNotEmpty ?? false)) return true;
+    }
+
+    final addr1 = o['addr_1']?.toString().toLowerCase().trim() ?? '';
+    if (addr1 == 'pickup order' || addr1.contains('pickup')) return true;
+
+    final addr =
+        (o['delivery_address'] ?? o['shipping_address'] ?? o['address'] ?? '')
+            .toString()
+            .toLowerCase();
+    if (addr.contains('pickup at') ||
+        addr.startsWith('pickup ') ||
+        addr.contains(' collect at')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  String _pickupLocationSummary() {
+    final o = widget.orderDetails;
+    final parts = <String>[];
+    void add(dynamic raw) {
+      if (raw == null) return;
+      final s = raw.toString().trim();
+      if (s.isEmpty || s.toLowerCase() == 'pickup order') return;
+      if (!parts.contains(s)) parts.add(s);
+    }
+
+    add(o['pickup_site']);
+    add(o['pickup_location']);
+    add(o['pickup_city']);
+    add(o['pickup_region']);
+    if (parts.isNotEmpty) return parts.join(' · ');
+    final addr = _deliveryAddress?.trim();
+    if (addr != null && addr.isNotEmpty) return addr;
+    return 'Not available';
+  }
 
   @override
   void initState() {
@@ -804,6 +888,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
           widget.orderDetails['order_id']?.toString() ??
           widget.orderDetails['id']?.toString() ??
           'N/A';
+      final isPickup = _isPickupOrder();
 
       debugPrint('🔍 Order date: $orderDate');
       debugPrint('🔍 Status: $status');
@@ -811,279 +896,189 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       debugPrint('🔍 Total amount: $totalAmount');
 
       return Scaffold(
-        backgroundColor: Colors.grey[100],
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          centerTitle: true,
-          flexibleSpace: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.green.shade600,
-                  Colors.green.shade700,
-                ],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 10,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-          ),
-          leading: AppBackButton(
-            backgroundColor: Colors.white.withValues(alpha: 0.2),
-            onPressed: () {
-              if (Navigator.canPop(context)) {
-                Navigator.pop(context);
-              } else {
-                Navigator.of(context)
-                    .pushNamedAndRemoveUntil('/', (route) => false);
-              }
-            },
-          ),
-          title: Text(
-            'Track Order',
-            style: GoogleFonts.poppins(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-              letterSpacing: 0.5,
-            ),
-          ),
-          actions: [
-            Container(
-              margin: EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: CartIconButton(
-                iconColor: Colors.white,
-                iconSize: 24,
-                backgroundColor: Colors.transparent,
-              ),
-            ),
-          ],
-        ),
+        backgroundColor: const Color(0xFFF0F2F5),
         body: _isLoading
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(Colors.green.shade600),
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'Loading order details...',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 16,
+            ? CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  EclExpandableSliverAppBar(
+                    toolbarTitle: _sliverHeaderOrderLabel(),
+                    heroTitle: _sliverHeaderOrderLabel(),
+                    leading: Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: AppBackButton(
+                        backgroundColor: Colors.white.withValues(alpha: 0.2),
+                        iconColor: Colors.white,
+                        onPressed: () {
+                          if (Navigator.canPop(context)) {
+                            Navigator.pop(context);
+                          } else {
+                            Navigator.of(context)
+                                .pushNamedAndRemoveUntil('/', (route) => false);
+                          }
+                        },
                       ),
                     ),
-                  ],
-                ),
+                    actions: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: CartIconButton(
+                            iconColor: Colors.white,
+                            iconSize: 22,
+                            backgroundColor: Colors.transparent,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 3,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.green.shade700),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            'Fetching your order…',
+                            style: GoogleFonts.poppins(
+                              color: Colors.grey.shade700,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Hang tight',
+                            style: GoogleFonts.poppins(
+                              color: Colors.grey.shade500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               )
             : RefreshIndicator(
                 onRefresh: _loadDeliveryInfo,
-                color: Colors.green.shade600,
-                child: SingleChildScrollView(
-                  physics: AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.grey.shade200,
-                          Colors.grey.shade100,
-                          Colors.grey.shade100,
-                        ],
-                        stops: const [0.0, 0.12, 1.0],
+                color: Colors.green.shade700,
+                backgroundColor: Colors.white,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  slivers: [
+                    EclExpandableSliverAppBar(
+                      toolbarTitle: _sliverHeaderOrderLabel(),
+                      heroTitle: _sliverHeaderOrderLabel(),
+                      leading: Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: AppBackButton(
+                          backgroundColor: Colors.white.withValues(alpha: 0.2),
+                          iconColor: Colors.white,
+                          onPressed: () {
+                            if (Navigator.canPop(context)) {
+                              Navigator.pop(context);
+                            } else {
+                              Navigator.of(context).pushNamedAndRemoveUntil(
+                                  '/', (route) => false);
+                            }
+                          },
+                        ),
                       ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildModernHeader(orderNumber, status, orderDate),
-                        const SizedBox(height: 18),
-                        Row(
-                          children: [
-                            Container(
-                              width: 28,
-                              height: 28,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border:
-                                    Border.all(color: Colors.green.shade200),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.green.shade200
-                                        .withValues(alpha: 0.5),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                Icons.receipt_long_rounded,
-                                size: 16,
-                                color: Colors.green.shade700,
-                              ),
+                      actions: [
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Order summary',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade800,
-                                letterSpacing: 0.3,
-                              ),
+                            child: CartIconButton(
+                              iconColor: Colors.white,
+                              iconSize: 22,
+                              backgroundColor: Colors.transparent,
                             ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        _buildOrderItemsCard(
-                            orderItems, totalQuantity, totalAmount),
-                        const SizedBox(height: 18),
-                        Row(
-                          children: [
-                            Container(
-                              width: 28,
-                              height: 28,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.blue.shade200),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.blue.shade200
-                                        .withValues(alpha: 0.5),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                Icons.timeline_rounded,
-                                size: 16,
-                                color: Colors.blue.shade600,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Status',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade800,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        _buildStatusTimelineCard(status),
-                        const SizedBox(height: 18),
-                        Row(
-                          children: [
-                            Container(
-                              width: 28,
-                              height: 28,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border:
-                                    Border.all(color: Colors.orange.shade200),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.orange.shade200
-                                        .withValues(alpha: 0.5),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                Icons.location_on_rounded,
-                                size: 16,
-                                color: Colors.orange.shade700,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Delivery details',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade800,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        _buildDeliveryDetailsCard(),
-                        const SizedBox(height: 28),
                       ],
                     ),
-                  ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          _buildModernHeader(
+                              orderNumber, status, orderDate, isPickup),
+                          const SizedBox(height: 16),
+                          _buildOrderItemsCard(
+                              orderItems, totalQuantity, totalAmount),
+                          const SizedBox(height: 16),
+                          _buildStatusTimelineCard(status, isPickup),
+                          const SizedBox(height: 16),
+                          _buildDeliveryDetailsCard(isPickup: isPickup),
+                        ]),
+                      ),
+                    ),
+                  ],
                 ),
               ),
       );
     } catch (e) {
       debugPrint('🔍 Error in OrderTrackingPage build: $e');
       return Scaffold(
-        appBar: AppBar(
-          title: Text('Track Order'),
-          backgroundColor: Colors.green.shade700,
-          leading: IconButton(
-            onPressed: () {
-              debugPrint(
-                  '🔍 Back button pressed in OrderTrackingPage (error case)');
-              if (Navigator.canPop(context)) {
-                Navigator.pop(context);
-              } else {
-                Navigator.of(context)
-                    .pushNamedAndRemoveUntil('/', (route) => false);
-              }
-            },
-            icon: Icon(Icons.arrow_back, color: Colors.white),
-          ),
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.error_outline, size: 64, color: Colors.red),
-              SizedBox(height: 16),
-              Text(
-                'Error loading order tracking',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        backgroundColor: const Color(0xFFF0F2F5),
+        body: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            EclExpandableSliverAppBar(
+              toolbarTitle: _sliverHeaderOrderLabel(),
+              heroTitle: _sliverHeaderOrderLabel(),
+            ),
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 64, color: Colors.red),
+                    SizedBox(height: 16),
+                    Text(
+                      'Error loading order tracking',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Error: $e',
+                      style: TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                  ],
+                ),
               ),
-              SizedBox(height: 8),
-              Text(
-                'Error: $e',
-                style: TextStyle(fontSize: 14, color: Colors.grey),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
   }
 
   Widget _buildModernHeader(
-      String orderNumber, String status, DateTime? orderDate) {
+      String orderNumber, String status, DateTime? orderDate, bool isPickup) {
     // derive a primary color/icon for the current status so the header feels more alive
     final lowerStatus = status.toLowerCase().trim();
     Color accentColor;
@@ -1120,107 +1115,146 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       friendlyStatus = status.isNotEmpty ? status : 'Pending';
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.green.shade200, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-            spreadRadius: 0,
+    if (isPickup) {
+      if (friendlyStatus == 'Out for delivery') {
+        friendlyStatus = 'Ready for Pickup';
+        accentIcon = Icons.store_mall_directory_rounded;
+        accentColor = Colors.teal.shade600;
+      } else if (friendlyStatus == 'Delivered') {
+        friendlyStatus = 'Picked up';
+        accentIcon = Icons.shopping_bag_rounded;
+      }
+    }
+
+    return Material(
+      color: Colors.white,
+      elevation: 0,
+      borderRadius: BorderRadius.circular(_kTrackRadius),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(_kTrackRadius),
+          border: Border.all(
+            color: Colors.grey.shade200.withValues(alpha: 0.85),
           ),
-          BoxShadow(
-            color: Colors.green.shade200.withValues(alpha: 0.4),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-            spreadRadius: -2,
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: accentColor.withValues(alpha: 0.2),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
-            child: Icon(
-              accentIcon,
-              color: accentColor,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(_kTrackRadius),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'Order $orderNumber',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade900,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Text(
-                      friendlyStatus,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: accentColor,
-                      ),
-                    ),
-                    if (orderDate != null) ...[
-                      Text(
-                        ' • ',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
+                Container(width: 4, color: accentColor),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              isPickup
+                                  ? Icons.storefront_outlined
+                                  : Icons.local_shipping_outlined,
+                              size: 15,
+                              color: Colors.grey.shade500,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              isPickup ? 'Pickup order' : 'Delivery order',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                            const Spacer(),
+                            _buildStatusBadge(status, isPickup: isPickup),
+                          ],
                         ),
-                      ),
-                      Flexible(
-                        child: Text(
-                          DateFormat('MMM d, y • h:mm a').format(orderDate),
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            color: Colors.grey.shade600,
+                        const SizedBox(height: 14),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              accentIcon,
+                              size: 26,
+                              color: accentColor,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                friendlyStatus,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.grey.shade900,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (orderDate != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            DateFormat('EEE, MMM d · h:mm a').format(orderDate),
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey.shade600,
+                            ),
                           ),
+                        ],
+                        Padding(
+                          padding: const EdgeInsets.only(top: 14),
+                          child: Divider(
+                            height: 1,
+                            color: Colors.grey.shade200,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Order ID',
+                          style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.6,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          orderNumber,
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade800,
+                            letterSpacing: 0.15,
+                          ),
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ],
-                  ],
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          _buildStatusBadge(status),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildStatusBadge(String status) {
+  Widget _buildStatusBadge(String status, {bool isPickup = false}) {
     Color statusColor;
     String statusText;
 
@@ -1257,54 +1291,107 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       statusText = status.isNotEmpty ? status : 'Pending';
     }
 
+    if (isPickup) {
+      if (statusText == 'Out for Delivery') {
+        statusText = 'Ready for Pickup';
+      } else if (statusText == 'Delivered') {
+        statusText = 'Picked up';
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: statusColor,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: statusColor.withValues(alpha: 0.4),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: statusColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: statusColor.withValues(alpha: 0.35)),
       ),
       child: Text(
-        statusText.toUpperCase(),
-        style: const TextStyle(
+        statusText,
+        style: GoogleFonts.poppins(
           fontSize: 10,
           fontWeight: FontWeight.w700,
-          color: Colors.white,
-          letterSpacing: 0.5,
+          color: statusColor,
+          letterSpacing: 0.15,
         ),
       ),
     );
   }
 
-  Widget _buildStatusTimelineCard(String currentStatus) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-            spreadRadius: 0,
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-            spreadRadius: 0,
-          ),
-        ],
+  Widget _buildStatusTimelineCard(String currentStatus, bool isPickup) {
+    return Material(
+      color: Colors.white,
+      elevation: 0,
+      shadowColor: Colors.black.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(_kTrackRadius),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(_kTrackRadius),
+          border:
+              Border.all(color: Colors.grey.shade200.withValues(alpha: 0.6)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color:
+                        isPickup ? Colors.teal.shade50 : Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    isPickup ? Icons.storefront_rounded : Icons.route_rounded,
+                    size: 20,
+                    color:
+                        isPickup ? Colors.teal.shade800 : Colors.green.shade800,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isPickup ? 'Pickup progress' : 'Delivery progress',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade900,
+                        ),
+                      ),
+                      Text(
+                        isPickup
+                            ? 'From order to collection'
+                            : 'Step-by-step updates',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Divider(height: 28, color: Colors.grey.shade100),
+            _buildModernStatusTimeline(currentStatus, isPickup: isPickup),
+          ],
+        ),
       ),
-      child: _buildModernStatusTimeline(currentStatus),
     );
   }
 
@@ -1369,196 +1456,229 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     debugPrint('🔍   ===== Final deliveryFee: $deliveryFee =====');
     debugPrint('🔍   Will show delivery fee: ${deliveryFee > 0.01}');
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-            spreadRadius: 0,
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: Colors.grey.shade300),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Text(
-                  '$totalQuantity item${totalQuantity == 1 ? '' : 's'}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey.shade700,
+    return Material(
+      color: Colors.white,
+      elevation: 0,
+      borderRadius: BorderRadius.circular(_kTrackRadius),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(_kTrackRadius),
+          border:
+              Border.all(color: Colors.grey.shade200.withValues(alpha: 0.6)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.receipt_long_rounded,
+                    size: 20,
+                    color: Colors.teal.shade800,
                   ),
                 ),
-              ),
-              const Spacer(),
-              Text(
-                'GHS ${totalAmount.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.green.shade700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ...orderItems.map((item) => _buildModernOrderItemRow(item)),
-          const Divider(height: 14),
-          // Price Breakdown
-          // Subtotal
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Subtotal',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                ),
-              ),
-              Text(
-                'GHS ${subtotal.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                ),
-              ),
-            ],
-          ),
-          // Delivery Fee - always show if there's a difference between total and subtotal
-          Builder(
-            builder: (context) {
-              // Use the deliveryFee calculated above, or calculate from difference
-              double finalDeliveryFee = deliveryFee;
-
-              // If delivery fee is 0 or very small, calculate from difference
-              // Formula: total = subtotal + deliveryFee - discount
-              // So: deliveryFee = total - subtotal + discount
-              if (finalDeliveryFee <= 0.01) {
-                final calculatedFee = totalAmount - subtotal + discount;
-                if (calculatedFee > 0.01) {
-                  finalDeliveryFee = calculatedFee;
-                }
-              }
-
-              debugPrint(
-                  '🔍 Display Builder: finalDeliveryFee=$finalDeliveryFee, totalAmount=$totalAmount, subtotal=$subtotal, discount=$discount');
-
-              // Always show if there's a meaningful delivery fee
-              if (finalDeliveryFee > 0.01) {
-                debugPrint(
-                    '🔍 Display: ✅ SHOWING delivery fee: GHS ${finalDeliveryFee.toStringAsFixed(2)}');
-                return Column(
-                  children: [
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Delivery Fee',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[700],
-                          ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Items & payment',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade900,
                         ),
-                        Text(
-                          'GHS ${finalDeliveryFee.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[700],
-                          ),
+                      ),
+                      Text(
+                        'What you ordered',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                          fontWeight: FontWeight.w500,
                         ),
-                      ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$totalQuantity item${totalQuantity == 1 ? '' : 's'}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade700,
                     ),
-                  ],
-                );
-              } else {
-                debugPrint('🔍 Display: ❌ NOT showing delivery fee');
-                debugPrint('🔍   - finalDeliveryFee: $finalDeliveryFee');
-                debugPrint('🔍   - totalAmount: $totalAmount');
-                debugPrint('🔍   - subtotal: $subtotal');
-                debugPrint('🔍   - discount: $discount');
-                debugPrint(
-                    '🔍   - calculated difference: ${totalAmount - subtotal + discount}');
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-          // Discount (if any)
-          if (discount > 0) ...[
-            const SizedBox(height: 8),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'GHS ${totalAmount.toStringAsFixed(2)}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.green.shade800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...orderItems.map((item) => _buildModernOrderItemRow(item)),
+            const Divider(height: 14),
+            // Price Breakdown
+            // Subtotal
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Discount',
+                  'Subtotal',
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.green[700],
+                    color: Colors.grey[700],
                   ),
                 ),
                 Text(
-                  '-GHS ${discount.toStringAsFixed(2)}',
+                  'GHS ${subtotal.toStringAsFixed(2)}',
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.green[700],
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
+            ),
+            // Delivery Fee - always show if there's a difference between total and subtotal
+            Builder(
+              builder: (context) {
+                // Use the deliveryFee calculated above, or calculate from difference
+                double finalDeliveryFee = deliveryFee;
+
+                // If delivery fee is 0 or very small, calculate from difference
+                // Formula: total = subtotal + deliveryFee - discount
+                // So: deliveryFee = total - subtotal + discount
+                if (finalDeliveryFee <= 0.01) {
+                  final calculatedFee = totalAmount - subtotal + discount;
+                  if (calculatedFee > 0.01) {
+                    finalDeliveryFee = calculatedFee;
+                  }
+                }
+
+                debugPrint(
+                    '🔍 Display Builder: finalDeliveryFee=$finalDeliveryFee, totalAmount=$totalAmount, subtotal=$subtotal, discount=$discount');
+
+                // Always show if there's a meaningful delivery fee
+                if (finalDeliveryFee > 0.01) {
+                  debugPrint(
+                      '🔍 Display: ✅ SHOWING delivery fee: GHS ${finalDeliveryFee.toStringAsFixed(2)}');
+                  return Column(
+                    children: [
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Delivery Fee',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          Text(
+                            'GHS ${finalDeliveryFee.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                } else {
+                  debugPrint('🔍 Display: ❌ NOT showing delivery fee');
+                  debugPrint('🔍   - finalDeliveryFee: $finalDeliveryFee');
+                  debugPrint('🔍   - totalAmount: $totalAmount');
+                  debugPrint('🔍   - subtotal: $subtotal');
+                  debugPrint('🔍   - discount: $discount');
+                  debugPrint(
+                      '🔍   - calculated difference: ${totalAmount - subtotal + discount}');
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+            // Discount (if any)
+            if (discount > 0) ...[
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Discount',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.green[700],
+                    ),
+                  ),
+                  Text(
+                    '-GHS ${discount.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.green[700],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const Divider(height: 12),
+            // Total
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Total',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade900,
+                  ),
+                ),
+                Text(
+                  'GHS ${totalAmount.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.green.shade700,
                   ),
                 ),
               ],
             ),
           ],
-          const Divider(height: 12),
-          // Total
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Total',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade900,
-                ),
-              ),
-              Text(
-                'GHS ${totalAmount.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.green.shade700,
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1569,50 +1689,55 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     final qty = item['qty'] ?? 1;
     final price = (item['price'] ?? 0.0).toDouble();
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             child: Image.network(
               productImg,
-              width: 44,
-              height: 44,
+              width: 48,
+              height: 48,
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) => Container(
-                width: 44,
-                height: 44,
-                color: Colors.grey.shade100,
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Icon(
                   Icons.image_rounded,
                   color: Colors.grey.shade400,
-                  size: 18,
+                  size: 22,
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   productName,
-                  style: TextStyle(
+                  style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: Colors.grey.shade900,
                   ),
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
-                  'Qty: $qty',
-                  style: TextStyle(
+                  'Qty $qty',
+                  style: GoogleFonts.poppins(
                     fontSize: 11,
-                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade500,
                   ),
                 ),
               ],
@@ -1620,7 +1745,7 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
           ),
           Text(
             'GHS ${price.toStringAsFixed(2)}',
-            style: TextStyle(
+            style: GoogleFonts.poppins(
               fontSize: 13,
               fontWeight: FontWeight.w700,
               color: Colors.grey.shade900,
@@ -1631,35 +1756,65 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     );
   }
 
-  Widget _buildModernStatusTimeline(String currentStatus) {
-    final statuses = [
-      {
-        'title': 'Order Placed',
-        'status': 'pending',
-        'icon': Icons.shopping_cart_rounded
-      },
-      {'title': 'Paid', 'status': 'paid', 'icon': Icons.payment_rounded},
-      {
-        'title': 'Pending Confirmation',
-        'status': 'pending_confirmation',
-        'icon': Icons.hourglass_empty_rounded
-      },
-      {
-        'title': 'Order Confirmed',
-        'status': 'confirmed',
-        'icon': Icons.check_circle_outline_rounded
-      },
-      {
-        'title': 'Out for Delivery',
-        'status': 'shipped',
-        'icon': Icons.delivery_dining_rounded
-      },
-      {
-        'title': 'Delivered',
-        'status': 'delivered',
-        'icon': Icons.check_circle_rounded
-      },
-    ];
+  Widget _buildModernStatusTimeline(String currentStatus,
+      {required bool isPickup}) {
+    final List<Map<String, Object>> statuses = isPickup
+        ? [
+            {
+              'title': 'Order Placed',
+              'status': 'pending',
+              'icon': Icons.shopping_cart_rounded,
+            },
+            {'title': 'Paid', 'status': 'paid', 'icon': Icons.payment_rounded},
+            {
+              'title': 'Pending Confirmation',
+              'status': 'pending_confirmation',
+              'icon': Icons.hourglass_empty_rounded,
+            },
+            {
+              'title': 'Order Confirmed',
+              'status': 'confirmed',
+              'icon': Icons.check_circle_outline_rounded,
+            },
+            {
+              'title': 'Ready for Pickup',
+              'status': 'shipped',
+              'icon': Icons.store_mall_directory_rounded,
+            },
+            {
+              'title': 'Picked up',
+              'status': 'delivered',
+              'icon': Icons.shopping_bag_rounded,
+            },
+          ]
+        : [
+            {
+              'title': 'Order Placed',
+              'status': 'pending',
+              'icon': Icons.shopping_cart_rounded,
+            },
+            {'title': 'Paid', 'status': 'paid', 'icon': Icons.payment_rounded},
+            {
+              'title': 'Pending Confirmation',
+              'status': 'pending_confirmation',
+              'icon': Icons.hourglass_empty_rounded,
+            },
+            {
+              'title': 'Order Confirmed',
+              'status': 'confirmed',
+              'icon': Icons.check_circle_outline_rounded,
+            },
+            {
+              'title': 'Out for Delivery',
+              'status': 'shipped',
+              'icon': Icons.delivery_dining_rounded,
+            },
+            {
+              'title': 'Delivered',
+              'status': 'delivered',
+              'icon': Icons.check_circle_rounded,
+            },
+          ];
 
     final normalizedStatus = currentStatus.toLowerCase().trim();
     // Map API statuses to timeline steps
@@ -1704,74 +1859,113 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
         final isCompleted = _isStatusCompleted(statusStr, normalizedStatus);
         final isCurrent = statusStr == timelineStatus;
         final icon = status['icon'] as IconData;
+        final displayTitle = status['title'] as String;
 
+        final lineDone = isCompleted;
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Timeline indicator
-            Column(
-              children: [
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: isCompleted
-                        ? Colors.green.shade600
-                        : isCurrent
-                            ? Colors.blue.shade600
-                            : Colors.grey.shade300,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: (isCompleted
-                                ? Colors.green.shade600
-                                : isCurrent
-                                    ? Colors.blue.shade600
-                                    : Colors.grey.shade400)
-                            .withValues(alpha: 0.4),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    icon,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                ),
-                if (index < statuses.length - 1)
+            SizedBox(
+              width: 36,
+              child: Column(
+                children: [
                   Container(
-                    width: 2,
-                    height: 20,
-                    margin: const EdgeInsets.only(top: 2),
+                    width: 32,
+                    height: 32,
                     decoration: BoxDecoration(
                       color: isCompleted
-                          ? Colors.green.shade400
-                          : Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(1),
+                          ? Colors.green.shade600
+                          : isCurrent
+                              ? Colors.blue.shade600
+                              : Colors.grey.shade200,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isCurrent && !isCompleted
+                            ? Colors.blue.shade200
+                            : Colors.transparent,
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        if (isCompleted || isCurrent)
+                          BoxShadow(
+                            color: (isCompleted
+                                    ? Colors.green.shade600
+                                    : Colors.blue.shade600)
+                                .withValues(alpha: 0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                      ],
+                    ),
+                    child: Icon(
+                      icon,
+                      color: isCompleted || isCurrent
+                          ? Colors.white
+                          : Colors.grey.shade500,
+                      size: 17,
                     ),
                   ),
-              ],
+                  if (index < statuses.length - 1)
+                    Container(
+                      width: 3,
+                      height: 22,
+                      margin: const EdgeInsets.only(top: 4, bottom: 2),
+                      decoration: BoxDecoration(
+                        color: lineDone
+                            ? Colors.green.shade300
+                            : Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                ],
+              ),
             ),
-            const SizedBox(width: 10),
-            // Status content
+            const SizedBox(width: 12),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  status['title'] as String,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: isCurrent || isCompleted
-                        ? FontWeight.w600
-                        : FontWeight.w500,
-                    color: isCurrent
-                        ? Colors.blue.shade700
-                        : isCompleted
-                            ? Colors.green.shade700
-                            : Colors.grey.shade600,
-                  ),
+                padding: const EdgeInsets.only(top: 4, bottom: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        displayTitle,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13.5,
+                          fontWeight: isCurrent
+                              ? FontWeight.w700
+                              : isCompleted
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                          color: isCurrent
+                              ? Colors.blue.shade800
+                              : isCompleted
+                                  ? Colors.green.shade800
+                                  : Colors.grey.shade500,
+                          height: 1.25,
+                        ),
+                      ),
+                    ),
+                    if (isCurrent)
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'Now',
+                          style: GoogleFonts.poppins(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.blue.shade800,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -1839,113 +2033,159 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     return statusIndex <= currentIndex;
   }
 
-  Widget _buildDeliveryDetailsCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-            spreadRadius: 0,
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.location_on_rounded,
-                size: 18,
-                color: Colors.green.shade600,
+  Widget _buildDeliveryDetailsCard({required bool isPickup}) {
+    Widget detailBlock({
+      required IconData icon,
+      required String title,
+      required String body,
+      required Color tint,
+    }) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: tint.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(width: 8),
-              Text(
-                'Delivery Address',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.green.shade700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            _deliveryAddress ?? 'Not available',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey.shade700,
-              height: 1.4,
+              child: Icon(icon,
+                  size: 20, color: Color.lerp(tint, Colors.black, 0.15)),
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Icon(
-                Icons.phone_rounded,
-                size: 18,
-                color: Colors.green.shade600,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    body,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade900,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(
-                'Contact',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.green.shade700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            _contactNumber ?? 'Not available',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey.shade700,
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Icon(
-                Icons.local_shipping_rounded,
-                size: 18,
-                color: Colors.green.shade600,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Delivery Method',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.green.shade700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            _deliveryOption ?? 'Standard Delivery',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey.shade700,
+          ],
+        ),
+      );
+    }
+
+    return Material(
+      color: Colors.white,
+      elevation: 0,
+      borderRadius: BorderRadius.circular(_kTrackRadius),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(_kTrackRadius),
+          border:
+              Border.all(color: Colors.grey.shade200.withValues(alpha: 0.6)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
             ),
-          ),
-        ],
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color:
+                        isPickup ? Colors.teal.shade50 : Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    isPickup
+                        ? Icons.storefront_outlined
+                        : Icons.local_shipping_outlined,
+                    size: 20,
+                    color: isPickup
+                        ? Colors.teal.shade800
+                        : Colors.orange.shade800,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isPickup ? 'Pickup details' : 'Delivery details',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade900,
+                        ),
+                      ),
+                      Text(
+                        isPickup
+                            ? 'Where to collect your order'
+                            : 'Where we are bringing your order',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            detailBlock(
+              icon: Icons.location_on_outlined,
+              title: isPickup ? 'Pickup location' : 'Address',
+              body: isPickup
+                  ? _pickupLocationSummary()
+                  : (_deliveryAddress ?? 'Not available'),
+              tint: Colors.green.shade700,
+            ),
+            const SizedBox(height: 6),
+            Divider(height: 28, color: Colors.grey.shade100),
+            detailBlock(
+              icon: Icons.phone_outlined,
+              title: 'Contact',
+              body: _contactNumber ?? 'Not available',
+              tint: Colors.blue.shade700,
+            ),
+            const SizedBox(height: 6),
+            Divider(height: 28, color: Colors.grey.shade100),
+            detailBlock(
+              icon: isPickup
+                  ? Icons.store_mall_directory_outlined
+                  : Icons.schedule_send_outlined,
+              title: 'Method',
+              body: isPickup
+                  ? 'Store pickup'
+                  : (_deliveryOption ?? 'Standard delivery'),
+              tint: Colors.deepPurple.shade700,
+            ),
+          ],
+        ),
       ),
     );
   }

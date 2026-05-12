@@ -96,7 +96,8 @@ class OrderNotificationService {
         }
       } catch (_) {}
 
-      // Show system notification
+      // Show system / heads-up notification (still try when OS permission is off;
+      // in-app SnackBar on post-checkout is the primary on-screen fallback).
       try {
         await NativeNotificationService.showNotification(
           title: 'Order Placed Successfully! 🎉',
@@ -113,6 +114,7 @@ class OrderNotificationService {
             'created_at':
                 orderData['created_at'] ?? DateTime.now().toIso8601String(),
           }),
+          checkPermission: false,
         );
       } catch (e) {
         debugPrint('Error showing system notification: $e');
