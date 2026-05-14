@@ -221,6 +221,7 @@ class _PrescriptionUploadStandaloneState
   }
 
   File? _selectedImage;
+  File? _brandImage;
   final ImagePicker _picker = ImagePicker();
   bool _isSubmitting = false;
 
@@ -445,6 +446,138 @@ class _PrescriptionUploadStandaloneState
     }
   }
 
+  Future<void> _pickBrandImageFromGallery() async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+      if (pickedFile != null && mounted) {
+        setState(() => _brandImage = File(pickedFile.path));
+      }
+    } catch (e) {
+      debugPrint('Error selecting brand image: $e');
+    }
+  }
+
+  Future<void> _pickBrandImageFromCamera() async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+      if (pickedFile != null && mounted) {
+        setState(() => _brandImage = File(pickedFile.path));
+      }
+    } catch (e) {
+      debugPrint('Error capturing brand image: $e');
+    }
+  }
+
+  Future<void> _openBrandImagePicker(bool isDark) async {
+    final option = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF111827) : Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 10, 18, 22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF20AF67).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.add_photo_alternate_outlined,
+                      color: Color(0xFF20AF67),
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Brand or medicine photo',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Photo of the pack, bottle, or label you prefer (optional)',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: isDark ? Colors.white70 : Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  _SheetActionTile(
+                    icon: Icons.photo_library_outlined,
+                    title: 'From Gallery',
+                    subtitle: 'Select a product photo from your phone',
+                    isDark: isDark,
+                    onTap: () => Navigator.pop(ctx, 'gallery'),
+                  ),
+                  const SizedBox(height: 10),
+                  _SheetActionTile(
+                    icon: Icons.camera_alt_outlined,
+                    title: 'Take a photo',
+                    subtitle: 'Capture the brand or packaging now',
+                    isDark: isDark,
+                    isPrimary: true,
+                    onTap: () => Navigator.pop(ctx, 'camera'),
+                  ),
+                  const SizedBox(height: 14),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text(
+                      'Cancel',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white70 : Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    if (!mounted) return;
+    if (option == 'gallery') await _pickBrandImageFromGallery();
+    if (option == 'camera') await _pickBrandImageFromCamera();
+  }
+
   Future<void> _submitPrescription() async {
     if (_selectedImage == null) return;
 
@@ -483,6 +616,14 @@ class _PrescriptionUploadStandaloneState
       request.files.add(
         await http.MultipartFile.fromPath('prescription', _selectedImage!.path),
       );
+      if (_brandImage != null) {
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'brand_image',
+            _brandImage!.path,
+          ),
+        );
+      }
 
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
@@ -501,6 +642,7 @@ class _PrescriptionUploadStandaloneState
           _noteController.clear();
           setState(() {
             _selectedImage = null;
+            _brandImage = null;
           });
         }
       } else {
@@ -572,7 +714,7 @@ class _PrescriptionUploadStandaloneState
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Add your details and upload a clear prescription image.',
+                            'Add your details, your prescription image, and optionally a photo of the medicine brand you prefer.',
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
@@ -849,13 +991,67 @@ class _PrescriptionUploadStandaloneState
                       if (option == 'gallery') _chooseFromGallery();
                       if (option == 'camera') _scanPrescription();
                     }),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Preferred brand (optional)',
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'You can upload a picture of the product box, bottle, or label for the medicine you want.',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: isDark
+                          ? Colors.grey.shade300
+                          : Colors.grey.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (_brandImage != null)
+                    Column(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            _brandImage!,
+                            height: 120,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: () =>
+                              setState(() => _brandImage = null),
+                          icon: const Icon(Icons.close, size: 18),
+                          label: const Text('Remove brand photo'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    _buildUploadBox(
+                      isDark,
+                      false,
+                      () => _openBrandImagePicker(isDark),
+                      emptyTitle: 'Add brand photo',
+                      emptyIcon: Icons.add_photo_alternate_outlined,
+                    ),
                   const SizedBox(height: 14),
                   _buildField(
                     isDark,
-                    label: 'Notes',
+                    label: 'Notes (optional)',
                     controller: _noteController,
-                    hint: 'Add any notes...',
-                    maxLines: 3,
+                    hint:
+                        'Allergies, instructions, preferred medicine name, or anything else we should know…',
+                    maxLines: 4,
                   ),
                   const SizedBox(height: 28),
                   SizedBox(
@@ -1060,7 +1256,13 @@ class _PrescriptionUploadStandaloneState
     );
   }
 
-  Widget _buildUploadBox(bool isDark, bool isSelected, VoidCallback onTap) {
+  Widget _buildUploadBox(
+    bool isDark,
+    bool isSelected,
+    VoidCallback onTap, {
+    String emptyTitle = 'Add file',
+    IconData emptyIcon = Icons.cloud_upload_outlined,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1078,14 +1280,14 @@ class _PrescriptionUploadStandaloneState
         child: Column(
           children: [
             Icon(
-              isSelected ? Icons.check_circle : Icons.cloud_upload_outlined,
+              isSelected ? Icons.check_circle : emptyIcon,
               size: 28,
               color:
                   isSelected ? const Color(0xFF20AF67) : Colors.grey.shade400,
             ),
             const SizedBox(height: 6),
             Text(
-              isSelected ? 'File selected' : 'Add file',
+              isSelected ? 'File selected' : emptyTitle,
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,

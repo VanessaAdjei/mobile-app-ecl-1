@@ -1496,7 +1496,8 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           color: isSelected ? const Color(0xFF2E7D32) : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? const Color(0xFF2E7D32) : const Color(0xFFD1D5DB),
+            color:
+                isSelected ? const Color(0xFF2E7D32) : const Color(0xFFD1D5DB),
             width: 1.2,
           ),
           boxShadow: isSelected
@@ -1775,11 +1776,12 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
         padding: EdgeInsets.symmetric(horizontal: 16),
         itemCount: 5,
         itemBuilder: (context, index) => Container(
-          margin: EdgeInsets.only(bottom: 12),
-          padding: EdgeInsets.all(16),
+          margin: EdgeInsets.only(bottom: 8),
+          padding: EdgeInsets.fromLTRB(10, 9, 10, 9),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1787,27 +1789,27 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
               Row(
                 children: [
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 32,
+                    height: 32,
                     decoration: BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
                     ),
                   ),
-                  SizedBox(width: 12),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
                           width: double.infinity,
-                          height: 16,
+                          height: 13,
                           color: Colors.white,
                         ),
-                        SizedBox(height: 8),
+                        SizedBox(height: 5),
                         Container(
-                          width: 200,
-                          height: 12,
+                          width: 160,
+                          height: 10,
                           color: Colors.white,
                         ),
                       ],
@@ -1815,17 +1817,26 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                   ),
                 ],
               ),
-              SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                height: 12,
-                color: Colors.white,
-              ),
               SizedBox(height: 8),
               Container(
-                width: 150,
-                height: 12,
+                width: double.infinity,
+                height: 10,
                 color: Colors.white,
+              ),
+              SizedBox(height: 5),
+              Container(
+                width: 120,
+                height: 10,
+                color: Colors.white,
+              ),
+              SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ],
           ),
@@ -1959,26 +1970,26 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     final storeHours = '8:00 AM - 8:00 PM';
 
     return Container(
-      margin: EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         color: Colors.white,
         border: Border.all(color: const Color(0xFFE5E7EB)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: InkWell(
         onTap: () => _launchMaps(storeName, storeAddress),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: EdgeInsets.all(13),
+          padding: EdgeInsets.fromLTRB(10, 9, 10, 9),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(14),
             color: Colors.white,
           ),
           child: Column(
@@ -1986,9 +1997,10 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
             children: [
               // Store Header
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: EdgeInsets.all(8),
+                    padding: EdgeInsets.all(6),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
@@ -1998,47 +2010,52 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(8),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.green.shade200,
-                          blurRadius: 8,
-                          offset: Offset(0, 3),
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
                         ),
                       ],
                     ),
                     child: Icon(
                       Icons.store,
                       color: Colors.white,
-                      size: 24,
+                      size: 19,
                     ),
                   ),
-                  SizedBox(width: 12),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           storeName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 15.5,
+                            fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: const Color(0xFF1F2937),
+                            height: 1.2,
                           ),
                         ),
-                        SizedBox(height: 2),
+                        SizedBox(height: 1),
                         Row(
                           children: [
                             Icon(Icons.location_on_rounded,
-                                size: 13, color: Colors.grey.shade600),
-                            SizedBox(width: 4),
+                                size: 12, color: Colors.grey.shade600),
+                            SizedBox(width: 3),
                             if (store['region_name'] != null &&
                                 store['city_name'] != null)
                               Expanded(
                                 child: Text(
                                   '${store['city_name']}, ${store['region_name']}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    fontSize: 11,
+                                    fontSize: 10,
                                     color: const Color(0xFF64748B),
                                     fontWeight: FontWeight.w400,
                                   ),
@@ -2048,12 +2065,12 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                             if (store['distance'] != null &&
                                 sortBy == 'distance')
                               Container(
-                                margin: EdgeInsets.only(left: 8),
+                                margin: EdgeInsets.only(left: 6),
                                 padding: EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
+                                    horizontal: 5, vertical: 1),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFE8F5E9),
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(6),
                                   border: Border.all(
                                       color: const Color(0xFFC8E6C9), width: 1),
                                 ),
@@ -2062,14 +2079,14 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                                   children: [
                                     Icon(
                                       Icons.straighten_rounded,
-                                      size: 11,
+                                      size: 10,
                                       color: Colors.grey.shade700,
                                     ),
-                                    SizedBox(width: 4),
+                                    SizedBox(width: 3),
                                     Text(
                                       _formatDistance(store['distance']),
                                       style: TextStyle(
-                                        fontSize: 10,
+                                        fontSize: 9.5,
                                         fontWeight: FontWeight.w500,
                                         color: const Color(0xFF1B5E20),
                                       ),
@@ -2081,13 +2098,15 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                         ),
                         if (storeAddress.isNotEmpty)
                           Padding(
-                            padding: EdgeInsets.only(left: 17, top: 1),
+                            padding: EdgeInsets.only(left: 15, top: 2),
                             child: Text(
                               storeAddress,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: 9.5,
                                 color: const Color(0xFF64748B),
-                                height: 1.2,
+                                height: 1.25,
                               ),
                             ),
                           ),
@@ -2097,18 +2116,18 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                 ],
               ),
 
-              SizedBox(height: 8),
+              SizedBox(height: 5),
 
               // Store Hours
               Row(
                 children: [
                   Icon(Icons.access_time_rounded,
-                      size: 13, color: Colors.grey.shade600),
-                  SizedBox(width: 5),
+                      size: 12, color: Colors.grey.shade600),
+                  SizedBox(width: 4),
                   Text(
                     storeHours,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 10,
                       color: Colors.grey.shade600,
                       fontWeight: FontWeight.w400,
                     ),
@@ -2116,30 +2135,34 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                 ],
               ),
 
-              SizedBox(height: 10),
+              SizedBox(height: 6),
 
               // Action Button
               SizedBox(
                 width: double.infinity,
+                height: 36,
                 child: ElevatedButton.icon(
                   onPressed: () => _launchMaps(storeName, storeAddress),
                   icon: Icon(Icons.directions_rounded,
-                      size: 16, color: Colors.green.shade600),
+                      size: 14, color: Colors.green.shade600),
                   label: Text(
                     'Get Directions',
                     style: TextStyle(
                       color: Colors.green.shade600,
                       fontWeight: FontWeight.w500,
-                      fontSize: 13,
+                      fontSize: 12,
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFE8F5E9),
                     foregroundColor: const Color(0xFF2E7D32),
-                    padding: EdgeInsets.symmetric(vertical: 11),
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(color: const Color(0xFF2E7D32), width: 1.2),
+                      borderRadius: BorderRadius.circular(8),
+                      side:
+                          BorderSide(color: const Color(0xFF2E7D32), width: 1),
                     ),
                     elevation: 0,
                   ),

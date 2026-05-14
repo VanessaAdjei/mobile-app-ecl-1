@@ -1,4 +1,5 @@
 import 'package:eclapp/config/api_config.dart';
+import 'package:eclapp/config/app_colors.dart';
 import 'package:eclapp/config/app_routes.dart';
 import 'package:eclapp/models/cart_item.dart';
 import 'package:eclapp/models/order_status_step.dart';
@@ -62,8 +63,15 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
       order.paymentParams['shipping_type']?.toString(),
     ];
     return candidates.any(
-      (value) => (value ?? '').toLowerCase().replaceAll('-', '').contains('pickup'),
+      (value) =>
+          (value ?? '').toLowerCase().replaceAll('-', '').contains('pickup'),
     );
+  }
+
+  String _pickupLocationText(OrderTrackingModel order) {
+    return order.deliveryAddress
+        .replaceFirst(RegExp(r'^Pickup at\s*', caseSensitive: false), '')
+        .trim();
   }
 
   List<OrderStatusStep> _pickupTimelineSteps(OrderTrackingModel order) {
@@ -198,8 +206,9 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
       if (_provider.order.stage == OrderTrackingStage.failed) return;
 
       final order = _provider.order;
-      final orderRef =
-          order.orderNumber.isNotEmpty ? order.orderNumber : order.transactionId;
+      final orderRef = order.orderNumber.isNotEmpty
+          ? order.orderNumber
+          : order.transactionId;
       if (orderRef.isEmpty) return;
 
       final messenger = ScaffoldMessenger.maybeOf(context);
@@ -1006,6 +1015,360 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
     );
   }
 
+  Widget _buildPickedUpBody(OrderTrackingModel order) {
+    final brandGreen = AppColors.primary;
+    final pickupLocation = _pickupLocationText(order);
+    final thankYou =
+        'Thanks for collecting your order from Ernest Chemists. We appreciate your business and are here whenever you need us.';
+
+    Widget detailRow({
+      required IconData icon,
+      required String label,
+      required String value,
+      int maxLines = 4,
+    }) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F4),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 18, color: const Color(0xFF475569)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade500,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF0F172A),
+                      height: 1.35,
+                    ),
+                    maxLines: maxLines,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
+      child: Column(
+        children: [
+          _FadeInUp(
+            duration: const Duration(milliseconds: 320),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.07),
+                    blurRadius: 28,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(22, 26, 22, 28),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          brandGreen,
+                          AppColors.primaryDark,
+                          const Color(0xFF157A4C),
+                        ],
+                        stops: const [0.0, 0.55, 1.0],
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 76,
+                          height: 76,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.22),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.35),
+                              width: 2,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.store_mall_directory_rounded,
+                            color: Colors.white,
+                            size: 38,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            'PICKED UP',
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.6,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Successfully picked up',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            height: 1.2,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Your pickup order is complete.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            height: 1.4,
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    width: double.infinity,
+                    color: Colors.white,
+                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+                    child: Text(
+                      thankYou,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        height: 1.55,
+                        color: const Color(0xFF475569),
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          _FadeInUp(
+            duration: const Duration(milliseconds: 400),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Order summary',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade500,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '#${order.orderNumber}',
+                              style: GoogleFonts.poppins(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF0F172A),
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Total paid',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                          Text(
+                            'GHS ${order.totalAmount.toStringAsFixed(2)}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: brandGreen,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Divider(height: 1, color: Colors.grey.shade200),
+                  const SizedBox(height: 12),
+                  detailRow(
+                    icon: Icons.inventory_2_outlined,
+                    label: 'Items',
+                    value:
+                        '${order.totalQuantity} item${order.totalQuantity == 1 ? '' : 's'}',
+                    maxLines: 1,
+                  ),
+                  if (pickupLocation.isNotEmpty)
+                    detailRow(
+                      icon: Icons.storefront_outlined,
+                      label: 'Pickup store',
+                      value: pickupLocation,
+                      maxLines: 4,
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (order.items.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _FadeInUp(
+              duration: const Duration(milliseconds: 450),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.receipt_long_outlined,
+                            size: 18, color: Colors.grey.shade600),
+                        const SizedBox(width: 8),
+                        Text(
+                          'What you ordered',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF1E293B),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ...order.items.asMap().entries.map(
+                          (e) => _OrderItemRow(
+                            item: e.value,
+                            isLast: e.key == order.items.length - 1,
+                          ),
+                        ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 22),
+          _FadeInUp(
+            duration: const Duration(milliseconds: 500),
+            child: SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: FilledButton.icon(
+                onPressed: _goHome,
+                style: FilledButton.styleFrom(
+                  backgroundColor: brandGreen,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.home_rounded, size: 21),
+                label: Text(
+                  'Back to home',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPickupTrackingBody(
     OrderTrackingModel order,
     OrderTrackingProvider provider,
@@ -1014,9 +1377,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
     final paymentConfirmed = !provider.isAwaitingPaymentConfirmation &&
         order.stage != OrderTrackingStage.pendingPayment &&
         order.stage != OrderTrackingStage.failed;
-    final pickupLocation = order.deliveryAddress
-        .replaceFirst(RegExp(r'^Pickup at\s*', caseSensitive: false), '')
-        .trim();
+    final pickupLocation = _pickupLocationText(order);
     final pickupLat = _parseCoordinate(order.paymentParams['lat']) ??
         _parseCoordinate(order.paymentParams['latitude']) ??
         _parseCoordinate(order.paymentParams['store_lat']) ??
@@ -1186,7 +1547,6 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                     child: OutlinedButton.icon(
                       onPressed: () => _openPickupDirections(pickupLocation),
                       icon: const Icon(Icons.navigation_rounded, size: 18),
-                      
                       label: const Text('Get directions to pickup location'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: accent,
@@ -1348,9 +1708,16 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
         builder: (context, provider, _) {
           final order = provider.order;
           final accent = const Color(0xFF0D7A4C); // Refined emerald
+          final isPickup = _isPickupOrderFor(order);
+          final isTerminalSuccess =
+              order.stage == OrderTrackingStage.delivered;
+          final showPickedUp = isPickup && isTerminalSuccess;
+          final showDelivered = !isPickup && isTerminalSuccess;
 
           return Scaffold(
-            backgroundColor: const Color(0xFFEEF1F3),
+            backgroundColor: (showPickedUp || showDelivered)
+                ? const Color(0xFFF0F4F2)
+                : const Color(0xFFEEF1F3),
             appBar: AppBar(
               backgroundColor: Colors.transparent,
               elevation: 0,
@@ -1360,10 +1727,16 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      Colors.green.shade600,
-                      Colors.green.shade700,
-                    ],
+                    colors: (showPickedUp || showDelivered)
+                        ? [
+                            AppColors.primaryDark,
+                            AppColors.primary,
+                            const Color(0xFF2D9F6A),
+                          ]
+                        : [
+                            Colors.green.shade600,
+                            Colors.green.shade700,
+                          ],
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -1380,12 +1753,16 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                 onPressed: _goHome,
               ),
               title: Text(
-                'Confirmation',
+                showPickedUp
+                    ? 'Picked up'
+                    : showDelivered
+                        ? 'Order delivered'
+                        : 'Confirmation',
                 style: GoogleFonts.poppins(
-                  fontSize: 18,
+                  fontSize: 17,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
-                  letterSpacing: 0.3,
+                  letterSpacing: 0.2,
                 ),
               ),
             ),
@@ -1431,658 +1808,705 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                           : provider.isAwaitingPaymentConfirmation
                               ? _buildPendingBody(order, provider, accent)
                               : _isPickupOrderFor(order)
-                                  ? _buildPickupTrackingBody(
-                                      order,
-                                      provider,
-                                      accent,
-                                    )
-                              : order.stage == OrderTrackingStage.delivered
-                                  ? _buildDeliveredBody(order, accent)
-                                  : Stack(
-                                      children: [
-                                        Positioned.fill(
-                                          child: TrackingMap(
-                                              order: order, accent: accent),
-                                        ),
-                                        Positioned(
-                                          bottom: 16,
-                                          right: 16,
-                                          child: Material(
-                                            elevation: 6,
-                                            shadowColor: Colors.black
-                                                .withValues(alpha: 0.2),
-                                            shape: const CircleBorder(),
-                                            color: accent,
-                                            child: InkWell(
-                                              onTap: _callSupport,
-                                              customBorder:
-                                                  const CircleBorder(),
-                                              child: const Padding(
-                                                padding: EdgeInsets.all(12),
-                                                child: Icon(
-                                                  Icons.phone_rounded,
-                                                  color: Colors.white,
-                                                  size: 22,
+                                  ? (order.stage ==
+                                          OrderTrackingStage.delivered
+                                      ? _buildPickedUpBody(order)
+                                      : _buildPickupTrackingBody(
+                                          order,
+                                          provider,
+                                          accent,
+                                        ))
+                                  : order.stage ==
+                                          OrderTrackingStage.delivered
+                                      ? _buildDeliveredBody(order, accent)
+                                      : Stack(
+                                          children: [
+                                            Positioned.fill(
+                                              child: TrackingMap(
+                                                  order: order, accent: accent),
+                                            ),
+                                            Positioned(
+                                              bottom: 16,
+                                              right: 16,
+                                              child: Material(
+                                                elevation: 6,
+                                                shadowColor: Colors.black
+                                                    .withValues(alpha: 0.2),
+                                                shape: const CircleBorder(),
+                                                color: accent,
+                                                child: InkWell(
+                                                  onTap: _callSupport,
+                                                  customBorder:
+                                                      const CircleBorder(),
+                                                  child: const Padding(
+                                                    padding: EdgeInsets.all(12),
+                                                    child: Icon(
+                                                      Icons.phone_rounded,
+                                                      color: Colors.white,
+                                                      size: 22,
+                                                    ),
+                                                  ),
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                        ),
-                                        DraggableScrollableSheet(
-                                          initialChildSize: 0.4,
-                                          minChildSize: 0.3,
-                                          maxChildSize: 0.88,
-                                          builder: (context, scrollController) {
-                                            return Container(
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFF8FAF9),
-                                                borderRadius:
-                                                    const BorderRadius.vertical(
-                                                  top: Radius.circular(20),
-                                                ),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: Colors.black
-                                                        .withValues(
-                                                            alpha: 0.06),
-                                                    blurRadius: 24,
-                                                    offset: const Offset(0, -4),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: RefreshIndicator(
-                                                onRefresh: provider
-                                                        .isAwaitingPaymentConfirmation
-                                                    ? provider.retry
-                                                    : provider.refreshTracking,
-                                                color: accent,
-                                                child: ListView(
-                                                  controller: scrollController,
-                                                  padding:
-                                                      const EdgeInsets.fromLTRB(
-                                                          16, 8, 16, 16),
-                                                  children: [
-                                                    Center(
-                                                      child: Container(
-                                                        width: 32,
-                                                        height: 3,
-                                                        margin: const EdgeInsets
-                                                            .only(bottom: 8),
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          color: Colors
-                                                              .grey.shade400,
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(2),
-                                                        ),
-                                                      ),
+                                            DraggableScrollableSheet(
+                                              initialChildSize: 0.4,
+                                              minChildSize: 0.3,
+                                              maxChildSize: 0.88,
+                                              builder:
+                                                  (context, scrollController) {
+                                                return Container(
+                                                  decoration: BoxDecoration(
+                                                    color:
+                                                        const Color(0xFFF8FAF9),
+                                                    borderRadius:
+                                                        const BorderRadius
+                                                            .vertical(
+                                                      top: Radius.circular(20),
                                                     ),
-                                                    Container(
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.black
+                                                            .withValues(
+                                                                alpha: 0.06),
+                                                        blurRadius: 24,
+                                                        offset:
+                                                            const Offset(0, -4),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  child: RefreshIndicator(
+                                                    onRefresh: provider
+                                                            .isAwaitingPaymentConfirmation
+                                                        ? provider.retry
+                                                        : provider
+                                                            .refreshTracking,
+                                                    color: accent,
+                                                    child: ListView(
+                                                      controller:
+                                                          scrollController,
                                                       padding: const EdgeInsets
-                                                          .symmetric(
-                                                        horizontal: 16,
-                                                        vertical: 14,
-                                                      ),
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.white,
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(12),
-                                                        border: Border.all(
-                                                          color: Colors
-                                                              .grey.shade100,
-                                                          width: 1,
-                                                        ),
-                                                        boxShadow: [
-                                                          BoxShadow(
-                                                            color: Colors.black
-                                                                .withValues(
-                                                                    alpha:
-                                                                        0.04),
-                                                            blurRadius: 10,
-                                                            offset:
-                                                                const Offset(
-                                                                    0, 2),
+                                                          .fromLTRB(
+                                                          16, 8, 16, 16),
+                                                      children: [
+                                                        Center(
+                                                          child: Container(
+                                                            width: 32,
+                                                            height: 3,
+                                                            margin:
+                                                                const EdgeInsets
+                                                                    .only(
+                                                                    bottom: 8),
+                                                            decoration:
+                                                                BoxDecoration(
+                                                              color: Colors.grey
+                                                                  .shade400,
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          2),
+                                                            ),
                                                           ),
-                                                        ],
-                                                      ),
-                                                      child: Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          Row(
+                                                        ),
+                                                        Container(
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .symmetric(
+                                                            horizontal: 16,
+                                                            vertical: 14,
+                                                          ),
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: Colors.white,
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        12),
+                                                            border: Border.all(
+                                                              color: Colors.grey
+                                                                  .shade100,
+                                                              width: 1,
+                                                            ),
+                                                            boxShadow: [
+                                                              BoxShadow(
+                                                                color: Colors
+                                                                    .black
+                                                                    .withValues(
+                                                                        alpha:
+                                                                            0.04),
+                                                                blurRadius: 10,
+                                                                offset:
+                                                                    const Offset(
+                                                                        0, 2),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          child: Column(
                                                             crossAxisAlignment:
                                                                 CrossAxisAlignment
                                                                     .start,
                                                             children: [
-                                                              Expanded(
-                                                                child: Column(
-                                                                  crossAxisAlignment:
-                                                                      CrossAxisAlignment
-                                                                          .start,
-                                                                  children: [
-                                                                    Text(
-                                                                      order
-                                                                          .stageLabel,
-                                                                      style: GoogleFonts
-                                                                          .poppins(
-                                                                        fontSize:
-                                                                            16,
-                                                                        fontWeight:
-                                                                            FontWeight.w600,
-                                                                        color: const Color(
-                                                                            0xFF1A1A1A),
-                                                                      ),
-                                                                    ),
-                                                                    const SizedBox(
-                                                                        height:
-                                                                            4),
-                                                                    Text(
-                                                                      'Order #${order.orderNumber}',
-                                                                      style:
-                                                                          TextStyle(
-                                                                        fontSize:
-                                                                            12,
-                                                                        fontWeight:
-                                                                            FontWeight.w500,
-                                                                        color: Colors
-                                                                            .grey
-                                                                            .shade600,
-                                                                        letterSpacing:
-                                                                            0.2,
-                                                                      ),
-                                                                    ),
-                                                                  ],
-                                                                ),
-                                                              ),
-                                                              if (order.stage !=
-                                                                      OrderTrackingStage
-                                                                          .failed &&
-                                                                  order.stage !=
-                                                                      OrderTrackingStage
-                                                                          .pendingPayment)
-                                                                Container(
-                                                                  padding:
-                                                                      const EdgeInsets
-                                                                          .symmetric(
-                                                                    horizontal:
-                                                                        8,
-                                                                    vertical: 4,
-                                                                  ),
-                                                                  decoration:
-                                                                      BoxDecoration(
-                                                                    color: accent
-                                                                        .withValues(
-                                                                            alpha:
-                                                                                0.1),
-                                                                    borderRadius:
-                                                                        BorderRadius
-                                                                            .circular(8),
-                                                                  ),
-                                                                  child: Text(
-                                                                    '${order.totalQuantity} item${order.totalQuantity == 1 ? '' : 's'}',
-                                                                    style: GoogleFonts
-                                                                        .poppins(
-                                                                      fontSize:
-                                                                          11,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .w600,
-                                                                      color:
-                                                                          accent,
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                            ],
-                                                          ),
-                                                          const SizedBox(
-                                                              height: 10),
-                                                          Text(
-                                                            order.stage ==
-                                                                    OrderTrackingStage
-                                                                        .failed
-                                                                ? order
-                                                                    .stageMessage
-                                                                : 'Arrives in ${order.estimatedDeliveryTime} • GHS ${order.totalAmount.toStringAsFixed(2)}',
-                                                            style: TextStyle(
-                                                              fontSize: 12,
-                                                              color: Colors.grey
-                                                                  .shade600,
-                                                              height: 1.35,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                    if (order.stage ==
-                                                            OrderTrackingStage
-                                                                .outForDelivery &&
-                                                        order.deliveryOtp !=
-                                                            null &&
-                                                        order.deliveryOtp!
-                                                            .isNotEmpty) ...[
-                                                      const SizedBox(height: 8),
-                                                      Container(
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .symmetric(
-                                                          horizontal: 16,
-                                                          vertical: 14,
-                                                        ),
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          color: Colors.white,
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(12),
-                                                          border: Border.all(
-                                                            color: Colors
-                                                                .grey.shade200,
-                                                            width: 1,
-                                                          ),
-                                                          boxShadow: [
-                                                            BoxShadow(
-                                                              color: Colors
-                                                                  .black
-                                                                  .withValues(
-                                                                      alpha:
-                                                                          0.03),
-                                                              blurRadius: 8,
-                                                              offset:
-                                                                  const Offset(
-                                                                      0, 2),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                        child: Column(
-                                                          crossAxisAlignment:
-                                                              CrossAxisAlignment
-                                                                  .center,
-                                                          children: [
-                                                            Text(
-                                                              'DELIVERY CODE',
-                                                              style: GoogleFonts
-                                                                  .poppins(
-                                                                fontSize: 10,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
-                                                                letterSpacing:
-                                                                    1.2,
-                                                                color: Colors
-                                                                    .grey
-                                                                    .shade500,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                                height: 10),
-                                                            Text(
-                                                              order
-                                                                  .deliveryOtp!,
-                                                              style: GoogleFonts
-                                                                  .poppins(
-                                                                fontSize: 22,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w700,
-                                                                letterSpacing:
-                                                                    6,
-                                                                color: accent,
-                                                                height: 1.2,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                                height: 8),
-                                                            Text(
-                                                              'Show to rider on delivery',
-                                                              style: TextStyle(
-                                                                fontSize: 11,
-                                                                color: Colors
-                                                                    .grey
-                                                                    .shade500,
-                                                                letterSpacing:
-                                                                    0.2,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ],
-                                                    if (order.stage ==
-                                                        OrderTrackingStage
-                                                            .failed) ...[
-                                                      const SizedBox(
-                                                          height: 12),
-                                                      _SheetBanner(
-                                                        icon: Icons
-                                                            .warning_amber_rounded,
-                                                        message:
-                                                            'Your payment could not be completed.',
-                                                        actionLabel: 'Retry',
-                                                        onAction: _goToCart,
-                                                        accent:
-                                                            Colors.red.shade700,
-                                                      ),
-                                                    ] else if (provider
-                                                                .errorMessage !=
-                                                            null &&
-                                                        provider.errorMessage!
-                                                            .isNotEmpty) ...[
-                                                      const SizedBox(
-                                                          height: 12),
-                                                      _SheetBanner(
-                                                        icon: Icons
-                                                            .wifi_tethering_error_rounded,
-                                                        message: provider
-                                                            .errorMessage!,
-                                                        actionLabel: provider
-                                                                .isAwaitingPaymentConfirmation
-                                                            ? 'Check status'
-                                                            : 'Refresh',
-                                                        onAction: provider
-                                                                .isAwaitingPaymentConfirmation
-                                                            ? provider.retry
-                                                            : provider
-                                                                .refreshTracking,
-                                                        accent: Colors
-                                                            .orange.shade700,
-                                                      ),
-                                                    ] else if (provider
-                                                        .isAwaitingPaymentConfirmation) ...[
-                                                      const SizedBox(
-                                                          height: 12),
-                                                      SizedBox(
-                                                        width: double.infinity,
-                                                        child:
-                                                            ElevatedButton.icon(
-                                                          onPressed: provider
-                                                                  .isRefreshing
-                                                              ? null
-                                                              : provider.retry,
-                                                          style: ElevatedButton
-                                                              .styleFrom(
-                                                            backgroundColor:
-                                                                accent,
-                                                            foregroundColor:
-                                                                Colors.white,
-                                                            elevation: 0,
-                                                            padding:
-                                                                const EdgeInsets
-                                                                    .symmetric(
-                                                              vertical: 12,
-                                                            ),
-                                                            shape:
-                                                                RoundedRectangleBorder(
-                                                              borderRadius:
-                                                                  BorderRadius
-                                                                      .circular(
-                                                                          12),
-                                                            ),
-                                                          ),
-                                                          icon: Icon(
-                                                            provider.isRefreshing
-                                                                ? Icons
-                                                                    .sync_rounded
-                                                                : Icons
-                                                                    .refresh_rounded,
-                                                            size: 20,
-                                                          ),
-                                                          label: Text(
-                                                            provider.isRefreshing
-                                                                ? 'Checking'
-                                                                : 'Check status',
-                                                            style:
-                                                                const TextStyle(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w600,
-                                                              letterSpacing:
-                                                                  0.3,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                    const SizedBox(height: 4),
-                                                    Container(
-                                                      padding:
-                                                          const EdgeInsets.fromLTRB(
-                                                              9, 7, 9, 7),
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.white,
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(10),
-                                                        boxShadow: [
-                                                          BoxShadow(
-                                                            color: Colors.black
-                                                                .withValues(
-                                                                    alpha:
-                                                                        0.04),
-                                                            blurRadius: 12,
-                                                            offset:
-                                                                const Offset(
-                                                                    0, 4),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      child: Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          Text(
-                                                            'Order progress',
-                                                            style: GoogleFonts
-                                                                .poppins(
-                                                              fontSize: 11.5,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w600,
-                                                              color: Colors.grey
-                                                                  .shade700,
-                                                            ),
-                                                          ),
-                                                          const SizedBox(
-                                                              height: 2),
-                                                          OrderStatusTimeline(
-                                                            steps: order
-                                                                .timelineSteps,
-                                                            accent: accent,
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                    if (order
-                                                        .items.isNotEmpty) ...[
-                                                      const SizedBox(height: 6),
-                                                      Container(
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .fromLTRB(
-                                                                12, 10, 12, 10),
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          color: Colors.white,
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(10),
-                                                          border: Border.all(
-                                                            color: Colors
-                                                                .grey.shade100,
-                                                            width: 1,
-                                                          ),
-                                                          boxShadow: [
-                                                            BoxShadow(
-                                                              color: Colors
-                                                                  .black
-                                                                  .withValues(
-                                                                      alpha:
-                                                                          0.02),
-                                                              blurRadius: 6,
-                                                              offset:
-                                                                  const Offset(
-                                                                      0, 1),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                        child: Column(
-                                                          crossAxisAlignment:
-                                                              CrossAxisAlignment
-                                                                  .start,
-                                                          children: [
-                                                            Row(
-                                                              mainAxisAlignment:
-                                                                  MainAxisAlignment
-                                                                      .spaceBetween,
-                                                              crossAxisAlignment:
-                                                                  CrossAxisAlignment
-                                                                      .center,
-                                                              children: [
-                                                                Text(
-                                                                  'Order items',
-                                                                  style: GoogleFonts
-                                                                      .poppins(
-                                                                    fontSize:
-                                                                        11,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .w600,
-                                                                    letterSpacing:
-                                                                        0.3,
-                                                                    color: Colors
-                                                                        .grey
-                                                                        .shade600,
-                                                                  ),
-                                                                ),
-                                                                Material(
-                                                                  color: Colors
-                                                                      .transparent,
-                                                                  child:
-                                                                      InkWell(
-                                                                    onTap: () =>
-                                                                        _showItemsSheet(
-                                                                            order),
-                                                                    borderRadius:
-                                                                        BorderRadius
-                                                                            .circular(4),
+                                                              Row(
+                                                                crossAxisAlignment:
+                                                                    CrossAxisAlignment
+                                                                        .start,
+                                                                children: [
+                                                                  Expanded(
                                                                     child:
-                                                                        Padding(
+                                                                        Column(
+                                                                      crossAxisAlignment:
+                                                                          CrossAxisAlignment
+                                                                              .start,
+                                                                      children: [
+                                                                        Text(
+                                                                          order
+                                                                              .stageLabel,
+                                                                          style:
+                                                                              GoogleFonts.poppins(
+                                                                            fontSize:
+                                                                                16,
+                                                                            fontWeight:
+                                                                                FontWeight.w600,
+                                                                            color:
+                                                                                const Color(0xFF1A1A1A),
+                                                                          ),
+                                                                        ),
+                                                                        const SizedBox(
+                                                                            height:
+                                                                                4),
+                                                                        Text(
+                                                                          'Order #${order.orderNumber}',
+                                                                          style:
+                                                                              TextStyle(
+                                                                            fontSize:
+                                                                                12,
+                                                                            fontWeight:
+                                                                                FontWeight.w500,
+                                                                            color:
+                                                                                Colors.grey.shade600,
+                                                                            letterSpacing:
+                                                                                0.2,
+                                                                          ),
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                                  ),
+                                                                  if (order.stage !=
+                                                                          OrderTrackingStage
+                                                                              .failed &&
+                                                                      order.stage !=
+                                                                          OrderTrackingStage
+                                                                              .pendingPayment)
+                                                                    Container(
                                                                       padding:
                                                                           const EdgeInsets
                                                                               .symmetric(
                                                                         horizontal:
-                                                                            4,
+                                                                            8,
                                                                         vertical:
-                                                                            2,
+                                                                            4,
+                                                                      ),
+                                                                      decoration:
+                                                                          BoxDecoration(
+                                                                        color: accent.withValues(
+                                                                            alpha:
+                                                                                0.1),
+                                                                        borderRadius:
+                                                                            BorderRadius.circular(8),
                                                                       ),
                                                                       child:
                                                                           Text(
-                                                                        'View details',
-                                                                        style:
-                                                                            TextStyle(
+                                                                        '${order.totalQuantity} item${order.totalQuantity == 1 ? '' : 's'}',
+                                                                        style: GoogleFonts
+                                                                            .poppins(
                                                                           fontSize:
                                                                               11,
                                                                           fontWeight:
-                                                                              FontWeight.w500,
+                                                                              FontWeight.w600,
                                                                           color:
                                                                               accent,
                                                                         ),
                                                                       ),
                                                                     ),
-                                                                  ),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                            const SizedBox(
-                                                                height: 8),
-                                                            ...order.items
-                                                                .asMap()
-                                                                .entries
-                                                                .map(
-                                                                  (e) =>
-                                                                      _OrderItemRow(
-                                                                    item:
-                                                                        e.value,
-                                                                    isLast: e
-                                                                            .key ==
-                                                                        order.items.length -
-                                                                            1,
-                                                                  ),
-                                                                ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ],
-                                                    const SizedBox(height: 10),
-                                                    Material(
-                                                      color: Colors.transparent,
-                                                      child: InkWell(
-                                                        onTap: _goHome,
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(10),
-                                                        child: Container(
-                                                          width:
-                                                              double.infinity,
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .symmetric(
-                                                            vertical: 12,
-                                                          ),
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            color: accent,
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        10),
-                                                          ),
-                                                          child: Row(
-                                                            mainAxisAlignment:
-                                                                MainAxisAlignment
-                                                                    .center,
-                                                            children: [
-                                                              Icon(
-                                                                Icons
-                                                                    .home_rounded,
-                                                                size: 18,
-                                                                color: Colors
-                                                                    .white,
+                                                                ],
                                                               ),
                                                               const SizedBox(
-                                                                  width: 8),
+                                                                  height: 10),
                                                               Text(
-                                                                'Back to Home',
+                                                                order.stage ==
+                                                                        OrderTrackingStage
+                                                                            .failed
+                                                                    ? order
+                                                                        .stageMessage
+                                                                    : 'Arrives in ${order.estimatedDeliveryTime} • GHS ${order.totalAmount.toStringAsFixed(2)}',
                                                                 style:
-                                                                    GoogleFonts
-                                                                        .poppins(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600,
-                                                                  fontSize: 14,
+                                                                    TextStyle(
+                                                                  fontSize: 12,
                                                                   color: Colors
-                                                                      .white,
+                                                                      .grey
+                                                                      .shade600,
+                                                                  height: 1.35,
                                                                 ),
-                                                                overflow:
-                                                                    TextOverflow
-                                                                        .ellipsis,
                                                               ),
                                                             ],
                                                           ),
                                                         ),
-                                                      ),
+                                                        if (order.stage ==
+                                                                OrderTrackingStage
+                                                                    .outForDelivery &&
+                                                            order.deliveryOtp !=
+                                                                null &&
+                                                            order.deliveryOtp!
+                                                                .isNotEmpty) ...[
+                                                          const SizedBox(
+                                                              height: 8),
+                                                          Container(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .symmetric(
+                                                              horizontal: 16,
+                                                              vertical: 14,
+                                                            ),
+                                                            decoration:
+                                                                BoxDecoration(
+                                                              color:
+                                                                  Colors.white,
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          12),
+                                                              border:
+                                                                  Border.all(
+                                                                color: Colors
+                                                                    .grey
+                                                                    .shade200,
+                                                                width: 1,
+                                                              ),
+                                                              boxShadow: [
+                                                                BoxShadow(
+                                                                  color: Colors
+                                                                      .black
+                                                                      .withValues(
+                                                                          alpha:
+                                                                              0.03),
+                                                                  blurRadius: 8,
+                                                                  offset:
+                                                                      const Offset(
+                                                                          0, 2),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                            child: Column(
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment
+                                                                      .center,
+                                                              children: [
+                                                                Text(
+                                                                  'DELIVERY CODE',
+                                                                  style: GoogleFonts
+                                                                      .poppins(
+                                                                    fontSize:
+                                                                        10,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w600,
+                                                                    letterSpacing:
+                                                                        1.2,
+                                                                    color: Colors
+                                                                        .grey
+                                                                        .shade500,
+                                                                  ),
+                                                                ),
+                                                                const SizedBox(
+                                                                    height: 10),
+                                                                Text(
+                                                                  order
+                                                                      .deliveryOtp!,
+                                                                  style: GoogleFonts
+                                                                      .poppins(
+                                                                    fontSize:
+                                                                        22,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w700,
+                                                                    letterSpacing:
+                                                                        6,
+                                                                    color:
+                                                                        accent,
+                                                                    height: 1.2,
+                                                                  ),
+                                                                ),
+                                                                const SizedBox(
+                                                                    height: 8),
+                                                                Text(
+                                                                  'Show to rider on delivery',
+                                                                  style:
+                                                                      TextStyle(
+                                                                    fontSize:
+                                                                        11,
+                                                                    color: Colors
+                                                                        .grey
+                                                                        .shade500,
+                                                                    letterSpacing:
+                                                                        0.2,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        ],
+                                                        if (order.stage ==
+                                                            OrderTrackingStage
+                                                                .failed) ...[
+                                                          const SizedBox(
+                                                              height: 12),
+                                                          _SheetBanner(
+                                                            icon: Icons
+                                                                .warning_amber_rounded,
+                                                            message:
+                                                                'Your payment could not be completed.',
+                                                            actionLabel:
+                                                                'Retry',
+                                                            onAction: _goToCart,
+                                                            accent: Colors
+                                                                .red.shade700,
+                                                          ),
+                                                        ] else if (provider
+                                                                    .errorMessage !=
+                                                                null &&
+                                                            provider
+                                                                .errorMessage!
+                                                                .isNotEmpty) ...[
+                                                          const SizedBox(
+                                                              height: 12),
+                                                          _SheetBanner(
+                                                            icon: Icons
+                                                                .wifi_tethering_error_rounded,
+                                                            message: provider
+                                                                .errorMessage!,
+                                                            actionLabel: provider
+                                                                    .isAwaitingPaymentConfirmation
+                                                                ? 'Check status'
+                                                                : 'Refresh',
+                                                            onAction: provider
+                                                                    .isAwaitingPaymentConfirmation
+                                                                ? provider.retry
+                                                                : provider
+                                                                    .refreshTracking,
+                                                            accent: Colors
+                                                                .orange
+                                                                .shade700,
+                                                          ),
+                                                        ] else if (provider
+                                                            .isAwaitingPaymentConfirmation) ...[
+                                                          const SizedBox(
+                                                              height: 12),
+                                                          SizedBox(
+                                                            width:
+                                                                double.infinity,
+                                                            child:
+                                                                ElevatedButton
+                                                                    .icon(
+                                                              onPressed: provider
+                                                                      .isRefreshing
+                                                                  ? null
+                                                                  : provider
+                                                                      .retry,
+                                                              style:
+                                                                  ElevatedButton
+                                                                      .styleFrom(
+                                                                backgroundColor:
+                                                                    accent,
+                                                                foregroundColor:
+                                                                    Colors
+                                                                        .white,
+                                                                elevation: 0,
+                                                                padding:
+                                                                    const EdgeInsets
+                                                                        .symmetric(
+                                                                  vertical: 12,
+                                                                ),
+                                                                shape:
+                                                                    RoundedRectangleBorder(
+                                                                  borderRadius:
+                                                                      BorderRadius
+                                                                          .circular(
+                                                                              12),
+                                                                ),
+                                                              ),
+                                                              icon: Icon(
+                                                                provider.isRefreshing
+                                                                    ? Icons
+                                                                        .sync_rounded
+                                                                    : Icons
+                                                                        .refresh_rounded,
+                                                                size: 20,
+                                                              ),
+                                                              label: Text(
+                                                                provider.isRefreshing
+                                                                    ? 'Checking'
+                                                                    : 'Check status',
+                                                                style:
+                                                                    const TextStyle(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                  letterSpacing:
+                                                                      0.3,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                        const SizedBox(
+                                                            height: 4),
+                                                        Container(
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .fromLTRB(
+                                                                  9, 7, 9, 7),
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: Colors.white,
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        10),
+                                                            boxShadow: [
+                                                              BoxShadow(
+                                                                color: Colors
+                                                                    .black
+                                                                    .withValues(
+                                                                        alpha:
+                                                                            0.04),
+                                                                blurRadius: 12,
+                                                                offset:
+                                                                    const Offset(
+                                                                        0, 4),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          child: Column(
+                                                            crossAxisAlignment:
+                                                                CrossAxisAlignment
+                                                                    .start,
+                                                            children: [
+                                                              Text(
+                                                                'Order progress',
+                                                                style:
+                                                                    GoogleFonts
+                                                                        .poppins(
+                                                                  fontSize:
+                                                                      11.5,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                  color: Colors
+                                                                      .grey
+                                                                      .shade700,
+                                                                ),
+                                                              ),
+                                                              const SizedBox(
+                                                                  height: 2),
+                                                              OrderStatusTimeline(
+                                                                steps: order
+                                                                    .timelineSteps,
+                                                                accent: accent,
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                        if (order.items
+                                                            .isNotEmpty) ...[
+                                                          const SizedBox(
+                                                              height: 6),
+                                                          Container(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .fromLTRB(
+                                                                    12,
+                                                                    10,
+                                                                    12,
+                                                                    10),
+                                                            decoration:
+                                                                BoxDecoration(
+                                                              color:
+                                                                  Colors.white,
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          10),
+                                                              border:
+                                                                  Border.all(
+                                                                color: Colors
+                                                                    .grey
+                                                                    .shade100,
+                                                                width: 1,
+                                                              ),
+                                                              boxShadow: [
+                                                                BoxShadow(
+                                                                  color: Colors
+                                                                      .black
+                                                                      .withValues(
+                                                                          alpha:
+                                                                              0.02),
+                                                                  blurRadius: 6,
+                                                                  offset:
+                                                                      const Offset(
+                                                                          0, 1),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                            child: Column(
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment
+                                                                      .start,
+                                                              children: [
+                                                                Row(
+                                                                  mainAxisAlignment:
+                                                                      MainAxisAlignment
+                                                                          .spaceBetween,
+                                                                  crossAxisAlignment:
+                                                                      CrossAxisAlignment
+                                                                          .center,
+                                                                  children: [
+                                                                    Text(
+                                                                      'Order items',
+                                                                      style: GoogleFonts
+                                                                          .poppins(
+                                                                        fontSize:
+                                                                            11,
+                                                                        fontWeight:
+                                                                            FontWeight.w600,
+                                                                        letterSpacing:
+                                                                            0.3,
+                                                                        color: Colors
+                                                                            .grey
+                                                                            .shade600,
+                                                                      ),
+                                                                    ),
+                                                                    Material(
+                                                                      color: Colors
+                                                                          .transparent,
+                                                                      child:
+                                                                          InkWell(
+                                                                        onTap: () =>
+                                                                            _showItemsSheet(order),
+                                                                        borderRadius:
+                                                                            BorderRadius.circular(4),
+                                                                        child:
+                                                                            Padding(
+                                                                          padding:
+                                                                              const EdgeInsets.symmetric(
+                                                                            horizontal:
+                                                                                4,
+                                                                            vertical:
+                                                                                2,
+                                                                          ),
+                                                                          child:
+                                                                              Text(
+                                                                            'View details',
+                                                                            style:
+                                                                                TextStyle(
+                                                                              fontSize: 11,
+                                                                              fontWeight: FontWeight.w500,
+                                                                              color: accent,
+                                                                            ),
+                                                                          ),
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                                const SizedBox(
+                                                                    height: 8),
+                                                                ...order.items
+                                                                    .asMap()
+                                                                    .entries
+                                                                    .map(
+                                                                      (e) =>
+                                                                          _OrderItemRow(
+                                                                        item: e
+                                                                            .value,
+                                                                        isLast: e.key ==
+                                                                            order.items.length -
+                                                                                1,
+                                                                      ),
+                                                                    ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        ],
+                                                        const SizedBox(
+                                                            height: 10),
+                                                        Material(
+                                                          color: Colors
+                                                              .transparent,
+                                                          child: InkWell(
+                                                            onTap: _goHome,
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        10),
+                                                            child: Container(
+                                                              width: double
+                                                                  .infinity,
+                                                              padding:
+                                                                  const EdgeInsets
+                                                                      .symmetric(
+                                                                vertical: 12,
+                                                              ),
+                                                              decoration:
+                                                                  BoxDecoration(
+                                                                color: accent,
+                                                                borderRadius:
+                                                                    BorderRadius
+                                                                        .circular(
+                                                                            10),
+                                                              ),
+                                                              child: Row(
+                                                                mainAxisAlignment:
+                                                                    MainAxisAlignment
+                                                                        .center,
+                                                                children: [
+                                                                  Icon(
+                                                                    Icons
+                                                                        .home_rounded,
+                                                                    size: 18,
+                                                                    color: Colors
+                                                                        .white,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                      width: 8),
+                                                                  Text(
+                                                                    'Back to Home',
+                                                                    style: GoogleFonts
+                                                                        .poppins(
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .w600,
+                                                                      fontSize:
+                                                                          14,
+                                                                      color: Colors
+                                                                          .white,
+                                                                    ),
+                                                                    overflow:
+                                                                        TextOverflow
+                                                                            .ellipsis,
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
-                                                  ],
-                                                ),
-                                              ),
-                                            );
-                                          },
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ],
                                         ),
-                                      ],
-                                    ),
                 ),
               ],
             ),
