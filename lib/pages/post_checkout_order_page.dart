@@ -55,6 +55,15 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
   bool _hasNavigatedAway = false;
   bool _hasShownOrderPlacedBanner = false;
   bool _orderPlacedSnackBarPending = false;
+  bool _isPickupReadyForCollection(OrderTrackingModel order) {
+    if (!_isPickupOrderFor(order)) return false;
+    if (order.stage == OrderTrackingStage.outForDelivery) return true;
+    final raw = order.rawStatus.toLowerCase();
+    return raw.contains('ready for pickup') ||
+        raw.contains('ready_for_pickup') ||
+        raw.contains('ready to be picked');
+  }
+
   bool _isPickupOrderFor(OrderTrackingModel order) {
     final candidates = <String?>[
       widget.deliveryOption,
@@ -98,6 +107,19 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
   double? _parseCoordinate(dynamic value) {
     if (value is num) return value.toDouble();
     return double.tryParse(value?.toString() ?? '');
+  }
+
+  Widget _staggerReveal(
+    int index,
+    Widget child, {
+    int stepMs = 75,
+    Duration duration = const Duration(milliseconds: 420),
+  }) {
+    return _DelayedFadeInUp(
+      delay: Duration(milliseconds: index * stepMs),
+      duration: duration,
+      child: child,
+    );
   }
 
   Future<void> _openPickupDirections(String pickupLocation) async {
@@ -718,31 +740,32 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
             duration: const Duration(milliseconds: 350),
             child: Column(
               children: [
-                // Success Icon with subtle shadow
-                Container(
-                  width: 90,
-                  height: 90,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: accent.withValues(alpha: 0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
+                _BounceInIcon(
                   child: Container(
-                    margin: const EdgeInsets.all(12),
+                    width: 90,
+                    height: 90,
                     decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.12),
+                      color: Colors.white,
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: accent.withValues(alpha: 0.1),
+                          blurRadius: 20,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    child: Icon(
-                      Icons.check_circle,
-                      size: 40,
-                      color: accent,
+                    child: Container(
+                      margin: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.check_circle,
+                        size: 40,
+                        color: accent,
+                      ),
                     ),
                   ),
                 ),
@@ -1111,21 +1134,23 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                     ),
                     child: Column(
                       children: [
-                        Container(
-                          width: 76,
-                          height: 76,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.22),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.35),
-                              width: 2,
+                        _BounceInIcon(
+                          child: Container(
+                            width: 76,
+                            height: 76,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.22),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.35),
+                                width: 2,
+                              ),
                             ),
-                          ),
-                          child: const Icon(
-                            Icons.store_mall_directory_rounded,
-                            color: Colors.white,
-                            size: 38,
+                            child: const Icon(
+                              Icons.store_mall_directory_rounded,
+                              color: Colors.white,
+                              size: 38,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -1377,6 +1402,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
     final paymentConfirmed = !provider.isAwaitingPaymentConfirmation &&
         order.stage != OrderTrackingStage.pendingPayment &&
         order.stage != OrderTrackingStage.failed;
+    final isReady = _isPickupReadyForCollection(order);
     final pickupLocation = _pickupLocationText(order);
     final pickupLat = _parseCoordinate(order.paymentParams['lat']) ??
         _parseCoordinate(order.paymentParams['latitude']) ??
@@ -1393,177 +1419,342 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: paymentConfirmed
-                  ? const Color(0xFFEFFAF4)
-                  : const Color(0xFFFFF7ED),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: paymentConfirmed
-                    ? const Color(0xFFBBF7D0)
-                    : const Color(0xFFFED7AA),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  paymentConfirmed
-                      ? Icons.verified_rounded
-                      : Icons.hourglass_top_rounded,
-                  color: paymentConfirmed
-                      ? const Color(0xFF15803D)
-                      : const Color(0xFFB45309),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        paymentConfirmed
-                            ? 'Payment confirmed'
-                            : 'Payment confirmation pending',
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
+          _staggerReveal(
+            0,
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 480),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 0.06),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                );
+              },
+              child: isReady
+                  ? _BreathingGlow(
+                      key: const ValueKey('pickup-ready-hero'),
+                      glowColor: accent,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              accent,
+                              AppColors.primaryDark,
+                              const Color(0xFF157A4C),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: accent.withValues(alpha: 0.25),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            _BounceInIcon(
+                              continuousPulse: true,
+                              child: Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.store_mall_directory_rounded,
+                                  color: Colors.white,
+                                  size: 30,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Ready for pickup',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                height: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Your order is packed and waiting at the store below. Bring your order reference when you collect.',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                height: 1.45,
+                                color: Colors.white.withValues(alpha: 0.92),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : Container(
+                      key: const ValueKey('pickup-prep-banner'),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: paymentConfirmed
+                            ? const Color(0xFFEFFAF4)
+                            : const Color(0xFFFFF7ED),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
                           color: paymentConfirmed
-                              ? const Color(0xFF166534)
-                              : const Color(0xFF92400E),
+                              ? const Color(0xFFBBF7D0)
+                              : const Color(0xFFFED7AA),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        paymentConfirmed
-                            ? 'Your payment has been received and your pickup order is confirmed.'
-                            : 'We are still waiting for payment verification.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade100),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: accent.withValues(alpha: 0.12),
-                  child:
-                      Icon(Icons.location_on_rounded, size: 16, color: accent),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Pickup location',
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        pickupLocation.isNotEmpty
-                            ? pickupLocation
-                            : 'Selected store location',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade700,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade100),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(12),
-                  ),
-                  child: SizedBox(
-                    height: 170,
-                    child: TrackingMap(
-                      order: order.copyWith(deliveryAddress: pickupLocation),
-                      accent: accent,
-                      shopCoordinates: (pickupLat != null && pickupLng != null)
-                          ? LatLng(pickupLat, pickupLng)
-                          : null,
-                      deliveryCoordinates:
-                          (pickupLat != null && pickupLng != null)
-                              ? LatLng(pickupLat, pickupLng)
-                              : null,
-                      shopAddress: pickupLocation,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _openPickupDirections(pickupLocation),
-                      icon: const Icon(Icons.navigation_rounded, size: 18),
-                      label: const Text('Get directions to pickup location'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: accent,
-                        side: BorderSide(color: accent.withValues(alpha: 0.45)),
-                        padding: const EdgeInsets.symmetric(vertical: 9),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            paymentConfirmed
+                                ? Icons.verified_rounded
+                                : Icons.hourglass_top_rounded,
+                            color: paymentConfirmed
+                                ? const Color(0xFF15803D)
+                                : const Color(0xFFB45309),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  paymentConfirmed
+                                      ? 'Order confirmed'
+                                      : 'Payment confirmation pending',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: paymentConfirmed
+                                        ? const Color(0xFF166534)
+                                        : const Color(0xFF92400E),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  paymentConfirmed
+                                      ? 'We are preparing your order. You will be notified when it is ready to collect.'
+                                      : 'We are still waiting for payment verification.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                ),
-              ],
             ),
           ),
           const SizedBox(height: 8),
-          Container(
+          _staggerReveal(
+            1,
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 500),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: SizeTransition(
+                    sizeFactor: animation,
+                    axisAlignment: -1,
+                    child: child,
+                  ),
+                );
+              },
+              child: isReady
+                  ? Container(
+                      key: const ValueKey('pickup-ready-map'),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: accent.withValues(alpha: 0.2)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 14,
+                          backgroundColor: accent.withValues(alpha: 0.12),
+                          child: Icon(
+                            Icons.location_on_rounded,
+                            size: 16,
+                            color: accent,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Collect from',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade500,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                pickupLocation.isNotEmpty
+                                    ? pickupLocation
+                                    : 'Selected store location',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF0F172A),
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      bottom: Radius.circular(12),
+                    ),
+                    child: SizedBox(
+                      height: 190,
+                      child: TrackingMap(
+                        order: order.copyWith(deliveryAddress: pickupLocation),
+                        accent: accent,
+                        showShopLocation: false,
+                        destinationMarkerTitle: 'Pickup location',
+                        deliveryCoordinates:
+                            (pickupLat != null && pickupLng != null)
+                                ? LatLng(pickupLat, pickupLng)
+                                : null,
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: pickupLocation.isNotEmpty
+                            ? () => _openPickupDirections(pickupLocation)
+                            : null,
+                        icon: const Icon(Icons.navigation_rounded, size: 20),
+                        label: const Text('Get directions'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: accent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+                  : Container(
+                      key: const ValueKey('pickup-prep-store'),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.storefront_outlined,
+                            color: Colors.grey.shade500,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Pickup store',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  pickupLocation.isNotEmpty
+                                      ? pickupLocation
+                                      : 'Selected store location',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: const Color(0xFF334155),
+                                    height: 1.35,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Map and directions will appear here once your order is ready for pickup.',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _staggerReveal(
+            2,
+            Container(
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -1594,85 +1785,96 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                 ),
               ],
             ),
+            ),
           ),
           if (order.items.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey.shade100, width: 1),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Order items',
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade600,
+            _staggerReveal(
+              3,
+              Container(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.shade100, width: 1),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Order items',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade600,
+                          ),
                         ),
-                      ),
-                      InkWell(
-                        onTap: () => _showItemsSheet(order),
-                        borderRadius: BorderRadius.circular(4),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 2),
-                          child: Text(
-                            'View details',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: accent,
+                        InkWell(
+                          onTap: () => _showItemsSheet(order),
+                          borderRadius: BorderRadius.circular(4),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 2),
+                            child: Text(
+                              'View details',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: accent,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  ...order.items.asMap().entries.map(
-                        (e) => _OrderItemRow(
-                          item: e.value,
-                          isLast: e.key == order.items.length - 1,
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    ...order.items.asMap().entries.map(
+                          (e) => _DelayedFadeInUp(
+                            delay: Duration(milliseconds: 120 + (e.key * 60)),
+                            duration: const Duration(milliseconds: 380),
+                            child: _OrderItemRow(
+                              item: e.value,
+                              isLast: e.key == order.items.length - 1,
+                            ),
+                          ),
                         ),
-                      ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],
           const SizedBox(height: 8),
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _goHome,
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: accent,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(Icons.home_rounded, size: 18, color: Colors.white),
-                    SizedBox(width: 8),
-                    Text(
-                      'Back to home',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
+          _staggerReveal(
+            4,
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _goHome,
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Icon(Icons.home_rounded, size: 18, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text(
+                        'Back to home',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1709,10 +1911,11 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
           final order = provider.order;
           final accent = const Color(0xFF0D7A4C); // Refined emerald
           final isPickup = _isPickupOrderFor(order);
-          final isTerminalSuccess =
-              order.stage == OrderTrackingStage.delivered;
+          final isTerminalSuccess = order.stage == OrderTrackingStage.delivered;
           final showPickedUp = isPickup && isTerminalSuccess;
           final showDelivered = !isPickup && isTerminalSuccess;
+          final showPickupReady =
+              isPickup && !showPickedUp && _isPickupReadyForCollection(order);
 
           return Scaffold(
             backgroundColor: (showPickedUp || showDelivered)
@@ -1757,7 +1960,9 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                     ? 'Picked up'
                     : showDelivered
                         ? 'Order delivered'
-                        : 'Confirmation',
+                        : showPickupReady
+                            ? 'Ready for pickup'
+                            : 'Confirmation',
                 style: GoogleFonts.poppins(
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
@@ -1808,22 +2013,23 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                           : provider.isAwaitingPaymentConfirmation
                               ? _buildPendingBody(order, provider, accent)
                               : _isPickupOrderFor(order)
-                                  ? (order.stage ==
-                                          OrderTrackingStage.delivered
+                                  ? (order.stage == OrderTrackingStage.delivered
                                       ? _buildPickedUpBody(order)
                                       : _buildPickupTrackingBody(
                                           order,
                                           provider,
                                           accent,
                                         ))
-                                  : order.stage ==
-                                          OrderTrackingStage.delivered
+                                  : order.stage == OrderTrackingStage.delivered
                                       ? _buildDeliveredBody(order, accent)
                                       : Stack(
                                           children: [
                                             Positioned.fill(
                                               child: TrackingMap(
-                                                  order: order, accent: accent),
+                                                order: order,
+                                                accent: accent,
+                                                showShopLocation: false,
+                                              ),
                                             ),
                                             Positioned(
                                               bottom: 16,
@@ -1908,7 +2114,12 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                                             ),
                                                           ),
                                                         ),
-                                                        Container(
+                                                        _FadeInUp(
+                                                          duration:
+                                                              const Duration(
+                                                            milliseconds: 380,
+                                                          ),
+                                                          child: Container(
                                                           padding:
                                                               const EdgeInsets
                                                                   .symmetric(
@@ -2050,6 +2261,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                                               ),
                                                             ],
                                                           ),
+                                                        ),
                                                         ),
                                                         if (order.stage ==
                                                                 OrderTrackingStage
@@ -2601,6 +2813,67 @@ class _DelayedFadeInUpState extends State<_DelayedFadeInUp>
             offset: Offset(0, _translate.value),
             child: child,
           ),
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+class _BreathingGlow extends StatefulWidget {
+  const _BreathingGlow({
+    super.key,
+    required this.child,
+    this.glowColor = Colors.white,
+  });
+
+  final Widget child;
+  final Color glowColor;
+
+  @override
+  State<_BreathingGlow> createState() => _BreathingGlowState();
+}
+
+class _BreathingGlowState extends State<_BreathingGlow>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _glow;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat(reverse: true);
+    _glow = Tween<double>(begin: 0.15, end: 0.45).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _glow,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: widget.glowColor.withValues(alpha: _glow.value),
+                blurRadius: 28,
+                spreadRadius: 4,
+              ),
+            ],
+          ),
+          child: child,
         );
       },
       child: widget.child,

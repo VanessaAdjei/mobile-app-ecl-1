@@ -182,6 +182,7 @@ class OrderHistoryTransformer {
       'total_price': totalAmount,
       'is_multi_item': true,
       'item_count': allItems.length,
+      'order_items': allItems,
       'transaction_id': transactionId,
       'payment_method': paymentMethod,
     };

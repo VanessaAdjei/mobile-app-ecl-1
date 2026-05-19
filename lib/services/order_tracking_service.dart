@@ -185,6 +185,11 @@ class OrderTrackingService {
         status.contains('reject')) {
       return OrderTrackingStage.failed;
     }
+    if (status.contains('ready for pickup') ||
+        status.contains('ready_for_pickup') ||
+        status.contains('ready to be picked')) {
+      return OrderTrackingStage.outForDelivery;
+    }
     // Check "out for delivery" / "shipped" BEFORE "delivered" (since "out for delivery" contains "deliver")
     if (status.contains('out for delivery') ||
         status.contains('out_for_delivery') ||
@@ -310,22 +315,47 @@ class OrderTrackingService {
     Map<String, dynamic> snapshot,
     List<OrderTrackingItem> fallback,
   ) {
-    final orderItems = snapshot['order_items'];
-    if (orderItems is List && orderItems.isNotEmpty) {
-      return orderItems
+    final parsed = _parseItemsFromSnapshot(snapshot);
+    if (parsed.isEmpty) {
+      return fallback;
+    }
+    // API often returns one line per product or only the first product row.
+    if (fallback.length > parsed.length) {
+      return fallback;
+    }
+    return parsed;
+  }
+
+  List<OrderTrackingItem> _parseItemsFromSnapshot(
+      Map<String, dynamic> snapshot) {
+    for (final key in ['order_items', 'items']) {
+      final raw = snapshot[key];
+      if (raw is! List || raw.isEmpty) {
+        continue;
+      }
+      final items = raw
           .whereType<Map>()
           .map((item) =>
               OrderTrackingItem.fromMap(Map<String, dynamic>.from(item)))
           .toList(growable: false);
+      if (items.isNotEmpty) {
+        return items;
+      }
     }
 
-    if (snapshot['product_name'] != null || snapshot['name'] != null) {
-      return [
-        OrderTrackingItem.fromMap(snapshot),
-      ];
+    final itemCount = _parseInt(snapshot['item_count']);
+    final isMultiItem = snapshot['is_multi_item'] == true || itemCount > 1;
+    if (!isMultiItem &&
+        (snapshot['product_name'] != null || snapshot['name'] != null)) {
+      return [OrderTrackingItem.fromMap(snapshot)];
     }
 
-    return fallback;
+    return const [];
+  }
+
+  int _parseInt(dynamic value) {
+    if (value is int) return value;
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   double _extractDiscount(Map<String, dynamic> snapshot, double fallback) {

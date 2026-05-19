@@ -7,7 +7,9 @@ import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
+import '../utils/product_image_url.dart';
 import '../services/auth_service.dart';
+import '../services/order_history_transformer.dart';
 import '../providers/notification_provider.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import 'order_tracking_page.dart';
@@ -611,21 +613,10 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: iconColor.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: iconColor.withValues(alpha: 0.15),
-                                ),
-                              ),
-                              child: Icon(
-                                iconData,
-                                color: iconColor,
-                                size: 22,
-                              ),
+                            _buildNotificationLeading(
+                              notification: notification,
+                              iconData: iconData,
+                              iconColor: iconColor,
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -836,39 +827,53 @@ class NotificationsScreenState extends State<NotificationsScreen> {
 
     // Fetch latest order from API to get actual status before navigating (critical for notification page)
     try {
+      final apiItems = await _fetchMergedOrderItemsFromApi(
+        orderId: orderId,
+        orderNumber: orderNumber,
+      );
+      if (apiItems.length > mappedItems.length) {
+        orderDetails['order_items'] = apiItems;
+        orderDetails['is_multi_item'] = apiItems.length > 1;
+        orderDetails['item_count'] = apiItems.length;
+      }
+
       final result = await AuthService.getOrders();
       if (result['status'] == 'success' && result['data'] is List) {
         final rawOrders = result['data'] as List;
-        Map<String, dynamic>? matchedOrder;
-        String? bestDeliveryId;
+        final requestedIds = <String>{orderId, orderNumber}
+          ..removeWhere((v) => v.isEmpty);
+        final matchedRows = <dynamic>[];
 
         for (final o in rawOrders) {
+          if (o is! Map) continue;
           final ord = Map<String, dynamic>.from(o);
-          final dId = ord['delivery_id']?.toString();
-          final tId = ord['transaction_id']?.toString();
-          final oId = ord['id']?.toString();
-          final ordNum = ord['order_number']?.toString();
+          final candidateIds = <String>{
+            ord['delivery_id']?.toString() ?? '',
+            ord['transaction_id']?.toString() ?? '',
+            ord['id']?.toString() ?? '',
+            ord['order_number']?.toString() ?? '',
+          }..removeWhere((v) => v.isEmpty);
 
-          final matches = (dId != null &&
-                  (dId == orderId || dId == orderNumber)) ||
-              (tId != null && (tId == orderId || tId == orderNumber)) ||
-              (oId != null && (oId == orderId || oId == orderNumber)) ||
-              (ordNum != null && (ordNum == orderId || ordNum == orderNumber));
-
-          if (matches) {
-            matchedOrder = ord;
-            bestDeliveryId = dId ?? tId ?? oId ?? orderId;
-            break;
+          if (candidateIds.intersection(requestedIds).isNotEmpty) {
+            matchedRows.add(ord);
           }
         }
 
-        if (matchedOrder != null && bestDeliveryId != null) {
+        if (matchedRows.isNotEmpty) {
+          final matchedOrder =
+              Map<String, dynamic>.from(matchedRows.first as Map);
+          final bestDeliveryId = matchedOrder['delivery_id']?.toString() ??
+              matchedOrder['transaction_id']?.toString() ??
+              matchedOrder['id']?.toString() ??
+              orderId;
+
           String? apiStatus = matchedOrder['status']?.toString() ??
               matchedOrder['order_status']?.toString();
           if (apiStatus == null || apiStatus.isEmpty) {
             final dId = matchedOrder['delivery_id']?.toString();
             if (dId != null) {
               for (final o in rawOrders) {
+                if (o is! Map) continue;
                 final ord = Map<String, dynamic>.from(o);
                 if (ord['delivery_id']?.toString() == dId) {
                   final s = ord['status']?.toString() ??
@@ -890,9 +895,8 @@ class NotificationsScreenState extends State<NotificationsScreen> {
           orderDetails['transaction_id'] = bestDeliveryId;
           orderDetails['id'] = bestDeliveryId;
 
-          final matched = matchedOrder;
           void mergeIfMissing(String key) {
-            final v = matched[key];
+            final v = matchedOrder[key];
             if (v == null) return;
             final s = v.toString().trim();
             if (s.isEmpty) return;
@@ -952,6 +956,230 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  List<Map<String, dynamic>> _extractNotificationItems(
+    Map<String, dynamic> notification,
+  ) {
+    for (final key in ['items', 'order_items']) {
+      final raw = notification[key];
+      if (raw is List && raw.isNotEmpty) {
+        return OrderNotificationService.normalizeNotificationItems(raw);
+      }
+    }
+    return [];
+  }
+
+  String _resolveItemImageUrl(Map<String, dynamic> item) {
+    final raw = coerceProductImageSource(
+      item['product_img'] ??
+          item['imageUrl'] ??
+          item['image'] ??
+          item['image_url'] ??
+          item['product_image'] ??
+          item['product_image_url'],
+    );
+    return _getImageUrl(raw);
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchMergedOrderItemsFromApi({
+    required String orderId,
+    required String orderNumber,
+  }) async {
+    try {
+      final result = await AuthService.getOrders();
+      if (result['status'] != 'success' || result['data'] is! List) {
+        return [];
+      }
+
+      final rawOrders = result['data'] as List;
+      final requestedIds = <String>{orderId, orderNumber}
+        ..removeWhere((v) => v.isEmpty);
+      if (requestedIds.isEmpty) return [];
+
+      final matchedRows = <dynamic>[];
+      for (final o in rawOrders) {
+        if (o is! Map) continue;
+        final ord = Map<String, dynamic>.from(o);
+        final candidateIds = <String>{
+          ord['delivery_id']?.toString() ?? '',
+          ord['transaction_id']?.toString() ?? '',
+          ord['id']?.toString() ?? '',
+          ord['order_number']?.toString() ?? '',
+        }..removeWhere((v) => v.isEmpty);
+
+        if (candidateIds.intersection(requestedIds).isNotEmpty) {
+          matchedRows.add(ord);
+        }
+      }
+
+      if (matchedRows.isEmpty) return [];
+
+      final mergeKey =
+          OrderHistoryTransformer.getTransactionId(matchedRows.first);
+      final merged = matchedRows.length == 1
+          ? OrderHistoryTransformer.processSingleOrder(
+              matchedRows.first,
+              mergeKey,
+            )
+          : OrderHistoryTransformer.processMultiOrder(
+              matchedRows,
+              mergeKey,
+            );
+
+      for (final key in ['order_items', 'items']) {
+        final raw = merged[key];
+        if (raw is List && raw.isNotEmpty) {
+          return OrderNotificationService.normalizeNotificationItems(raw);
+        }
+      }
+    } catch (e) {
+      debugPrint('📱 Error fetching merged order items: $e');
+    }
+    return [];
+  }
+
+  Widget _buildNotificationLeading({
+    required Map<String, dynamic> notification,
+    required IconData iconData,
+    required Color iconColor,
+  }) {
+    final items = _extractNotificationItems(notification);
+    if (items.isEmpty) {
+      return _buildNotificationIconAvatar(iconData, iconColor);
+    }
+
+    if (items.length == 1) {
+      final imageUrl = _resolveItemImageUrl(items.first);
+      if (imageUrl.isEmpty) {
+        return _buildNotificationIconAvatar(iconData, iconColor);
+      }
+      return _buildNotificationImageTile(imageUrl, size: 44, radius: 12);
+    }
+
+    final visible = items.take(3).toList();
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          for (var i = 0; i < visible.length; i++)
+            Positioned(
+              left: i * 11.0,
+              top: 4,
+              child: _buildNotificationImageTile(
+                _resolveItemImageUrl(visible[i]),
+                size: 30,
+                radius: 8,
+                borderWidth: 1.5,
+              ),
+            ),
+          if (items.length > 3)
+            Positioned(
+              right: -2,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _kNotifAccent,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: Colors.white, width: 1.5),
+                ),
+                child: Text(
+                  '+${items.length - 3}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotificationIconAvatar(IconData iconData, Color iconColor) {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: iconColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: iconColor.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Icon(
+        iconData,
+        color: iconColor,
+        size: 22,
+      ),
+    );
+  }
+
+  Widget _buildNotificationImageTile(
+    String imageUrl, {
+    required double size,
+    required double radius,
+    double borderWidth = 1,
+  }) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(
+          color: Colors.white,
+          width: borderWidth,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius - borderWidth),
+        child: imageUrl.isNotEmpty
+            ? CachedNetworkImage(
+                imageUrl: imageUrl,
+                fit: BoxFit.cover,
+                width: size,
+                height: size,
+                memCacheWidth: (size * 2).round(),
+                memCacheHeight: (size * 2).round(),
+                placeholder: (context, url) => ColoredBox(
+                  color: const Color(0xFFF1F5F9),
+                  child: Icon(
+                    Icons.image_outlined,
+                    color: Colors.grey.shade400,
+                    size: size * 0.45,
+                  ),
+                ),
+                errorWidget: (context, url, error) => ColoredBox(
+                  color: const Color(0xFFF1F5F9),
+                  child: Icon(
+                    Icons.inventory_2_outlined,
+                    color: Colors.grey.shade400,
+                    size: size * 0.45,
+                  ),
+                ),
+              )
+            : ColoredBox(
+                color: const Color(0xFFF1F5F9),
+                child: Icon(
+                  Icons.inventory_2_outlined,
+                  color: Colors.grey.shade400,
+                  size: size * 0.45,
+                ),
+              ),
+      ),
+    );
+  }
+
   String _getImageUrl(String? url) {
     if (url == null || url.isEmpty) return '';
     return ApiConfig.getImageOrStorageUrl(url);
@@ -990,11 +1218,28 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  void _showNotificationDetails(Map<String, dynamic> notification) {
-    // Don't mark as read immediately - only when dialog is closed
-
-    final items = notification['items'] ?? [];
+  Future<void> _showNotificationDetails(
+    Map<String, dynamic> notification,
+  ) async {
+    var items = _extractNotificationItems(notification);
+    final orderId = notification['order_id']?.toString() ?? '';
     final orderNumber = notification['order_number']?.toString() ?? '';
+
+    if (orderId.isNotEmpty || orderNumber.isNotEmpty) {
+      try {
+        final apiItems = await _fetchMergedOrderItemsFromApi(
+          orderId: orderId,
+          orderNumber: orderNumber,
+        );
+        if (apiItems.length > items.length) {
+          items = apiItems;
+        }
+      } catch (e) {
+        debugPrint('📱 Could not enrich notification items: $e');
+      }
+    }
+
+    if (!mounted) return;
     final totalAmount = notification['total_amount']?.toString() ?? '0.00';
     final status = notification['status']?.toString() ?? 'Order Placed';
     final iconData = _getNotificationIcon(notification);
@@ -1012,6 +1257,8 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         final maxH = MediaQuery.of(sheetContext).size.height * 0.72;
@@ -1065,18 +1312,43 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.only(top: 10),
-                        child: Container(
-                          width: 36,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE2E8F0),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFCBD5E1),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  size: 18,
+                                  color: Colors.grey.shade500,
+                                ),
+                                const SizedBox(width: 2),
+                                Text(
+                                  'Swipe down to dismiss',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: const Color(0xFF94A3B8),
+                                    letterSpacing: 0.1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
                         child: Row(
                           children: [
                             Container(
@@ -1167,7 +1439,9 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                   runSpacing: 8,
                                   children: items
                                       .map<Widget>(
-                                        (item) => _buildImageItemRow(item),
+                                        (item) => _buildImageItemRow(
+                                          Map<String, dynamic>.from(item),
+                                        ),
                                       )
                                       .toList(),
                                 ),
@@ -1329,14 +1603,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
 
   /// Build image item row - just images
   Widget _buildImageItemRow(Map<String, dynamic> item) {
-    final rawImageUrl = item['image']?.toString() ??
-        item['product_image']?.toString() ??
-        item['image_url']?.toString() ??
-        item['product_image_url']?.toString() ??
-        item['imageUrl']?.toString() ??
-        '';
-
-    final imageUrl = _getImageUrl(rawImageUrl);
+    final imageUrl = _resolveItemImageUrl(item);
 
     return Container(
       decoration: BoxDecoration(

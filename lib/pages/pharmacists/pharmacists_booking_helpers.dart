@@ -1,7 +1,3 @@
-// Booking display helpers for pharmacist consultation bookings.
-// Supports both local shape (date, time, name, ...) and API history shape
-// (session_date, start_time, end_time, full_name, type, platform, reason).
-
 String bookingDisplayDate(Map<String, dynamic> b) {
   final d = b['date'];
   if (d != null && d.toString().isNotEmpty) return d.toString();

@@ -2,14 +2,19 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../config/app_colors.dart';
 import '../pages/app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
+
+/// [accent] matches [EclExpandableSliverAppBar] (deep green gradient + circles).
+enum AppHeaderBackground { standard, accent }
 
 class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final String? subtitle;
   final VoidCallback? onBack;
   final bool showCart;
+  final AppHeaderBackground background;
 
   const AppHeaderBar({
     super.key,
@@ -17,6 +22,7 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
     this.subtitle,
     this.onBack,
     this.showCart = true,
+    this.background = AppHeaderBackground.standard,
   });
 
   bool get _hasSubtitle => subtitle != null && subtitle!.trim().isNotEmpty;
@@ -31,6 +37,88 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final toolbar = SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            AppBackButton(
+              backgroundColor: Colors.white.withValues(alpha: 0.2),
+              iconColor: Colors.white,
+              onPressed: onBack ??
+                  () {
+                    if (Navigator.canPop(context)) {
+                      Navigator.pop(context);
+                    }
+                  },
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ClipRect(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          height: 1.1,
+                          color: Colors.white,
+                          letterSpacing: -0.2,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (_hasSubtitle) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle!.trim(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            height: 1.1,
+                            color: Colors.white.withValues(alpha: 0.9),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (showCart) ...[
+              const SizedBox(width: 8),
+              const CartIconButton(
+                iconColor: Colors.white,
+                iconSize: 22,
+                backgroundColor: Colors.transparent,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+
+    if (background == AppHeaderBackground.accent) {
+      return ClipRect(
+        child: Stack(
+          fit: StackFit.passthrough,
+          children: [
+            const _AccentHeaderBackground(),
+            toolbar,
+          ],
+        ),
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -50,74 +138,51 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ],
       ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              AppBackButton(
-                backgroundColor: Colors.white.withValues(alpha: 0.2),
-                onPressed: onBack ??
-                    () {
-                      if (Navigator.canPop(context)) {
-                        Navigator.pop(context);
-                      }
-                    },
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ClipRect(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            height: 1.1,
-                            color: Colors.white,
-                            letterSpacing: -0.2,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (_hasSubtitle) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            subtitle!.trim(),
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              height: 1.1,
-                              color: Colors.white.withValues(alpha: 0.9),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              if (showCart) ...[
-                const SizedBox(width: 8),
-                const CartIconButton(
-                  iconColor: Colors.white,
-                  iconSize: 22,
-                  backgroundColor: Colors.transparent,
-                ),
+      child: toolbar,
+    );
+  }
+}
+
+class _AccentHeaderBackground extends StatelessWidget {
+  const _AccentHeaderBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      clipBehavior: Clip.hardEdge,
+      children: [
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF0D3D18),
+                AppColors.accent,
+                Color(0xFF2E7D32),
               ],
-            ],
+              stops: [0.0, 0.45, 1.0],
+            ),
           ),
         ),
-      ),
+        Positioned(
+          right: -40,
+          bottom: -28,
+          child: CircleAvatar(
+            radius: 72,
+            backgroundColor: Colors.white.withValues(alpha: 0.06),
+          ),
+        ),
+        Positioned(
+          left: -20,
+          top: 48,
+          child: CircleAvatar(
+            radius: 40,
+            backgroundColor: Colors.white.withValues(alpha: 0.05),
+          ),
+        ),
+      ],
     );
   }
 }

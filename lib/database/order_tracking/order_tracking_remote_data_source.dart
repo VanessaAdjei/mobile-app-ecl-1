@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../../config/api_config.dart';
 import '../../services/auth_service.dart';
+import '../../services/order_history_transformer.dart';
 import '../../models/order_tracking_model.dart';
 
 abstract class OrderTrackingRemoteDataSource {
@@ -124,7 +125,10 @@ class OrderTrackingRemoteDataSourceImpl
     final directStatus = await _fetchDirectStatus(
         _pickLookupId(orderId, orderNumber, transactionId));
 
-    Map<String, dynamic>? matchedOrder;
+    final requestedIds = <String>{orderId, orderNumber, transactionId}
+      ..removeWhere((value) => value.isEmpty);
+
+    final matchedRows = <dynamic>[];
     for (final item in orders) {
       if (item is! Map) {
         continue;
@@ -138,24 +142,31 @@ class OrderTrackingRemoteDataSourceImpl
         order['delivery_id']?.toString() ?? '',
       }..removeWhere((value) => value.isEmpty);
 
-      final requestedIds = <String>{orderId, orderNumber, transactionId}
-        ..removeWhere((value) => value.isEmpty);
-
       if (candidateIds.intersection(requestedIds).isNotEmpty) {
-        matchedOrder = order;
-        break;
+        matchedRows.add(order);
       }
     }
 
-    if (matchedOrder == null) {
+    if (matchedRows.isEmpty) {
       return directStatus == null ? null : {'status': directStatus};
     }
 
+    final mergeKey = transactionId.isNotEmpty
+        ? transactionId
+        : OrderHistoryTransformer.getTransactionId(matchedRows.first);
+
+    final Map<String, dynamic> merged = matchedRows.length == 1
+        ? OrderHistoryTransformer.processSingleOrder(
+            matchedRows.first,
+            mergeKey,
+          )
+        : OrderHistoryTransformer.processMultiOrder(matchedRows, mergeKey);
+
     if (directStatus != null && directStatus.isNotEmpty) {
-      matchedOrder['status'] = directStatus;
+      merged['status'] = directStatus;
     }
 
-    return matchedOrder;
+    return merged;
   }
 
   String _pickLookupId(

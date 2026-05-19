@@ -57,9 +57,9 @@ class OrderTrackingItem {
       price: parseDouble(map['price']),
       quantity: parseInt(map['qty'] ?? map['quantity']),
       imageUrl: coerceProductImageSource(
-        map['product_img'] ?? map['image'],
+        map['product_img'] ?? map['image'] ?? map['imageUrl'],
       ),
-      batchNo: map['batch_no']?.toString() ?? '',
+      batchNo: map['batch_no']?.toString() ?? map['batchNo']?.toString() ?? '',
     );
   }
 

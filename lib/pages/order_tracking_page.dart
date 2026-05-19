@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config/api_config.dart';
 import '../services/auth_service.dart';
+import '../services/order_history_transformer.dart';
 import 'app_back_button.dart';
 
 class OrderTrackingPage extends StatefulWidget {
@@ -37,6 +38,9 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       _actualDeliveryFee; // Store actual delivery fee fetched from API if needed
   /// Current order status for timeline; updated from API so progression can move.
   String? _orderStatus;
+
+  /// Full line-item list after merging API rows (multi-product orders).
+  List<Map<String, dynamic>>? _resolvedOrderItems;
 
   /// Timer for periodic order status refresh while page is open
   Timer? _refreshTimer;
@@ -139,6 +143,10 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     debugPrint(
         'Current navigation stack depth: ${Navigator.of(context).widget.observers.length}');
     debugPrint('Can pop current context: ${Navigator.canPop(context)}');
+    final initialItems = _extractItemsList(widget.orderDetails);
+    if (initialItems.isNotEmpty) {
+      _resolvedOrderItems = initialItems;
+    }
     _loadDeliveryInfo();
 
     // If delivery fee is missing, try to retrieve it from stored preferences
@@ -528,45 +536,50 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
           }
         }
 
-        // try different ways to find the order (use toString() for type-safe comparison)
-        Map<String, dynamic>? targetOrder;
+        final requestedIds = <String>{
+          if (orderId != null) orderId,
+          if (orderNumber != null) orderNumber,
+          if (notificationDeliveryId != null) notificationDeliveryId,
+        }..removeWhere((value) => value.isEmpty);
 
+        final matchedRows = <dynamic>[];
         for (final order in orders) {
-          final dId = order['delivery_id']?.toString();
-          final tId = order['transaction_id']?.toString();
-          final oId = order['id']?.toString();
-          final ordNum = order['order_number']?.toString();
-          final match = (dId != null &&
-                  (dId == notificationDeliveryId || dId == orderNumber)) ||
-              (tId != null &&
-                  (tId == notificationDeliveryId || tId == orderNumber)) ||
-              (oId != null &&
-                  (oId == orderId || oId == notificationDeliveryId)) ||
-              (ordNum != null && (ordNum == orderId || ordNum == orderNumber));
-          if (match) {
-            targetOrder = Map<String, dynamic>.from(order);
-            debugPrint(
-                '🔍 Found order (delivery_id=$dId, status=${order['status']})');
-            break;
+          if (order is! Map) continue;
+          final o = Map<String, dynamic>.from(order);
+          final candidateIds = <String>{
+            o['delivery_id']?.toString() ?? '',
+            o['transaction_id']?.toString() ?? '',
+            o['id']?.toString() ?? '',
+            o['order_number']?.toString() ?? '',
+            o['order_id']?.toString() ?? '',
+          }..removeWhere((value) => value.isEmpty);
+
+          if (candidateIds.intersection(requestedIds).isNotEmpty) {
+            matchedRows.add(o);
           }
         }
 
-        if (targetOrder == null &&
+        if (matchedRows.isEmpty &&
             orderId != null &&
             orderId.startsWith('ORDER_')) {
           final numericId = orderId.replaceFirst('ORDER_', '');
-          final numericIdInt = int.tryParse(numericId);
-          if (numericIdInt != null) {
-            for (final order in orders) {
-              if (order['id'] == numericIdInt ||
-                  order['id'].toString() == numericId) {
-                targetOrder = Map<String, dynamic>.from(order);
-                debugPrint('🔍 Found order by numeric ID');
-                break;
-              }
+          for (final order in orders) {
+            if (order is! Map) continue;
+            final o = Map<String, dynamic>.from(order);
+            if (o['id']?.toString() == numericId ||
+                o['id'] == int.tryParse(numericId)) {
+              matchedRows.add(o);
             }
           }
         }
+
+        if (matchedRows.isNotEmpty) {
+          _applyResolvedItems(_mergeMatchedOrderRows(matchedRows));
+        }
+
+        Map<String, dynamic>? targetOrder = matchedRows.isNotEmpty
+            ? Map<String, dynamic>.from(matchedRows.first as Map)
+            : null;
 
         if (targetOrder != null) {
           debugPrint('🔍 Found target order in orders list: $targetOrder');
@@ -734,32 +747,76 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     return ApiConfig.getImageOrStorageUrl(url);
   }
 
-  // Helper method to get order items - handles both single and multiple items
-  List<Map<String, dynamic>> getOrderItems() {
-    final orderDetails = widget.orderDetails;
+  int _parseItemCount(dynamic value) {
+    if (value is int) return value;
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
 
-    // Check if this is a multi-item order
-    if (orderDetails['order_items'] != null &&
-        orderDetails['order_items'] is List) {
-      final items = orderDetails['order_items'] as List;
-      return items.map((item) {
-        if (item is Map) {
-          return Map<String, dynamic>.from(item);
+  List<Map<String, dynamic>> _extractItemsList(Map<String, dynamic> source) {
+    for (final key in ['order_items', 'items']) {
+      final raw = source[key];
+      if (raw is List && raw.isNotEmpty) {
+        final items = raw
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+        if (items.isNotEmpty) {
+          return items;
         }
-        return <String, dynamic>{};
-      }).toList();
+      }
     }
 
-    // single item order, just make one item map
-    return [
-      {
-        'product_name': orderDetails['product_name'] ?? 'Unknown Product',
-        'product_img': orderDetails['product_img'] ?? '',
-        'qty': orderDetails['qty'] ?? 1,
-        'price': orderDetails['price'] ?? 0.0,
-        'batch_no': orderDetails['batch_no'] ?? '',
-      }
-    ];
+    final itemCount = _parseItemCount(source['item_count']);
+    final isMultiItem =
+        source['is_multi_item'] == true || itemCount > 1;
+    if (!isMultiItem &&
+        (source['product_name'] != null || source['name'] != null)) {
+      return [
+        {
+          'product_name': source['product_name'] ?? source['name'] ?? 'Unknown Product',
+          'product_img': source['product_img'] ??
+              source['image'] ??
+              source['imageUrl'] ??
+              '',
+          'qty': source['qty'] ?? source['quantity'] ?? 1,
+          'price': source['price'] ?? 0.0,
+          'batch_no': source['batch_no'] ?? source['batchNo'] ?? '',
+        },
+      ];
+    }
+
+    return [];
+  }
+
+  void _applyResolvedItems(List<Map<String, dynamic>> candidate) {
+    if (candidate.isEmpty || !mounted) return;
+    final existing = _resolvedOrderItems ?? _extractItemsList(widget.orderDetails);
+    final next = candidate.length >= existing.length ? candidate : existing;
+    if (next.length == existing.length && _resolvedOrderItems != null) {
+      return;
+    }
+    setState(() => _resolvedOrderItems = next);
+  }
+
+  List<Map<String, dynamic>> _mergeMatchedOrderRows(List<dynamic> matchedRows) {
+    if (matchedRows.isEmpty) return [];
+    final mergeKey =
+        OrderHistoryTransformer.getTransactionId(matchedRows.first);
+    final merged = matchedRows.length == 1
+        ? OrderHistoryTransformer.processSingleOrder(
+            matchedRows.first,
+            mergeKey,
+          )
+        : OrderHistoryTransformer.processMultiOrder(matchedRows, mergeKey);
+    return _extractItemsList(merged);
+  }
+
+  // Helper method to get order items - handles both single and multiple items
+  List<Map<String, dynamic>> getOrderItems() {
+    if (_resolvedOrderItems != null && _resolvedOrderItems!.isNotEmpty) {
+      return _resolvedOrderItems!;
+    }
+    return _extractItemsList(widget.orderDetails);
   }
 
   // add up the total quantity of all items

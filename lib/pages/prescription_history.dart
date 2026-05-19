@@ -8,7 +8,7 @@ import 'package:eclapp/widgets/error_display.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-import '../widgets/ecl_expandable_sliver_app_bar.dart';
+import '../widgets/app_header_bar.dart';
 
 const Color _kRxAccent = Color(0xFF0D7A4C);
 const Color _kRxPageBg = Color(0xFFF6F8FA);
@@ -416,15 +416,14 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
       parent: BouncingScrollPhysics(),
     );
 
-    Widget header() => const EclExpandableSliverAppBar(
-          toolbarTitle: 'Prescription history',
-          heroTitle: 'Prescription history',
-          heroSubtitle:
-              'Status, dates, and pharmacist notes for each upload',
-        );
-
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F172A) : _kRxPageBg,
+      appBar: const AppHeaderBar(
+        title: 'Prescription History',
+        subtitle: 'Uploads, status & pharmacist notes',
+        showCart: false,
+        background: AppHeaderBackground.accent,
+      ),
       body: _rxPageBackdrop(
         isDark: isDark,
         child: _isLoading
@@ -432,7 +431,6 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                 controller: _scrollController,
                 physics: scrollPhysics,
                 slivers: [
-                  header(),
                   SliverFillRemaining(
                     hasScrollBody: false,
                     child: _buildLoadingSkeleton(isDark),
@@ -444,7 +442,6 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                     controller: _scrollController,
                     physics: scrollPhysics,
                     slivers: [
-                      header(),
                       SliverFillRemaining(
                         hasScrollBody: false,
                         child: _buildErrorState(),
@@ -456,7 +453,6 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                         controller: _scrollController,
                         physics: scrollPhysics,
                         slivers: [
-                          header(),
                           SliverFillRemaining(
                             hasScrollBody: false,
                             child: _buildEmptyState(isDark),
@@ -469,10 +465,7 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
                         child: CustomScrollView(
                           controller: _scrollController,
                           physics: scrollPhysics,
-                          slivers: [
-                            header(),
-                            ..._buildPrescriptionListSlivers(isDark),
-                          ],
+                          slivers: _buildPrescriptionListSlivers(isDark),
                         ),
                       ),
       ),

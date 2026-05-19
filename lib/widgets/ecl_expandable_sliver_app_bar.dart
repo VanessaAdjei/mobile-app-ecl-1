@@ -60,7 +60,8 @@ class EclExpandableSliverAppBar extends StatelessWidget {
     const subLine = 12.0 * 1.15;
 
     if (hideHero && hasSub) {
-      return gapUnderToolbar + heroLine + bottomPad;
+      // Subtitle becomes the expanded headline — allow up to two lines.
+      return gapUnderToolbar + heroLine * 2 + 4 + bottomPad;
     }
     if (hideHero) {
       return gapUnderToolbar + bottomPad;
@@ -178,11 +179,13 @@ class EclExpandableSliverAppBar extends StatelessWidget {
                       if (hideHero && hasSub) ...[
                         Text(
                           sub,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.poppins(
-                            fontSize: 18,
+                            fontSize: 17,
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
-                            height: 1.05,
+                            height: 1.2,
                           ),
                         ),
                       ],

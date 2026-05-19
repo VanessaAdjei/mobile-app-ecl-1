@@ -9,7 +9,8 @@ import '../utils/non_ui_error_reporter.dart';
 const LatLng _defaultCenter = LatLng(5.6037, -0.1870);
 const double _defaultZoom = 12.0;
 
-/// Full-screen map for track order page. Uses Google Maps; shows shop and delivery markers.
+/// Full-screen map for track order page. Uses Google Maps.
+/// When [showShopLocation] is false (home delivery), only the customer's delivery point is shown.
 class TrackingMap extends StatefulWidget {
   const TrackingMap({
     super.key,
@@ -20,6 +21,8 @@ class TrackingMap extends StatefulWidget {
     this.deliveryCoordinates,
     /// Optional shop/store address to geocode. If null, a default location (Accra) is used.
     this.shopAddress,
+    this.showShopLocation = true,
+    this.destinationMarkerTitle = 'Delivery address',
   });
 
   final OrderTrackingModel order;
@@ -28,6 +31,8 @@ class TrackingMap extends StatefulWidget {
   final LatLng? shopCoordinates;
   final LatLng? deliveryCoordinates;
   final String? shopAddress;
+  final bool showShopLocation;
+  final String destinationMarkerTitle;
 
   @override
   State<TrackingMap> createState() => _TrackingMapState();
@@ -45,27 +50,46 @@ class _TrackingMapState extends State<TrackingMap> {
     super.initState();
     // Show map immediately with default markers so the map is visible; geocode in background
     setState(() {
-      _shopPosition = _defaultCenter;
+      _shopPosition = widget.showShopLocation ? _defaultCenter : null;
       _deliveryPosition = _defaultCenter;
-      _markers = {
-        Marker(
-          markerId: const MarkerId('shop'),
-          position: _defaultCenter,
-          infoWindow: const InfoWindow(title: 'Shop', snippet: 'ECL Store'),
-        ),
-        Marker(
-          markerId: const MarkerId('delivery'),
-          position: _defaultCenter,
-          infoWindow: InfoWindow(
-            title: 'Delivery address',
-            snippet: widget.order.deliveryAddress.isNotEmpty
-                ? widget.order.deliveryAddress
-                : 'Delivery point',
-          ),
-        ),
-      };
+      _markers = _buildMarkers(
+        shop: widget.showShopLocation ? _defaultCenter : null,
+        delivery: _defaultCenter,
+        shopSnippet: widget.shopAddress,
+      );
     });
     _geocodeAndUpdateMap();
+  }
+
+  Set<Marker> _buildMarkers({
+    required LatLng? shop,
+    required LatLng delivery,
+    String? shopSnippet,
+  }) {
+    final deliveryAddress = widget.order.deliveryAddress;
+    final markers = <Marker>{
+      Marker(
+        markerId: const MarkerId('delivery'),
+        position: delivery,
+        infoWindow: InfoWindow(
+          title: widget.destinationMarkerTitle,
+          snippet: deliveryAddress.isNotEmpty ? deliveryAddress : 'Delivery point',
+        ),
+      ),
+    };
+    if (widget.showShopLocation && shop != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('shop'),
+          position: shop,
+          infoWindow: InfoWindow(
+            title: 'Shop',
+            snippet: shopSnippet?.isNotEmpty == true ? shopSnippet : 'ECL Store',
+          ),
+        ),
+      );
+    }
+    return markers;
   }
 
   Future<void> _geocodeAndUpdateMap() async {
@@ -75,21 +99,24 @@ class _TrackingMapState extends State<TrackingMap> {
     try {
       final locationService = LocationService();
 
-      // Resolve shop position: geocode if provided, else use default
-      LatLng shop = widget.shopCoordinates ?? _defaultCenter;
-      if (widget.shopCoordinates == null &&
-          shopAddress != null &&
-          shopAddress.trim().isNotEmpty) {
-        final coords = await locationService.getCoordinatesFromAddress(shopAddress.trim());
-        if (coords != null) {
-          shop = LatLng(coords['lat']!, coords['lon']!);
+      LatLng? shop;
+      if (widget.showShopLocation) {
+        shop = widget.shopCoordinates ?? _defaultCenter;
+        if (widget.shopCoordinates == null &&
+            shopAddress != null &&
+            shopAddress.trim().isNotEmpty) {
+          final coords =
+              await locationService.getCoordinatesFromAddress(shopAddress.trim());
+          if (coords != null) {
+            shop = LatLng(coords['lat']!, coords['lon']!);
+          }
         }
       }
 
-      // Resolve delivery position
       LatLng delivery = widget.deliveryCoordinates ?? _defaultCenter;
       if (widget.deliveryCoordinates == null && deliveryAddress.trim().isNotEmpty) {
-        final coords = await locationService.getCoordinatesFromAddress(deliveryAddress.trim());
+        final coords =
+            await locationService.getCoordinatesFromAddress(deliveryAddress.trim());
         if (coords != null) {
           delivery = LatLng(coords['lat']!, coords['lon']!);
         }
@@ -99,59 +126,45 @@ class _TrackingMapState extends State<TrackingMap> {
       setState(() {
         _shopPosition = shop;
         _deliveryPosition = delivery;
-        _markers = {
-          Marker(
-            markerId: const MarkerId('shop'),
-            position: shop,
-            infoWindow: InfoWindow(
-              title: 'Shop',
-              snippet: shopAddress?.isNotEmpty == true ? shopAddress : 'ECL Store',
-            ),
-          ),
-          Marker(
-            markerId: const MarkerId('delivery'),
-            position: delivery,
-            infoWindow: InfoWindow(
-              title: 'Delivery address',
-              snippet: deliveryAddress.isNotEmpty ? deliveryAddress : 'Delivery point',
-            ),
-          ),
-        };
+        _markers = _buildMarkers(
+          shop: shop,
+          delivery: delivery,
+          shopSnippet: shopAddress,
+        );
         _isLoading = false;
       });
 
-      _fitBothMarkers();
+      _fitMapCamera();
     } catch (e) {
       debugPrint('TrackingMap geocoding error: $e');
       if (!mounted) return;
       setState(() {
-        _shopPosition = _defaultCenter;
+        _shopPosition = widget.showShopLocation ? _defaultCenter : null;
         _deliveryPosition = _defaultCenter;
-        _markers = {
-          Marker(
-            markerId: const MarkerId('shop'),
-            position: _defaultCenter,
-            infoWindow: const InfoWindow(title: 'Shop', snippet: 'ECL Store'),
-          ),
-          Marker(
-            markerId: const MarkerId('delivery'),
-            position: _defaultCenter,
-            infoWindow: InfoWindow(
-              title: 'Delivery address',
-              snippet: deliveryAddress.isNotEmpty ? deliveryAddress : 'Delivery point',
-            ),
-          ),
-        };
+        _markers = _buildMarkers(
+          shop: widget.showShopLocation ? _defaultCenter : null,
+          delivery: _defaultCenter,
+          shopSnippet: shopAddress,
+        );
         _isLoading = false;
       });
     }
   }
 
-  void _fitBothMarkers() {
+  void _fitMapCamera() {
     final controller = _controller;
     final shop = _shopPosition;
     final delivery = _deliveryPosition;
-    if (shop == null || delivery == null || controller == null) return;
+    if (delivery == null || controller == null) return;
+
+    if (!widget.showShopLocation || shop == null) {
+      try {
+        controller.animateCamera(CameraUpdate.newLatLngZoom(delivery, 14));
+      } catch (e, st) {
+        NonUiErrorReporter.report('TrackingMap._fitMapCamera.delivery', e, st);
+      }
+      return;
+    }
 
     try {
       final samePoint = shop.latitude == delivery.latitude &&
@@ -171,16 +184,15 @@ class _TrackingMapState extends State<TrackingMap> {
         shop.longitude > delivery.longitude ? shop.longitude : delivery.longitude,
       );
       final bounds = LatLngBounds(southwest: sw, northeast: ne);
-      // Large padding (e.g. 80) on short embedded maps (e.g. 170px) can assert or fail on the platform.
       controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 24));
     } catch (e, st) {
-      NonUiErrorReporter.report('TrackingMap._fitBothMarkers', e, st);
+      NonUiErrorReporter.report('TrackingMap._fitMapCamera', e, st);
       try {
         controller.animateCamera(
-          CameraUpdate.newLatLngZoom(shop, 14),
+          CameraUpdate.newLatLngZoom(delivery, 14),
         );
       } catch (e2, st2) {
-        NonUiErrorReporter.report('TrackingMap._fitBothMarkers.fallback', e2, st2);
+        NonUiErrorReporter.report('TrackingMap._fitMapCamera.fallback', e2, st2);
       }
     }
   }
@@ -214,12 +226,8 @@ class _TrackingMapState extends State<TrackingMap> {
               markers: _markers,
               onMapCreated: (controller) {
                 _controller = controller;
-                if (_shopPosition != null && _deliveryPosition != null) {
-                  _fitBothMarkers();
-                } else if (_deliveryPosition != null) {
-                  controller.animateCamera(
-                    CameraUpdate.newLatLngZoom(_deliveryPosition!, 14),
-                  );
+                if (_deliveryPosition != null) {
+                  _fitMapCamera();
                 }
               },
               myLocationEnabled: true,

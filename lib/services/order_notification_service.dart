@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/product_image_url.dart';
 import 'native_notification_service.dart';
 
 class OrderNotificationService {
@@ -58,7 +59,13 @@ class OrderNotificationService {
         'is_read': false,
         'icon': 'shopping_cart',
         'color': 'green',
-        'items': orderData['items'] ?? [],
+        'items': await _resolveItems(
+          orderData['id']?.toString() ??
+              orderData['transaction_id']?.toString() ??
+              '',
+          orderData['items'] as List<dynamic>? ??
+              orderData['order_items'] as List<dynamic>?,
+        ),
       };
 
       // Update count immediately for fast badge updates
@@ -151,7 +158,7 @@ class OrderNotificationService {
         'is_read': false,
         'icon': _getStatusIcon(status),
         'color': _getStatusColor(status),
-        'items': items ?? [],
+        'items': await _resolveItems(orderId, items),
       };
 
       await _addNotificationOptimized(notification);
@@ -392,6 +399,77 @@ class OrderNotificationService {
     } catch (e) {
       debugPrint('Error updating unread count: $e');
     }
+  }
+
+  /// Normalize line items so UI can show every product image reliably.
+  static List<Map<String, dynamic>> normalizeNotificationItems(
+    List<dynamic>? raw,
+  ) {
+    if (raw == null || raw.isEmpty) return [];
+    final normalized = <Map<String, dynamic>>[];
+    for (final entry in raw) {
+      if (entry is! Map) continue;
+      final m = Map<String, dynamic>.from(entry);
+      final image = coerceProductImageSource(
+        m['product_img'] ??
+            m['imageUrl'] ??
+            m['image'] ??
+            m['image_url'] ??
+            m['product_image'] ??
+            m['product_image_url'],
+      );
+      final name =
+          m['product_name']?.toString() ?? m['name']?.toString() ?? 'Item';
+      final qty = m['qty'] ?? m['quantity'] ?? 1;
+      normalized.add({
+        ...m,
+        'name': name,
+        'product_name': name,
+        'quantity': qty,
+        'qty': qty,
+        'imageUrl': image,
+        'product_img': image,
+      });
+    }
+    return normalized;
+  }
+
+  static Future<List<Map<String, dynamic>>> _resolveItems(
+    String orderId,
+    List<dynamic>? items,
+  ) async {
+    var normalized = normalizeNotificationItems(items);
+    if (normalized.isNotEmpty || orderId.isEmpty) return normalized;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final existingJson = prefs.getString('user_orders');
+      if (existingJson == null) return normalized;
+
+      final list = json.decode(existingJson) as List<dynamic>?;
+      if (list == null) return normalized;
+
+      for (final entry in list) {
+        if (entry is! Map) continue;
+        final order = Map<String, dynamic>.from(entry);
+        final ids = <String>{
+          order['delivery_id']?.toString() ?? '',
+          order['transaction_id']?.toString() ?? '',
+          order['id']?.toString() ?? '',
+          order['order_number']?.toString() ?? '',
+        }..removeWhere((v) => v.isEmpty);
+        if (!ids.contains(orderId)) continue;
+
+        normalized = normalizeNotificationItems(
+          order['items'] as List<dynamic>? ??
+              order['order_items'] as List<dynamic>?,
+        );
+        if (normalized.isNotEmpty) return normalized;
+      }
+    } catch (e) {
+      debugPrint('Error resolving notification items from cache: $e');
+    }
+    return normalized;
   }
 
   /// Generate order message with purchased items
