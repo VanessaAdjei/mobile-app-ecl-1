@@ -1199,7 +1199,10 @@ class CartState extends State<Cart> {
                                       final confirmed = await _confirmRemove(
                                           context, item.name);
                                       if (confirmed) {
-                                        cart.removeFromCart(item.id);
+                                        cart.removeFromCart(
+                                          item.id,
+                                          rowIndex: index,
+                                        );
                                       }
                                     },
                                     isEnabled: true,
@@ -1260,7 +1263,10 @@ class CartState extends State<Cart> {
                             final confirmed =
                                 await _confirmRemove(context, item.name);
                             if (confirmed) {
-                              cart.removeFromCart(item.id);
+                              cart.removeFromCart(
+                                item.id,
+                                rowIndex: index,
+                              );
                             }
                           },
                           borderRadius: BorderRadius.circular(4),

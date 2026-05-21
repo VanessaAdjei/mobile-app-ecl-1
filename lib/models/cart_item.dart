@@ -122,7 +122,7 @@ class CartItem {
       serverProductId: json['product_id'] is int
           ? json['product_id']
           : int.tryParse(json['product_id']?.toString() ?? ''),
-      originalProductId: null,
+      originalProductId: json['product_id']?.toString(),
       name: json['product_name']?.toString() ?? 'Unknown Item',
       price: price,
       quantity: correctQuantity,

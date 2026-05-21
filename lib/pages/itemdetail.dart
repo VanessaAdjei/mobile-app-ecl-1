@@ -1517,14 +1517,24 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                     // Add haptic feedback
                                     HapticFeedback.mediumImpact();
 
-                                    // Add one more to cart (use index when id empty)
-                                    if (existingItem.id.isNotEmpty) {
-                                      cartProvider.updateQuantityById(
-                                          existingItem.id, cartQuantity + 1);
-                                    } else if (itemIndex >= 0) {
-                                      cartProvider.updateQuantity(
-                                          itemIndex, cartQuantity + 1);
-                                    }
+                                    // Add one more via check-auth (no remove-from-cart).
+                                    final incrementItem = CartItem(
+                                      id: existingItem.id,
+                                      productId: product.id.toString(),
+                                      originalProductId: product.id.toString(),
+                                      serverProductId:
+                                          existingItem.serverProductId,
+                                      name: existingItem.name,
+                                      price: existingItem.price,
+                                      quantity: 1,
+                                      image: existingItem.image,
+                                      batchNo: product.batch_no.isNotEmpty
+                                          ? product.batch_no
+                                          : existingItem.batchNo,
+                                      urlName: existingItem.urlName,
+                                      totalPrice: existingItem.price,
+                                    );
+                                    cartProvider.addToCart(incrementItem);
 
                                     // Play cart animation
                                     if (mounted) {
