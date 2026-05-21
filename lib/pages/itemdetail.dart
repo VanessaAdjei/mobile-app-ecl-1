@@ -325,9 +325,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         totalPrice: (double.tryParse(product.price) ?? 0.0) * this.quantity,
       );
 
-      // remember the original quantity for the success message
-      final originalQuantity = this.quantity;
-
       // reset quantity to 1 before adding to cart
       setState(() {
         quantity = 1;
@@ -338,8 +335,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       if (context.mounted) {
         await _flyToCartAnimation(context);
         if (context.mounted) {
-          _showSuccessSnackBar(context,
-              '${originalQuantity}x ${product.name} has been added to cart');
           _scaleController.forward().then((_) => _scaleController.reverse());
         }
       }
@@ -423,25 +418,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     await animationController.forward();
     entry.remove();
     animationController.dispose();
-  }
-
-  void _showSuccessSnackBar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white, size: 20),
-            SizedBox(width: 8),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: Colors.green.shade600,
-        duration: Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
   }
 
   void _showErrorSnackBar(BuildContext context, String message) {

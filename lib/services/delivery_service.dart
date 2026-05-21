@@ -124,6 +124,70 @@ class DeliveryService {
     }
   }
 
+  static String _normalizeLocationLabel(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .trim();
+  }
+
+  static bool _locationLabelsMatch(String a, String b) {
+    final left = _normalizeLocationLabel(a);
+    final right = _normalizeLocationLabel(b);
+    if (left.isEmpty || right.isEmpty) return false;
+    if (left == right) return true;
+    return left.contains(right) || right.contains(left);
+  }
+
+  /// Match a geocoded or user-entered label to a region row from [/regions].
+  static Map<String, dynamic>? findRegionInList(
+    List<Map<String, dynamic>> regions,
+    String label,
+  ) {
+    final trimmed = label.trim();
+    if (trimmed.isEmpty) return null;
+    for (final region in regions) {
+      final name = (region['description'] ??
+              region['name'] ??
+              region['title'] ??
+              '')
+          .toString();
+      if (_locationLabelsMatch(name, trimmed)) {
+        return region;
+      }
+    }
+    return null;
+  }
+
+  /// Match a city label within a region via [/regions/{id}/cities].
+  static Future<Map<String, dynamic>?> findCityInRegion(
+    int regionId,
+    String label,
+  ) async {
+    final trimmed = label.trim();
+    if (trimmed.isEmpty || regionId <= 0) return null;
+
+    final result = await getCitiesByRegion(regionId);
+    if (result['success'] != true) return null;
+
+    final cities = result['data'];
+    if (cities is! List) return null;
+
+    for (final raw in cities) {
+      if (raw is! Map) continue;
+      final city = Map<String, dynamic>.from(raw);
+      final name = (city['description'] ??
+              city['name'] ??
+              city['title'] ??
+              '')
+          .toString();
+      if (_locationLabelsMatch(name, trimmed)) {
+        return city;
+      }
+    }
+    return null;
+  }
+
   // save where they want stuff delivered
   static Future<Map<String, dynamic>> saveDeliveryInfo({
     required String name,
@@ -137,6 +201,9 @@ class DeliveryService {
     String? pickupRegion,
     String? pickupCity,
     String? pickupSite,
+    int? regionId,
+    int? cityId,
+    int? storeId,
     double? lat,
     double? lng,
   }) async {
@@ -183,6 +250,20 @@ class DeliveryService {
         requestBody['landmark'] = notes;
       }
 
+      final resolvedRegionId = regionId ?? 0;
+      final resolvedCityId = cityId ?? 0;
+      final resolvedStoreId = storeId ?? 0;
+      if (resolvedRegionId > 0) {
+        requestBody['region_id'] = resolvedRegionId;
+      }
+      if (resolvedCityId > 0) {
+        requestBody['city_id'] = resolvedCityId;
+      }
+      if (resolvedStoreId > 0) {
+        requestBody['store_id'] = resolvedStoreId;
+        requestBody['pickup_site_id'] = resolvedStoreId;
+      }
+
       // different fields depending on if its delivery or pickup
       if (deliveryOption == 'delivery') {
         // if they want it delivered, we need their address
@@ -197,14 +278,29 @@ class DeliveryService {
           // Backward-compatible aliases used by some backend handlers
           requestBody['latitude'] = lat;
           requestBody['longitude'] = lng;
+          // Some handlers read index 0/1 from a coordinates array
+          requestBody['coordinates'] = [lat, lng];
         }
       } else if (deliveryOption == 'pickup') {
         // if theyre picking it up, we need the store info
         requestBody['addr_1'] = 'Pickup order';
-        requestBody['region'] = pickupRegion ?? 'Not specified';
-        requestBody['city'] = pickupCity ?? 'Not specified';
-        // which store they want to pick up from
-        requestBody['pickup_location'] = pickupSite ?? '';
+        final regionLabel = pickupRegion ?? 'Not specified';
+        final cityLabel = pickupCity ?? 'Not specified';
+        requestBody['region'] = regionLabel;
+        requestBody['city'] = cityLabel;
+        requestBody['pickup_region'] = regionLabel;
+        requestBody['pickup_city'] = cityLabel;
+        if (pickupSite != null && pickupSite.isNotEmpty) {
+          requestBody['pickup_site'] = pickupSite;
+        }
+        // Backend expects store id for pickup_location (not display name only)
+        if (resolvedStoreId > 0) {
+          requestBody['pickup_location'] = resolvedStoreId.toString();
+        } else if (pickupSite != null && pickupSite.isNotEmpty) {
+          requestBody['pickup_location'] = pickupSite;
+        } else {
+          requestBody['pickup_location'] = '';
+        }
       }
 
       debugPrint('Saving delivery info to API...');

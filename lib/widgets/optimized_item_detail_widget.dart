@@ -117,7 +117,6 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
       _performanceService.trackUserInteraction('product_added_to_cart');
 
       if (mounted) {
-        _showSuccessSnackBar('${product.name} has been added to cart');
         _scaleController.forward().then((_) => _scaleController.reverse());
       }
     } catch (e) {
@@ -129,24 +128,6 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
     } finally {
       _performanceService.stopTimer('add_to_cart');
     }
-  }
-
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white, size: 20),
-            SizedBox(width: 8),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: Colors.green.shade600,
-        duration: Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
   }
 
   void _showErrorSnackBar(String message) {

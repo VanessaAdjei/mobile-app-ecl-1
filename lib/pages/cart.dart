@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 
 import 'package:provider/provider.dart';
-import 'package:eclapp/pages/homepage.dart';
 import '../providers/cart_provider.dart';
 import '../providers/auth_provider.dart';
 import 'delivery_page.dart';
@@ -103,6 +102,17 @@ class CartState extends State<Cart> {
     }
 
     return ApiConfig.getImageOrStorageUrl(url);
+  }
+
+  /// Back from cart: pop when opened on a stack (e.g. product page); otherwise home tab.
+  void _handleCartBack() {
+    if (!mounted) return;
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    navigator.pushReplacementNamed(AppRoutes.home);
   }
 
   Future<bool> _showGuestReminder() async {
@@ -239,22 +249,9 @@ class CartState extends State<Cart> {
 
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) async {
+      onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-
-        if (Navigator.canPop(context)) {
-          Navigator.pop(context);
-        } else {
-          // Use a safer navigation approach
-          await Future.delayed(Duration(milliseconds: 100));
-          if (mounted) {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => HomePage()),
-              (route) => false,
-            );
-          }
-        }
+        _handleCartBack();
       },
       child: Consumer2<CartProvider, AuthProvider>(
         builder: (context, cart, auth, child) {
@@ -295,7 +292,8 @@ class CartState extends State<Cart> {
                                 horizontal: 12, vertical: 6),
                             child: Row(
                               children: [
-                                BackButtonUtils.simple(
+                                BackButtonUtils.custom(
+                                  onPressed: _handleCartBack,
                                   backgroundColor:
                                       Colors.white.withValues(alpha: 0.2),
                                 ),
@@ -975,11 +973,9 @@ class CartState extends State<Cart> {
                   child: InkWell(
                     borderRadius: BorderRadius.circular(8),
                     onTap: () {
-                      Navigator.push(
+                      Navigator.pushReplacementNamed(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => HomePage(),
-                        ),
+                        AppRoutes.home,
                       );
                     },
                     child: Center(

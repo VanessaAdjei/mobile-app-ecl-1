@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../config/app_colors.dart';
+import '../config/app_routes.dart';
 import '../pages/app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
 
@@ -13,12 +14,11 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final String? subtitle;
   final VoidCallback? onBack;
+  final bool showBack;
   final bool showCart;
   final AppHeaderBackground background;
 
-  /// When true (Scaffold [appBar]), reserves space for the status bar so the
-  /// title sits below the notch. When false (e.g. sliver in [body]), the parent
-  /// already clears the status bar.
+  /// When true, pads below the status bar / notch (use for full-screen body headers).
   final bool reserveStatusBar;
 
   const AppHeaderBar({
@@ -26,6 +26,7 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
     required this.title,
     this.subtitle,
     this.onBack,
+    this.showBack = true,
     this.showCart = true,
     this.background = AppHeaderBackground.standard,
     this.reserveStatusBar = false,
@@ -55,6 +56,7 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
     required String title,
     String? subtitle,
     VoidCallback? onBack,
+    bool showBack = true,
     bool showCart = true,
     AppHeaderBackground background = AppHeaderBackground.standard,
   }) {
@@ -68,6 +70,7 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
         title: title,
         subtitle: subtitle,
         onBack: onBack,
+        showBack: showBack,
         showCart: showCart,
         background: background,
         reserveStatusBar: true,
@@ -92,17 +95,22 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          AppBackButton(
-            backgroundColor: Colors.white.withValues(alpha: 0.2),
-            iconColor: Colors.white,
-            onPressed: onBack ??
-                () {
-                  if (Navigator.canPop(context)) {
-                    Navigator.pop(context);
-                  }
-                },
-          ),
-          const SizedBox(width: 12),
+          if (showBack) ...[
+            AppBackButton(
+              backgroundColor: Colors.white.withValues(alpha: 0.2),
+              iconColor: Colors.white,
+              onPressed: onBack ??
+                  () {
+                    final navigator = Navigator.of(context);
+                    if (navigator.canPop()) {
+                      navigator.pop();
+                    } else {
+                      navigator.pushReplacementNamed(AppRoutes.home);
+                    }
+                  },
+            ),
+            const SizedBox(width: 12),
+          ],
           Expanded(
             child: ClipRect(
               child: FittedBox(

@@ -22,6 +22,8 @@ class CartProvider with ChangeNotifier {
   // Flag to prevent loading guest cart after logout - cart should stay empty until login
   bool _shouldLoadGuestCart = true;
   bool _isDisposed = false;
+  /// Blocks background/full cart fetch while a delete is in flight (avoids re-adding rows).
+  bool _inhibitRemoteCartSync = false;
 
   String? _pendingOriginalProductId;
   String? _pendingItemName;
@@ -416,6 +418,10 @@ class CartProvider with ChangeNotifier {
   }
 
   Future<void> syncWithApi() async {
+    if (_inhibitRemoteCartSync) {
+      debugPrint('⏸️ Cart sync skipped (delete in progress)');
+      return;
+    }
     try {
       final token = await AuthService.getToken();
       if (token == null) {
@@ -957,6 +963,7 @@ class CartProvider with ChangeNotifier {
     }
     if (token == null) return;
 
+    _inhibitRemoteCartSync = true;
     try {
       await _removeAllProductInstances(
         target,
@@ -967,6 +974,8 @@ class CartProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('⚠️ Error removing all server instances: $e');
       await syncWithApi();
+    } finally {
+      _inhibitRemoteCartSync = false;
     }
   }
 
@@ -1434,17 +1443,22 @@ class CartProvider with ChangeNotifier {
         debugPrint(
             'Removing ${itemsToRemove.length} server line(s) for ${item.name}');
 
+        final removeFutures = <Future<bool>>[];
         for (final serverItem in itemsToRemove) {
           final itemId = serverItem['id']?.toString();
           if (itemId != null) {
-            await _removeCartLineById(
-              itemId,
-              token,
-              isLoggedIn,
-              reason: allServerLines ? 'delete all instances' : 'duplicate cleanup',
+            removeFutures.add(
+              _removeCartLineById(
+                itemId,
+                token,
+                isLoggedIn,
+                reason:
+                    allServerLines ? 'delete all instances' : 'duplicate cleanup',
+              ),
             );
           }
         }
+        await Future.wait(removeFutures);
       }
     } catch (e) {
       debugPrint('⚠️ Error removing product instances: $e');

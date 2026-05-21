@@ -265,6 +265,50 @@ class _MapPickerPageState extends State<MapPickerPage> {
     return 'Unknown location';
   }
 
+  void _logGoogleMapsApiDenied(String apiName, Map<String, dynamic> data) {
+    final status = data['status']?.toString() ?? '';
+    if (status != 'REQUEST_DENIED') return;
+    print(
+      '🗺️ [MAP] $apiName REQUEST_DENIED — enable the API in Google Cloud Console '
+      'and ensure the key allows it (REST calls from the app often fail when the '
+      'key is restricted to iOS/Android apps only). Using platform geocoding instead.',
+    );
+    final message = data['error_message']?.toString();
+    if (message != null && message.isNotEmpty) {
+      print('🗺️ [MAP] Google error_message: $message');
+    }
+  }
+
+  /// Forward geocode via OS geocoder (no Geocoding REST API / API key required).
+  Future<({double lat, double lng, String label})?> _platformGeocodeAddress(
+    String address,
+  ) async {
+    try {
+      final locations = await locationFromAddress(address);
+      if (locations.isEmpty) return null;
+
+      final loc = locations.first;
+      var label = address.trim();
+      try {
+        final placemarks = await placemarkFromCoordinates(
+          loc.latitude,
+          loc.longitude,
+        );
+        if (placemarks.isNotEmpty) {
+          final built = _buildReadableAddress(placemarks.first);
+          if (built.isNotEmpty && built != 'Unknown location') {
+            label = built;
+          }
+        }
+      } catch (_) {}
+
+      return (lat: loc.latitude, lng: loc.longitude, label: label);
+    } catch (e) {
+      print('🗺️ [MAP] Platform geocode failed for "$address": $e');
+      return null;
+    }
+  }
+
   // get search suggestions as they type using Google Places Autocomplete API
   Future<List<String>> _getSearchSuggestions(String query) async {
     if (query.length < 2) return [];
@@ -312,13 +356,16 @@ class _MapPickerPageState extends State<MapPickerPage> {
             }
           } else {
             print('🗺️ [MAP] Places Autocomplete status: $status');
+            if (placesData is Map<String, dynamic>) {
+              _logGoogleMapsApiDenied('Places Autocomplete', placesData);
+            }
           }
         }
       } catch (e) {
         print('🗺️ [MAP] Places Autocomplete error: $e');
       }
 
-      // Fallback to Geocoding API if Places API didn't return enough results
+      // Fallback: platform geocoder (avoids Geocoding REST API / REQUEST_DENIED)
       if (suggestions.length < 5) {
         final searchQueries = [
           '$query, Accra, Ghana',
@@ -329,52 +376,21 @@ class _MapPickerPageState extends State<MapPickerPage> {
         for (final searchQuery in searchQueries) {
           if (suggestions.length >= 15) break;
 
-          try {
-            final uri = Uri.parse(ApiConfig.googleMapsGeocodingUrl).replace(
-              queryParameters: {
-                'address': searchQuery,
-                'key': ApiConfig.googleMapsApiKey,
-              },
-            );
+          final result = await _platformGeocodeAddress(searchQuery);
+          if (result == null) continue;
 
-            print('🗺️ [MAP] Calling Geocoding API: $uri');
-
-            final response =
-                await http.get(uri).timeout(const Duration(seconds: 5));
-
-            if (response.statusCode == 200) {
-              final data = json.decode(response.body);
-              final status = data['status'];
-              print(
-                  '🗺️ [MAP] Geocoding status: $status, results: ${data['results']?.length ?? 0}');
-
-              if (status == 'OK' && data['results'] != null) {
-                final results = data['results'] as List;
-
-                for (final result in results.take(10)) {
-                  final formattedAddress =
-                      result['formatted_address'] as String?;
-
-                  if (formattedAddress != null &&
-                      formattedAddress.isNotEmpty &&
-                      !uniqueSuggestions.contains(formattedAddress)) {
-                    String displayAddress = formattedAddress;
-                    if (formattedAddress.contains(',')) {
-                      final parts = formattedAddress.split(',');
-                      displayAddress = '${parts[0].trim()}, ${parts[1].trim()}';
-                    }
-
-                    suggestions.add(displayAddress);
-                    uniqueSuggestions.add(displayAddress);
-
-                    if (suggestions.length >= 15) break;
-                  }
-                }
-              }
+          var displayAddress = result.label;
+          if (displayAddress.contains(',')) {
+            final parts = displayAddress.split(',');
+            if (parts.length >= 2) {
+              displayAddress = '${parts[0].trim()}, ${parts[1].trim()}';
             }
-          } catch (e) {
-            print('🗺️ [MAP] Geocoding API error for "$searchQuery": $e');
-            continue;
+          }
+
+          if (displayAddress.isNotEmpty &&
+              !uniqueSuggestions.contains(displayAddress)) {
+            suggestions.add(displayAddress);
+            uniqueSuggestions.add(displayAddress);
           }
         }
       }
@@ -515,120 +531,62 @@ class _MapPickerPageState extends State<MapPickerPage> {
       }
     }
 
-    // Fallback to Geocoding API if Places API didn't work
+    // Fallback: platform geocoder (avoids Geocoding REST API / REQUEST_DENIED)
     final searchQueries = [
-      query, // Try exact query first (works well for Places Autocomplete descriptions)
-      '$query, Ghana', // Try with Ghana context
-      if (query.contains(','))
-        query.split(',').first.trim(), // Try just the place name part
+      query,
+      '$query, Ghana',
+      if (query.contains(',')) query.split(',').first.trim(),
     ];
 
     for (final searchQuery in searchQueries) {
-      try {
-        final uri = Uri.parse(ApiConfig.googleMapsGeocodingUrl).replace(
-          queryParameters: {
-            'address': searchQuery,
-            'key': ApiConfig.googleMapsApiKey,
-          },
-        );
-
-        print('🗺️ [MAP] Calling Google Geocoding API: $uri');
-
-        final response =
-            await http.get(uri).timeout(const Duration(seconds: 10));
-
-        if (response.statusCode != 200) {
-          print(
-              '🗺️ [MAP] Google geocode HTTP error: ${response.statusCode} ${response.body}');
-          continue; // Try next search query
-        }
-
-        final data = json.decode(response.body);
-        final status = data['status'];
-        print('🗺️ [MAP] Google geocode status: $status');
-
-        if (status == 'OK' &&
-            data['results'] != null &&
-            data['results'].isNotEmpty) {
-          final result = data['results'][0];
-          final location = result['geometry']['location'];
-          final double lat = (location['lat'] as num).toDouble();
-          final double lng = (location['lng'] as num).toDouble();
-
-          print('🗺️ [MAP] ✅ Location found via Geocoding: ($lat, $lng)');
-
-          // Get formatted address from Google (might include place name)
-          final formattedAddress = result['formatted_address'] as String?;
-          // Extract place name from formatted address or use original query
-          String? placeName = formattedAddress;
-          if (placeName != null && placeName.contains(',')) {
-            // Take the first part before comma as it's usually the place name
-            placeName = placeName.split(',').first.trim();
-          }
-          // Use original query if it looks like a place name
-          if (_isValidPlaceName(query)) {
-            placeName = query.split(',').first.trim();
-          }
-
-          LatLng newLocation = LatLng(lat, lng);
-
-          print('🗺️ [MAP] ===== SETTING NEW LOCATION =====');
-          print('🗺️ [MAP] New location coordinates: ($lat, $lng)');
-          print('🗺️ [MAP] New location LatLng: $newLocation');
-          print('🗺️ [MAP] Previous selected location: $_selectedLocation');
-
-          // CRITICAL: Update the selected location FIRST and synchronously
-          _selectedLocation = newLocation;
-
-          // Then update state to trigger UI refresh
-          setState(() {
-            // Location already set above, just trigger rebuild
-          });
-
-          print('🗺️ [MAP] ✅ _selectedLocation updated to: $_selectedLocation');
-          print('🗺️ [MAP] Verifying _selectedLocation: $_selectedLocation');
-
-          // move the map to show the new location
-          await _mapController.animateCamera(
-            CameraUpdate.newLatLngZoom(newLocation, 18.0),
-          );
-
-          print('🗺️ [MAP] Camera moved to: $newLocation');
-          print(
-              '🗺️ [MAP] After camera move, _selectedLocation: $_selectedLocation');
-
-          await _updateMarkers();
-          print('🗺️ [MAP] Markers updated at: $_selectedLocation');
-          print(
-              '🗺️ [MAP] Final verification _selectedLocation: $_selectedLocation');
-
-          // get the address for the new location, passing the original query/place name
-          // This should NOT modify _selectedLocation, only get address text
-          await _getAddressFromCoordinates(lat, lng, originalQuery: placeName);
-
-          print(
-              '🗺️ [MAP] After address lookup, _selectedLocation: $_selectedLocation');
-
-          // show a message that it worked
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Location found: ${placeName ?? query}'),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          }
-          print('🗺️ [MAP] ✅ Location selection complete');
-          if (mounted) setState(() => _isUpdatingLocation = false);
-          return; // Success, exit early
-        } else {
-          print('🗺️ [MAP] ⚠️ No results for "$searchQuery", status: $status');
-        }
-      } catch (e) {
-        print('🗺️ [MAP] ❌ Search error for "$searchQuery": $e');
-        continue; // Try next search query
+      final geocoded = await _platformGeocodeAddress(searchQuery);
+      if (geocoded == null) {
+        print('🗺️ [MAP] ⚠️ No platform geocode result for "$searchQuery"');
+        continue;
       }
+
+      final lat = geocoded.lat;
+      final lng = geocoded.lng;
+      print('🗺️ [MAP] ✅ Location found via platform geocoder: ($lat, $lng)');
+
+      var placeName = geocoded.label;
+      if (placeName.contains(',')) {
+        placeName = placeName.split(',').first.trim();
+      }
+      if (_isValidPlaceName(query)) {
+        placeName = query.split(',').first.trim();
+      }
+
+      final newLocation = LatLng(lat, lng);
+
+      print('🗺️ [MAP] ===== SETTING NEW LOCATION =====');
+      print('🗺️ [MAP] New location coordinates: ($lat, $lng)');
+      print('🗺️ [MAP] Previous selected location: $_selectedLocation');
+
+      _selectedLocation = newLocation;
+      setState(() {});
+
+      await _mapController.animateCamera(
+        CameraUpdate.newLatLngZoom(newLocation, 18.0),
+      );
+
+      await _updateMarkers();
+      await _getAddressFromCoordinates(lat, lng, originalQuery: placeName);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Location found: ${placeName.isNotEmpty ? placeName : query}',
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        setState(() => _isUpdatingLocation = false);
+      }
+      print('🗺️ [MAP] ✅ Location selection complete');
+      return;
     }
 
     // If we get here, all searches failed

@@ -602,21 +602,6 @@ class RefillPageState extends State<RefillPage> {
           debugPrint('Error syncing cart: $e');
         }
 
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${medicine.name} refill added to cart successfully!',
-              style: GoogleFonts.poppins(),
-            ),
-            backgroundColor: Colors.green.shade600,
-            duration: Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        );
       } else {
         // Parse error message from response
         String errorMessage =

@@ -203,9 +203,6 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
       debugPrint('Cart Item Total Price: ${cartItem.totalPrice}');
       debugPrint('========================');
 
-      // Store the original quantity for the success message
-      final originalQuantity = this.quantity;
-
       // Reset quantity to 1 BEFORE adding to cart
       setState(() {
         quantity = 1;
@@ -218,8 +215,6 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
 
       if (mounted) {
         await _flyToCartAnimation(context);
-        _showSuccessSnackBar(context,
-            '${originalQuantity}x ${product.name} has been added to cart');
         _scaleController.forward().then((_) => _scaleController.reverse());
       }
     } catch (e) {
@@ -299,25 +294,6 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
     await animationController.forward();
     entry.remove();
     animationController.dispose();
-  }
-
-  void _showSuccessSnackBar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white, size: 20),
-            SizedBox(width: 8),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: Colors.green.shade600,
-        duration: Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
   }
 
   void _showErrorSnackBar(BuildContext context, String message) {

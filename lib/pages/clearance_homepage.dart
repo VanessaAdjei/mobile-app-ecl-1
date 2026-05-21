@@ -515,46 +515,6 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
             onTimeout: () => throw TimeoutException('Adding to cart timed out'),
           );
 
-      // Show success message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(
-                  Icons.check_circle,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '${product.name} added to cart',
-                    style: GoogleFonts.poppins(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green[600],
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            margin: const EdgeInsets.all(16),
-            action: SnackBarAction(
-              label: 'View Cart',
-              textColor: Colors.white,
-              onPressed: () {
-                Navigator.pushNamed(context, AppRoutes.cart);
-              },
-            ),
-          ),
-        );
-      }
     } on TimeoutException catch (e) {
       _handleAddToCartError(
           product, 'Adding to cart timed out. Please try again.', 'Timeout', e);

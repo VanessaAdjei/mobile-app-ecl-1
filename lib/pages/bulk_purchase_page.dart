@@ -189,13 +189,6 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
       );
 
       cartProvider.addToCart(cartItem);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${product['product']['name']} added to cart'),
-          duration: const Duration(seconds: 2),
-          backgroundColor: Colors.green,
-        ),
-      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

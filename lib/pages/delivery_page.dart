@@ -387,6 +387,53 @@ class DeliveryPageState extends State<DeliveryPage> {
     _getCoordinatesFromAddress(address);
   }
 
+  int? _idFromLocationMap(Map<String, dynamic>? value) {
+    if (value == null) return null;
+    final id = int.tryParse(value['id']?.toString() ?? '');
+    if (id == null || id <= 0) return null;
+    return id;
+  }
+
+  /// Resolve backend region/city/store ids (save-billing-add expects numeric ids).
+  Future<({int? regionId, int? cityId, int? storeId})>
+      _resolveBillingLocationIds() async {
+    if (deliveryOption == 'pickup') {
+      return (
+        regionId: _idFromLocationMap(selectedRegion),
+        cityId: _idFromLocationMap(selectedCity),
+        storeId: _idFromLocationMap(selectedPickupSite),
+      );
+    }
+
+    final regionLabel = _regionController.text.trim();
+    final cityLabel = _cityController.text.trim();
+    if (regionLabel.isEmpty) {
+      return (regionId: null, cityId: null, storeId: null);
+    }
+
+    final regionRows =
+        regions.map((e) => Map<String, dynamic>.from(e)).toList();
+    final regionMatch =
+        DeliveryService.findRegionInList(regionRows, regionLabel);
+    final regionId = _idFromLocationMap(
+      regionMatch != null ? Map<String, dynamic>.from(regionMatch) : null,
+    );
+    if (regionId == null) {
+      return (regionId: null, cityId: null, storeId: null);
+    }
+
+    int? cityId;
+    if (cityLabel.isNotEmpty) {
+      final cityMatch =
+          await DeliveryService.findCityInRegion(regionId, cityLabel);
+      cityId = _idFromLocationMap(
+        cityMatch != null ? Map<String, dynamic>.from(cityMatch) : null,
+      );
+    }
+
+    return (regionId: regionId, cityId: cityId, storeId: null);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1416,6 +1463,8 @@ class DeliveryPageState extends State<DeliveryPage> {
 
       print('📤 Calling DeliveryService.saveDeliveryInfo...');
 
+      final locationIds = await _resolveBillingLocationIds();
+
       final result = await DeliveryService.saveDeliveryInfo(
         name: name,
         email: email,
@@ -1428,6 +1477,9 @@ class DeliveryPageState extends State<DeliveryPage> {
         pickupRegion: null,
         pickupCity: null,
         pickupSite: null,
+        regionId: locationIds.regionId,
+        cityId: locationIds.cityId,
+        storeId: locationIds.storeId,
         lat: lat,
         lng: lng,
       );
@@ -2046,6 +2098,7 @@ class DeliveryPageState extends State<DeliveryPage> {
 
             try {
               // Always save delivery information to API, even for guests
+              final locationIds = await _resolveBillingLocationIds();
               final saveResult = await DeliveryService.saveDeliveryInfo(
                 name: _nameController.text.trim(),
                 email: _emailController.text.trim(),
@@ -2063,15 +2116,18 @@ class DeliveryPageState extends State<DeliveryPage> {
                 notes: _notesController.text.trim(),
                 pickupRegion:
                     (deliveryOption == 'pickup' && selectedRegion != null)
-                        ? selectedRegion!['description']
+                        ? selectedRegion!['description']?.toString()
                         : null,
                 pickupCity: (deliveryOption == 'pickup' && selectedCity != null)
-                    ? selectedCity!['description']
+                    ? selectedCity!['description']?.toString()
                     : null,
                 pickupSite:
                     (deliveryOption == 'pickup' && selectedPickupSite != null)
-                        ? selectedPickupSite!['description']
+                        ? selectedPickupSite!['description']?.toString()
                         : null,
+                regionId: locationIds.regionId,
+                cityId: locationIds.cityId,
+                storeId: locationIds.storeId,
                 lat: _latitude,
                 lng: _longitude,
               );

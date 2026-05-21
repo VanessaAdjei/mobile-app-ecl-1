@@ -205,7 +205,7 @@ class ApiConfig {
     if (fromEnv.isNotEmpty) return fromEnv;
 
     // Fallback to hardcoded key (this is restricted by app bundle ID in Google Cloud Console)
-    return 'AIzaSyAVd8EX7tAd4CEuoUKnXlumiCm_9CI9h4k';
+    return 'AIzaSyBqGNL-wuTz1671t-R2qQHmGOpKfesodVI';
   }
 
   // ==================== HELPER METHODS ====================

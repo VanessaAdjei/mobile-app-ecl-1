@@ -10,8 +10,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import 'bottomnav.dart';
-import '../widgets/app_header_bar.dart';
 import '../config/app_routes.dart';
+import '../widgets/cart_icon_button.dart';
+import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import '../providers/cart_provider.dart';
 import '../main.dart';
 import '../providers/auth_provider.dart';
@@ -28,7 +29,6 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
   String _userName = "User";
   String _userEmail = "No email available";
   bool _userLoggedIn = false;
-  late AnimationController _headerAnimationController;
   late AnimationController _contentAnimationController;
   late Animation<double> _contentAnimation;
   final ScrollController _scrollController = ScrollController();
@@ -39,11 +39,6 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
     super.initState();
 
     // set up the animations
-    _headerAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
-      vsync: this,
-    );
-
     _contentAnimationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -62,14 +57,12 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _headerAnimationController.dispose();
     _contentAnimationController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
   void _startAnimations() {
-    _headerAnimationController.forward();
     Future.delayed(const Duration(milliseconds: 300), () {
       _contentAnimationController.forward();
     });
@@ -430,24 +423,38 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
       backgroundColor: backgroundColor,
       body: CustomScrollView(
         controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
         slivers: [
-          // Unified app header
-          SliverToBoxAdapter(
-            child: AppHeaderBar(
-              title: 'Profile',
-              subtitle: 'Manage your account and preferences',
-              onBack: () {
-                if (Navigator.canPop(context)) {
-                  Navigator.pop(context);
-                } else {
-                  Navigator.pushReplacementNamed(
-                    context,
-                    AppRoutes.home,
-                  );
-                }
-              },
-            ),
+          EclExpandableSliverAppBar(
+            toolbarTitle: 'Profile',
+            heroTitle: 'Profile',
+            heroSubtitle: 'Manage your account and preferences',
+            centerTitle: false,
+            onBack: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.pushReplacementNamed(context, AppRoutes.home);
+              }
+            },
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const CartIconButton(
+                    iconColor: Colors.white,
+                    iconSize: 22,
+                    backgroundColor: Colors.transparent,
+                  ),
+                ),
+              ),
+            ],
           ),
 
           // all the profile stuff
