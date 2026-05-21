@@ -1,4 +1,6 @@
 // pages/storelocation.dart
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'app_back_button.dart';
 import 'HomePage.dart';
@@ -7,6 +9,7 @@ import 'package:shimmer/shimmer.dart';
 import '../services/delivery_service.dart';
 import '../services/location_service.dart';
 import 'package:geolocator/geolocator.dart';
+import '../models/store_location_model.dart';
 import 'store_map_page.dart';
 
 class StoreSelectionPage extends StatefulWidget {
@@ -60,6 +63,9 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
   final ScrollController _scrollController = ScrollController();
   bool _showFilters = true;
   double _lastScrollOffset = 0.0;
+
+  /// Recent API responses for on-page debug viewer (newest first).
+  final List<Map<String, dynamic>> _apiResponseLogs = [];
 
   @override
   void initState() {
@@ -543,6 +549,140 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     return sortedStores;
   }
 
+  void _recordStoreApiResponse(String endpoint, dynamic result) {
+    String body;
+    try {
+      body = const JsonEncoder.withIndent('  ').convert(result);
+    } catch (_) {
+      body = result.toString();
+    }
+    final success = result is Map && result['success'] == true;
+    debugPrint('════════════════════════════════════════');
+    debugPrint('📡 STORE LOCATOR API: $endpoint');
+    debugPrint(body);
+    debugPrint('════════════════════════════════════════');
+    if (!mounted) return;
+    setState(() {
+      _apiResponseLogs.insert(0, {
+        'endpoint': endpoint,
+        'body': body,
+        'time': DateTime.now(),
+        'success': success,
+      });
+      if (_apiResponseLogs.length > 25) {
+        _apiResponseLogs.removeRange(25, _apiResponseLogs.length);
+      }
+    });
+  }
+
+  void _showApiResponsesSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final maxH = MediaQuery.of(ctx).size.height * 0.75;
+        return SafeArea(
+          child: SizedBox(
+            height: maxH,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'API responses',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: _apiResponseLogs.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No API calls yet.\nPull to refresh or change filters.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(12),
+                          itemCount: _apiResponseLogs.length,
+                          itemBuilder: (context, index) {
+                            final log = _apiResponseLogs[index];
+                            final time = log['time'] as DateTime;
+                            final ok = log['success'] == true;
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              child: ExpansionTile(
+                                initiallyExpanded: index == 0,
+                                leading: Icon(
+                                  ok ? Icons.check_circle : Icons.error,
+                                  color: ok
+                                      ? const Color(0xFF2E7D32)
+                                      : Colors.red,
+                                  size: 22,
+                                ),
+                                title: Text(
+                                  log['endpoint'] as String,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  '${time.hour.toString().padLeft(2, '0')}:'
+                                  '${time.minute.toString().padLeft(2, '0')}:'
+                                  '${time.second.toString().padLeft(2, '0')}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                                children: [
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    color: Colors.grey.shade100,
+                                    child: SelectableText(
+                                      log['body'] as String,
+                                      style: const TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 11,
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // Load regions from API
   Future<void> _loadRegions() async {
     debugPrint('=== STORE LOCATION: Loading regions ===');
@@ -554,7 +694,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     try {
       debugPrint('Calling DeliveryService.getRegions()...');
       final result = await DeliveryService.getRegions();
-      debugPrint('Regions API result: $result');
+      _recordStoreApiResponse('GET /regions', result);
 
       if (result['success']) {
         final regionsData = result['data'] ?? [];
@@ -592,7 +732,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
             '📋 Filtered region names: ${filteredRegions.map((r) => r['description']).toList()}');
 
         setState(() {
-          regions = filteredRegions;
+          regions = _dedupeLocationOptions(filteredRegions);
           isLoadingRegions = false;
         });
         debugPrint(
@@ -606,6 +746,10 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       }
     } catch (e) {
       debugPrint('Error loading regions: $e');
+      _recordStoreApiResponse('GET /regions', {
+        'success': false,
+        'message': e.toString(),
+      });
       setState(() {
         regionsError = 'Network error: ${e.toString()}';
         isLoadingRegions = false;
@@ -632,6 +776,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     try {
       final regionId = int.tryParse(region['id'].toString()) ?? 0;
       final result = await DeliveryService.getCitiesByRegion(regionId);
+      _recordStoreApiResponse('GET /regions/$regionId/cities', result);
 
       if (result['success']) {
         setState(() {
@@ -645,6 +790,10 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
         });
       }
     } catch (e) {
+      _recordStoreApiResponse('GET /regions/{id}/cities', {
+        'success': false,
+        'message': e.toString(),
+      });
       setState(() {
         citiesError = 'Network error: ${e.toString()}';
         isLoadingCities = false;
@@ -669,10 +818,18 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     try {
       final cityId = int.tryParse(city['id'].toString()) ?? 0;
       final result = await DeliveryService.getStoresByCity(cityId);
+      _recordStoreApiResponse('GET /cities/$cityId/stores', result);
 
       if (result['success']) {
+        final rawList = result['data'] as List? ?? [];
+        final normalized = rawList
+            .whereType<Map>()
+            .map((s) => DeliveryService.normalizeStoreMap(
+                  Map<String, dynamic>.from(s),
+                ))
+            .toList();
         setState(() {
-          stores = result['data'] ?? [];
+          stores = normalized;
           isLoadingStores = false;
         });
       } else {
@@ -682,6 +839,10 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
         });
       }
     } catch (e) {
+      _recordStoreApiResponse('GET /cities/{id}/stores', {
+        'success': false,
+        'message': e.toString(),
+      });
       setState(() {
         storesError = 'Network error: ${e.toString()}';
         isLoadingStores = false;
@@ -700,6 +861,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     try {
       // Get all regions
       final regionsResult = await DeliveryService.getRegions();
+      _recordStoreApiResponse('GET /regions (all stores)', regionsResult);
       if (!regionsResult['success']) {
         setState(() {
           allStoresError = regionsResult['message'] ?? 'Failed to load regions';
@@ -772,30 +934,53 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
 
       // Wait for all store requests to complete
       final storeResults = await Future.wait(storeFutures);
+      var totalStoresFetched = 0;
+      for (final r in storeResults) {
+        if (r['success'] == true && r['data'] is List) {
+          totalStoresFetched += (r['data'] as List).length;
+        }
+      }
+      _recordStoreApiResponse(
+        'GET /cities/{id}/stores (batch ×${storeResults.length})',
+        {
+          'success': storeResults.every((r) => r['success'] == true),
+          'requests': storeResults.length,
+          'total_stores': totalStoresFetched,
+          'results': storeResults.map((r) {
+            final data = r['data'];
+            return {
+              'success': r['success'],
+              'data_count': data is List ? data.length : 0,
+              'message': r['message'],
+              if (data is List && data.isNotEmpty) 'sample': data.first,
+            };
+          }).toList(),
+        },
+      );
 
       // Process all store results
       for (var storeResult in storeResults) {
         if (storeResult['success']) {
           final storesData = storeResult['data'] ?? [];
           for (var store in storesData) {
-            final cityId = int.tryParse(store['city_id'].toString()) ?? 0;
+            final raw = Map<String, dynamic>.from(store as Map);
+            final cityId = int.tryParse(raw['city_id'].toString()) ?? 0;
+            var model = StoreLocationModel.fromApiJson(raw);
             if (cityInfo.containsKey(cityId)) {
-              store['region_name'] = cityInfo[cityId]!['region_name'];
-              store['city_name'] = cityInfo[cityId]!['city_name'];
+              model = model.copyWith(
+                regionName: cityInfo[cityId]!['region_name'],
+                cityName: cityInfo[cityId]!['city_name'],
+              );
             }
+            final normalized = model.toMap();
 
-            // Debug: Log store data structure
             debugPrint('🔍 STORE DATA STRUCTURE ===');
-            debugPrint('Store: ${store['description']}');
-            debugPrint('Keys: ${store.keys.toList()}');
-            debugPrint('Latitude: ${store['latitude']}');
-            debugPrint('Longitude: ${store['longitude']}');
-            debugPrint('Address: ${store['address']}');
-            debugPrint('Region: ${store['region_name']}');
-            debugPrint('City: ${store['city_name']}');
+            debugPrint('Store: ${normalized['description']}');
+            debugPrint(
+                'Hours: ${normalized['opening_time']} – ${normalized['closing_time']}');
             debugPrint('==========================');
 
-            allStoresList.add(store);
+            allStoresList.add(normalized);
           }
         }
       }
@@ -806,6 +991,10 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       });
     } catch (e) {
       debugPrint('Error loading all stores: $e');
+      _recordStoreApiResponse('load all stores', {
+        'success': false,
+        'message': e.toString(),
+      });
       setState(() {
         allStoresError = 'Network error: ${e.toString()}';
         isLoadingAllStores = false;
@@ -827,10 +1016,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                 Container(
                   margin: EdgeInsets.fromLTRB(16, 10, 16, 6),
                   child: _buildSearchAndFilterCard(),
-                ),
-                Container(
-                  margin: EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: _buildSortingOptions(),
                 ),
               ],
               Expanded(
@@ -930,6 +1115,30 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                       ],
                     ),
                   ),
+                  // API responses (debug)
+                  Container(
+                    margin: const EdgeInsets.only(left: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.22),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: IconButton(
+                      tooltip: 'API responses',
+                      icon: Badge(
+                        isLabelVisible: _apiResponseLogs.isNotEmpty,
+                        label: Text(
+                          '${_apiResponseLogs.length}',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                        child: const Icon(
+                          Icons.data_object,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                      ),
+                      onPressed: _showApiResponsesSheet,
+                    ),
+                  ),
                   // Map view button
                   Container(
                     margin: EdgeInsets.only(left: 8),
@@ -1014,27 +1223,22 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
             child: Row(
               children: [
                 Expanded(
-                  child: _buildSimpleDropdown(
+                  child: _buildLocationEntityDropdown(
+                    label: 'Region',
                     value: selectedRegion,
-                    hint: 'Region',
-                    items: regions
-                        .map<String>((region) => region['description'] ?? '')
+                    options: regions
+                        .map((r) => Map<String, dynamic>.from(r as Map))
                         .toList(),
                     isLoading: isLoadingRegions,
                     error: regionsError,
-                    onChanged: (String? newValue) {
-                      if (newValue == null || regions.isEmpty) return;
-
-                      final selectedRegionData = regions.firstWhere(
-                        (region) => region['description'] == newValue,
-                        orElse: () => null,
-                      );
+                    onChanged: (Map<String, dynamic>? picked) {
                       setState(() {
-                        selectedRegion = selectedRegionData;
+                        selectedRegion = picked;
                         selectedCity = null;
+                        cities = [];
                       });
-                      if (selectedRegionData != null) {
-                        _loadCitiesForFiltering(selectedRegionData);
+                      if (picked != null) {
+                        _loadCitiesForFiltering(picked);
                       }
                     },
                     onRetry: _loadRegions,
@@ -1042,23 +1246,18 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                 ),
                 SizedBox(width: 10),
                 Expanded(
-                  child: _buildSimpleDropdown(
+                  child: _buildLocationEntityDropdown(
+                    label: 'City',
                     value: selectedCity,
-                    hint: 'City',
-                    items: cities
-                        .map<String>((city) => city['description'] ?? '')
+                    options: cities
+                        .map((c) => Map<String, dynamic>.from(c as Map))
                         .toList(),
                     isLoading: isLoadingCities,
                     error: citiesError,
-                    onChanged: (String? newValue) {
-                      if (newValue == null || cities.isEmpty) return;
-
-                      final selectedCityData = cities.firstWhere(
-                        (city) => city['description'] == newValue,
-                        orElse: () => null,
-                      );
+                    enabled: selectedRegion != null,
+                                       onChanged: (Map<String, dynamic>? picked) {
                       setState(() {
-                        selectedCity = selectedCityData;
+                        selectedCity = picked;
                       });
                     },
                     onRetry: () => _loadCitiesForFiltering(selectedRegion),
@@ -1073,535 +1272,47 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     );
   }
 
-  Widget _buildSortingOptions() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.sort, color: Colors.grey.shade700, size: 16),
-              SizedBox(width: 6),
-              Text(
-                'Sort by:',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF374151),
-                ),
-              ),
-              SizedBox(width: 8),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildSortChip('Name', 'name', Icons.sort_by_alpha),
-                      SizedBox(width: 6),
-                      if (isLocationAvailable) ...[
-                        _buildSortChip(
-                            'Auto Distance', 'distance', Icons.location_on),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (!isLocationAvailable && !isLoadingLocation) ...[
-            SizedBox(height: 8),
-            _buildLocationPermissionRequest(),
-            SizedBox(height: 8),
-            _buildManualLocationInput(),
-          ],
-          if (isLocationAvailable) ...[
-            SizedBox(height: 8),
-            Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F5E9),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFC8E6C9), width: 1),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.check_circle,
-                      color: const Color(0xFF2E7D32), size: 14),
-                  SizedBox(width: 6),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Stores automatically sorted by distance',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: const Color(0xFF1B5E20),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        if (userLocation != null &&
-                            !_isLocationInGhana(userLocation!.latitude,
-                                userLocation!.longitude))
-                          Text(
-                            'Using default Accra location',
-                            style: TextStyle(
-                              fontSize: 8,
-                              color: Colors.orange.shade700,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLocationPermissionRequest() {
-    return Container(
-      padding: EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.orange.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.location_on, color: Colors.orange.shade600, size: 16),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Enable location to sort by distance',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.orange.shade700,
-                  ),
-                ),
-              ),
-              GestureDetector(
-                onTap: _requestLocationPermission,
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade500,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    'Enable',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (userLocation != null) ...[
-            SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(Icons.info_outline, color: Colors.grey.shade700, size: 12),
-                SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    'Location accuracy: ${userLocation!.accuracy.toStringAsFixed(0)}m',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.grey.shade800,
-                    ),
-                  ),
-                ),
-                GestureDetector(
-                  onTap: _refreshLocation,
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade600,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    child: Text(
-                      'Refresh',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Future<void> _refreshLocation() async {
-    setState(() {
-      isLoadingLocation = true;
-    });
-
-    try {
-      final locationService = LocationService();
-      locationService.clearCache(); // Clear cached location
-      userLocation = await locationService.getCurrentLocation();
-
-      if (userLocation != null) {
-        debugPrint(
-            '📍 Location refreshed: ${userLocation!.latitude}, ${userLocation!.longitude}');
-        debugPrint('📍 Accuracy: ${userLocation!.accuracy}m');
-
-        // Re-sort stores if distance sorting is active
-        if (sortBy == 'distance') {
-          setState(() {
-            // This will trigger a rebuild and re-sort
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('❌ Error refreshing location: $e');
-    } finally {
-      setState(() {
-        isLoadingLocation = false;
-      });
-    }
-  }
-
-  Future<void> _requestLocationPermission() async {
-    setState(() {
-      isLoadingLocation = true;
-    });
-
-    try {
-      await _initializeLocation();
-    } finally {
-      setState(() {
-        isLoadingLocation = false;
-      });
-    }
-  }
-
-  Widget _buildManualLocationInput() {
-    return Container(
-      padding: EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.edit_location, color: Colors.grey.shade700, size: 16),
-              SizedBox(width: 8),
-              Text(
-                'Or enter your location manually',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey.shade800,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _locationController,
-                  decoration: InputDecoration(
-                    hintText: 'e.g., Accra, Ghana',
-                    hintStyle: TextStyle(fontSize: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: Colors.grey.shade400),
-                    ),
-                    contentPadding:
-                        EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    isDense: true,
-                  ),
-                  style: TextStyle(fontSize: 11),
-                ),
-              ),
-              SizedBox(width: 8),
-              GestureDetector(
-                onTap: _geocodeLocation,
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade600,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    'Find',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (manualLatitude != null && manualLongitude != null) ...[
-            SizedBox(height: 4),
-            Text(
-              'Location set: ${manualLatitude!.toStringAsFixed(4)}, ${manualLongitude!.toStringAsFixed(4)}',
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.green.shade700,
-              ),
-            ),
-          ],
-          SizedBox(height: 8),
-          Text(
-            'Quick locations:',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey.shade800,
-            ),
-          ),
-          SizedBox(height: 4),
-          Wrap(
-            spacing: 4,
-            runSpacing: 4,
-            children: [
-              _buildQuickLocationChip('Accra', 5.6037, -0.1870),
-              _buildQuickLocationChip('Tema', 5.6795, -0.0167),
-              _buildQuickLocationChip('Kumasi', 6.6885, -1.6244),
-              _buildQuickLocationChip('Tamale', 9.4035, -0.8423),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _geocodeLocation() async {
-    if (_locationController.text.trim().isEmpty) return;
-
-    setState(() {
-      isLoadingLocation = true;
-    });
-
-    try {
-      final locationService = LocationService();
-      final coordinates = await locationService
-          .getCoordinatesFromAddress(_locationController.text.trim());
-
-      if (coordinates != null) {
-        setState(() {
-          manualLatitude = coordinates['lat'];
-          manualLongitude = coordinates['lon'];
-          // Create a mock Position object for distance calculations
-          userLocation = Position(
-            latitude: coordinates['lat']!,
-            longitude: coordinates['lon']!,
-            timestamp: DateTime.now(),
-            accuracy: 100.0, // Estimated accuracy for geocoded location
-            altitude: 0.0,
-            heading: 0.0,
-            speed: 0.0,
-            speedAccuracy: 0.0,
-            altitudeAccuracy: 0.0,
-            headingAccuracy: 0.0,
-          );
-          isLocationAvailable = true;
-        });
-
-        debugPrint(
-            '📍 Manual location set: ${coordinates['lat']}, ${coordinates['lon']}');
-
-        // Re-sort stores if distance sorting is active
-        if (sortBy == 'distance') {
-          setState(() {
-            // This will trigger a rebuild and re-sort
-          });
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  'Could not find coordinates for "${_locationController.text}"'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('❌ Error geocoding location: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error finding location: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      setState(() {
-        isLoadingLocation = false;
-      });
-    }
-  }
-
-  Widget _buildSortChip(String label, String value, IconData icon) {
-    final isSelected = sortBy == value;
-    return GestureDetector(
-      onTap: () {
-        debugPrint('📍 Sort chip tapped: $value');
-        setState(() {
-          sortBy = value;
-        });
-        debugPrint('📍 sortBy updated to: $sortBy');
-
-        // Force rebuild of the stores list
-        setState(() {
-          // This will trigger a rebuild and re-sort
-        });
-      },
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF2E7D32) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color:
-                isSelected ? const Color(0xFF2E7D32) : const Color(0xFFD1D5DB),
-            width: 1.2,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Colors.green.shade200,
-                    blurRadius: 4,
-                    offset: Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 14,
-              color: isSelected ? Colors.white : const Color(0xFF64748B),
-            ),
-            SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: isSelected ? Colors.white : const Color(0xFF475569),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickLocationChip(String name, double lat, double lon) {
-    return GestureDetector(
-      onTap: () => _setQuickLocation(name, lat, lon),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade400),
-        ),
-        child: Text(
-          name,
-          style: TextStyle(
-            fontSize: 9,
-            fontWeight: FontWeight.w500,
-            color: Colors.grey.shade800,
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _setQuickLocation(String name, double lat, double lon) {
-    setState(() {
-      manualLatitude = lat;
-      manualLongitude = lon;
-      _locationController.text = name;
-      // Create a mock Position object for distance calculations
-      userLocation = Position(
-        latitude: lat,
-        longitude: lon,
-        timestamp: DateTime.now(),
-        accuracy: 50.0, // Good accuracy for preset locations
-        altitude: 0.0,
-        heading: 0.0,
-        speed: 0.0,
-        speedAccuracy: 0.0,
-        altitudeAccuracy: 0.0,
-        headingAccuracy: 0.0,
-      );
-      isLocationAvailable = true;
-    });
-
-    debugPrint('📍 Quick location set: $name at $lat, $lon');
-
-    // Test distance calculations with this location
-    _testDistanceCalculation();
-
-    // Re-sort stores if distance sorting is active
-    if (sortBy == 'distance') {
-      setState(() {
-        // This will trigger a rebuild and re-sort
-      });
-    }
-  }
-
-  Widget _buildSimpleDropdown({
-    required dynamic value,
-    required String hint,
-    required List<String> items,
-    required Function(String?) onChanged,
+  /// Region/city picker using stable [Map] values (avoids duplicate-label crashes).
+  Widget _buildLocationEntityDropdown({
+    required String label,
+    required Map<String, dynamic>? value,
+    required List<Map<String, dynamic>> options,
+    required ValueChanged<Map<String, dynamic>?> onChanged,
     bool isLoading = false,
     String? error,
     VoidCallback? onRetry,
+    bool enabled = true,
+    String emptyHint = 'No options available',
   }) {
-    return DropdownButtonFormField<String>(
-      value: value != null ? value['description'] : null,
+    Map<String, dynamic>? effectiveValue;
+    if (value != null) {
+      final id = value['id']?.toString();
+      final match = options.where((o) => o['id']?.toString() == id);
+      if (match.isNotEmpty) {
+        effectiveValue = match.first;
+      }
+    }
+
+    final items = options
+        .map(
+          (o) => DropdownMenuItem<Map<String, dynamic>>(
+            value: o,
+            child: Text(
+              o['description']?.toString() ?? '',
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+        )
+        .toList();
+
+    final canTap = enabled && !isLoading && items.isNotEmpty;
+
+    return DropdownButtonFormField<Map<String, dynamic>>(
+      value: canTap ? effectiveValue : null,
       decoration: InputDecoration(
-        labelText: hint,
+        labelText: label,
         labelStyle: TextStyle(
           color: Colors.grey.shade700,
           fontSize: 13,
@@ -1620,19 +1331,16 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           borderSide: BorderSide(color: Colors.grey.shade600, width: 2),
         ),
         filled: true,
-        fillColor: Colors.white,
-        contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+        fillColor: enabled ? Colors.white : Colors.grey.shade100,
+        contentPadding:
+            const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
         suffixIcon: isLoading
-            ? Padding(
+            ? const Padding(
                 padding: EdgeInsets.all(8),
                 child: SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(Colors.grey.shade600),
-                  ),
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               )
             : error != null
@@ -1645,26 +1353,19 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                     color: Colors.grey.shade600, size: 20),
       ),
       hint: Text(
-        hint,
+        isLoading
+            ? 'Loading...'
+            : (!enabled || items.isEmpty ? emptyHint : label),
+        overflow: TextOverflow.ellipsis,
+        maxLines: 1,
         style: TextStyle(
-          fontSize: 13,
+          fontSize: (!isLoading && (items.isEmpty || !enabled)) ? 11 : 13,
           color: Colors.grey.shade600,
         ),
       ),
       isExpanded: true,
-      items: items.map((String item) {
-        return DropdownMenuItem<String>(
-          value: item,
-          child: Text(
-            item,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-        );
-      }).toList(),
-      onChanged: isLoading ? null : onChanged,
+      items: items,
+      onChanged: canTap ? onChanged : null,
     );
   }
 
@@ -1690,69 +1391,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
 
     return Column(
       children: [
-        // Distance sorting indicator
-        if (sortBy == 'distance' && userLocation != null) ...[
-          Container(
-            margin: EdgeInsets.fromLTRB(16, 8, 16, 12),
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F5E9),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFC8E6C9), width: 1),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.sort_by_alpha,
-                  color: const Color(0xFF2E7D32),
-                  size: 18,
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Stores sorted by distance from your location',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: const Color(0xFF1B5E20),
-                        ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Closest stores appear first',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: const Color(0xFF2E7D32),
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFC8E6C9)),
-                  ),
-                  child: Text(
-                    '${filteredStores.length} stores',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF2E7D32),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-        // Store list
         Expanded(
           child: ListView.builder(
             controller: _scrollController, // Add scroll controller
@@ -1964,10 +1602,23 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     );
   }
 
+  String _storeHoursLabel(dynamic store) {
+    if (store is Map<String, dynamic>) {
+      return StoreLocationModel.hoursLabelFromMap(store);
+    }
+    if (store is Map) {
+      return StoreLocationModel.hoursLabelFromMap(
+        Map<String, dynamic>.from(store),
+      );
+    }
+    return 'Hours not listed';
+  }
+
   Widget _buildStoreCard(dynamic store, int index) {
     final storeName = store['description'] ?? 'Unknown Store';
-    final storeAddress = store['address'] ?? '';
-    final storeHours = '8:00 AM - 8:00 PM';
+    final storeAddress =
+        (store['address'] ?? store['description'] ?? '').toString();
+    final storeHours = _storeHoursLabel(store);
 
     return Container(
       margin: EdgeInsets.only(bottom: 8),
@@ -2302,24 +1953,53 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     try {
       final regionId = int.tryParse(region['id'].toString()) ?? 0;
       final result = await DeliveryService.getCitiesByRegion(regionId);
+      _recordStoreApiResponse(
+        'GET /regions/$regionId/cities (filter)',
+        result,
+      );
 
       if (result['success']) {
         setState(() {
-          cities = result['data'] ?? [];
+          cities = _dedupeLocationOptions(result['data'] ?? []);
           isLoadingCities = false;
         });
+        debugPrint(
+            'Cities loaded for filter: ${cities.map((c) => c['description']).toList()}');
       } else {
         setState(() {
+          cities = [];
           citiesError = result['message'] ?? 'Failed to load cities';
           isLoadingCities = false;
         });
       }
     } catch (e) {
+      _recordStoreApiResponse('GET /regions/{id}/cities (filter)', {
+        'success': false,
+        'message': e.toString(),
+      });
       setState(() {
+        cities = [];
         citiesError = 'Network error: ${e.toString()}';
         isLoadingCities = false;
       });
     }
+  }
+
+  /// Unique region/city rows for dropdowns (by id; skips empty labels).
+  List<Map<String, dynamic>> _dedupeLocationOptions(List<dynamic> rows) {
+    final seen = <String>{};
+    final out = <Map<String, dynamic>>[];
+    for (final row in rows) {
+      if (row is! Map) continue;
+      final map = Map<String, dynamic>.from(row);
+      final label = (map['description'] ?? map['name'] ?? '').toString().trim();
+      if (label.isEmpty) continue;
+      final id = map['id']?.toString() ?? label;
+      if (!seen.add(id)) continue;
+      map['description'] = label;
+      out.add(map);
+    }
+    return out;
   }
 
   List<dynamic> _getFilteredAllStores() {
@@ -2355,8 +2035,10 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
 
       // Filter by city if selected
       if (selectedCity != null) {
-        final storeCity = store['city_name']?.toString() ?? '';
-        final selectedCityName = selectedCity['description']?.toString() ?? '';
+        final storeCity =
+            (store['city_name']?.toString() ?? '').toLowerCase().trim();
+        final selectedCityName =
+            (selectedCity['description']?.toString() ?? '').toLowerCase().trim();
         if (storeCity != selectedCityName) {
           return false;
         }

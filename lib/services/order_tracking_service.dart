@@ -22,9 +22,9 @@ class OrderTrackingService {
     required double discount,
     String initialStatus = 'pending',
   }) {
-    final items = purchasedItems
-        .map(OrderTrackingItem.fromCartItem)
-        .toList(growable: false);
+    final items = _groupOrderItems(
+      purchasedItems.map(OrderTrackingItem.fromCartItem).toList(growable: false),
+    );
     final subtotal = items.fold<double>(0, (sum, item) => sum + item.lineTotal);
     final total = _parseDouble(paymentParams['amount']);
     final normalizedTotal = total > 0 ? total : subtotal - discount;
@@ -79,10 +79,13 @@ class OrderTrackingService {
 
   Future<OrderTrackingModel> refreshOrder(
       OrderTrackingModel currentOrder) async {
+    final checkoutOrderId =
+        currentOrder.paymentParams['order_id']?.toString() ?? '';
     final snapshot = await _repository.fetchLatestOrderSnapshot(
       orderId: currentOrder.orderId,
       orderNumber: currentOrder.orderNumber,
       transactionId: currentOrder.transactionId,
+      checkoutOrderId: checkoutOrderId,
     );
 
     if (snapshot == null) {
@@ -316,14 +319,125 @@ class OrderTrackingService {
     List<OrderTrackingItem> fallback,
   ) {
     final parsed = _parseItemsFromSnapshot(snapshot);
+    List<OrderTrackingItem> result;
     if (parsed.isEmpty) {
-      return fallback;
+      result = fallback;
+    } else if (fallback.isEmpty) {
+      result = parsed;
+    } else {
+      final merged = _mergeItemsWithCartQuantities(parsed, fallback);
+      if (merged.isNotEmpty) {
+        result = merged;
+      } else {
+        final parsedTotal = parsed.fold<int>(0, (s, i) => s + i.quantity);
+        final fallbackTotal =
+            fallback.fold<int>(0, (s, i) => s + i.quantity);
+        result = (fallback.length > parsed.length || fallbackTotal > parsedTotal)
+            ? fallback
+            : parsed;
+      }
     }
-    // API often returns one line per product or only the first product row.
-    if (fallback.length > parsed.length) {
-      return fallback;
+    return _groupOrderItems(result);
+  }
+
+  /// One row per product (name + batch); sums qty when API returns duplicate lines.
+  List<OrderTrackingItem> _groupOrderItems(List<OrderTrackingItem> items) {
+    if (items.length <= 1) return items;
+
+    final grouped = <String, OrderTrackingItem>{};
+    for (final item in items) {
+      final nameKey = item.name.toLowerCase().trim();
+      final batchKey = item.batchNo.trim().toLowerCase();
+      final key = '$nameKey|$batchKey';
+
+      final existing = grouped[key];
+      if (existing == null) {
+        grouped[key] = item;
+        continue;
+      }
+
+      grouped[key] = OrderTrackingItem(
+        name: existing.name,
+        price: existing.price > 0 ? existing.price : item.price,
+        quantity: existing.quantity + (item.quantity > 0 ? item.quantity : 1),
+        imageUrl:
+            existing.imageUrl.isNotEmpty ? existing.imageUrl : item.imageUrl,
+        batchNo: existing.batchNo.isNotEmpty ? existing.batchNo : item.batchNo,
+      );
     }
-    return parsed;
+    return grouped.values.toList(growable: false);
+  }
+
+  bool _orderItemsMatch(OrderTrackingItem a, OrderTrackingItem b) {
+    final nameA = a.name.toLowerCase().trim();
+    final nameB = b.name.toLowerCase().trim();
+    if (nameA.isEmpty || nameB.isEmpty || nameA != nameB) {
+      return false;
+    }
+    if (a.batchNo.isNotEmpty && b.batchNo.isNotEmpty) {
+      return a.batchNo == b.batchNo;
+    }
+    return true;
+  }
+
+  OrderTrackingItem? _findMatchingCartItem(
+    OrderTrackingItem apiItem,
+    List<OrderTrackingItem> cartItems,
+  ) {
+    for (final cart in cartItems) {
+      if (_orderItemsMatch(apiItem, cart)) {
+        return cart;
+      }
+    }
+    if (cartItems.length == 1) {
+      return cartItems.first;
+    }
+    return null;
+  }
+
+  int _resolveItemQuantity(int apiQty, int cartQty) {
+    if (apiQty <= 0 && cartQty > 0) return cartQty;
+    if (cartQty > apiQty) return cartQty;
+    if (apiQty > 0) return apiQty;
+    return cartQty > 0 ? cartQty : 1;
+  }
+
+  /// Keeps API names/prices but cart quantities when orders API omits or under-reports qty.
+  List<OrderTrackingItem> _mergeItemsWithCartQuantities(
+    List<OrderTrackingItem> apiItems,
+    List<OrderTrackingItem> cartItems,
+  ) {
+    if (apiItems.length == cartItems.length) {
+      return List<OrderTrackingItem>.generate(apiItems.length, (index) {
+        final api = apiItems[index];
+        final cart = cartItems[index];
+        final match = _orderItemsMatch(api, cart) ? cart : _findMatchingCartItem(api, cartItems);
+        final qty = _resolveItemQuantity(api.quantity, match?.quantity ?? cart.quantity);
+        return OrderTrackingItem(
+          name: api.name.isNotEmpty ? api.name : (match?.name ?? cart.name),
+          price: api.price > 0 ? api.price : (match?.price ?? cart.price),
+          quantity: qty,
+          imageUrl: api.imageUrl.isNotEmpty
+              ? api.imageUrl
+              : (match?.imageUrl ?? cart.imageUrl),
+          batchNo:
+              api.batchNo.isNotEmpty ? api.batchNo : (match?.batchNo ?? cart.batchNo),
+        );
+      });
+    }
+
+    return apiItems.map((api) {
+      final match = _findMatchingCartItem(api, cartItems);
+      final qty = _resolveItemQuantity(api.quantity, match?.quantity ?? 0);
+      return OrderTrackingItem(
+        name: api.name.isNotEmpty ? api.name : (match?.name ?? api.name),
+        price: api.price > 0 ? api.price : (match?.price ?? api.price),
+        quantity: qty,
+        imageUrl:
+            api.imageUrl.isNotEmpty ? api.imageUrl : (match?.imageUrl ?? ''),
+        batchNo: api.batchNo.isNotEmpty ? api.batchNo : (match?.batchNo ?? ''),
+      );
+    }).toList();
   }
 
   List<OrderTrackingItem> _parseItemsFromSnapshot(
@@ -339,7 +453,7 @@ class OrderTrackingService {
               OrderTrackingItem.fromMap(Map<String, dynamic>.from(item)))
           .toList(growable: false);
       if (items.isNotEmpty) {
-        return items;
+        return _groupOrderItems(items);
       }
     }
 
@@ -347,7 +461,19 @@ class OrderTrackingService {
     final isMultiItem = snapshot['is_multi_item'] == true || itemCount > 1;
     if (!isMultiItem &&
         (snapshot['product_name'] != null || snapshot['name'] != null)) {
-      return [OrderTrackingItem.fromMap(snapshot)];
+      final single = OrderTrackingItem.fromMap(snapshot);
+      // Top-level merged snapshot often carries summed qty; prefer explicit line qty.
+      if (single.quantity <= 1 && snapshot['order_items'] is List) {
+        final nested = snapshot['order_items'] as List;
+        if (nested.length == 1 && nested.first is Map) {
+          return [
+            OrderTrackingItem.fromMap(
+              Map<String, dynamic>.from(nested.first as Map),
+            ),
+          ];
+        }
+      }
+      return [single];
     }
 
     return const [];

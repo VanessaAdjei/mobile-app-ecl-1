@@ -14,6 +14,7 @@ abstract class OrderTrackingRemoteDataSource {
     required String orderId,
     required String orderNumber,
     required String transactionId,
+    String? checkoutOrderId,
   });
 }
 
@@ -115,6 +116,7 @@ class OrderTrackingRemoteDataSourceImpl
     required String orderId,
     required String orderNumber,
     required String transactionId,
+    String? checkoutOrderId,
   }) async {
     final result = await AuthService.getOrders();
     if (result['status'] != 'success' || result['data'] is! List) {
@@ -125,8 +127,13 @@ class OrderTrackingRemoteDataSourceImpl
     final directStatus = await _fetchDirectStatus(
         _pickLookupId(orderId, orderNumber, transactionId));
 
-    final requestedIds = <String>{orderId, orderNumber, transactionId}
-      ..removeWhere((value) => value.isEmpty);
+    final requestedIds = <String>{
+      orderId,
+      orderNumber,
+      transactionId,
+      if (checkoutOrderId != null && checkoutOrderId.isNotEmpty)
+        checkoutOrderId,
+    }..removeWhere((value) => value.isEmpty);
 
     final matchedRows = <dynamic>[];
     for (final item in orders) {
@@ -223,7 +230,9 @@ class OrderTrackingRemoteDataSourceImpl
     final rawStatus = data['status']?.toString() ?? '';
     final status = rawStatus.toLowerCase();
 
-    if (status.contains('completed') || status.contains('success')) {
+    if (status.contains('completed') ||
+        status.contains('success') ||
+        status.contains('payment completed')) {
       return PaymentStatusResult(
         status: 'success',
         message: 'Payment completed successfully',

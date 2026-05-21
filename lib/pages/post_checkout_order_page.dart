@@ -4,7 +4,7 @@ import 'package:eclapp/config/app_routes.dart';
 import 'package:eclapp/models/cart_item.dart';
 import 'package:eclapp/models/order_status_step.dart';
 import 'package:eclapp/models/order_tracking_model.dart';
-import 'package:eclapp/pages/app_back_button.dart';
+import 'package:eclapp/widgets/app_header_bar.dart';
 import 'package:eclapp/providers/cart_provider.dart';
 import 'package:eclapp/providers/order_tracking_provider.dart';
 import 'package:eclapp/services/order_tracking_service.dart';
@@ -1921,55 +1921,20 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
             backgroundColor: (showPickedUp || showDelivered)
                 ? const Color(0xFFF0F4F2)
                 : const Color(0xFFEEF1F3),
-            appBar: AppBar(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              centerTitle: true,
-              flexibleSpace: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: (showPickedUp || showDelivered)
-                        ? [
-                            AppColors.primaryDark,
-                            AppColors.primary,
-                            const Color(0xFF2D9F6A),
-                          ]
-                        : [
-                            Colors.green.shade600,
-                            Colors.green.shade700,
-                          ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-              ),
-              leading: AppBackButton(
-                backgroundColor: Colors.white.withValues(alpha: 0.2),
-                iconColor: Colors.white,
-                onPressed: _goHome,
-              ),
-              title: Text(
-                showPickedUp
-                    ? 'Picked up'
-                    : showDelivered
-                        ? 'Order delivered'
-                        : showPickupReady
-                            ? 'Ready for pickup'
-                            : 'Confirmation',
-                style: GoogleFonts.poppins(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                  letterSpacing: 0.2,
-                ),
-              ),
+            appBar: AppHeaderBar.forScaffold(
+              context,
+              title: showPickedUp
+                  ? 'Picked up'
+                  : showDelivered
+                      ? 'Order delivered'
+                      : showPickupReady
+                          ? 'Ready for pickup'
+                          : 'Confirmation',
+              showCart: false,
+              onBack: _goHome,
+              background: (showPickedUp || showDelivered)
+                  ? AppHeaderBackground.accent
+                  : AppHeaderBackground.standard,
             ),
             body: Column(
               mainAxisSize: MainAxisSize.min,

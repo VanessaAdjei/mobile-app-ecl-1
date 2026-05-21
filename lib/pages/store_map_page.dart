@@ -1,6 +1,8 @@
 // pages/store_map_page.dart
 
 import 'package:flutter/material.dart';
+
+import '../models/store_location_model.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -89,7 +91,8 @@ class _StoreMapPageState extends State<StoreMapPage> {
     for (final store in storesToProcess) {
       final storeId = store['id']?.toString() ?? '';
       final storeName = store['description'] ?? 'Unknown Store';
-      final storeAddress = store['address'] ?? '';
+      final storeAddress =
+          (store['address'] ?? store['description'] ?? '').toString();
 
       print('🗺️ Processing store: $storeName');
       print('🗺️ Store data keys: ${store.keys.toList()}');
@@ -268,11 +271,35 @@ class _StoreMapPageState extends State<StoreMapPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        store['address'] ?? 'No address available',
+                        (store['address'] ?? store['description'] ?? '')
+                                .toString()
+                                .isNotEmpty
+                            ? (store['address'] ?? store['description'])
+                                .toString()
+                            : 'No address available',
                         style: TextStyle(
                           color: Colors.grey[600],
                           fontSize: 14,
                         ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.access_time_rounded,
+                              size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              StoreLocationModel.hoursLabelFromMap(
+                                Map<String, dynamic>.from(store as Map),
+                              ),
+                              style: TextStyle(
+                                color: Colors.grey[700],
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

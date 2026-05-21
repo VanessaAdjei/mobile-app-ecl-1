@@ -9,6 +9,7 @@ abstract class OrderTrackingRepository {
     required String orderId,
     required String orderNumber,
     required String transactionId,
+    String? checkoutOrderId,
   });
 
   Future<void> handleOrderConfirmed({
@@ -39,11 +40,13 @@ class OrderTrackingRepositoryImpl implements OrderTrackingRepository {
     required String orderId,
     required String orderNumber,
     required String transactionId,
+    String? checkoutOrderId,
   }) {
     return _remoteDataSource.fetchLatestOrderSnapshot(
       orderId: orderId,
       orderNumber: orderNumber,
       transactionId: transactionId,
+      checkoutOrderId: checkoutOrderId,
     );
   }
 

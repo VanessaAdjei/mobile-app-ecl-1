@@ -321,7 +321,12 @@ class CartState extends State<Cart> {
                           Container(
                             padding: const EdgeInsets.fromLTRB(8, 2, 8, 10),
                             child: const CheckoutProgressStepper(
-                              steps: ['Cart', 'Delivery', 'Payment', 'Confirmation'],
+                              steps: [
+                                'Cart',
+                                'Delivery',
+                                'Payment',
+                                'Confirmation'
+                              ],
                               activeStep: 1,
                               completedSteps: {1},
                             ),
@@ -1049,7 +1054,7 @@ class CartState extends State<Cart> {
                   maxWidthDiskCache: 160,
                   maxHeightDiskCache: 160,
                   fadeInDuration: Duration(milliseconds: 300),
-                    placeholder: (context, url) => Container(
+                  placeholder: (context, url) => Container(
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(4),

@@ -418,7 +418,8 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F172A) : _kRxPageBg,
-      appBar: const AppHeaderBar(
+      appBar: AppHeaderBar.forScaffold(
+        context,
         title: 'Prescription History',
         subtitle: 'Uploads, status & pharmacist notes',
         showCart: false,

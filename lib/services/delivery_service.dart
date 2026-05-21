@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import '../config/api_config.dart';
+import '../models/store_location_model.dart';
 import 'package:eclapp/services/auth_service.dart';
 
 class DeliveryService {
@@ -42,6 +43,19 @@ class DeliveryService {
     }
 
     return [];
+  }
+
+  /// Normalizes store API rows (`id`, `city_id`, `description`, `lat`, `lng`, …).
+  static List<Map<String, dynamic>> _normalizeStoreRecords(List<dynamic> items) {
+    return items
+        .whereType<Map>()
+        .map((raw) => normalizeStoreMap(Map<String, dynamic>.from(raw)))
+        .toList();
+  }
+
+  /// Single store map with parsed coords, address, and formatted hours.
+  static Map<String, dynamic> normalizeStoreMap(Map<String, dynamic> raw) {
+    return StoreLocationModel.fromApiJson(raw).toMap();
   }
 
   /// Ensure UI-facing records always have a `description` field.
@@ -752,8 +766,7 @@ class DeliveryService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        final normalized =
-            _normalizeDescriptionField(_extractListPayload(data));
+        final normalized = _normalizeStoreRecords(_extractListPayload(data));
         debugPrint('=== API GET STORES SUCCESS ===');
         debugPrint('Stores data: ${json.encode(data)}');
         debugPrint('==============================');
@@ -846,8 +859,8 @@ class DeliveryService {
         if (storeResult['success']) {
           final storesData = storeResult['data'] ?? [];
           for (var store in storesData) {
-            // Find the corresponding city info
-            final cityId = store['city_id'];
+            final cityId =
+                int.tryParse(store['city_id']?.toString() ?? '') ?? 0;
             if (cityInfo.containsKey(cityId)) {
               store['region_name'] = cityInfo[cityId]!['region_name'];
               store['city_name'] = cityInfo[cityId]!['city_name'];

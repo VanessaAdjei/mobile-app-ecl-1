@@ -51,11 +51,28 @@ class OrderTrackingItem {
       return int.tryParse(value?.toString() ?? '') ?? 0;
     }
 
+    int parseQuantity(Map<String, dynamic> m) {
+      for (final key in [
+        'qty',
+        'quantity',
+        'product_qty',
+        'order_qty',
+        'purchased_qty',
+        'item_qty',
+      ]) {
+        final v = m[key];
+        if (v == null) continue;
+        final parsed = parseInt(v);
+        if (parsed > 0) return parsed;
+      }
+      return 1;
+    }
+
     return OrderTrackingItem(
       name:
           map['product_name']?.toString() ?? map['name']?.toString() ?? 'Item',
       price: parseDouble(map['price']),
-      quantity: parseInt(map['qty'] ?? map['quantity']),
+      quantity: parseQuantity(map),
       imageUrl: coerceProductImageSource(
         map['product_img'] ?? map['image'] ?? map['imageUrl'],
       ),

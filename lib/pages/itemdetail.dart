@@ -243,7 +243,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     try {
       await Future.wait([_productFuture, _relatedProductsFuture]);
     } catch (e) {
-    debugPrint('Error loading data: $e');
+      debugPrint('Error loading data: $e');
     }
 
     // make sure skeleton showed for at least 800ms
@@ -765,9 +765,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       final full = p.name.trim();
       final name = full.isEmpty ? 'Product' : full;
       const maxToolbar = 28;
-      final line = name.length > maxToolbar
-          ? '${name.substring(0, maxToolbar)}…'
-          : name;
+      final line =
+          name.length > maxToolbar ? '${name.substring(0, maxToolbar)}…' : name;
       // Same string for toolbar + hero so the bar never shows a second title line.
       out(line, line, null);
       return;
@@ -2216,8 +2215,10 @@ class _ProductDescriptionState extends State<ProductDescription> {
   String _sanitizeRichHtmlForFlutterHtml(String html) {
     if (html.isEmpty) return html;
     return html
-        .replaceAll(RegExp(r'font-feature-settings', caseSensitive: false), '_ffs_x_')
-        .replaceAll(RegExp(r'font-variation-settings', caseSensitive: false), '_fvs_x_');
+        .replaceAll(
+            RegExp(r'font-feature-settings', caseSensitive: false), '_ffs_x_')
+        .replaceAll(RegExp(r'font-variation-settings', caseSensitive: false),
+            '_fvs_x_');
   }
 
   String _normalizeDescriptionToHtml(String raw) {

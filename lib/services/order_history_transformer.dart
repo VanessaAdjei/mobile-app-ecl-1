@@ -15,6 +15,21 @@ int _asInt(dynamic v) {
   return int.tryParse(v.toString()) ?? 0;
 }
 
+int _lineQty(Map map) {
+  for (final key in [
+    'qty',
+    'quantity',
+    'product_qty',
+    'order_qty',
+    'purchased_qty',
+    'item_qty',
+  ]) {
+    final parsed = _asInt(map[key]);
+    if (parsed > 0) return parsed;
+  }
+  return 1;
+}
+
 /// Shared between [PurchaseScreen] and wallet transaction history.
 class OrderHistoryTransformer {
   OrderHistoryTransformer._();
@@ -101,9 +116,9 @@ class OrderHistoryTransformer {
           'qty': items.length > 1
               ? items.fold<int>(0, (sum, item) {
                   if (item is! Map) return sum;
-                  return sum + _asInt(item['qty'] ?? 1);
+                  return sum + _lineQty(Map<String, dynamic>.from(item));
                 })
-              : _asInt(firstItem['qty'] ?? 1),
+              : _lineQty(firstItem),
           'price': firstItem['price'] ?? 0.0,
           'total_price': _asDouble(order['total_price']),
           'is_multi_item': items.length > 1,
@@ -165,8 +180,9 @@ class OrderHistoryTransformer {
         for (final item in items) {
           final im = item as Map;
           allItems.add(Map<String, dynamic>.from(im));
-          totalAmount += _asDouble(im['price']) * _asDouble(im['qty'] ?? 1);
-          totalQuantity += _asInt(im['qty'] ?? 1);
+          totalAmount +=
+              _asDouble(im['price']) * _lineQty(Map<String, dynamic>.from(im));
+          totalQuantity += _lineQty(Map<String, dynamic>.from(im));
         }
       }
     }
@@ -199,7 +215,7 @@ class OrderHistoryTransformer {
           return {
             'product_name': o['product_name'] ?? 'Unknown Product',
             'product_img': o['product_img'] ?? '',
-            'qty': o['qty'] ?? 1,
+            'qty': _lineQty(Map<String, dynamic>.from(o)),
             'price': o['price'] ?? 0.0,
             'batch_no': o['batch_no'] ?? '',
           };
@@ -208,11 +224,12 @@ class OrderHistoryTransformer {
 
     final totalQuantity = orders.fold<int>(0, (sum, order) {
       final o = order as Map;
-      return sum + _asInt(o['qty'] ?? 1);
+      return sum + _lineQty(Map<String, dynamic>.from(o));
     });
     final totalAmount = orders.fold<double>(0.0, (sum, order) {
       final o = order as Map;
-      return sum + _asDouble(o['price']) * _asDouble(o['qty'] ?? 1);
+      return sum +
+          _asDouble(o['price']) * _lineQty(Map<String, dynamic>.from(o));
     });
 
     return {
@@ -238,7 +255,7 @@ class OrderHistoryTransformer {
           return {
             'product_name': o['product_name'] ?? 'Unknown Product',
             'product_img': o['product_img'] ?? '',
-            'qty': o['qty'] ?? 1,
+            'qty': _lineQty(Map<String, dynamic>.from(o)),
             'price': o['price'] ?? 0.0,
             'batch_no': o['batch_no'] ?? '',
           };
@@ -247,11 +264,12 @@ class OrderHistoryTransformer {
 
     final totalQuantity = orders.fold<int>(0, (sum, order) {
       final o = order as Map;
-      return sum + _asInt(o['qty'] ?? 1);
+      return sum + _lineQty(Map<String, dynamic>.from(o));
     });
     final totalAmount = orders.fold<double>(0.0, (sum, order) {
       final o = order as Map;
-      return sum + _asDouble(o['price']) * _asDouble(o['qty'] ?? 1);
+      return sum +
+          _asDouble(o['price']) * _lineQty(Map<String, dynamic>.from(o));
     });
 
     return {

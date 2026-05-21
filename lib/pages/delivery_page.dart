@@ -750,7 +750,11 @@ class DeliveryPageState extends State<DeliveryPage> {
                 selectedPickupSite = null;
               });
               if (value != null) {
-                _loadCities(value['id']);
+                final regionId =
+                    int.tryParse(value['id']?.toString() ?? '') ?? 0;
+                if (regionId > 0) {
+                  _loadCities(regionId);
+                }
               }
             },
             isLoading: isLoadingRegions,
@@ -777,7 +781,11 @@ class DeliveryPageState extends State<DeliveryPage> {
                   selectedPickupSite = null;
                 });
                 if (value != null) {
-                  _loadStores(value['id']);
+                  final cityId =
+                      int.tryParse(value['id']?.toString() ?? '') ?? 0;
+                  if (cityId > 0) {
+                    _loadStores(cityId);
+                  }
                 }
               },
               isLoading: isLoadingCities,
@@ -2812,10 +2820,11 @@ class DeliveryPageState extends State<DeliveryPage> {
 
             for (final store in storesData) {
               try {
-                final description = store['description']?.toString() ?? '';
+                final normalized = DeliveryService.normalizeStoreMap(store);
+                final description = normalized['description']?.toString() ?? '';
                 if (description.isNotEmpty &&
                     !uniqueStores.containsKey(description)) {
-                  uniqueStores[description] = store;
+                  uniqueStores[description] = normalized;
                 } else if (description.isNotEmpty) {
                   print(
                       '⚠️ [STORES] Duplicate store description found: "$description"');

@@ -16,6 +16,11 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
   final bool showCart;
   final AppHeaderBackground background;
 
+  /// When true (Scaffold [appBar]), reserves space for the status bar so the
+  /// title sits below the notch. When false (e.g. sliver in [body]), the parent
+  /// already clears the status bar.
+  final bool reserveStatusBar;
+
   const AppHeaderBar({
     super.key,
     required this.title,
@@ -23,122 +28,175 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
     this.onBack,
     this.showCart = true,
     this.background = AppHeaderBackground.standard,
+    this.reserveStatusBar = false,
   });
 
   bool get _hasSubtitle => subtitle != null && subtitle!.trim().isNotEmpty;
 
-  /// Scaffold [appBar] passes a tight max height; two-line headers need more
-  /// than [kToolbarHeight] alone. Extra top padding was removed — [SafeArea]
-  /// owns status-bar insets.
+  double _contentHeight() => kToolbarHeight + (_hasSubtitle ? 52 : 12);
+
+  static double _statusBarHeight(BuildContext context) =>
+      MediaQuery.paddingOf(context).top;
+
+  static double totalHeight(
+    BuildContext context, {
+    bool hasSubtitle = false,
+    bool reserveStatusBar = true,
+  }) {
+    final content = kToolbarHeight + (hasSubtitle ? 52 : 12);
+    final top = reserveStatusBar ? _statusBarHeight(context) : 0;
+    return top + content;
+  }
+
+  /// Use as [Scaffold.appBar] so height includes the status-bar inset.
+  static PreferredSize forScaffold(
+    BuildContext context, {
+    Key? key,
+    required String title,
+    String? subtitle,
+    VoidCallback? onBack,
+    bool showCart = true,
+    AppHeaderBackground background = AppHeaderBackground.standard,
+  }) {
+    final hasSub = subtitle != null && subtitle.trim().isNotEmpty;
+    return PreferredSize(
+      key: key,
+      preferredSize: Size.fromHeight(
+        totalHeight(context, hasSubtitle: hasSub, reserveStatusBar: true),
+      ),
+      child: AppHeaderBar(
+        title: title,
+        subtitle: subtitle,
+        onBack: onBack,
+        showCart: showCart,
+        background: background,
+        reserveStatusBar: true,
+      ),
+    );
+  }
+
   @override
-  Size get preferredSize => Size.fromHeight(
-        kToolbarHeight + (_hasSubtitle ? 52 : 12),
-      );
+  Size get preferredSize {
+    final statusFallback = reserveStatusBar ? 47.0 : 0.0;
+    return Size.fromHeight(_contentHeight() + statusFallback);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final toolbar = SafeArea(
-      bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            AppBackButton(
-              backgroundColor: Colors.white.withValues(alpha: 0.2),
-              iconColor: Colors.white,
-              onPressed: onBack ??
-                  () {
-                    if (Navigator.canPop(context)) {
-                      Navigator.pop(context);
-                    }
-                  },
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ClipRect(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+    final topInset =
+        reserveStatusBar ? MediaQuery.paddingOf(context).top : 0.0;
+    final contentHeight = _contentHeight();
+
+    final toolbar = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          AppBackButton(
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
+            iconColor: Colors.white,
+            onPressed: onBack ??
+                () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
+                },
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ClipRect(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        height: 1.1,
+                        color: Colors.white,
+                        letterSpacing: -0.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (_hasSubtitle) ...[
+                      const SizedBox(height: 2),
                       Text(
-                        title,
+                        subtitle!.trim(),
                         style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
                           height: 1.1,
-                          color: Colors.white,
-                          letterSpacing: -0.2,
+                          color: Colors.white.withValues(alpha: 0.9),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (_hasSubtitle) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle!.trim(),
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            height: 1.1,
-                            color: Colors.white.withValues(alpha: 0.9),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
                     ],
-                  ),
+                  ],
                 ),
               ),
             ),
-            if (showCart) ...[
-              const SizedBox(width: 8),
-              const CartIconButton(
-                iconColor: Colors.white,
-                iconSize: 22,
-                backgroundColor: Colors.transparent,
-              ),
-            ],
+          ),
+          if (showCart) ...[
+            const SizedBox(width: 8),
+            const CartIconButton(
+              iconColor: Colors.white,
+              iconSize: 22,
+              backgroundColor: Colors.transparent,
+            ),
           ],
-        ),
+        ],
       ),
     );
 
+    Widget content;
     if (background == AppHeaderBackground.accent) {
-      return ClipRect(
+      content = ClipRect(
         child: Stack(
-          fit: StackFit.passthrough,
+          fit: StackFit.expand,
           children: [
             const _AccentHeaderBackground(),
             toolbar,
           ],
         ),
       );
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.green.shade600,
-            Colors.green.shade700,
-            Colors.green.shade800,
+    } else {
+      content = Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.green.shade600,
+              Colors.green.shade700,
+              Colors.green.shade800,
+            ],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
+        child: toolbar,
+      );
+    }
+
+    return SizedBox(
+      height: topInset + contentHeight,
+      child: Column(
+        children: [
+          SizedBox(height: topInset),
+          SizedBox(height: contentHeight, child: content),
         ],
       ),
-      child: toolbar,
     );
   }
 }
