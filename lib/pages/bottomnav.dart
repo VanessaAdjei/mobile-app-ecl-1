@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../config/app_routes.dart';
 import '../providers/cart_provider.dart';
+import '../widgets/cart_nav_badge_icon.dart';
 import 'homepage.dart' as home;
 import 'categories.dart';
 import 'cart.dart';
@@ -908,7 +909,6 @@ class _CustomBottomNavState extends State<CustomBottomNav>
 
   @override
   Widget build(BuildContext context) {
-    final cart = Provider.of<CartProvider>(context);
     final screenWidth = MediaQuery.of(context).size.width;
 
     final iconSize = screenWidth * 0.05;
@@ -988,45 +988,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                         icon: Icons.shopping_cart_rounded,
                         isSelected: _selectedIndex == 1,
                         itemIndex: 1,
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Icon(Icons.shopping_cart_rounded),
-                            if (cart.totalItems > 0)
-                              Positioned(
-                                right: -6,
-                                top: -4,
-                                child: Container(
-                                  padding: const EdgeInsets.all(3),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color:
-                                            Colors.red.withValues(alpha: 0.5),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  constraints: const BoxConstraints(
-                                    minWidth: 18,
-                                    minHeight: 18,
-                                  ),
-                                  child: Text(
-                                    '${cart.totalItems}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
+                        child: const CartNavBadgeIcon(),
                       ),
                       label: 'Cart',
                     ),

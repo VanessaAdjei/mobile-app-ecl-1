@@ -1333,36 +1333,36 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildQuantitySelector(Product product) {
-    return Consumer<CartProvider>(
-      builder: (context, cartProvider, child) {
-        // Check if product is in cart
+    return Selector<CartProvider, int>(
+      selector: (_, cart) => CartProvider.selectQuantityForProduct(
+        cart,
+        productName: product.name,
+        batchNo: product.batch_no,
+      ),
+      builder: (context, cartQuantity, _) {
+        if (cartQuantity <= 0) {
+          return const SizedBox.shrink();
+        }
+
+        final cartProvider = Provider.of<CartProvider>(context, listen: false);
+        final productNameNorm =
+            CartProvider.normalizeProductName(product.name);
         final cartItems = cartProvider.cartItems;
-        final productNameNorm = CartProvider.normalizeProductName(product.name);
-        final matches = cartItems
-            .cast<CartItem>()
-            .where(
+        final existingItem = cartItems.cast<CartItem>().where(
               (item) =>
                   CartProvider.normalizeProductName(item.name) ==
                       productNameNorm &&
                   item.batchNo == product.batch_no,
-            )
-            .toList();
-        final existingItem = matches.isNotEmpty ? matches.first : null;
-        final itemIndex = existingItem != null
-            ? cartItems.indexWhere((item) =>
-                CartProvider.normalizeProductName(item.name) ==
-                    productNameNorm &&
-                item.batchNo == product.batch_no)
-            : -1;
-
-        // In cart if we have a matching item (by name+batch) - don't rely on id
-        final isInCart = existingItem != null;
-        final cartQuantity = isInCart ? existingItem.quantity : 0;
-
-        // Only show quantity selector if item is in cart
-        if (!isInCart) {
-          return SizedBox.shrink();
+            );
+        final match =
+            existingItem.isNotEmpty ? existingItem.first : null;
+        if (match == null) {
+          return const SizedBox.shrink();
         }
+        final line = match;
+        final itemIndex = cartItems.indexWhere((item) =>
+            CartProvider.normalizeProductName(item.name) == productNameNorm &&
+            item.batchNo == product.batch_no);
 
         return Animate(
           effects: [
@@ -1431,8 +1431,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         children: [
                           OptimizedRemoveButton(
                             onPressed: (cartQuantity > 1 &&
-                                    !cartProvider
-                                        .isItemUpdating(existingItem.id))
+                                    !cartProvider.isItemUpdating(line.id))
                                 ? () {
                                     // Prevent spam clicking
                                     final now = DateTime.now();
@@ -1445,9 +1444,9 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                     _lastQuantityUpdateTime = now;
 
                                     // Remove one from cart (use index when id empty)
-                                    if (existingItem.id.isNotEmpty) {
+                                    if (line.id.isNotEmpty) {
                                       cartProvider.updateQuantityById(
-                                          existingItem.id, cartQuantity - 1);
+                                          line.id, cartQuantity - 1);
                                     } else if (itemIndex >= 0) {
                                       cartProvider.updateQuantity(
                                           itemIndex, cartQuantity - 1);
@@ -1455,7 +1454,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                   }
                                 : null,
                             isEnabled: cartQuantity > 1 &&
-                                !cartProvider.isItemUpdating(existingItem.id),
+                                !cartProvider.isItemUpdating(line.id),
                             size: 36.0,
                           ),
                           Container(
@@ -1477,8 +1476,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                           ),
                           OptimizedAddButton(
                             onPressed: (cartQuantity < maxQuantity &&
-                                    !cartProvider
-                                        .isItemUpdating(existingItem.id))
+                                    !cartProvider.isItemUpdating(line.id))
                                 ? () async {
                                     // Prevent spam clicking
                                     final now = DateTime.now();
@@ -1495,20 +1493,19 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
 
                                     // Add one more via check-auth (no remove-from-cart).
                                     final incrementItem = CartItem(
-                                      id: existingItem.id,
+                                      id: line.id,
                                       productId: product.id.toString(),
                                       originalProductId: product.id.toString(),
-                                      serverProductId:
-                                          existingItem.serverProductId,
-                                      name: existingItem.name,
-                                      price: existingItem.price,
+                                      serverProductId: line.serverProductId,
+                                      name: line.name,
+                                      price: line.price,
                                       quantity: 1,
-                                      image: existingItem.image,
+                                      image: line.image,
                                       batchNo: product.batch_no.isNotEmpty
                                           ? product.batch_no
-                                          : existingItem.batchNo,
-                                      urlName: existingItem.urlName,
-                                      totalPrice: existingItem.price,
+                                          : line.batchNo,
+                                      urlName: line.urlName,
+                                      totalPrice: line.price,
                                     );
                                     cartProvider.addToCart(incrementItem);
 
@@ -1521,7 +1518,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                                   }
                                 : null,
                             isEnabled: cartQuantity < maxQuantity &&
-                                !cartProvider.isItemUpdating(existingItem.id),
+                                !cartProvider.isItemUpdating(line.id),
                             size: 36.0,
                           ),
                         ],
@@ -1568,31 +1565,15 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               end: Offset(0, 0),
               delay: 400.ms)
         ],
-        child: Consumer<CartProvider>(
-          builder: (context, cartProvider, child) {
-            // check if product is already in cart
-            final cartItems = cartProvider.cartItems;
-
-            final productNameNorm =
-                CartProvider.normalizeProductName(product.name);
-            final existingItem = cartItems
-                .cast<CartItem>()
-                .where(
-                  (item) =>
-                      CartProvider.normalizeProductName(item.name) ==
-                          productNameNorm &&
-                      item.batchNo == product.batch_no,
-                )
-                .toList();
-            final match = existingItem.isNotEmpty ? existingItem.first : null;
-
-            // In cart if we have a matching item (by name+batch) - don't rely on id
-            // since newly added items have id: '' until server sync completes
-            final isInCart = match != null;
-
-            // Hide the entire button container if item is already in cart
+        child: Selector<CartProvider, bool>(
+          selector: (_, cart) => CartProvider.selectIsProductInCart(
+            cart,
+            productName: product.name,
+            batchNo: product.batch_no,
+          ),
+          builder: (context, isInCart, _) {
             if (isInCart) {
-              return SizedBox.shrink();
+              return const SizedBox.shrink();
             }
 
             final isPrescription =

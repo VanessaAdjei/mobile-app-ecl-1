@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 import '../config/api_config.dart';
 import '../models/store_location_model.dart';
 import 'package:eclapp/services/auth_service.dart';
@@ -13,6 +14,8 @@ class DeliveryService {
 
   /// Timeout for delivery API calls. Shorter = fail fast and use local fallback.
   static const Duration _apiTimeout = Duration(seconds: 5);
+
+  static final Map<String, Map<String, dynamic>> _deliveryFeeApiCache = {};
 
   // Delivery pricing constants
   // Base fee = 20
@@ -557,6 +560,55 @@ class DeliveryService {
     }
   }
 
+  /// Google-style distance label for [calculate-delivery-fee].
+  static String formatDistanceText(double distanceKm) {
+    if (distanceKm < 1) {
+      return '${(distanceKm * 1000).round()} m';
+    }
+    return '${distanceKm.toStringAsFixed(1)} km';
+  }
+
+  /// Straight-line distance to the nearest store with valid coordinates (km).
+  static double? nearestStoreDistanceKm({
+    required double lat,
+    required double lng,
+    required List<Map<String, dynamic>> stores,
+  }) {
+    double? bestKm;
+    for (final raw in stores) {
+      final store = StoreLocationModel.fromApiJson(
+        Map<String, dynamic>.from(raw),
+      );
+      final storeLat = store.lat;
+      final storeLng = store.lng;
+      if (storeLat == null || storeLng == null) continue;
+      final meters = Geolocator.distanceBetween(lat, lng, storeLat, storeLng);
+      final km = meters / 1000.0;
+      if (bestKm == null || km < bestKm) bestKm = km;
+    }
+    return bestKm;
+  }
+
+  /// Instant fee estimate from map coordinates (no save-billing-add round trip).
+  static Map<String, dynamic>? estimateFeeFromCoordinates({
+    required double lat,
+    required double lng,
+    required List<Map<String, dynamic>> stores,
+  }) {
+    final distanceKm = nearestStoreDistanceKm(
+      lat: lat,
+      lng: lng,
+      stores: stores,
+    );
+    if (distanceKm == null) return null;
+    final fee = calculateDeliveryFeeByDistance(distanceKm);
+    return {
+      'distance_km': distanceKm,
+      'distance_text': formatDistanceText(distanceKm),
+      'delivery_fee': fee,
+    };
+  }
+
   /// Call /calculate-delivery-fee API with distance_text (e.g. "1.9 km").
   /// Returns { distance: num, delivery_fee: double } or null on failure.
   /// Results are cached by distance_text to avoid repeated slow API calls.
@@ -568,6 +620,11 @@ class DeliveryService {
       if (key.isEmpty) {
         debugPrint('calculate-delivery-fee: distance_text is empty');
         return null;
+      }
+
+      final cached = _deliveryFeeApiCache[key];
+      if (cached != null) {
+        return Map<String, dynamic>.from(cached);
       }
       final isLoggedIn = await AuthService.isLoggedIn();
       String? token;
@@ -655,6 +712,7 @@ class DeliveryService {
         'distance': distanceKm,
         'delivery_fee': feeValue,
       };
+      _deliveryFeeApiCache[key] = result;
       return result;
     } catch (e) {
       print('❌ [CALCULATE-DELIVERY-FEE] Error: $e');

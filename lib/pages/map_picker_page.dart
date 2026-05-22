@@ -510,16 +510,6 @@ class _MapPickerPageState extends State<MapPickerPage> {
             await _getAddressFromCoordinates(lat, lng,
                 originalQuery: placeName ?? query.split(',').first.trim());
 
-            // show a message that it worked
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Location found: ${placeName ?? query}'),
-                  backgroundColor: Colors.green,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            }
             print('🗺️ [MAP] ✅ Location selection complete');
             if (mounted) setState(() => _isUpdatingLocation = false);
             return; // Success, exit early
@@ -574,15 +564,6 @@ class _MapPickerPageState extends State<MapPickerPage> {
       await _getAddressFromCoordinates(lat, lng, originalQuery: placeName);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Location found: ${placeName.isNotEmpty ? placeName : query}',
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
-        );
         setState(() => _isUpdatingLocation = false);
       }
       print('🗺️ [MAP] ✅ Location selection complete');

@@ -8,8 +8,10 @@ import 'package:eclapp/widgets/app_header_bar.dart';
 import 'package:eclapp/providers/cart_provider.dart';
 import 'package:eclapp/providers/order_tracking_provider.dart';
 import 'package:eclapp/services/order_tracking_service.dart';
+import 'package:eclapp/services/pending_payment_polling_service.dart';
 import 'package:eclapp/utils/non_ui_error_reporter.dart';
 import 'package:eclapp/widgets/live_tracking_placeholder_card.dart';
+import 'package:eclapp/widgets/order_confirmed_on_screen_banner.dart';
 import 'package:eclapp/widgets/order_status_timeline.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -55,6 +57,9 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
   bool _hasNavigatedAway = false;
   bool _hasShownOrderPlacedBanner = false;
   bool _orderPlacedSnackBarPending = false;
+  bool _hasShownOrderConfirmedOnScreen = false;
+  bool _showOrderConfirmedBanner = false;
+  bool _orderConfirmedSnackBarPending = false;
   bool _isPickupReadyForCollection(OrderTrackingModel order) {
     if (!_isPickupOrderFor(order)) return false;
     if (order.stage == OrderTrackingStage.outForDelivery) return true;
@@ -169,6 +174,9 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
       initialStatus: widget.initialStatus,
     );
 
+    // On-page provider owns polling; stop any background handoff from a prior visit.
+    PendingPaymentPollingService.stop();
+
     _provider = OrderTrackingProvider(
       initialOrder: initialOrder,
       initialTransactionId: widget.initialTransactionId,
@@ -184,12 +192,29 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
     OrderTrackingProvider.onOrderStatusUpdateFromPush = () {
       _provider.refreshTracking();
     };
+    OrderTrackingProvider.onOrderConfirmedStageUi = _showOrderConfirmedOnScreen;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _showOrderConfirmedOnScreenIfAlreadyConfirmed(_provider.order);
+    });
   }
 
   @override
   void dispose() {
     _provider.removeListener(_onOrderTrackingChanged);
     OrderTrackingProvider.onOrderStatusUpdateFromPush = null;
+    OrderTrackingProvider.onOrderConfirmedStageUi = null;
+
+    // Keep checking payment after user leaves (e.g. Continue to home).
+    if (_provider.isAwaitingPaymentConfirmation) {
+      PendingPaymentPollingService.start(
+        order: _provider.order,
+        initialTransactionId: widget.initialTransactionId,
+      );
+    } else {
+      PendingPaymentPollingService.stop();
+    }
+
     _provider.dispose();
     super.dispose();
   }
@@ -197,6 +222,74 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
   void _onOrderTrackingChanged() {
     if (!mounted) return;
     _showOrderPlacedBannerIfNeeded(_provider);
+    _showOrderConfirmedOnScreenIfAlreadyConfirmed(_provider.order);
+  }
+
+  void _showOrderConfirmedOnScreenIfAlreadyConfirmed(OrderTrackingModel order) {
+    if (order.stage == OrderTrackingStage.orderConfirmed) {
+      _showOrderConfirmedOnScreen(order);
+    }
+  }
+
+  List<Widget> _orderConfirmedBannerWidgets(OrderTrackingModel order) {
+    if (!_showOrderConfirmedBanner ||
+        order.stage != OrderTrackingStage.orderConfirmed) {
+      return const [];
+    }
+    final orderRef = order.orderNumber.isNotEmpty
+        ? order.orderNumber
+        : order.transactionId;
+    return [
+      OrderConfirmedOnScreenBanner(
+        orderReference: orderRef,
+        onDismiss: () => setState(() => _showOrderConfirmedBanner = false),
+      ),
+      const SizedBox(height: 10),
+    ];
+  }
+
+  void _showOrderConfirmedOnScreen(OrderTrackingModel order) {
+    if (!mounted || _hasShownOrderConfirmedOnScreen) return;
+    if (order.stage != OrderTrackingStage.orderConfirmed) return;
+
+    _hasShownOrderConfirmedOnScreen = true;
+    setState(() => _showOrderConfirmedBanner = true);
+
+    if (_orderConfirmedSnackBarPending) return;
+    _orderConfirmedSnackBarPending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _orderConfirmedSnackBarPending = false;
+      if (!mounted) return;
+
+      final orderRef = order.orderNumber.isNotEmpty
+          ? order.orderNumber
+          : order.transactionId;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.hideCurrentSnackBar();
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.verified_rounded, color: Colors.white, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  orderRef.isEmpty
+                      ? 'Your order has been confirmed'
+                      : 'Order #$orderRef confirmed',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF0D7A4C),
+          behavior: SnackBarBehavior.floating,
+          dismissDirection: DismissDirection.down,
+          showCloseIcon: true,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    });
   }
 
   Future<void> _handleOrderConfirmedUi(OrderTrackingModel _) async {
@@ -1419,6 +1512,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
         children: [
+          ..._orderConfirmedBannerWidgets(order),
           _staggerReveal(
             0,
             AnimatedSwitcher(
@@ -2079,6 +2173,8 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                                             ),
                                                           ),
                                                         ),
+                                                        ..._orderConfirmedBannerWidgets(
+                                                            order),
                                                         _FadeInUp(
                                                           duration:
                                                               const Duration(

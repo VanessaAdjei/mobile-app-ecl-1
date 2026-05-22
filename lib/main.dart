@@ -11,15 +11,9 @@ import 'package:eclapp/pages/wallet_page.dart';
 import 'package:provider/provider.dart';
 import 'providers/cart_provider.dart';
 import 'providers/theme_provider.dart';
-import 'services/optimized_api_service.dart';
 import 'services/banner_cache_service.dart';
-import 'services/advanced_performance_service.dart';
-import 'services/optimized_homepage_service.dart';
-import 'services/universal_page_optimization_service.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'services/homepage_optimization_service.dart';
-import 'services/background_prefetch_service.dart';
 import 'pages/onboarding_splash_page.dart';
 import 'pages/prescription.dart';
 import 'pages/prescription_upload_standalone.dart';
@@ -27,16 +21,10 @@ import 'pages/notification_permission_page.dart';
 import 'pages/terms_acceptance_page.dart';
 import 'pages/clearance_admin_page.dart';
 import 'providers/notification_provider.dart';
-import 'services/background_order_checker.dart';
-
+import 'services/app_background_scheduler.dart';
 import 'services/order_notification_service.dart';
 import 'services/native_notification_service.dart';
 import 'services/notification_handler_service.dart';
-import 'services/health_tips_service.dart';
-import 'services/background_cart_sync_service.dart';
-import 'services/background_order_tracking_service.dart';
-import 'services/background_store_data_service.dart';
-import 'services/background_inventory_monitor_service.dart';
 import 'providers/wallet_provider.dart';
 import 'providers/promotional_event_provider.dart';
 import 'providers/clearance_sale_provider.dart';
@@ -236,44 +224,7 @@ Future<void> _initializeApp() async {
 }
 
 Future<void> _initBackground() async {
-  debugPrint('🚀 Main: Starting non-critical service initialization...');
-  final startTime = DateTime.now();
-
-  await Future.wait([
-    OptimizedApiService().initialize(),
-    AdvancedPerformanceService().initialize(),
-    OptimizedHomepageService().initialize(),
-    UniversalPageOptimizationService().initialize(),
-    BackgroundPrefetchService().initialize(),
-  ]);
-
-  final initTime = DateTime.now().difference(startTime);
-  debugPrint(
-      '🚀 Main: Non-critical services initialized in ${initTime.inMilliseconds}ms');
-
-  // get some data ready in the background
-  unawaited(HomepageOptimizationService()
-      .getPopularProductsUltraFast()); // use the super fast method
-  unawaited(HomepageOptimizationService().getCategorizedProducts());
-  unawaited(OptimizedHomepageService().getProducts());
-  unawaited(BackgroundPrefetchService().smartPrefetch());
-
-  // set up auth stuff
-  unawaited(AuthService.init().catchError((e) {
-    debugPrint('Background auth initialization error: $e');
-  }));
-
-  BackgroundOrderChecker.startPeriodicChecking();
-  HealthTipsService.startBackgroundService();
-  BackgroundCartSyncService.startBackgroundSync();
-  BackgroundOrderTrackingService.startBackgroundTracking();
-  BackgroundStoreDataService.startBackgroundPreloading();
-  BackgroundInventoryMonitorService.startBackgroundMonitoring();
-
-  await Future.wait([
-    OrderNotificationService.initializeNotifications(),
-    NativeNotificationService.initialize(),
-  ]);
+  await AppBackgroundScheduler.startDeferred();
 }
 
 class MyApp extends StatefulWidget {
@@ -807,6 +758,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+    AppBackgroundScheduler.onAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
       // check for notifications when they come back to the app
       _handlePendingNotification();

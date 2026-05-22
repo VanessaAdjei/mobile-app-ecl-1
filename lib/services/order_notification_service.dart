@@ -133,6 +133,28 @@ class OrderNotificationService {
     }
   }
 
+  /// In-app list + system notification when the store confirms the order.
+  static Future<void> createOrderConfirmedNotification({
+    required String orderId,
+    required String orderNumber,
+    String? totalAmount,
+    List<dynamic>? items,
+  }) async {
+    final ref =
+        orderNumber.isNotEmpty ? orderNumber : (orderId.isNotEmpty ? orderId : '');
+    await createOrderStatusNotification(
+      orderId: orderId,
+      orderNumber: orderNumber,
+      status: 'Order Confirmed',
+      title: 'Order Confirmed!',
+      message: ref.isEmpty
+          ? 'Your order has been confirmed and is being prepared.'
+          : 'Your order #$ref has been confirmed and is being prepared.',
+      totalAmount: totalAmount,
+      items: items,
+    );
+  }
+
   /// Create a notification for order status/tracking stage changes.
   /// Call this for every stage: Order Placed, Confirmed, Processing, Shipped, Out for Delivery, Delivered, Cancelled.
   static Future<void> createOrderStatusNotification({

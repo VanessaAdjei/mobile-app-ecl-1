@@ -1,8 +1,7 @@
 // widgets/cart_icon_button.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../config/app_routes.dart';
-import '../providers/cart_provider.dart';
+import 'cart_item_count_badge.dart';
 
 class CartIconButton extends StatefulWidget {
   final Color? iconColor;
@@ -39,8 +38,6 @@ class _CartIconButtonState extends State<CartIconButton> {
 
   @override
   Widget build(BuildContext context) {
-    final cart = Provider.of<CartProvider>(context);
-
     return Container(
       margin: const EdgeInsets.only(right: 8.0),
       decoration: BoxDecoration(
@@ -48,42 +45,10 @@ class _CartIconButtonState extends State<CartIconButton> {
         color: widget.backgroundColor,
       ),
       child: IconButton(
-        icon: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // always show the shopping cart icon
-            Icon(
-              Icons.shopping_cart,
-              color: widget.iconColor ?? Colors.white,
-              size: widget.iconSize,
-            ),
-            // show the counter if there are items in the cart (for all users)
-            if (cart.totalItems > 0)
-              Positioned(
-                right: -6,
-                top: -3,
-                child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                  ),
-                  constraints: const BoxConstraints(
-                    minWidth: 16,
-                    minHeight: 16,
-                  ),
-                  child: Text(
-                    '${cart.totalItems}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-          ],
+        icon: CartItemCountBadge(
+          icon: Icons.shopping_cart,
+          iconColor: widget.iconColor ?? Colors.white,
+          iconSize: widget.iconSize,
         ),
         padding: widget.padding,
         onPressed: () => Navigator.pushNamed(context, AppRoutes.cart),

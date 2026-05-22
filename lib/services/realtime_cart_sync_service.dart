@@ -21,8 +21,8 @@ class RealtimeCartSyncService {
   // how long to wait before syncing
   static const Duration _immediateSyncDelay =
       Duration(milliseconds: 500); // wait 500ms
-  static const Duration _periodicSyncInterval =
-      Duration(minutes: 1); // sync every 1 minute
+  /// Backup sync only; cart changes use [triggerImmediateSync].
+  static const Duration _periodicSyncInterval = Duration(minutes: 10);
   static const Duration _syncTimeout = Duration(seconds: 10);
 
   // set up the real-time cart sync service
@@ -32,19 +32,8 @@ class RealtimeCartSyncService {
     _cartProvider = cartProvider;
     _isRunning = true;
 
-    // Start immediate sync mechanism
-    _startImmediateSync();
-
-    // Start periodic sync as backup
+    // Periodic backup only — no sync at startup (avoids competing with UI).
     _startPeriodicSync();
-  }
-
-  // start immediate sync
-  void _startImmediateSync() {
-    _immediateSyncTimer?.cancel();
-
-    // sync right away when service starts
-    _performImmediateSync();
   }
 
   // start periodic sync as backup

@@ -7,7 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
-import '../services/background_cart_checker.dart';
 import '../services/realtime_cart_sync_service.dart';
 
 class CartProvider with ChangeNotifier {
@@ -309,24 +308,12 @@ class CartProvider with ChangeNotifier {
 
   CartProvider() {
     _initializeCart();
-    _initializeBackgroundChecker();
     _initializeRealtimeSync();
   }
 
   Future<void> _initializeCart() async {
     await _loadUserCarts();
     await _checkCurrentUser();
-  }
-
-  Future<void> _initializeBackgroundChecker() async {
-    try {
-      // Initialize background cart checker with this CartProvider instance
-      await BackgroundCartChecker().initialize(this);
-      debugPrint('🛒 CartProvider: Background cart checker initialized');
-    } catch (e) {
-      debugPrint(
-          '🛒 CartProvider: Error initializing background cart checker: $e');
-    }
   }
 
   Future<void> _initializeRealtimeSync() async {
@@ -1660,6 +1647,39 @@ class CartProvider with ChangeNotifier {
 
   int get totalItems => _cartItems.fold(0, (sum, item) => sum + item.quantity);
 
+  /// Use with [Selector] so only badge widgets rebuild when count changes.
+  static int selectTotalItems(CartProvider cart) => cart.totalItems;
+
+  /// Use with [Selector] on product detail — rebuilds only when this SKU qty changes.
+  static int selectQuantityForProduct(
+    CartProvider cart, {
+    required String productName,
+    required String batchNo,
+  }) {
+    final norm = normalizeProductName(productName);
+    for (final item in cart.cartItems) {
+      if (normalizeProductName(item.name) == norm && item.batchNo == batchNo) {
+        return item.quantity;
+      }
+    }
+    return 0;
+  }
+
+  static bool selectIsProductInCart(
+    CartProvider cart, {
+    required String productName,
+    required String batchNo,
+  }) =>
+      selectQuantityForProduct(
+            cart,
+            productName: productName,
+            batchNo: batchNo,
+          ) >
+          0;
+
+  /// Use with [Selector] on checkout summary rows.
+  static double selectSubtotal(CartProvider cart) => cart.calculateSubtotal();
+
   int get displayTotalItems {
     // Only show cart count if user is logged in
     if (_currentUserId == null) return 0;
@@ -1804,7 +1824,7 @@ class CartProvider with ChangeNotifier {
   Future<void> testBackgroundCheck() async {
     debugPrint('🛒 CartProvider: Testing background cart check...');
     try {
-      await BackgroundCartChecker().forceCartCheck();
+      await RealtimeCartSyncService().forceImmediateSync();
       debugPrint('🛒 CartProvider: Background cart check completed');
     } catch (e) {
       debugPrint('🛒 CartProvider: Error testing background cart check: $e');

@@ -25,6 +25,9 @@ class OrderTrackingProvider extends ChangeNotifier {
   /// Callback for push-driven refresh (e.g. order_status / delivery notification). Set by the tracking screen.
   static void Function()? onOrderStatusUpdateFromPush;
 
+  /// Callback when order reaches [OrderTrackingStage.orderConfirmed] (SnackBar / banner on screen).
+  static void Function(OrderTrackingModel order)? onOrderConfirmedStageUi;
+
   /// Call when a push notification indicates order status changed; refreshes immediately if tracking is active.
   static void notifyOrderStatusChanged() {
     onOrderStatusUpdateFromPush?.call();
@@ -43,6 +46,8 @@ class OrderTrackingProvider extends ChangeNotifier {
   bool _showManualRefresh = false;
   String? _errorMessage;
   bool _didHandleSuccessfulOrder = false;
+  bool _didNotifyOrderConfirmed = false;
+  bool _didNotifyDelivered = false;
   Timer? _paymentPollTimer;
   Timer? _trackingPollTimer;
   Timer? _manualRefreshTimer;
@@ -83,27 +88,7 @@ class OrderTrackingProvider extends ChangeNotifier {
       _order = await _service.refreshOrder(_order);
       if (_isDisposed) return;
       _errorMessage = null;
-      if (previousStage != OrderTrackingStage.delivered &&
-          _order.stage == OrderTrackingStage.delivered) {
-        try {
-          await OrderNotificationService.createOrderStatusNotification(
-            orderId: _order.orderId,
-            orderNumber: _order.orderNumber,
-            status: _order.rawStatus,
-            title: 'Order Delivered',
-            message:
-                'Your order #${_order.orderNumber} has been delivered. Thank you for shopping with us!',
-            totalAmount: _order.totalAmount.toString(),
-            items: _order.items.map((e) => e.toMap()).toList(),
-          );
-        } catch (e, st) {
-          NonUiErrorReporter.report(
-            'OrderTrackingProvider.createOrderStatusNotification',
-            e,
-            st,
-          );
-        }
-      }
+      await _notifyImportantStageChanges(previousStage);
     } catch (e, st) {
       NonUiErrorReporter.report('OrderTrackingProvider.refreshTracking', e, st);
     } finally {
@@ -156,7 +141,11 @@ class OrderTrackingProvider extends ChangeNotifier {
 
     // Backend first: authoritative snapshot before any local backup or UI side effects.
     try {
+      final previousStage = _order.stage;
       _order = await _service.refreshOrder(_order);
+      if (!_isDisposed) {
+        await _notifyImportantStageChanges(previousStage);
+      }
     } catch (e, st) {
       NonUiErrorReporter.report(
         'OrderTrackingProvider._handleSuccessfulOrder.refreshOrder',
@@ -251,6 +240,71 @@ class OrderTrackingProvider extends ChangeNotifier {
   void _notifyListenersSafely() {
     if (_isDisposed) return;
     notifyListeners();
+  }
+
+  Future<void> _notifyImportantStageChanges(
+    OrderTrackingStage previousStage,
+  ) async {
+    if (_isDisposed) return;
+    final current = _order.stage;
+
+    if (!_didNotifyOrderConfirmed &&
+        current == OrderTrackingStage.orderConfirmed &&
+        previousStage != OrderTrackingStage.orderConfirmed) {
+      _didNotifyOrderConfirmed = true;
+      try {
+        await OrderNotificationService.createOrderConfirmedNotification(
+          orderId: _order.orderId.isNotEmpty
+              ? _order.orderId
+              : _order.transactionId,
+          orderNumber: _order.orderNumber.isNotEmpty
+              ? _order.orderNumber
+              : _order.transactionId,
+          totalAmount: _order.totalAmount.toStringAsFixed(2),
+          items: _order.items.map((e) => e.toMap()).toList(),
+        );
+      } catch (e, st) {
+        NonUiErrorReporter.report(
+          'OrderTrackingProvider.createOrderConfirmedNotification',
+          e,
+          st,
+        );
+      }
+      if (_isDisposed) return;
+      try {
+        onOrderConfirmedStageUi?.call(_order);
+      } catch (e, st) {
+        NonUiErrorReporter.report(
+          'OrderTrackingProvider.onOrderConfirmedStageUi',
+          e,
+          st,
+        );
+      }
+    }
+
+    if (!_didNotifyDelivered &&
+        previousStage != OrderTrackingStage.delivered &&
+        current == OrderTrackingStage.delivered) {
+      _didNotifyDelivered = true;
+      try {
+        await OrderNotificationService.createOrderStatusNotification(
+          orderId: _order.orderId,
+          orderNumber: _order.orderNumber,
+          status: _order.rawStatus,
+          title: 'Order Delivered',
+          message:
+              'Your order #${_order.orderNumber} has been delivered. Thank you for shopping with us!',
+          totalAmount: _order.totalAmount.toStringAsFixed(2),
+          items: _order.items.map((e) => e.toMap()).toList(),
+        );
+      } catch (e, st) {
+        NonUiErrorReporter.report(
+          'OrderTrackingProvider.createOrderStatusNotification.delivered',
+          e,
+          st,
+        );
+      }
+    }
   }
 
   void _stopPaymentPolling() {
