@@ -16,8 +16,9 @@ import '../utils/payment_redirect_url.dart';
 import '../widgets/payment/payment_bill_summary_section.dart';
 import '../widgets/payment/payment_delivery_details_card.dart';
 import '../widgets/payment/payment_order_items_section.dart';
+import '../widgets/order_threshold_promo_banner.dart';
 
-export 'order_confirmation_page.dart';
+// Post-checkout uses PostCheckoutOrderPage (see paymentwebview.dart).
 
 /// Shown in the UI when online payment fails; technical details are only logged.
 const String kUserFacingPaymentFailureMessage =
@@ -51,8 +52,7 @@ class PaymentPage extends StatefulWidget {
     this.emergencyOrderFee,
   }) : super(key: key);
 
-  bool get _isDelivery =>
-      deliveryOption.toLowerCase().trim() == 'delivery';
+  bool get _isDelivery => deliveryOption.toLowerCase().trim() == 'delivery';
 
   double get _effectiveDeliveryFee => _isDelivery ? deliveryFee : 0.0;
 
@@ -222,8 +222,12 @@ class PaymentPageState extends State<PaymentPage> {
       debugPrint('[DEBUG] Passed subtotal check');
 
       final emergencyOrderFee = widget.emergencyOrderFee ?? 0.00;
+      final deliveryFeeCharged = OrderThresholdPromoBanner.displayDeliveryFee(
+        subtotal,
+        widget._effectiveDeliveryFee,
+      );
       final total = subtotal +
-          widget._effectiveDeliveryFee +
+          deliveryFeeCharged +
           emergencyOrderFee -
           _discountAmount;
 
@@ -290,8 +294,8 @@ class PaymentPageState extends State<PaymentPage> {
         if (widget.lng != null) 'lng': widget.lng,
         if (widget.lat != null) 'latitude': widget.lat,
         if (widget.lng != null) 'longitude': widget.lng,
-        'delivery_fee': widget._effectiveDeliveryFee,
-        'deliveryFee': widget._effectiveDeliveryFee,
+        'delivery_fee': deliveryFeeCharged,
+        'deliveryFee': deliveryFeeCharged,
       };
 
       // Only include selected items in purchased items
@@ -384,7 +388,7 @@ class PaymentPageState extends State<PaymentPage> {
             deliveryOption: widget.deliveryOption,
             estimatedDeliveryTime:
                 widget.estimatedDeliveryTime ?? 'Calculating ETA',
-            deliveryFee: widget._effectiveDeliveryFee,
+            deliveryFee: deliveryFeeCharged,
             discount: _discountAmount,
             onPaymentComplete: (success, token) async {
               if (success && token != null) {
@@ -1241,4 +1245,3 @@ class PaymentPageState extends State<PaymentPage> {
     );
   }
 }
-

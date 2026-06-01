@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/product_model.dart';
 import 'itemdetail.dart';
 import '../widgets/product_card.dart';
+import '../widgets/app_header_bar.dart';
 
 class SearchResultsPage extends StatefulWidget {
   final String query;
@@ -33,12 +34,26 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
     });
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   void _performSearch() {
     final query =
-        (_searchText.isEmpty ? widget.query : _searchText).toLowerCase();
+        (_searchText.isEmpty ? widget.query : _searchText).toLowerCase().trim();
+    final tokens =
+        query.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
     List<Product> filtered = widget.products.where((product) {
-      final matchesQuery = product.name.toLowerCase().contains(query) ||
-          product.description.toLowerCase().contains(query);
+      final haystack = [
+        product.name,
+        product.description,
+        product.category,
+      ].join(' ').toLowerCase();
+      // Match when every typed word appears somewhere in the product text.
+      final matchesQuery =
+          tokens.isEmpty || tokens.every(haystack.contains);
       final matchesCategory = _selectedCategory == 'All' ||
           (product.category.toLowerCase() == _selectedCategory.toLowerCase() ||
               (product.otcpom?.toLowerCase() ==
@@ -60,99 +75,16 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
 
   @override
   Widget build(BuildContext context) {
-    _performSearch(); // make sure search happens when we build
-
     final isLoading = _filteredProducts == null;
     final isEmpty = _filteredProducts?.isEmpty ?? false;
     final resultCount = _filteredProducts?.length ?? 0;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(70),
-        child: Material(
-          elevation: 0,
-          color: Colors.transparent,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(22),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.arrow_back_ios_new_rounded,
-                          color: Colors.green[700]),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Results for',
-                            style: GoogleFonts.poppins(
-                              color: Colors.grey[700],
-                              fontWeight: FontWeight.w500,
-                              fontSize: 13.5,
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              Text(
-                                '"${widget.query}"',
-                                style: GoogleFonts.poppins(
-                                  color: Colors.green[700],
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                ),
-                              ),
-                              if (!isLoading)
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 8.0),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green[50],
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      '$resultCount found',
-                                      style: GoogleFonts.poppins(
-                                        color: Colors.green[700],
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+      appBar: AppHeaderBar.forScaffold(
+        context,
+        title: 'Results for "${widget.query}"',
+        subtitle: isLoading ? null : '$resultCount found',
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -241,9 +173,8 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                                   contentPadding: EdgeInsets.zero,
                                 ),
                                 onChanged: (val) {
-                                  setState(() {
-                                    _searchText = val;
-                                  });
+                                  _searchText = val;
+                                  _performSearch();
                                 },
                                 onSubmitted: (_) => _performSearch(),
                                 textInputAction: TextInputAction.search,
@@ -253,9 +184,8 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                               GestureDetector(
                                 onTap: () {
                                   _searchController.clear();
-                                  setState(() {
-                                    _searchText = '';
-                                  });
+                                  _searchText = '';
+                                  _performSearch();
                                 },
                                 child: Icon(Icons.close,
                                     color: Colors.grey[400], size: 26),

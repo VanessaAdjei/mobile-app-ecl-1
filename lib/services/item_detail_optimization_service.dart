@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config/api_config.dart';
 import '../models/product_model.dart';
+import '../utils/related_products_parser.dart';
 import 'item_detail_service_interface.dart';
 import 'performance_service.dart';
 
@@ -361,60 +362,10 @@ class ItemDetailOptimizationService implements ItemDetailServiceInterface {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
-        if (data.containsKey('data') && data['data'] is List) {
-          return (data['data'] as List)
-              .map((item) {
-                try {
-                  return Product(
-                    id: item['product_id'] ?? item['id'] ?? 0,
-                    name: item['name'] ??
-                        item['product_name'] ??
-                        (item['product'] != null
-                            ? item['product']['name'] ?? ''
-                            : ''),
-                    description: item['description'] ??
-                        (item['product'] != null
-                            ? item['product']['description'] ?? ''
-                            : ''),
-                    urlName: item['url_name'] ??
-                        (item['product'] != null
-                            ? item['product']['url_name'] ?? ''
-                            : ''),
-                    status: item['status'] ??
-                        (item['product'] != null
-                            ? item['product']['status'] ?? ''
-                            : ''),
-                    batch_no: item['batch_no'] ?? '',
-                    price: item['price']?.toString() ?? '0.00',
-                    thumbnail: item['thumbnail'] ??
-                        item['product_img'] ??
-                        (item['product'] != null
-                            ? item['product']['thumbnail'] ??
-                                item['product']['product_img'] ??
-                                ''
-                            : ''),
-                    quantity: item['qty_in_stock']?.toString() ??
-                        item['quantity']?.toString() ??
-                        '',
-                    category: item['category'] ?? '',
-                    route: '',
-                    uom: item['uom'] ??
-                        item['unit_of_measure'] ??
-                        (item['product'] != null
-                            ? item['product']['uom'] ??
-                                item['product']['unit_of_measure'] ??
-                                ''
-                            : ''),
-                  );
-                } catch (e) {
-                  return null;
-                }
-              })
-              .where((product) => product != null)
-              .cast<Product>()
-              .toList();
-        }
-        return [];
+        return RelatedProductsParser.fromResponseBody(
+          data,
+          excludeUrlName: urlName,
+        );
       } else if (response.statusCode == 404) {
         return [];
       } else {

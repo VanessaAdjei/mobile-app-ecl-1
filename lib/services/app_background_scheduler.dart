@@ -11,6 +11,7 @@ import 'background_order_tracking_service.dart';
 import 'background_prefetch_service.dart';
 import 'background_store_data_service.dart';
 import 'health_tips_service.dart';
+import 'home_preload_service.dart';
 import 'homepage_optimization_service.dart';
 import 'native_notification_service.dart';
 import 'optimized_api_service.dart';
@@ -71,9 +72,13 @@ class AppBackgroundScheduler {
       }
     }());
 
-    // Homepage data — one path, after user can interact (~6s).
+    // Homepage data — skip if onboarding preload already filled ProductCache.
     _schedule(const Duration(seconds: 6), () {
       if (_paused) return;
+      if (HomePreloadService.isCatalogReady) {
+        HomePreloadService.publishCatalogToHomeServices();
+        return;
+      }
       unawaited(
         HomepageOptimizationService().getPopularProductsUltraFast(),
       );
@@ -82,6 +87,7 @@ class AppBackgroundScheduler {
     // Categories — lower priority (~20s).
     _schedule(const Duration(seconds: 20), () {
       if (_paused) return;
+      if (HomePreloadService.isCatalogReady) return;
       unawaited(HomepageOptimizationService().getCategorizedProducts());
     });
 

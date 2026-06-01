@@ -7,9 +7,16 @@ class OrderStatusHeroCard extends StatelessWidget {
   const OrderStatusHeroCard({
     super.key,
     required this.order,
+    this.compact = false,
+    this.accentOverride,
   });
 
   final OrderTrackingModel order;
+
+  /// Sheet-friendly layout: stage-first header, no full price breakdown.
+  final bool compact;
+
+  final Color? accentOverride;
 
   Color _accent(OrderTrackingStage stage) {
     switch (stage) {
@@ -45,8 +52,90 @@ class OrderStatusHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = _accent(order.stage);
+    final accent = accentOverride ?? _accent(order.stage);
     final firstItem = order.items.isNotEmpty ? order.items.first : null;
+
+    if (compact) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.shade100),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        order.stageLabel,
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade900,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Order #${order.orderNumber}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (order.stage != OrderTrackingStage.failed &&
+                    order.stage != OrderTrackingStage.pendingPayment)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${order.totalQuantity} item${order.totalQuantity == 1 ? '' : 's'}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: accent,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              order.stage == OrderTrackingStage.failed
+                  ? order.stageMessage
+                  : 'Arrives in ${order.estimatedDeliveryTime} • GHS ${order.totalAmount.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+                height: 1.35,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -68,7 +157,7 @@ class OrderStatusHeroCard extends StatelessWidget {
           Row(
             children: [
               Text(
-                'Order summary',
+                order.stageLabel,
                 style: TextStyle(
                   color: Colors.grey.shade900,
                   fontSize: 18,

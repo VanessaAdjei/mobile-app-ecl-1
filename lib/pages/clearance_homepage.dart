@@ -278,7 +278,9 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
               actualDiscount = clearanceProvider.discountPercentage;
             }
           }
-        } catch (e) {}
+        } catch (e) {
+          debugPrint('ClearanceHomepage: discount from provider failed: $e');
+        }
 
         final clearanceProducts = dataList.map<ClearanceProduct>((item) {
           final productData = item['product'] as Map<String, dynamic>;

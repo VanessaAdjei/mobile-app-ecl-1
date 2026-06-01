@@ -98,6 +98,10 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     _loadHealthTips();
   }
 
+  /// Upcoming and other non-overdue bookings only (overdue live on My Appointments).
+  List<Map<String, dynamic>> get _pharmacistPageBookings =>
+      activeBookingsForPharmacistsPage(_bookings);
+
   Future<void> _loadBookings() async {
     final isLoggedIn = await AuthService.isLoggedIn();
     if (isLoggedIn) {
@@ -1265,7 +1269,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   List<TimeOfDay> _computeAvailableTimesForDate(DateTime date) {
     final slots = _generateStandardTimeSlots();
     final booked = <String>{};
-    for (final b in _bookings) {
+    for (final b in _pharmacistPageBookings) {
       final dt = _parseBookingDateTime(b);
       if (dt == null) continue;
       if (_isSameDay(dt, date)) {
@@ -3323,7 +3327,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
 
   /// Unified “your bookings” area under the app bar (next visit + actions).
   Widget _buildTopBookingsStrip() {
-    if (_bookings.isEmpty) return const SizedBox.shrink();
+    final visible = _pharmacistPageBookings;
+    if (visible.isEmpty) return const SizedBox.shrink();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final shellBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
@@ -3334,7 +3339,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (_) => BookingsListSheet(
-          bookings: _bookings,
+          bookings: visible,
           onClear: _clearBookings,
           onCancelBooking: _cancelBooking,
         ),
@@ -3377,9 +3382,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        _bookings.length == 1
+                        visible.length == 1
                             ? 'Next booking'
-                            : 'Bookings (${_bookings.length})',
+                            : 'Bookings (${visible.length})',
                         style: GoogleFonts.poppins(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -3391,7 +3396,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (_bookings.length > 1)
+                    if (visible.length > 1)
                       TextButton(
                         onPressed: openAllBookings,
                         style: TextButton.styleFrom(
@@ -3435,7 +3440,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
                 child: _isUserLoggedIn
                     ? _buildSlimBookingCard(
-                        _bookings.first,
+                        visible.first,
                         margin: EdgeInsets.zero,
                         compact: true,
                         omitDetailLine: true,
@@ -3495,12 +3500,12 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           parent: AlwaysScrollableScrollPhysics(),
         ),
         slivers: [
-          if (_bookings.isNotEmpty)
+          if (_pharmacistPageBookings.isNotEmpty)
             SliverToBoxAdapter(child: _buildTopBookingsStrip()),
           SliverPadding(
             padding: EdgeInsets.fromLTRB(
               16,
-              _bookings.isNotEmpty ? 12 : 14,
+              _pharmacistPageBookings.isNotEmpty ? 12 : 14,
               16,
               32,
             ),
@@ -5579,7 +5584,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     bool compact = false,
     bool omitDetailLine = false,
   }) {
-    final isUpcoming = getBookingStatus(b) == 'Upcoming';
+    final isUpcoming = isBookingUpcoming(b);
+    final isPastDue = isBookingPastDue(b);
     final radius = compact ? 12.0 : 20.0;
     final barW = compact ? 2.5 : 4.0;
     final innerPad = compact
@@ -5598,7 +5604,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         border: Border.all(
           color: isUpcoming
               ? AppColors.primary.withOpacity(0.35)
-              : Colors.grey.shade200,
+              : isPastDue
+                  ? Colors.amber.shade200
+                  : Colors.grey.shade200,
         ),
         boxShadow: compact
             ? null
@@ -5619,7 +5627,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               Container(
                 width: barW,
                 decoration: BoxDecoration(
-                  color: isUpcoming ? AppColors.primary : Colors.grey.shade400,
+                  color: isUpcoming
+                      ? AppColors.primary
+                      : isPastDue
+                          ? Colors.amber.shade700
+                          : Colors.grey.shade400,
                 ),
               ),
               Expanded(
@@ -5631,7 +5643,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       Row(
                         children: [
                           Icon(Icons.event_rounded,
-                              color: AppColors.primary,
+                              color: isPastDue
+                                  ? Colors.amber.shade800
+                                  : AppColors.primary,
                               size: compact ? 13 : 16),
                           SizedBox(width: compact ? 3 : 6),
                           Expanded(
@@ -5654,7 +5668,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                             decoration: BoxDecoration(
                               color: isUpcoming
                                   ? Color(0xFFE8F5E9)
-                                  : Colors.grey.shade100,
+                                  : isPastDue
+                                      ? Colors.amber.shade50
+                                      : Colors.grey.shade100,
                               borderRadius: BorderRadius.circular(
                                   compact ? 8 : 12),
                             ),
@@ -5665,7 +5681,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                                 fontWeight: FontWeight.w600,
                                 color: isUpcoming
                                     ? Color(0xFF2E7D32)
-                                    : Colors.grey.shade700,
+                                    : isPastDue
+                                        ? Colors.amber.shade900
+                                        : Colors.grey.shade700,
                               ),
                             ),
                           ),
@@ -5747,6 +5765,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   }
 
   Widget _buildEnhancedBookingCard(Map<String, dynamic> b) {
+    final isUpcoming = isBookingUpcoming(b);
+    final isPastDue = isBookingPastDue(b);
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
@@ -5804,16 +5824,18 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    gradient: getBookingStatus(b) == 'Upcoming'
+                    gradient: isUpcoming
                         ? LinearGradient(
                             colors: [Colors.green[400]!, Colors.green[500]!],
                           )
                         : null,
-                    color: getBookingStatus(b) == 'Upcoming'
+                    color: isUpcoming
                         ? null
-                        : Colors.grey[300],
+                        : isPastDue
+                            ? Colors.amber.shade100
+                            : Colors.grey[300],
                     borderRadius: BorderRadius.circular(12),
-                    boxShadow: getBookingStatus(b) == 'Upcoming'
+                    boxShadow: isUpcoming
                         ? [
                             BoxShadow(
                               color: Colors.green.withValues(alpha: 0.3),
@@ -5828,9 +5850,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                     style: GoogleFonts.poppins(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: getBookingStatus(b) == 'Upcoming'
+                      color: isUpcoming
                           ? Colors.white
-                          : Colors.grey[700],
+                          : isPastDue
+                              ? Colors.amber.shade900
+                              : Colors.grey[700],
                     ),
                   ),
                 ),
@@ -5977,6 +6001,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   }
 
   Widget _buildBookingCard(Map<String, dynamic> b) {
+    final isUpcoming = isBookingUpcoming(b);
+    final isPastDue = isBookingPastDue(b);
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       elevation: 1,
@@ -6007,9 +6033,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: getBookingStatus(b) == 'Upcoming'
+                    color: isUpcoming
                         ? Colors.green[100]
-                        : Colors.grey[300],
+                        : isPastDue
+                            ? Colors.amber.shade100
+                            : Colors.grey[300],
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -6017,9 +6045,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                     style: GoogleFonts.poppins(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: getBookingStatus(b) == 'Upcoming'
+                      color: isUpcoming
                           ? Colors.green[800]
-                          : Colors.grey[700],
+                          : isPastDue
+                              ? Colors.amber.shade900
+                              : Colors.grey[700],
                     ),
                   ),
                 ),

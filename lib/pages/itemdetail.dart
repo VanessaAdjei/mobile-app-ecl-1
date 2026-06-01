@@ -29,6 +29,7 @@ import '../widgets/full_screen_image_viewer.dart';
 import '../widgets/optimized_quantity_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/universal_page_optimization_service.dart';
+import '../utils/related_products_parser.dart';
 
 import 'homepage.dart';
 
@@ -226,8 +227,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   void _loadDataWithSkeleton() async {
-    // show skeleton for at least 800ms
-    _skeletonTimer = Timer(const Duration(milliseconds: 800), () {
+    // Safety cap: if the network is slow, never leave the skeleton up forever.
+    _skeletonTimer = Timer(const Duration(seconds: 6), () {
       if (mounted) {
         setState(() {
           _showSkeleton = false;
@@ -235,21 +236,19 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       }
     });
 
-    // load data at the same time
+    // Kick off both fetches in parallel (cache-first returns instantly on revisit).
     _productFuture = _fetchProductDetailsWithCache(widget.urlName);
     _relatedProductsFuture = _fetchRelatedProductsWithCache(widget.urlName);
 
-    // wait for both to finish
+    // Hide the skeleton as soon as the main product data is ready; related
+    // products can keep loading in the background without blocking the page.
     try {
-      await Future.wait([_productFuture, _relatedProductsFuture]);
+      await _productFuture;
     } catch (e) {
       debugPrint('Error loading data: $e');
     }
 
-    // make sure skeleton showed for at least 800ms
-    if (_skeletonTimer?.isActive == true) {
-      await Future.delayed(const Duration(milliseconds: 800));
-    }
+    _skeletonTimer?.cancel();
 
     if (mounted) {
       setState(() {
@@ -626,90 +625,10 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       if (response.statusCode == 200) {
         try {
           final Map<String, dynamic> data = json.decode(response.body);
-          if (data.containsKey('data') && data['data'] is List) {
-            return (data['data'] as List)
-                .map((item) {
-                  try {
-                    // try to get otcpom from cached products if not in api response
-                    String otcpom = item['otcpom'] ?? '';
-                    if (otcpom.isEmpty) {
-                      final cachedProducts = ProductCache.cachedProducts;
-                      final matchingProduct = cachedProducts.firstWhere(
-                        (product) =>
-                            product.urlName ==
-                            (item['url_name'] ??
-                                item['product']?['url_name'] ??
-                                ''),
-                        orElse: () => Product(
-                          id: 0,
-                          name: '',
-                          description: '',
-                          urlName: '',
-                          status: '',
-                          price: '0',
-                          thumbnail: '',
-                          quantity: '',
-                          category: '',
-                          route: '',
-                          batch_no: '',
-                        ),
-                      );
-                      if (matchingProduct.id != 0) {
-                        otcpom = matchingProduct.otcpom ?? '';
-                      }
-                    }
-
-                    return Product(
-                      id: item['product_id'] ?? item['id'] ?? 0,
-                      name: item['name'] ??
-                          item['product_name'] ??
-                          (item['product'] != null
-                              ? item['product']['name'] ?? ''
-                              : ''),
-                      description: item['description'] ??
-                          (item['product'] != null
-                              ? item['product']['description'] ?? ''
-                              : ''),
-                      urlName: item['url_name'] ??
-                          (item['product'] != null
-                              ? item['product']['url_name'] ?? ''
-                              : ''),
-                      status: item['status'] ??
-                          (item['product'] != null
-                              ? item['product']['status'] ?? ''
-                              : ''),
-                      batch_no: item['batch_no'] ?? '',
-                      price: item['price']?.toString() ?? '0.00',
-                      thumbnail: item['thumbnail'] ??
-                          item['product_img'] ??
-                          (item['product'] != null
-                              ? item['product']['thumbnail'] ??
-                                  item['product']['product_img'] ??
-                                  ''
-                              : ''),
-                      quantity: item['qty_in_stock']?.toString() ??
-                          item['quantity']?.toString() ??
-                          '',
-                      category: item['category'] ?? '',
-                      route: '',
-                      otcpom: otcpom,
-                      uom: item['uom'] ??
-                          item['unit_of_measure'] ??
-                          (item['product'] != null
-                              ? item['product']['uom'] ??
-                                  item['product']['unit_of_measure'] ??
-                                  ''
-                              : ''),
-                    );
-                  } catch (e) {
-                    return null;
-                  }
-                })
-                .where((product) => product != null)
-                .cast<Product>()
-                .toList();
-          }
-          return [];
+          return RelatedProductsParser.fromResponseBody(
+            data,
+            excludeUrlName: urlName,
+          );
         } catch (e) {
           return [];
         }
@@ -1090,6 +1009,12 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                               ? CachedNetworkImage(
                                   imageUrl: imageUrl,
                                   fit: BoxFit.cover,
+                                  memCacheWidth: 600,
+                                  memCacheHeight: 600,
+                                  maxWidthDiskCache: 600,
+                                  maxHeightDiskCache: 600,
+                                  fadeInDuration:
+                                      const Duration(milliseconds: 150),
                                   placeholder: (context, url) => Container(
                                     color: Colors.grey[200],
                                     child: Center(
@@ -1899,7 +1824,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   Widget _buildRelatedProductCard(Product product, BuildContext context) {
-    // final imageUrl removed (was unused)
+    final imageUrl = ApiConfig.getProductImageUrl(product.thumbnail);
 
     return GestureDetector(
       onTap: () {
@@ -1913,9 +1838,124 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
         );
       },
       child: Container(
-          // ...existing code for the card UI...
-          // You should reconstruct the widget tree here as needed, ensuring no dead code or duplicate children.
-          ),
+        width: 140,
+        margin: const EdgeInsets.only(right: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(10)),
+                    child: product.thumbnail.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: imageUrl,
+                            fit: BoxFit.contain,
+                            width: double.infinity,
+                            height: double.infinity,
+                            memCacheWidth: 300,
+                            memCacheHeight: 300,
+                            maxWidthDiskCache: 300,
+                            maxHeightDiskCache: 300,
+                            fadeInDuration: const Duration(milliseconds: 150),
+                            placeholder: (context, url) => Container(
+                              color: Colors.grey[200],
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.green.shade600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              color: Colors.grey[200],
+                              child: Icon(
+                                Icons.medical_services,
+                                size: 36,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                          )
+                        : Container(
+                            color: Colors.grey[200],
+                            child: Icon(
+                              Icons.medical_services,
+                              size: 36,
+                              color: Colors.grey[400],
+                            ),
+                          ),
+                  ),
+                  if (product.otcpom?.toLowerCase() == 'pom')
+                    Positioned(
+                      top: 4,
+                      left: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.red[700],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'Prescription',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 7,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.name.isNotEmpty
+                        ? product.name
+                        : product.urlName.replaceAll('-', ' '),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                      color: Colors.black87,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'GHS ${product.price}',
+                    style: GoogleFonts.poppins(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

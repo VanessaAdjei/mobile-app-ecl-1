@@ -15,7 +15,9 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:eclapp/pages/map_picker_page.dart';
+import '../utils/app_error_utils.dart';
 import '../widgets/checkout_progress_stepper.dart';
+import '../widgets/order_threshold_promo_banner.dart';
 
 class DeliveryPage extends StatefulWidget {
   const DeliveryPage({super.key});
@@ -56,8 +58,6 @@ class DeliveryPageState extends State<DeliveryPage> {
   bool _isProceedingToPayment = false;
   int _feeUpdateGeneration = 0;
   Future<void>? _activeDeliveryFeeRefresh;
-  List<Map<String, dynamic>> _distanceStores = [];
-  Future<void>? _distanceStoresLoad;
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -76,6 +76,14 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   /// Last server [distance_text] we priced — skips duplicate calculate-delivery-fee calls.
   String? _lastFeeDistanceText;
+
+  /// True when [deliveryFee] came from save-billing or calculate-delivery-fee API.
+  bool _deliveryFeeFromApi = false;
+
+  /// Store coordinates for optional placeholder estimates while the fee API runs.
+  List<Map<String, dynamic>> _feeEstimateStores = [];
+
+  String? _lastDeliveryErrorMessage;
 
   String? _cachedBillingRegionLabel;
   String? _cachedBillingCityLabel;
@@ -98,7 +106,6 @@ class DeliveryPageState extends State<DeliveryPage> {
   final GlobalKey addressSectionKey = GlobalKey();
 
   bool _isOrderUrgent = false;
-  bool _isUrgentFeeLoading = false;
   double? _emergencyOrderFee;
 
   // data for pickup locations (regions, cities, stores)
@@ -138,116 +145,79 @@ class DeliveryPageState extends State<DeliveryPage> {
     super.initState();
     _loadUserData();
     _loadRegions(); // load regions when the page starts
-    _preloadDistanceStores();
+    unawaited(_preloadFeeEstimateStores());
   }
 
-  void _preloadDistanceStores() {
-    _distanceStoresLoad ??= DeliveryService.getAllStores().then((result) {
-      if (result['success'] == true && result['data'] is List) {
-        _distanceStores = List<Map<String, dynamic>>.from(result['data']);
-      }
-    });
-  }
-
-  Future<List<Map<String, dynamic>>> _ensureDistanceStores() async {
-    _preloadDistanceStores();
-    await _distanceStoresLoad;
-    return _distanceStores;
-  }
-
-  /// Applies fee from cached stores synchronously (map pick / coords already set).
-  bool _tryApplyInstantDeliveryFee(double lat, double lng) {
-    if (deliveryOption == 'pickup' || _distanceStores.isEmpty) return false;
-
-    final localEstimate = DeliveryService.estimateFeeFromCoordinates(
-      lat: lat,
-      lng: lng,
-      stores: _distanceStores,
-    );
-    if (localEstimate == null) return false;
-
-    final fee = localEstimate['delivery_fee'];
-    if (fee is! num) return false;
-
-    deliveryFee = fee.toDouble();
-    final km = localEstimate['distance_km'];
-    if (km is num) _distanceKm = km.toDouble();
-    _isUpdatingDeliveryFee = false;
-    return true;
-  }
-
-  /// Local estimate after stores load (when cache was empty on map pick).
-  Future<bool> _applyLocalDeliveryFeeEstimate(
-    double lat,
-    double lng, {
-    required int generation,
-  }) async {
-    if (deliveryOption == 'pickup' || !mounted) return false;
-    if (generation != _feeUpdateGeneration) return false;
-
-    final stores = await _ensureDistanceStores();
-    if (!mounted || generation != _feeUpdateGeneration) return false;
-
-    final localEstimate = DeliveryService.estimateFeeFromCoordinates(
-      lat: lat,
-      lng: lng,
-      stores: stores,
-    );
-    if (localEstimate == null) return false;
-
-    final fee = localEstimate['delivery_fee'];
-    if (fee is! num) return false;
-
-    setState(() {
-      deliveryFee = fee.toDouble();
-      final km = localEstimate['distance_km'];
-      if (km is num) _distanceKm = km.toDouble();
-      _isUpdatingDeliveryFee = false;
-    });
-    return true;
-  }
-
-  Future<void> _runDeliveryFeeRefresh(
-    double lat,
-    double lng,
-    int generation,
-  ) async {
+  Future<void> _preloadFeeEstimateStores() async {
     try {
-      if (!_tryApplyInstantDeliveryFee(lat, lng)) {
-        await _applyLocalDeliveryFeeEstimate(
-          lat,
-          lng,
-          generation: generation,
-        );
-      } else if (mounted && generation == _feeUpdateGeneration) {
-        setState(() {});
+      final stores = await DeliveryService.getStoresForFeeEstimate();
+      if (!mounted) return;
+      _feeEstimateStores = stores;
+      if (deliveryOption == 'delivery' &&
+          _latitude != null &&
+          _longitude != null) {
+        _tryInstantFeeFromCoordinates(_latitude!, _longitude!);
       }
-
-      // Refine ETA/fee via save-billing without hiding an already-shown fee.
-      await _syncDeliveryAddressToServer(generation);
     } catch (e) {
-      debugPrint('❌ [DELIVERY] Fee refresh error: $e');
-      await _syncDeliveryAddressToServer(generation);
-    } finally {
-      if (mounted && generation == _feeUpdateGeneration) {
-        setState(() => _isUpdatingDeliveryFee = false);
-      }
+      debugPrint('❌ [DELIVERY] Store preload for fee estimate failed: $e');
     }
   }
 
-  /// Updates delivery fee immediately from map coords, then refines via API.
-  Future<void> _refreshDeliveryFeeForCoordinates(double lat, double lng) async {
+  void _showDeliverySnack(String message, {bool isError = true}) {
+    if (!mounted) return;
+    setState(() => _lastDeliveryErrorMessage = isError ? message : null);
+    AppErrorUtils.showSnack(
+      context,
+      message,
+      isError: isError,
+      duration: Duration(seconds: isError ? 4 : 2),
+    );
+  }
+
+  /// Placeholder fee from straight-line distance (replaced when API responds).
+  void _tryInstantFeeFromCoordinates(double lat, double lng) {
+    if (deliveryOption != 'delivery' ||
+        _feeEstimateStores.isEmpty ||
+        _deliveryFeeFromApi) {
+      return;
+    }
+    final estimate = DeliveryService.estimateFeeFromCoordinates(
+      lat: lat,
+      lng: lng,
+      stores: _feeEstimateStores,
+    );
+    if (estimate == null || !mounted) return;
+    final fee = estimate['delivery_fee'];
+    if (fee is! num) return;
+    setState(() {
+      deliveryFee = fee.toDouble();
+      _distanceKm = (estimate['distance_km'] as num?)?.toDouble();
+      // Do not set _lastFeeDistanceText — that must come from save-billing/API.
+    });
+  }
+
+  /// Fetches delivery fee from save-billing + calculate-delivery-fee APIs only.
+  Future<void> _refreshDeliveryFeeForCoordinates(
+    double lat,
+    double lng, {
+    bool fullLocationLookup = false,
+    bool clearFee = true,
+  }) async {
     if (deliveryOption == 'pickup' || !mounted) return;
 
     final generation = ++_feeUpdateGeneration;
 
-    if (!_tryApplyInstantDeliveryFee(lat, lng) && deliveryFee <= 0) {
-      setState(() => _isUpdatingDeliveryFee = true);
-    } else if (mounted) {
-      setState(() {});
-    }
+    setState(() {
+      _isUpdatingDeliveryFee = true;
+      _deliveryFeeFromApi = false;
+      if (clearFee && deliveryFee <= 0) deliveryFee = 0;
+    });
+    _tryInstantFeeFromCoordinates(lat, lng);
 
-    final refresh = _runDeliveryFeeRefresh(lat, lng, generation);
+    final refresh = _runDeliveryFeeRefresh(
+      generation,
+      fullLocationLookup: fullLocationLookup,
+    );
     _activeDeliveryFeeRefresh = refresh;
     try {
       await refresh;
@@ -258,10 +228,123 @@ class DeliveryPageState extends State<DeliveryPage> {
     }
   }
 
-  Future<void> _syncDeliveryAddressToServer(int generation) async {
-    await _safelyCallDeliveryAPI(
+  /// Whether save-billing-add has enough data to succeed (avoids 422 on map pick).
+  bool _canSyncBillingForFeeRefresh() {
+    if (deliveryOption != 'delivery') return false;
+    if (_latitude == null || _longitude == null) return false;
+    if (_regionController.text.trim().isEmpty ||
+        _cityController.text.trim().isEmpty ||
+        _addressController.text.trim().isEmpty) {
+      return false;
+    }
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
+    if (name.isEmpty || email.isEmpty || phone.isEmpty) return false;
+    return RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+        .hasMatch(email);
+  }
+
+  Future<void> _runDeliveryFeeRefresh(
+    int generation, {
+    bool fullLocationLookup = false,
+  }) async {
+    try {
+      if (!_canSyncBillingForFeeRefresh()) {
+        debugPrint(
+          '📦 [DELIVERY] Skipping save-billing until name, contact, and address are complete',
+        );
+        return;
+      }
+
+      final ok = await _syncDeliveryAddressToServer(
+        generation,
+        fullLocationLookup: fullLocationLookup,
+      );
+      if (!ok &&
+          mounted &&
+          generation == _feeUpdateGeneration &&
+          deliveryOption == 'delivery') {
+        _showDeliverySnack(
+          _lastDeliveryErrorMessage ??
+              'Could not update delivery fee. Reselect your location or try again.',
+        );
+      }
+    } catch (e, st) {
+      debugPrint('❌ [DELIVERY] Fee refresh error: $e\n$st');
+      if (mounted && generation == _feeUpdateGeneration) {
+        _showDeliverySnack(
+          'Could not update delivery fee. Check your connection and try again.',
+        );
+      }
+    } finally {
+      if (mounted && generation == _feeUpdateGeneration) {
+        setState(() => _isUpdatingDeliveryFee = false);
+      }
+    }
+  }
+
+  Future<bool> _syncDeliveryAddressToServer(
+    int generation, {
+    bool fullLocationLookup = false,
+  }) async {
+    return _safelyCallDeliveryAPI(
       generation: generation,
       skipFeeWhenAlreadySet: false,
+      skipLocationIdLookup: !fullLocationLookup,
+    );
+  }
+
+  /// Map pick / coords update: reverse-geocode first, then sync billing when ready.
+  void _onDeliveryLocationSelected(
+    double lat,
+    double lng, {
+    String? address,
+  }) {
+    final preferredAddress = (address != null &&
+            address.isNotEmpty &&
+            address != 'Unknown location' &&
+            address != 'Address not found')
+        ? address.trim()
+        : null;
+
+    setState(() {
+      _latitude = lat;
+      _longitude = lng;
+      if (deliveryOption == 'delivery') {
+        _isUpdatingDeliveryFee = true;
+        _deliveryFeeFromApi = false;
+        _lastFeeDistanceText = null;
+        if (preferredAddress != null) {
+          _addressController.text = preferredAddress;
+          _highlightAddressField = false;
+        }
+      }
+    });
+
+    if (deliveryOption == 'delivery') {
+      _tryInstantFeeFromCoordinates(lat, lng);
+    }
+
+    unawaited(_completeMapLocationSelection(lat, lng, preferredAddress));
+  }
+
+  Future<void> _completeMapLocationSelection(
+    double lat,
+    double lng,
+    String? preferredAddress,
+  ) async {
+    await _getAddressFromCoordinates(
+      lat,
+      lng,
+      preferredAddress: preferredAddress,
+    );
+    if (!mounted || deliveryOption != 'delivery') return;
+    await _refreshDeliveryFeeForCoordinates(
+      lat,
+      lng,
+      fullLocationLookup: true,
+      clearFee: false,
     );
   }
 
@@ -273,6 +356,19 @@ class DeliveryPageState extends State<DeliveryPage> {
         result['data']?['distance_text']?.toString();
     if (text == null || text.trim().isEmpty) return null;
     return text.trim();
+  }
+
+  double? _deliveryFeeFromSaveResult(Map<String, dynamic> result) {
+    final closestStore =
+        result['closest_store'] ?? result['data']?['closest_store'];
+    final raw = closestStore?['delivery_fee'] ??
+        closestStore?['deliveryFee'] ??
+        result['delivery_fee'] ??
+        result['deliveryFee'] ??
+        result['data']?['delivery_fee'] ??
+        result['data']?['deliveryFee'];
+    if (raw is num) return raw.toDouble();
+    return double.tryParse(raw?.toString() ?? '');
   }
 
   /// Applies ETA and delivery fee from a save-billing-add response.
@@ -290,9 +386,23 @@ class DeliveryPageState extends State<DeliveryPage> {
     if (deliveryOption != 'delivery') return;
 
     final distanceText = _distanceTextFromSaveResult(result);
+    final feeFromSave = _deliveryFeeFromSaveResult(result);
+    if (feeFromSave != null && feeFromSave > 0) {
+      setState(() {
+        deliveryFee = feeFromSave;
+        _deliveryFeeFromApi = true;
+        if (distanceText != null) {
+          _lastFeeDistanceText = distanceText;
+        }
+      });
+      return;
+    }
+
     if (distanceText == null) return;
 
-    if (distanceText == _lastFeeDistanceText && deliveryFee > 0) {
+    if (distanceText == _lastFeeDistanceText &&
+        deliveryFee > 0 &&
+        _deliveryFeeFromApi) {
       debugPrint(
           '📦 [DELIVERY] Fee unchanged for distance "$distanceText", skipping fee API');
       return;
@@ -301,43 +411,60 @@ class DeliveryPageState extends State<DeliveryPage> {
     await _applyDeliveryFeeFromDistanceText(distanceText);
   }
 
-  /// Fetches authoritative fee from /calculate-delivery-fee using server distance.
+  void _applyDeliveryFeeResult(
+    Map<String, dynamic> feeResult,
+    String distanceText, {
+    required bool fromApi,
+  }) {
+    if (!mounted) return;
+    final rawFee = feeResult['delivery_fee'];
+    final rawDist = feeResult['distance'];
+    if (rawFee is! num) return;
+    setState(() {
+      deliveryFee = rawFee.toDouble();
+      _lastFeeDistanceText = distanceText.trim();
+      _deliveryFeeFromApi = fromApi;
+      if (rawDist is num) {
+        _distanceKm = rawDist.toDouble();
+      }
+    });
+  }
+
+  /// Fetches the real fee from /calculate-delivery-fee (source of truth).
   Future<double?> _applyDeliveryFeeFromDistanceText(String distanceText) async {
     final trimmed = distanceText.trim();
     if (trimmed.isEmpty) return null;
 
-    Map<String, dynamic>? feeResult =
-        await DeliveryService.fetchDeliveryFeeFromApi(distanceText: trimmed);
-
-    double? feeValue;
-    double? distanceKm;
-
-    if (feeResult != null) {
-      final rawFee = feeResult['delivery_fee'];
-      final rawDist = feeResult['distance'];
-      if (rawFee is num) feeValue = rawFee.toDouble();
-      if (rawDist is num) distanceKm = rawDist.toDouble();
-    } else {
-      final local =
-          DeliveryService.calculateDeliveryFeeFromDistanceText(trimmed);
-      if (local != null) {
-        feeValue = local['fee'];
-        distanceKm = local['distanceKm'];
+    try {
+      final feeResult = await DeliveryService.fetchDeliveryFeeFromApi(
+        distanceText: trimmed,
+        fallbackToLocalEstimate: true,
+      );
+      if (feeResult == null) {
+        debugPrint(
+            '❌ [DELIVERY] calculate-delivery-fee failed for "$trimmed"; fee not set');
+        _lastDeliveryErrorMessage =
+            'Could not calculate delivery fee for your address.';
+        return null;
       }
+
+      final fromApi = feeResult['from_api'] == true;
+      _applyDeliveryFeeResult(feeResult, trimmed, fromApi: fromApi);
+      if (!fromApi) {
+        debugPrint(
+            '⚠️ [DELIVERY] Using local estimate for "$trimmed" — API unavailable');
+        _lastDeliveryErrorMessage =
+            'Showing estimated delivery fee — exact amount will be confirmed at checkout.';
+      } else {
+        _lastDeliveryErrorMessage = null;
+      }
+      return deliveryFee;
+    } catch (e, st) {
+      debugPrint('❌ [DELIVERY] Fee from distance_text failed: $e\n$st');
+      _lastDeliveryErrorMessage =
+          'Could not calculate delivery fee. Please try again.';
+      return null;
     }
-
-    if (!mounted || feeValue == null) return null;
-
-    double? resolvedFee;
-    setState(() {
-      deliveryFee = feeValue!;
-      resolvedFee = deliveryFee;
-      _lastFeeDistanceText = trimmed;
-      if (distanceKm != null) {
-        _distanceKm = distanceKm;
-      }
-    });
-    return resolvedFee;
   }
 
   /// Ensures [deliveryFee] is set before payment without extra save/refresh cycles.
@@ -346,18 +473,32 @@ class DeliveryPageState extends State<DeliveryPage> {
   }) async {
     if (deliveryOption == 'pickup') return 0;
 
-    final pendingRefresh = _activeDeliveryFeeRefresh;
-    if (pendingRefresh != null) {
-      await pendingRefresh;
-    }
+    try {
+      final pendingRefresh = _activeDeliveryFeeRefresh;
+      if (pendingRefresh != null) {
+        await pendingRefresh;
+      }
 
-    if (saveResult != null) {
-      await _applySaveBillingSideEffects(saveResult);
-    }
-    if (deliveryFee > 0) return deliveryFee;
+      if (saveResult != null && saveResult['success'] == true) {
+        await _applySaveBillingSideEffects(saveResult);
+      }
+      if (_deliveryFeeFromApi && deliveryFee > 0) return deliveryFee;
 
-    if (_latitude != null && _longitude != null) {
-      await _safelyCallDeliveryAPI(skipFeeWhenAlreadySet: false);
+      final distanceText = saveResult != null
+          ? _distanceTextFromSaveResult(saveResult)
+          : _lastFeeDistanceText;
+      if (distanceText != null && distanceText.isNotEmpty) {
+        await _applyDeliveryFeeFromDistanceText(distanceText);
+      }
+      if (_deliveryFeeFromApi && deliveryFee > 0) return deliveryFee;
+
+      if (_latitude != null && _longitude != null) {
+        await _safelyCallDeliveryAPI(skipFeeWhenAlreadySet: false);
+      }
+    } catch (e, st) {
+      debugPrint('❌ [DELIVERY] ensureDeliveryFeeForPayment: $e\n$st');
+      _lastDeliveryErrorMessage =
+          'Could not confirm delivery fee. Please try again.';
     }
 
     return deliveryFee;
@@ -638,6 +779,19 @@ class DeliveryPageState extends State<DeliveryPage> {
     return id;
   }
 
+  Future<({int? regionId, int? cityId, int? storeId})>
+      _resolveBillingLocationIdsSafe({required bool skipLookup}) async {
+    if (skipLookup) {
+      return (regionId: null, cityId: null, storeId: null);
+    }
+    try {
+      return await _resolveBillingLocationIds();
+    } catch (e) {
+      debugPrint('❌ [DELIVERY] resolveBillingLocationIds: $e');
+      return (regionId: null, cityId: null, storeId: null);
+    }
+  }
+
   /// Resolve backend region/city/store ids (save-billing-add expects numeric ids).
   Future<({int? regionId, int? cityId, int? storeId})>
       _resolveBillingLocationIds() async {
@@ -774,7 +928,12 @@ class DeliveryPageState extends State<DeliveryPage> {
                         Container(
                           padding: const EdgeInsets.fromLTRB(16, 2, 16, 14),
                           child: const CheckoutProgressStepper(
-                            steps: ['Cart', 'Delivery', 'Payment', 'Confirmation'],
+                            steps: [
+                              'Cart',
+                              'Delivery',
+                              'Payment',
+                              'Confirmation'
+                            ],
                             activeStep: 2,
                             completedSteps: {1},
                           ),
@@ -805,7 +964,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                           const SizedBox(height: 10),
                           if (deliveryOption == 'delivery') ...[
                             _buildUrgentOption(),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 14),
                           ],
                           if (deliveryOption == 'pickup')
                             Animate(
@@ -1694,6 +1853,7 @@ class DeliveryPageState extends State<DeliveryPage> {
   Future<bool> _safelyCallDeliveryAPI({
     int? generation,
     bool skipFeeWhenAlreadySet = false,
+    bool skipLocationIdLookup = false,
   }) async {
     try {
       if (!mounted) return false;
@@ -1708,9 +1868,11 @@ class DeliveryPageState extends State<DeliveryPage> {
       final lat = _latitude;
       final lng = _longitude;
 
-      print('📤 Calling DeliveryService.saveDeliveryInfo...');
+      debugPrint('📤 Calling DeliveryService.saveDeliveryInfo...');
 
-      final locationIds = await _resolveBillingLocationIds();
+      final locationIds = await _resolveBillingLocationIdsSafe(
+        skipLookup: skipLocationIdLookup,
+      );
 
       final result = await DeliveryService.saveDeliveryInfo(
         name: name,
@@ -1741,11 +1903,14 @@ class DeliveryPageState extends State<DeliveryPage> {
 
       final wasSuccessful = result['success'] == true;
       if (!wasSuccessful) {
-        final errorMessage = (result['message'] ?? 'Failed to save delivery information')
-            .toString();
-        print('❌ [DELIVERY] Save failed: $errorMessage');
+        final errorMessage =
+            (result['message'] ?? 'Failed to save delivery information')
+                .toString();
+        debugPrint('❌ [DELIVERY] Save failed: $errorMessage');
+        _lastDeliveryErrorMessage = errorMessage;
         return false;
       }
+      _lastDeliveryErrorMessage = null;
 
       if (!skipFeeWhenAlreadySet &&
           mounted &&
@@ -1763,8 +1928,15 @@ class DeliveryPageState extends State<DeliveryPage> {
       }
 
       return true;
-    } catch (e) {
-      print('❌ Error in API call: $e');
+    } on TimeoutException catch (e) {
+      debugPrint('❌ [DELIVERY] save billing timeout: $e');
+      _lastDeliveryErrorMessage =
+          'Request timed out. Please check your connection and try again.';
+      return false;
+    } catch (e, st) {
+      debugPrint('❌ Error in API call: $e\n$st');
+      _lastDeliveryErrorMessage =
+          'Network error. Please check your connection and try again.';
       return false;
     }
   }
@@ -1937,128 +2109,188 @@ class DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
+  Future<void> _onUrgentToggleChanged(bool enabled) async {
+    if (enabled == _isOrderUrgent) return;
+
+    if (!enabled) {
+      setState(() {
+        _isOrderUrgent = false;
+        _emergencyOrderFee = null;
+      });
+      return;
+    }
+
+    setState(() => _isOrderUrgent = true);
+
+    final result = await DeliveryService.addXpressFee();
+    if (!mounted) return;
+
+    if (result != null && result['xpress_fee'] != null) {
+      setState(() {
+        _emergencyOrderFee = (result['xpress_fee'] is num)
+            ? (result['xpress_fee'] as num).toDouble()
+            : double.tryParse(result['xpress_fee'].toString());
+      });
+      return;
+    }
+
+    setState(() {
+      _isOrderUrgent = false;
+      _emergencyOrderFee = null;
+    });
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Failed to add urgent delivery fee.'),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   Widget _buildUrgentOption() {
     final isOn = _isOrderUrgent;
+    const urgentRed = Color(0xFFD32F2F);
+    const urgentOrange = Color(0xFFEA580C);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () async {
-            if (_isUrgentFeeLoading) return;
-            setState(() {
-              _isUrgentFeeLoading = true;
-            });
-            if (!_isOrderUrgent) {
-              // Only call API when toggling ON
-              final result = await DeliveryService.addXpressFee();
-              if (result != null && result['xpress_fee'] != null) {
-                setState(() {
-                  _emergencyOrderFee = (result['xpress_fee'] is num)
-                      ? (result['xpress_fee'] as num).toDouble()
-                      : double.tryParse(result['xpress_fee'].toString());
-                });
-              } else {
-                if (mounted) {
-                  final messenger = ScaffoldMessenger.of(context);
-                  messenger.hideCurrentSnackBar();
-                  messenger.showSnackBar(
-                    SnackBar(
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text('Failed to add urgent delivery fee.'),
-                          SizedBox(height: 4),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.swipe_down_alt_rounded,
-                                  color: Colors.white70, size: 14),
-                              SizedBox(width: 4),
-                              Text(
-                                'Swipe down to dismiss',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      dismissDirection: DismissDirection.down,
-                      showCloseIcon: true,
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                }
-              }
-            } else {
-              setState(() {
-                _emergencyOrderFee = null;
-              });
-            }
-            setState(() {
-              _isOrderUrgent = !_isOrderUrgent;
-              _isUrgentFeeLoading = false;
-            });
-          },
-          borderRadius: BorderRadius.circular(16),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            decoration: BoxDecoration(
-              color: isOn ? Colors.red.withOpacity(0.06) : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color:
-                    isOn ? Colors.red.withOpacity(0.35) : Colors.grey.shade200,
-                width: 1,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.fromLTRB(10, 10, 4, 10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isOn
+                ? [
+                    Colors.red.shade50,
+                    const Color(0xFFFFF5F5),
+                    Colors.white,
+                  ]
+                : [
+                    const Color(0xFFFFF7ED),
+                    const Color(0xFFFFFBEB),
+                    Colors.white,
+                  ],
+          ),
+          borderRadius: BorderRadius.circular(_fieldRadius),
+          border: Border.all(
+            color: isOn
+                ? urgentRed.withValues(alpha: 0.45)
+                : urgentOrange.withValues(alpha: 0.55),
+            width: 1.25,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: (isOn ? urgentRed : urgentOrange).withValues(alpha: 0.12),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: isOn
+                    ? urgentRed.withValues(alpha: 0.12)
+                    : urgentOrange.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isOn
+                      ? urgentRed.withValues(alpha: 0.2)
+                      : urgentOrange.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Icon(
+                isOn ? Icons.flash_on_rounded : Icons.flash_on_outlined,
+                size: 20,
+                color: isOn ? urgentRed : urgentOrange,
               ),
             ),
-            child: Row(
-              children: [
-                Icon(
-                  isOn ? Icons.flash_on : Icons.flash_on_outlined,
-                  color: isOn ? Colors.red : Colors.grey,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Text(
-                        isOn ? 'Urgent order' : 'Urgent or emergency',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: isOn ? Colors.red : Colors.black,
+                      Flexible(
+                        child: Text(
+                          isOn ? 'Urgent order' : 'xPress delivery',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                            letterSpacing: -0.2,
+                            color: isOn ? urgentRed : const Color(0xFF9A3412),
+                          ),
                         ),
                       ),
-                      Text(
-                        isOn
-                            ? 'We will prioritize your order.'
-                            : 'Tap to mark as urgent',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[700],
+                      const SizedBox(width: 5),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isOn
+                              ? urgentRed.withValues(alpha: 0.12)
+                              : urgentOrange.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(
+                          isOn ? 'ON' : 'FAST',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                            color: isOn ? urgentRed : urgentOrange,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-                if (_isUrgentFeeLoading)
-                  const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else if (isOn)
-                  const Icon(Icons.check_circle, color: Colors.red),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    isOn
+                        ? 'Prioritized for faster delivery.'
+                        : 'Delivered sooner — extra fee applies.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.25,
+                      fontWeight: FontWeight.w500,
+                      color: isOn
+                          ? Colors.red.shade800.withValues(alpha: 0.75)
+                          : Colors.grey.shade700,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
-          ),
+            Transform.scale(
+              scale: 0.88,
+              alignment: Alignment.center,
+              child: Switch.adaptive(
+                value: isOn,
+                onChanged: (value) => unawaited(_onUrgentToggleChanged(value)),
+                activeColor: urgentRed,
+                activeTrackColor: Colors.red.shade200,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -2066,7 +2298,30 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   Widget _buildOrderSummary({required double subtotal}) {
     final emergencyOrderFee = _emergencyOrderFee ?? 0.0;
-    final effectiveDeliveryFee = deliveryOption == 'pickup' ? 0.0 : deliveryFee;
+    final isDelivery = deliveryOption == 'delivery';
+    final qualifiesForFreeDelivery =
+        OrderThresholdPromoBanner.qualifiesForFreeDelivery(subtotal);
+
+    // Only ever surface the API-confirmed fee — never the straight-line
+    // placeholder or the offline fallback estimate.
+    final hasConfirmedFee = _deliveryFeeFromApi && deliveryFee > 0;
+    final confirmedDeliveryFee =
+        isDelivery && hasConfirmedFee ? deliveryFee : 0.0;
+    final effectiveDeliveryFee = OrderThresholdPromoBanner.displayDeliveryFee(
+      subtotal,
+      confirmedDeliveryFee,
+    );
+
+    // Fee is "pending" when we're still resolving the real amount: an API call
+    // is in flight, or an unconfirmed estimate is sitting in deliveryFee that we
+    // deliberately don't display.
+    final feePending = isDelivery &&
+        !qualifiesForFreeDelivery &&
+        !hasConfirmedFee &&
+        (_isUpdatingDeliveryFee || deliveryFee > 0);
+
+    final showDeliveryRow = isDelivery &&
+        (qualifiesForFreeDelivery || confirmedDeliveryFee > 0 || feePending);
     final total = subtotal + effectiveDeliveryFee + emergencyOrderFee;
 
     return Container(
@@ -2087,6 +2342,11 @@ class DeliveryPageState extends State<DeliveryPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionLabel('Order summary'),
+          const SizedBox(height: 10),
+          OrderThresholdPromoBanner(
+            margin: EdgeInsets.zero,
+            subtotal: subtotal,
+          ),
           const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.all(18),
@@ -2099,24 +2359,26 @@ class DeliveryPageState extends State<DeliveryPage> {
               children: [
                 _buildSummaryRow('Subtotal', subtotal,
                     icon: Icons.shopping_cart_rounded),
-                if (deliveryOption == 'delivery') ...[
+                if (showDeliveryRow) ...[
                   const SizedBox(height: 12),
                   _buildSummaryRow(
                     'Delivery fee',
                     effectiveDeliveryFee,
                     icon: Icons.local_shipping_rounded,
-                    isLoading:
-                        _isUpdatingDeliveryFee && effectiveDeliveryFee <= 0,
+                    isLoading: feePending,
+                    isFree: qualifiesForFreeDelivery,
                   ),
                 ],
                 if (emergencyOrderFee > 0) ...[
                   const SizedBox(height: 12),
-                  _buildSummaryRow('Emergency Order Fee', emergencyOrderFee,
+                  _buildSummaryRow('Urgent order fee', emergencyOrderFee,
                       icon: Icons.flash_on),
                 ],
                 Divider(height: 28, thickness: 1, color: Colors.grey.shade300),
                 _buildSummaryRow('Total', total,
-                    isHighlighted: true, icon: Icons.payment_rounded),
+                    isHighlighted: true,
+                    icon: Icons.payment_rounded,
+                    isLoading: feePending),
               ],
             ),
           ),
@@ -2131,6 +2393,7 @@ class DeliveryPageState extends State<DeliveryPage> {
     bool isHighlighted = false,
     IconData? icon,
     bool isLoading = false,
+    bool isFree = false,
   }) {
     return Row(
       children: [
@@ -2153,22 +2416,48 @@ class DeliveryPageState extends State<DeliveryPage> {
             ),
           ),
         ),
-        if (isLoading)
-          const SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          )
-        else
-          Text(
-            'GHS ${value.toStringAsFixed(2)}',
-            style: TextStyle(
-              fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w600,
-              fontSize: isHighlighted ? 17 : 14,
-              color: isHighlighted ? _accent : Colors.grey.shade800,
-            ),
-          ),
+        _buildSummaryValue(value,
+            isHighlighted: isHighlighted, isLoading: isLoading, isFree: isFree),
       ],
+    );
+  }
+
+  Widget _buildSummaryValue(
+    double value, {
+    required bool isHighlighted,
+    required bool isLoading,
+    required bool isFree,
+  }) {
+    if (isLoading) {
+      return Text(
+        'Calculating…',
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+          fontStyle: FontStyle.italic,
+          color: Colors.grey.shade500,
+        ),
+      );
+    }
+
+    if (isFree) {
+      return Text(
+        'Free',
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 14,
+          color: Colors.green.shade700,
+        ),
+      );
+    }
+
+    return Text(
+      'GHS ${value.toStringAsFixed(2)}',
+      style: TextStyle(
+        fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w600,
+        fontSize: isHighlighted ? 17 : 14,
+        color: isHighlighted ? _accent : Colors.grey.shade800,
+      ),
     );
   }
 
@@ -2343,52 +2632,83 @@ class DeliveryPageState extends State<DeliveryPage> {
               setState(() => _isProceedingToPayment = true);
 
               // Always save delivery information to API, even for guests
-              final locationIds = await _resolveBillingLocationIds();
-              final saveResult = await DeliveryService.saveDeliveryInfo(
-                name: _nameController.text.trim(),
-                email: _emailController.text.trim(),
-                phone: _phoneController.text,
-                deliveryOption: deliveryOption,
-                region: deliveryOption == 'delivery'
-                    ? _regionController.text.trim()
-                    : null,
-                city: deliveryOption == 'delivery'
-                    ? _cityController.text.trim()
-                    : null,
-                address: deliveryOption == 'delivery'
-                    ? _addressController.text.trim()
-                    : null,
-                notes: _notesController.text.trim(),
-                pickupRegion:
-                    (deliveryOption == 'pickup' && selectedRegion != null)
-                        ? selectedRegion!['description']?.toString()
-                        : null,
-                pickupCity: (deliveryOption == 'pickup' && selectedCity != null)
-                    ? selectedCity!['description']?.toString()
-                    : null,
-                pickupSite:
-                    (deliveryOption == 'pickup' && selectedPickupSite != null)
-                        ? selectedPickupSite!['description']?.toString()
-                        : null,
-                regionId: locationIds.regionId,
-                cityId: locationIds.cityId,
-                storeId: locationIds.storeId,
-                lat: _latitude,
-                lng: _longitude,
+              final locationIds = await _resolveBillingLocationIdsSafe(
+                skipLookup: false,
               );
+              Map<String, dynamic> saveResult;
+              try {
+                saveResult = await DeliveryService.saveDeliveryInfo(
+                  name: _nameController.text.trim(),
+                  email: _emailController.text.trim(),
+                  phone: _phoneController.text,
+                  deliveryOption: deliveryOption,
+                  region: deliveryOption == 'delivery'
+                      ? _regionController.text.trim()
+                      : null,
+                  city: deliveryOption == 'delivery'
+                      ? _cityController.text.trim()
+                      : null,
+                  address: deliveryOption == 'delivery'
+                      ? _addressController.text.trim()
+                      : null,
+                  notes: _notesController.text.trim(),
+                  pickupRegion:
+                      (deliveryOption == 'pickup' && selectedRegion != null)
+                          ? selectedRegion!['description']?.toString()
+                          : null,
+                  pickupCity:
+                      (deliveryOption == 'pickup' && selectedCity != null)
+                          ? selectedCity!['description']?.toString()
+                          : null,
+                  pickupSite:
+                      (deliveryOption == 'pickup' && selectedPickupSite != null)
+                          ? selectedPickupSite!['description']?.toString()
+                          : null,
+                  regionId: locationIds.regionId,
+                  cityId: locationIds.cityId,
+                  storeId: locationIds.storeId,
+                  lat: _latitude,
+                  lng: _longitude,
+                );
+              } catch (e, st) {
+                debugPrint('❌ [DELIVERY] saveDeliveryInfo threw: $e\n$st');
+                _showDeliverySnack(
+                  'Could not save delivery details. Please try again.',
+                );
+                return;
+              }
+
+              if (saveResult['success'] != true) {
+                _showDeliverySnack(
+                  saveResult['message']?.toString() ??
+                      'Could not save delivery details. Please try again.',
+                );
+                return;
+              }
 
               await _ensureDeliveryFeeForPayment(
                 saveResult: Map<String, dynamic>.from(saveResult),
               );
-              debugPrint(
-                  '🚀 [DELIVERY] Fee passed to payment: $deliveryFee');
+
+              if (deliveryOption == 'delivery' &&
+                  (!_deliveryFeeFromApi || deliveryFee <= 0)) {
+                _showDeliverySnack(
+                  _lastDeliveryErrorMessage ??
+                      'Could not calculate delivery fee. Reselect your location on the map and try again.',
+                );
+                return;
+              }
+
+              debugPrint('🚀 [DELIVERY] Fee passed to payment: $deliveryFee');
 
               if (!mounted) return;
               _proceedToPayment();
-            } catch (e) {
+            } catch (e, st) {
+              debugPrint('❌ [DELIVERY] Continue to payment failed: $e\n$st');
               if (mounted) {
-                await _ensureDeliveryFeeForPayment();
-                _proceedToPayment();
+                _showDeliverySnack(
+                  'Something went wrong. Please try again.',
+                );
               }
             } finally {
               if (mounted) setState(() => _isProceedingToPayment = false);
@@ -2405,25 +2725,25 @@ class DeliveryPageState extends State<DeliveryPage> {
                     ),
                   )
                 : Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.payment_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'Continue to payment',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.2,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.payment_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Continue to payment',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
           ),
         ),
       ),
@@ -2509,8 +2829,7 @@ class DeliveryPageState extends State<DeliveryPage> {
           lng: paymentLng,
           estimatedDeliveryTime: _apiDeliveryTime,
           distanceKm: _distanceKm,
-          deliveryFee:
-              deliveryOption == 'delivery' ? deliveryFee : 0.0,
+          deliveryFee: deliveryOption == 'delivery' ? deliveryFee : 0.0,
           isOrderUrgent: _isOrderUrgent,
           emergencyOrderFee: _emergencyOrderFee,
         ),
@@ -2641,19 +2960,7 @@ class DeliveryPageState extends State<DeliveryPage> {
           initialLatitude: initialLat,
           initialLongitude: initialLng,
           onLocationSelected: (double lat, double lng, String? address) {
-            setState(() {
-              _latitude = lat;
-              _longitude = lng;
-              if (deliveryOption == 'delivery') {
-                if (!_tryApplyInstantDeliveryFee(lat, lng) && deliveryFee <= 0) {
-                  _isUpdatingDeliveryFee = true;
-                }
-              }
-            });
-
-            if (deliveryOption == 'delivery') {
-              unawaited(_refreshDeliveryFeeForCoordinates(lat, lng));
-            }
+            _onDeliveryLocationSelected(lat, lng, address: address);
 
             print(
                 '🗺️ [MAP PICKER] ===== EXACT LOCATION SELECTED FROM MAP =====');
@@ -2671,23 +2978,6 @@ class DeliveryPageState extends State<DeliveryPage> {
             print('   📍 Stored Longitude: $_longitude');
             print('   📍 Stored coordinates: ($_latitude, $_longitude)');
             print('🗺️ [MAP PICKER] ======================================');
-
-            // Always run reverse geocoding to populate region and city (required for validation).
-            // If Places API gave us an address, pass it so we use it for the address field.
-            final preferredAddress = (address != null &&
-                    address.isNotEmpty &&
-                    address != 'Unknown location' &&
-                    address != 'Address not found')
-                ? address
-                : null;
-
-            // Fire the async geocoding in the background (don't await, callback is void)
-            try {
-              _getAddressFromCoordinates(lat, lng,
-                  preferredAddress: preferredAddress);
-            } catch (e) {
-              print('❌ [MAP PICKER] Error in location selected callback: $e');
-            }
           },
         ),
       ),
@@ -2778,8 +3068,6 @@ class DeliveryPageState extends State<DeliveryPage> {
             _highlightCityField = false;
             _highlightAddressField = false;
           });
-
-          // Fee already refreshed from map tap; server save runs in that flow.
         }
       } else {
         print(

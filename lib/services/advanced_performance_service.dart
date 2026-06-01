@@ -70,8 +70,20 @@ class AdvancedPerformanceService {
 
     final duration = cacheDuration ?? _defaultCacheDuration;
 
-    // Always try server first (unless forceRefresh is false and we have valid cache)
-    // Always try to fetch from server first
+    // Cache-first: if we already have a fresh in-memory result, return it
+    // immediately so re-opening a product/page is instant. The memory cache
+    // holds the real typed object (the persistent cache is an offline-only
+    // fallback because it stores JSON, not typed models).
+    if (!forceRefresh && _memoryCache.containsKey(key)) {
+      final entry = _memoryCache[key]!;
+      final isFresh = DateTime.now().difference(entry.timestamp) < duration;
+      if (isFresh && entry.data is T) {
+        _trackEvent('cache_hit', {'key': key, 'type': 'memory'});
+        return entry.data as T;
+      }
+    }
+
+    // No fresh cache — fetch from server.
     _trackEvent('cache_miss', {'key': key});
     try {
       final data = await fetchFunction();

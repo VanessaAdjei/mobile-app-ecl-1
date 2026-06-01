@@ -230,14 +230,11 @@ class CategoryCache {
 
   static void cacheAllProducts(List<dynamic> products) {
     _cachedAllProducts = products;
+    _lastCacheTime = DateTime.now();
   }
 
   static List<dynamic> get cachedCategories => _cachedCategories;
-  static List<dynamic> get cachedAllProducts {
-    debugPrint(
-        '🔍 CategoryCache.cachedAllProducts accessed: ${_cachedAllProducts.length} products');
-    return _cachedAllProducts;
-  }
+  static List<dynamic> get cachedAllProducts => _cachedAllProducts;
 
   static void clearCache() {
     _cachedCategories.clear();
@@ -365,8 +362,8 @@ class CategoryPageState extends State<CategoryPage> {
       setState(() {
         _categories = _categoryService.cachedCategories;
         _filteredCategories = _categoryService.cachedCategories;
-        // keep loading state true so skeleton shows
-        _isLoading = true;
+        // cache is valid -> show real content right away, no skeleton wait
+        _isLoading = false;
         _errorMessage = '';
       });
 
@@ -387,22 +384,12 @@ class CategoryPageState extends State<CategoryPage> {
 
   // Optimized loading that checks cache first
   Future<void> _loadCategoriesOptimized() async {
-    // Always show skeleton for at least 800ms for better UX
-    final skeletonStartTime = DateTime.now();
-
-    // skip loading if we already have good cached data
+    // Cache-first: if we already have valid cached categories, show them
+    // immediately with no artificial delay.
     if (_categoryService.hasCachedCategories &&
         _categoryService.isCategoriesCacheValid &&
         _categories.isNotEmpty) {
       debugPrint('Skipping category loading - using existing cached data');
-
-      // make sure skeleton shows for at least 800ms
-      final elapsed = DateTime.now().difference(skeletonStartTime);
-      if (elapsed.inMilliseconds < 800) {
-        await Future.delayed(
-            Duration(milliseconds: 800 - elapsed.inMilliseconds));
-      }
-
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -416,13 +403,6 @@ class CategoryPageState extends State<CategoryPage> {
       final categories = await _categoryService.getCategories();
       _processCategories(categories);
 
-      // make sure skeleton shows for at least 800ms
-      final elapsed = DateTime.now().difference(skeletonStartTime);
-      if (elapsed.inMilliseconds < 800) {
-        await Future.delayed(
-            Duration(milliseconds: 800 - elapsed.inMilliseconds));
-      }
-
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -434,13 +414,6 @@ class CategoryPageState extends State<CategoryPage> {
       _categoryService.preloadCategoryImages(context, categories);
     } catch (e) {
       debugPrint('Category loading error: $e');
-
-      // make sure skeleton shows for at least 800ms even on error
-      final elapsed = DateTime.now().difference(skeletonStartTime);
-      if (elapsed.inMilliseconds < 800) {
-        await Future.delayed(
-            Duration(milliseconds: 800 - elapsed.inMilliseconds));
-      }
 
       if (mounted) {
         setState(() {
@@ -548,17 +521,15 @@ class CategoryPageState extends State<CategoryPage> {
   }
 
   Future<void> _performSearch(String query) async {
-    setState(() {
-      _showSearchDropdown = true;
-      _searchResults = [];
-    });
+    if (!_showSearchDropdown || _searchResults.isNotEmpty) {
+      setState(() {
+        _showSearchDropdown = true;
+        _searchResults = [];
+      });
+    }
 
     try {
       debugPrint('🔍 Starting search for: $query');
-
-      setState(() {
-        _searchResults = [];
-      });
 
       final results = await _searchAllCategories(query);
       if (!mounted || _searchController.text.trim() != query.trim()) return;
@@ -580,13 +551,35 @@ class CategoryPageState extends State<CategoryPage> {
     if (query.isEmpty) return [];
 
     final searchQuery = query.toLowerCase().trim();
+    final tokens =
+        searchQuery.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    if (tokens.isEmpty) return [];
+
     final stopwatch = Stopwatch()..start();
     await _ensureSearchIndexReady();
 
+    // Local index unavailable (prefetch failed / catalog empty) — fall back to
+    // the server search so the user still gets results.
+    if (_searchIndex.isEmpty) {
+      final serverResults = await _searchViaServer(query);
+      debugPrint(
+          '🔍 Search via server fallback: ${serverResults.length} results');
+      return serverResults;
+    }
+
     final allResults = <dynamic>[];
     for (final indexed in _searchIndex) {
-      final productName = indexed['name_lower'] as String;
-      if (productName.contains(searchQuery)) {
+      // Pre-built lowercase haystack (name + description) — every typed word
+      // must appear, so multi-word queries like "para tablet" match.
+      final haystack = indexed['haystack'] as String;
+      var matchesAll = true;
+      for (final token in tokens) {
+        if (!haystack.contains(token)) {
+          matchesAll = false;
+          break;
+        }
+      }
+      if (matchesAll) {
         allResults.add(indexed['product']);
         if (allResults.length >= 30) break;
       }
@@ -609,6 +602,43 @@ class CategoryPageState extends State<CategoryPage> {
 
     _searchIndexWarmupFuture ??= _prefetchAllProducts();
     await _searchIndexWarmupFuture;
+
+    // If the catalog arrived but the index wasn't built yet, build it now.
+    if (_searchIndex.isEmpty && CategoryCache.cachedAllProducts.isNotEmpty) {
+      _buildSearchIndex(CategoryCache.cachedAllProducts);
+    }
+
+    // The attempt produced nothing (e.g. network failure). Clear the cached
+    // future so the next search retries instead of awaiting a dead result.
+    if (_searchIndex.isEmpty && CategoryCache.cachedAllProducts.isEmpty) {
+      _searchIndexWarmupFuture = null;
+    }
+  }
+
+  /// Server-side search fallback (same endpoint as the home search) used when
+  /// the in-memory catalog index is unavailable.
+  Future<List<dynamic>> _searchViaServer(String query) async {
+    try {
+      final response = await http
+          .get(Uri.parse(ApiConfig.getSearchUrl(query)))
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) return [];
+      final data = json.decode(response.body);
+      final List productsData = data['data'] ?? [];
+      return productsData.map<Map<String, dynamic>>((item) {
+        return {
+          'id': item['id'],
+          'name': item['name'] ?? 'Unknown Product',
+          'url_name': item['url_name'] ?? '',
+          'otcpom': item['otcpom'],
+          'thumbnail': item['thumbnail'] ?? item['image'] ?? '',
+          'price': item['price'] ?? item['selling_price'] ?? 0,
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('🔍 Server search fallback error: $e');
+      return [];
+    }
   }
 
   void _buildSearchIndex(List<dynamic> products) {
@@ -616,9 +646,12 @@ class CategoryPageState extends State<CategoryPage> {
       ..clear()
       ..addAll(products.map<Map<String, dynamic>>((product) {
         final name = product['name']?.toString() ?? '';
+        final description = product['description']?.toString() ?? '';
         return {
           'product': product,
-          'name_lower': name.toLowerCase(),
+          // Pre-lowercased combined text so each keystroke is a plain substring
+          // scan with no repeated allocations.
+          'haystack': '$name $description'.toLowerCase(),
         };
       }));
   }
@@ -1319,7 +1352,12 @@ class CategoryPageState extends State<CategoryPage> {
                 ),
                 if (_isLoading)
                   SliverFillRemaining(
-                    hasScrollBody: false,
+                    // hasScrollBody: true gives the skeleton a tight
+                    // remaining-extent constraint instead of measuring its
+                    // intrinsic height. The skeleton contains a shrink-wrapping
+                    // GridView whose viewport cannot return intrinsic
+                    // dimensions, which crashed with hasScrollBody: false.
+                    hasScrollBody: true,
                     child: _buildSkeletonWithLoading(),
                   )
                 else
@@ -1519,7 +1557,12 @@ class CategoryPageState extends State<CategoryPage> {
   Widget _buildSkeletonWithLoading() {
     return Stack(
       children: [
-        const CategoryPageSkeletonBody(),
+        // Non-interactive scroll view so the skeleton fills the remaining
+        // extent (hasScrollBody: true) without overflowing on shorter screens.
+        const SingleChildScrollView(
+          physics: NeverScrollableScrollPhysics(),
+          child: CategoryPageSkeletonBody(),
+        ),
         // Add a loading indicator overlay
         Positioned(
           top: 100,
@@ -1626,6 +1669,7 @@ class CategoryPageState extends State<CategoryPage> {
           final subcategoryName = item['subcategory_name'];
           final productId = item['id'];
           final productName = item['name'];
+          final slug = item['url_name']?.toString() ?? '';
 
           // Clear search and hide dropdown
           setState(() {
@@ -1633,6 +1677,22 @@ class CategoryPageState extends State<CategoryPage> {
             _showSearchDropdown = false;
             _searchFocusNode.unfocus();
           });
+
+          // Fastest path: open the product detail directly (no category list to
+          // load) when we have its slug.
+          if (slug.isNotEmpty) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ItemPage(
+                  urlName: slug,
+                  isPrescribed:
+                      item['otcpom']?.toString().toLowerCase() == 'pom',
+                ),
+              ),
+            );
+            return;
+          }
 
           // Navigate instantly - no need to search again!
           if (categoryId != null && categoryName != null) {
@@ -1938,7 +1998,6 @@ class CategoryPageState extends State<CategoryPage> {
           itemCount: _filteredCategories.length,
           itemBuilder: (context, index) {
             final category = _filteredCategories[index];
-            debugPrint('Building category card $index: ${category['name']}');
             final icon = _getCategoryIcon(category['name'] ?? '');
             final iconColor = Colors.green.shade700;
             final available =
@@ -2093,6 +2152,17 @@ class CategoryPageState extends State<CategoryPage> {
     debugPrint('🔍 _prefetchAllProducts() method started');
     debugPrint('🔍 ==========================================');
     try {
+      // Reuse the already-cached flattened catalog when it's still fresh so we
+      // don't re-download get-all-products on every visit to the Categories tab.
+      if (CategoryCache.cachedAllProducts.isNotEmpty &&
+          CategoryCache.isCacheValid) {
+        debugPrint(
+            '🔍 Prefetch: reusing ${CategoryCache.cachedAllProducts.length} cached products (skipping network)');
+        _allProducts = CategoryCache.cachedAllProducts;
+        _buildSearchIndex(_allProducts);
+        return;
+      }
+
       // IMPORTANT:
       // For search we need products in a FLATTENED format that already contains
       // category_id / category_name / subcategory_id / subcategory_name so that
@@ -2126,6 +2196,8 @@ class CategoryPageState extends State<CategoryPage> {
           return {
             'id': productData['id'],
             'name': productData['name'] ?? 'Unknown Product',
+            'url_name': productData['url_name'] ?? '',
+            'otcpom': productData['otcpom'],
             'thumbnail': productData['thumbnail'] ?? productData['image'] ?? '',
             'price': item['price'] ?? 0,
             'description': productData['description'] ?? '',
@@ -2211,11 +2283,13 @@ class CategoryPageSkeletonBody extends StatelessWidget {
               ],
             ),
           ),
-          // Categories grid skeleton
-          Expanded(
+          // Shrink-wrapped grid: SliverFillRemaining cannot measure viewport intrinsics.
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: GridView.builder(
-              padding: EdgeInsets.all(16),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
@@ -2415,7 +2489,6 @@ class _ModernCategoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('Rendering _ModernCategoryCard for: $name');
     final String bgImage = _getBackgroundImage(name);
     return Material(
       color: Colors.transparent,
@@ -2530,8 +2603,9 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   @override
   void initState() {
     super.initState();
-    // Clear cache to ensure fresh data with otcpom
-    _clearSubcategoryCache();
+    // Reuse cached subcategories/products when still valid (30 min). otcpom is
+    // now merged from the cached catalog, so there's no need to nuke the cache
+    // on every visit — that forced a full network refetch each time.
     _loadSubcategoriesOptimized();
     _setupScrollListener();
   }
@@ -2834,9 +2908,12 @@ class SubcategoryPageState extends State<SubcategoryPage> {
           '🔍 Found ${cachedProducts.length} cached products from ProductCache');
 
       if (cachedProducts.isEmpty) {
-        debugPrint('🔍 No cached products available, trying API call...');
-        // Fallback to API call if cache is empty
-        await _enhanceProductsWithAPI(products);
+        debugPrint('🔍 No cached products available, fetching in background...');
+        // No catalog yet — don't block product render on a full catalog
+        // download. Fetch in the background and refresh badges/slugs when done.
+        unawaited(_enhanceProductsWithAPI(products).then((_) {
+          if (mounted) setState(() {});
+        }));
         return;
       }
 
@@ -2859,7 +2936,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       debugPrint(
           '🔍 Created otcpom map with ${otcpomMap.length} products from cache');
 
-      // Optimized enhancement - batch process
+      // Optimized enhancement - batch process (synchronous, no network)
       int enhancedCount = 0;
       for (int i = 0; i < products.length; i++) {
         final product = products[i];
@@ -2874,17 +2951,23 @@ class SubcategoryPageState extends State<SubcategoryPage> {
 
       mergeUrlNameFromCatalogMaps(products, urlByProductId, urlByNameLower);
 
+      // Only a handful of products may still lack a slug. Resolve those in the
+      // background instead of blocking the grid on a get-all-products download.
       if (products.any(
           (raw) => raw is Map && slugForProductDetailPage(raw) == null)) {
-        await _mergeUrlNamesFromGetAllProductsApi(products);
+        unawaited(_mergeUrlNamesFromGetAllProductsApi(products).then((_) {
+          if (mounted) setState(() {});
+        }));
       }
 
       debugPrint(
           '🔍 Enhanced $enhancedCount out of ${products.length} products');
     } catch (e) {
       debugPrint('🔍 Error using ProductCache: $e');
-      // Fallback to API call
-      await _enhanceProductsWithAPI(products);
+      // Fallback to API call in the background.
+      unawaited(_enhanceProductsWithAPI(products).then((_) {
+        if (mounted) setState(() {});
+      }));
     }
 
     debugPrint(
@@ -3668,8 +3751,12 @@ class SubcategoryPageState extends State<SubcategoryPage> {
         final horizontalPadding = isTablet ? 14.0 : 10.0;
         final spacing = isTablet ? 14.0 : 8.0;
 
-        return GridView.builder(
+        return RefreshIndicator(
+          color: Colors.green.shade700,
+          onRefresh: _refreshSelectedSubcategory,
+          child: GridView.builder(
           controller: scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
             14,
@@ -3731,9 +3818,23 @@ class SubcategoryPageState extends State<SubcategoryPage> {
               ),
             );
           },
+          ),
         );
       },
     );
+  }
+
+  /// Pull-to-refresh: force a fresh fetch for the active subcategory.
+  Future<void> _refreshSelectedSubcategory() async {
+    _clearSubcategoryCache();
+    final id = selectedSubcategoryId;
+    if (id != null) {
+      _productsCache.remove(id);
+      _cacheTimestamps.remove(id);
+      onSubcategorySelected(id);
+    } else {
+      await _loadSubcategoriesOptimized();
+    }
   }
 
   Widget buildSubcategoriesLoadingState() {
@@ -4123,6 +4224,11 @@ class ProductListPageState extends State<ProductListPage> {
   int? highlightedProductId;
   Timer? highlightTimer;
 
+  // Per-category product cache so repeat visits load instantly.
+  static final Map<int, List<dynamic>> _listCache = {};
+  static final Map<int, DateTime> _listCacheTime = {};
+  static const Duration _listCacheValid = Duration(minutes: 30);
+
   @override
   void initState() {
     super.initState();
@@ -4142,8 +4248,30 @@ class ProductListPageState extends State<ProductListPage> {
     super.dispose();
   }
 
-  Future<void> fetchProducts() async {
+  Future<void> fetchProducts({bool forceRefresh = false}) async {
     debugPrint('🔍 fetchProducts() method started');
+
+    // Cache-first: serve stored products immediately on repeat visits.
+    final cacheTime = _listCacheTime[widget.categoryId];
+    final cacheFresh = cacheTime != null &&
+        DateTime.now().difference(cacheTime) < _listCacheValid;
+    if (!forceRefresh &&
+        cacheFresh &&
+        (_listCache[widget.categoryId]?.isNotEmpty ?? false)) {
+      debugPrint('🔍 Using cached products for category ${widget.categoryId}');
+      if (mounted) {
+        setState(() {
+          products = _listCache[widget.categoryId]!;
+          isLoading = false;
+          errorMessage = '';
+        });
+      }
+      if (widget.searchedProductId != null) {
+        _highlightSearchedProduct();
+      }
+      return;
+    }
+
     try {
       setState(() {
         isLoading = true;
@@ -4165,6 +4293,8 @@ class ProductListPageState extends State<ProductListPage> {
             products = data['data'];
             isLoading = false;
           });
+          _listCache[widget.categoryId] = products;
+          _listCacheTime[widget.categoryId] = DateTime.now();
 
           // Debug: Check if products have otcpom field
           if (products.isNotEmpty) {
@@ -4218,48 +4348,61 @@ class ProductListPageState extends State<ProductListPage> {
   Future<void> _enhanceProductsWithOtcpom() async {
     debugPrint('🔍 _enhanceProductsWithOtcpom() method started');
 
-    // Get cached products from homepage
-    final cachedProducts = ProductCache.cachedProducts;
-
+    // First, fill otcpom from the already-cached full catalog (no network).
+    final cachedById = <String, String>{};
+    for (final p in ProductCache.cachedProducts) {
+      final otcpom = p.otcpom;
+      if (otcpom != null && otcpom.isNotEmpty) {
+        cachedById[p.id.toString()] = otcpom;
+      }
+    }
     debugPrint(
-        '🔍 ProductCache status: ${cachedProducts.length} cached products');
+        '🔍 ProductCache status: ${ProductCache.cachedProducts.length} cached products');
 
-    // Since category API doesn't include otcpom data, always fetch it from API
-    debugPrint(
-        '🔍 Category API missing otcpom data, fetching from individual product APIs');
-    await _fetchOtcpomDataFromAPI();
+    final missingIndices = <int>[];
+    for (var i = 0; i < products.length; i++) {
+      final id = products[i]['id']?.toString();
+      if (products[i]['otcpom'] != null &&
+          products[i]['otcpom'].toString().isNotEmpty) {
+        continue; // already has it from the category API
+      }
+      final cached = id != null ? cachedById[id] : null;
+      if (cached != null) {
+        products[i]['otcpom'] = cached;
+      } else {
+        missingIndices.add(i);
+      }
+    }
+
+    if (mounted) setState(() {});
+
+    // Only hit the network for the few products we couldn't resolve from cache,
+    // and do those calls in parallel instead of one-by-one.
+    if (missingIndices.isNotEmpty) {
+      debugPrint(
+          '🔍 Fetching otcpom from API for ${missingIndices.length} uncached products (parallel)');
+      await _fetchOtcpomDataFromAPI(missingIndices);
+    }
+
     debugPrint('🔍 _enhanceProductsWithOtcpom() method completed');
-
-    // Trigger rebuild to show the enhanced data
-    setState(() {});
   }
 
-  Future<void> _fetchOtcpomDataFromAPI() async {
-    debugPrint('🔍 _fetchOtcpomDataFromAPI() method started');
-    debugPrint(
-        '🔍 Fetching otcpom data directly from API for ${products.length} products');
-
-    for (int i = 0; i < products.length; i++) {
+  Future<void> _fetchOtcpomDataFromAPI(List<int> indices) async {
+    await Future.wait(indices.map((i) async {
       final product = products[i];
       final productId = product['id'];
-
+      if (productId == null) return;
       try {
-        final response = await http.get(
-          Uri.parse(ApiConfig.getProductByIdUrl(productId)),
-        );
+        final response = await http
+            .get(Uri.parse(ApiConfig.getProductByIdUrl(productId.toString())))
+            .timeout(const Duration(seconds: 8));
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
           if (data['success'] == true) {
-            final productData = data['data'];
-            final otcpom = productData['otcpom'];
-
+            final otcpom = data['data']?['otcpom'];
             if (otcpom != null) {
               products[i]['otcpom'] = otcpom;
-              debugPrint('🔍 Fetched otcpom for ${product['name']}: $otcpom');
-            } else {
-              debugPrint(
-                  '🔍 No otcpom data in API response for ${product['name']}');
             }
           }
         }
@@ -4267,11 +4410,9 @@ class ProductListPageState extends State<ProductListPage> {
         debugPrint(
             '🔍 Error fetching otcpom for product ${product['name']}: $e');
       }
-    }
+    }));
 
-    // Trigger rebuild to show the enhanced data
-    setState(() {});
-    debugPrint('🔍 _fetchOtcpomDataFromAPI() method completed');
+    if (mounted) setState(() {});
   }
 
   void _highlightSearchedProduct() {
@@ -4457,7 +4598,7 @@ class ProductListPageState extends State<ProductListPage> {
     }
 
     return RefreshIndicator(
-      onRefresh: fetchProducts,
+      onRefresh: () => fetchProducts(forceRefresh: true),
       color: Colors.green.shade700,
       child: GridView.builder(
         controller: scrollController,

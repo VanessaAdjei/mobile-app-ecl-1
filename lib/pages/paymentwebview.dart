@@ -76,21 +76,19 @@ class PaymentWebViewState extends State<PaymentWebView> {
     // then go to the unified post-checkout order page
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => PostCheckoutOrderPage(
-          paymentParams: widget.paymentParams,
-          purchasedItems: widget.purchasedItems,
-          initialTransactionId:
-              widget.paymentParams['order_id']?.toString() ?? '',
-          paymentMethod: widget.paymentMethod,
-          deliveryAddress: widget.deliveryAddress,
-          contactNumber: widget.contactNumber,
-          deliveryOption: widget.deliveryOption,
-          estimatedDeliveryTime: widget.estimatedDeliveryTime,
-          deliveryFee: widget.deliveryFee,
-          discount: widget.discount,
-          initialStatus: success ? 'pending' : 'failed',
-        ),
+      PostCheckoutOrderPage.route(
+        paymentParams: widget.paymentParams,
+        purchasedItems: widget.purchasedItems,
+        initialTransactionId:
+            widget.paymentParams['order_id']?.toString() ?? '',
+        paymentMethod: widget.paymentMethod,
+        deliveryAddress: widget.deliveryAddress,
+        contactNumber: widget.contactNumber,
+        deliveryOption: widget.deliveryOption,
+        estimatedDeliveryTime: widget.estimatedDeliveryTime,
+        deliveryFee: widget.deliveryFee,
+        discount: widget.discount,
+        initialStatus: success ? 'pending' : 'failed',
       ),
     );
   }

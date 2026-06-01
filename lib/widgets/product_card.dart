@@ -37,6 +37,16 @@ class HomeProductCard extends StatelessWidget {
     this.showWishlistButton = false,
   });
 
+  static Widget _imagePlaceholder() {
+    return ColoredBox(
+      color: const Color(0xFFF3F4F6),
+      child: Center(
+        child: Icon(Icons.medical_services_outlined,
+            size: 22, color: Color(0xFFD1D5DB)),
+      ),
+    );
+  }
+
   // shorten product names so they dont get too long
   String _truncateProductName(String name) {
     if (name.length <= 20) return name;
@@ -103,10 +113,8 @@ class HomeProductCard extends StatelessWidget {
                                     maxHeightDiskCache: 300,
                                     fadeInDuration: Duration.zero,
                                     fadeOutDuration: Duration.zero,
-                                    placeholder: (context, url) => Center(
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 1),
-                                    ),
+                                    placeholder: (context, url) =>
+                                        _imagePlaceholder(),
                                     errorWidget: (_, __, ___) => Container(
                                       color: Colors.grey[200],
                                       child: Center(
@@ -129,10 +137,8 @@ class HomeProductCard extends StatelessWidget {
                                   maxHeightDiskCache: 300,
                                   fadeInDuration: Duration.zero,
                                   fadeOutDuration: Duration.zero,
-                                  placeholder: (context, url) => Center(
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 1),
-                                  ),
+                                  placeholder: (context, url) =>
+                                      _imagePlaceholder(),
                                   errorWidget: (_, __, ___) => Container(
                                     color: Colors.grey[200],
                                     child: Center(

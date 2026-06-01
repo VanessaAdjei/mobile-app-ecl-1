@@ -6,7 +6,6 @@ import 'package:eclapp/services/auth_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
-import 'dart:async';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
@@ -35,127 +34,156 @@ class OtpVerificationScreen extends StatefulWidget {
 
 class OtpVerificationScreenState extends State<OtpVerificationScreen>
     with CodeAutoFill {
+  static const int _otpLength = 5;
+  /// Matches ECL 5-character alphanumeric OTPs in SMS body text.
+  static const String _otpSmsRegex = r'[0-9A-Za-z]{5}';
+
   final List<TextEditingController> otpControllers = List.generate(
-    5,
-    (index) => TextEditingController(),
+    _otpLength,
+    (_) => TextEditingController(),
   );
   final List<FocusNode> focusNodes = List.generate(
-    5,
-    (index) => FocusNode(),
+    _otpLength,
+    (_) => FocusNode(),
   );
+  final TextEditingController _iosAutofillBridgeController =
+      TextEditingController();
 
   bool isLoading = false;
   String otp = '';
-  // resend otp stuff is turned off for now
-  // bool canResend = false;
-  // int resendCountdown = 60;
-  // Timer? resendTimer;
-  String? _appSignature;
+  String? _detectedSmsCode;
 
   @override
   void initState() {
     super.initState();
-    _startResendTimer();
-    _initSmsListener();
+    _logAndroidSmsSetupHint();
+    listenForCode(smsCodeRegexPattern: _otpSmsRegex);
+  }
+
+  Future<void> _logAndroidSmsSetupHint() async {
+    try {
+      final signature = await SmsAutoFill().getAppSignature;
+      if (signature.isNotEmpty) {
+        debugPrint(
+          'OTP SMS (Android): add this hash to the SMS template if auto-read fails: $signature',
+        );
+      }
+    } catch (e) {
+      debugPrint('OTP SMS setup hint unavailable: $e');
+    }
   }
 
   @override
   void codeUpdated() {
+    final incoming = code;
+    if (incoming == null || incoming.isEmpty) return;
+    final normalized = _extractOtp(incoming);
+    if (normalized == null) return;
+    _onSmsCodeDetected(normalized);
+  }
+
+  String? _extractOtp(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.length == _otpLength &&
+        RegExp(r'^[0-9A-Za-z]+$').hasMatch(trimmed)) {
+      return trimmed.toUpperCase();
+    }
+    final match = RegExp(_otpSmsRegex).firstMatch(trimmed);
+    return match?.group(0)?.toUpperCase();
+  }
+
+  void _onSmsCodeDetected(String normalized) {
+    if (!mounted) return;
+    final alreadyApplied = otp == normalized &&
+        otpControllers.every((c) => c.text.isNotEmpty);
+    if (alreadyApplied) return;
+
+    setState(() => _detectedSmsCode = normalized);
+    _applyOtpToFields(normalized);
+    HapticFeedback.lightImpact();
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+          content: Row(
+            children: [
+              Icon(Icons.sms_outlined, color: Colors.green.shade100, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Code from your message: $normalized',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+          action: SnackBarAction(
+            label: 'Use',
+            textColor: Colors.white,
+            onPressed: () => _applyOtpToFields(normalized),
+          ),
+        ),
+      );
+  }
+
+  void _applyOtpToFields(String normalized) {
+    if (normalized.length != _otpLength) return;
+    for (var i = 0; i < _otpLength; i++) {
+      otpControllers[i].text = normalized[i];
+    }
     setState(() {
-      // this gets called when we get an sms with the code
-      // the code will automatically fill in the fields
+      otp = normalized;
+      _detectedSmsCode = normalized;
     });
-  }
-
-  // set up sms listener so it auto-fills the code
-  Future<void> _initSmsListener() async {
-    try {
-      // get app signature so we can detect sms
-      _appSignature = await SmsAutoFill().getAppSignature;
-      debugPrint('App signature: $_appSignature');
-
-      // listen for sms with the otp code
-      await SmsAutoFill().listenForCode();
-
-      // listen for when we get the code
-      SmsAutoFill().code.listen((code) {
-        if (code.length == 5) {
-          _autoFillOtp(code);
-        }
-      });
-    } catch (e) {
-      debugPrint('Error initializing SMS listener: $e');
-    }
-  }
-
-  // automatically fill in the otp when we get the sms
-  void _autoFillOtp(String code) {
-    if (code.length == 5) {
-      for (int i = 0; i < 5; i++) {
-        otpControllers[i].text = code[i];
-      }
-      setState(() {
-        otp = code;
-      });
-
-      // automatically verify after filling it in
-      _verifyOtp();
-    }
+    focusNodes.last.unfocus();
   }
 
   @override
   void dispose() {
-    for (var controller in otpControllers) {
+    cancel();
+    unregisterListener();
+    for (final controller in otpControllers) {
       controller.dispose();
     }
-    for (var node in focusNodes) {
+    for (final node in focusNodes) {
       node.dispose();
     }
-    // resendTimer?.cancel(); // resend stuff is turned off
-
-    // stop listening for sms
-    SmsAutoFill().unregisterListener();
-
+    _iosAutofillBridgeController.dispose();
     super.dispose();
-  }
-
-  void _startResendTimer() {
-    setState(() {
-      // canResend = false;
-      // resendCountdown = 60;
-    });
-
-    // resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-    //   setState(() {
-    //     // resendCountdown--;
-    //     // if (resendCountdown <= 0) {
-    //     //   canResend = true;
-    //     //   timer.cancel();
-    //     // }
-    //   });
-    // });
   }
 
   void _onOtpChanged(String value, int index) {
     setState(() {
       otp = otpControllers.map((controller) => controller.text).join();
+      if (_detectedSmsCode != null && otp != _detectedSmsCode) {
+        _detectedSmsCode = null;
+      }
     });
 
-    if (value.length == 1 && index < 4) {
+    if (value.length == 1 && index < _otpLength - 1) {
       focusNodes[index + 1].requestFocus();
     } else if (value.isEmpty && index > 0) {
       focusNodes[index - 1].requestFocus();
     }
 
-    // automatically verify when all 5 digits are entered
-    if (otp.length == 5) {
+    if (otp.length == _otpLength) {
       _verifyOtp();
     }
   }
 
+  void _onIosAutofillBridgeChanged(String value) {
+    final normalized = _extractOtp(value);
+    if (normalized != null) {
+      _onSmsCodeDetected(normalized);
+    }
+  }
+
   Future<void> _verifyOtp() async {
-    if (otp.length != 5) {
-      _showError("Please enter the complete 5-character OTP");
+    if (otp.length != _otpLength) {
+      _showError("Please enter the complete $_otpLength-character OTP");
       return;
     }
 
@@ -167,7 +195,6 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
       if (isVerified) {
         _showSuccess("OTP verified successfully!");
 
-        // automatically log them in if we have their credentials (for signup)
         if (widget.password != null && widget.name != null) {
           try {
             debugPrint('🔄 Starting auto-login process for: ${widget.email}');
@@ -178,13 +205,9 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
             if (result['success'] == true && result['token'] != null) {
               debugPrint('✅ Auto-login successful, token received');
 
-              // Add a delay to ensure token is properly saved
               await Future.delayed(const Duration(milliseconds: 200));
-
-              // Force update AuthService state
               await AuthService.forceUpdateAuthState();
 
-              // Update AuthProvider state
               try {
                 if (!context.mounted) return;
                 final authProvider =
@@ -193,72 +216,47 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
                 debugPrint('✅ AuthProvider updated successfully');
               } catch (e) {
                 debugPrint('⚠️ AuthProvider update failed: $e');
-                // Continue anyway, don't redirect to sign in
               }
 
-              // Get the current AuthState using the of() pattern
               try {
                 if (!context.mounted) return;
                 final authState = main_app.AuthState.of(context);
-                if (authState != null) {
-                  authState.refreshAuthState();
-                  debugPrint('✅ AuthState refreshed successfully');
-                }
+                authState?.refreshAuthState();
               } catch (e) {
                 debugPrint('⚠️ AuthState refresh failed: $e');
-                // Continue anyway, don't redirect to sign in
               }
 
-              // Sync cart for logged-in user
               try {
                 final userId = await AuthService.getCurrentUserID();
                 if (userId != null) {
                   if (!context.mounted) return;
                   await Provider.of<CartProvider>(context, listen: false)
                       .handleUserLogin(userId);
-                  debugPrint('✅ Cart synced successfully for user: $userId');
                 }
               } catch (e) {
                 debugPrint('⚠️ Cart sync failed: $e');
-                // Continue anyway, don't redirect to sign in
               }
 
-              // Final verification - check if user is actually logged in
               await Future.delayed(const Duration(milliseconds: 100));
               final isActuallyLoggedIn = await AuthService.isLoggedIn();
 
-              if (isActuallyLoggedIn) {
-                debugPrint('✅ User confirmed logged in, navigating to home');
-                // Successfully logged in, navigate to home
-                if (mounted) {
-                  // Navigate to home and clear all previous routes
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => const HomePage()),
-                    (route) => false,
-                  );
-                }
-              } else {
+              if (mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const HomePage()),
+                  (route) => false,
+                );
+              }
+
+              if (!isActuallyLoggedIn) {
                 debugPrint(
                     '⚠️ User not logged in after auto-login, but continuing to home');
-                // Even if login check fails, try to navigate to home
-                // The user might still be logged in but the check is failing
-                if (mounted) {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => const HomePage()),
-                    (route) => false,
-                  );
-                }
               }
             } else {
               debugPrint('❌ Auto-login failed: ${result['message']}');
-              // Auto-login failed, but don't redirect to sign in immediately
-              // Show error and let user try again or manually sign in
               _showError(
                   "Auto-login failed: ${result['message'] ?? 'Unknown error'}. Please try signing in manually.");
 
-              // Wait a bit then redirect to sign in
               await Future.delayed(const Duration(seconds: 2));
               if (mounted) {
                 Navigator.pushReplacement(
@@ -269,7 +267,6 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
             }
           } catch (e) {
             debugPrint('❌ Exception during auto-login: $e');
-            // Show error and redirect to sign in after delay
             _showError("Auto-login failed. Please try signing in manually.");
 
             await Future.delayed(const Duration(seconds: 2));
@@ -281,8 +278,6 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
             }
           }
         } else {
-          // No credentials provided (probably just OTP verification, not signup)
-          debugPrint('ℹ️ No credentials provided, redirecting to sign in');
           if (!context.mounted) return;
           Navigator.pushReplacement(
             context,
@@ -291,12 +286,12 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
         }
       } else {
         _showError("Invalid OTP. Please try again.");
-        // Clear the OTP fields
-        for (var controller in otpControllers) {
+        for (final controller in otpControllers) {
           controller.clear();
         }
         setState(() {
           otp = '';
+          _detectedSmsCode = null;
         });
         focusNodes[0].requestFocus();
       }
@@ -309,59 +304,6 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
       }
     }
   }
-
-  // Resend OTP method commented out
-  /*
-  Future<void> _resendOtp() async {
-    // if (!canResend || isLoading) return;
-
-    setState(() => isLoading = true);
-
-    try {
-      debugPrint('🔄 Resending OTP for email: ${widget.email}');
-
-      // Call the resend OTP API
-      final result = await AuthService.resendOTP(widget.email);
-
-      // Print the complete API response
-      debugPrint('📡 Resend OTP API Response:');
-      debugPrint('   Full result: $result');
-      debugPrint('   Result type: ${result.runtimeType}');
-      debugPrint('   Success: ${result['success']}');
-      debugPrint('   Message: ${result['message']}');
-      debugPrint('   Status: ${result['status']}');
-      debugPrint('   Error: ${result['error']}');
-      debugPrint('   Code: ${result['code']}');
-
-      // Print all keys in the result
-      debugPrint('   All keys: ${result.keys.toList()}');
-      result.forEach((key, value) {
-        debugPrint('   $key: $value (${value.runtimeType})');
-      });
-
-      if (result['success'] == true) {
-        debugPrint('✅ OTP resent successfully!');
-        _showSuccess("OTP resent successfully!");
-        // _startResendTimer(); // Restart the countdown
-      } else {
-        debugPrint('❌ OTP resend failed: ${result['message']}');
-        _showError(result['message'] ?? "Failed to resend OTP");
-      }
-    } catch (e) {
-      debugPrint('💥 Exception during OTP resend: $e');
-      debugPrint('   Exception type: ${e.runtimeType}');
-      if (e.toString().contains('Exception:')) {
-        debugPrint(
-            '   Exception details: ${e.toString().split('Exception:').last.trim()}');
-      }
-      _showError("An error occurred while resending OTP");
-    } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
-    }
-  }
-  */
 
   @override
   Widget build(BuildContext context) {
@@ -386,7 +328,6 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Back Button with Glassmorphic Effect
                 Animate(
                   effects: [
                     FadeEffect(duration: 400.ms),
@@ -437,8 +378,6 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
                     ),
                   ),
                 ),
-
-                // Header Section
                 Animate(
                   effects: [
                     FadeEffect(duration: 500.ms, delay: 100.ms),
@@ -506,10 +445,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
                     ),
                   ),
                 ),
-
-                const SizedBox(height: 40),
-
-                // OTP Input Section
+                const SizedBox(height: 32),
                 Animate(
                   effects: [
                     FadeEffect(duration: 600.ms, delay: 200.ms),
@@ -524,31 +460,47 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
                     child: Column(
                       children: [
                         Text(
-                          'Enter 5-character code',
+                          'Enter $_otpLength-character code',
                           style: GoogleFonts.poppins(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             color: Colors.grey.shade700,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        // Auto-fill indicator
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.sms,
-                              size: 16,
-                              color: Colors.green.shade600,
+                        const SizedBox(height: 10),
+                        _buildSmsAutofillHint(),
+                        if (_detectedSmsCode != null) ...[
+                          const SizedBox(height: 10),
+                          _buildDetectedCodeBanner(),
+                        ],
+                        const SizedBox(height: 16),
+                        // iOS / autofill: one-time code from Messages keyboard bar
+                        SizedBox(
+                          width: 1,
+                          height: 1,
+                          child: TextField(
+                            controller: _iosAutofillBridgeController,
+                            autofillHints: const [AutofillHints.oneTimeCode],
+                            keyboardType: TextInputType.text,
+                            textCapitalization: TextCapitalization.characters,
+                            enableSuggestions: false,
+                            autocorrect: false,
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                              counterText: '',
                             ),
-                          ],
+                            style: const TextStyle(
+                              fontSize: 1,
+                              color: Colors.transparent,
+                            ),
+                            onChanged: _onIosAutofillBridgeChanged,
+                          ),
                         ),
-                        const SizedBox(height: 20),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: List.generate(
-                            5,
-                            (index) => _buildOtpField(index),
+                            _otpLength,
+                            _buildOtpField,
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -567,10 +519,7 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 24),
-
-                // Manual Verify Button
                 Animate(
                   effects: [
                     FadeEffect(duration: 800.ms, delay: 400.ms),
@@ -613,14 +562,13 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
                         elevation: 0,
                       ),
                       child: isLoading
-                          ? SizedBox(
+                          ? const SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
                           : Text(
@@ -635,87 +583,101 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
                     ),
                   ),
                 ),
-
-                const SizedBox(height: 24),
-
-                // Resend OTP Button - COMMENTED OUT
-                /*
-                Animate(
-                  effects: [
-                    FadeEffect(duration: 900.ms, delay: 500.ms),
-                    SlideEffect(
-                      duration: 900.ms,
-                      begin: const Offset(0, 0.3),
-                      end: Offset.zero,
-                      delay: 500.ms,
-                    ),
-                  ],
-                  child: Center(
-                    child: Column(
-                      children: [
-                        Text(
-                          'Didn\'t receive the code?',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          height: 40,
-                          child: TextButton(
-                            onPressed:
-                                // canResend && !isLoading ? _resendOtp : null,
-                                null, // Resend functionality is commented out
-                            style: TextButton.styleFrom(
-                              foregroundColor: // canResend
-                                  // ? Colors.green.shade700
-                                  Colors.grey,
-                              backgroundColor: // canResend
-                                  // ? Colors.green.shade50
-                                  Colors.grey.shade200,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.refresh_rounded,
-                                  size: 16,
-                                  color: // canResend
-                                      // ? Colors.green.shade700
-                                      Colors.grey,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  // canResend
-                                      // ? 'Resend OTP'
-                                      'Resend in 60s', // Placeholder for countdown
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: // canResend
-                                        // ? Colors.green.shade700
-                                        Colors.grey,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                */
-
                 const SizedBox(height: 20),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSmsAutofillHint() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.green.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.green.shade100),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.sms_outlined, size: 18, color: Colors.green.shade700),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'When the SMS arrives, tap the code above your keyboard or allow the prompt to fill it in.',
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                height: 1.35,
+                color: Colors.green.shade800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetectedCodeBanner() {
+    final code = _detectedSmsCode!;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _applyOtpToFields(code),
+        borderRadius: BorderRadius.circular(12),
+        child: Ink(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.green.shade600,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.green.shade200.withValues(alpha: 0.5),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.touch_app_rounded,
+                  color: Colors.white, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Code from your text message',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
+                    ),
+                    Text(
+                      code,
+                      style: GoogleFonts.poppins(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 4,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                'Use',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.white, size: 20),
+            ],
           ),
         ),
       ),
@@ -773,6 +735,8 @@ class OtpVerificationScreenState extends State<OtpVerificationScreen>
         focusNode: focusNodes[index],
         keyboardType: TextInputType.text,
         textAlign: TextAlign.center,
+        autofillHints:
+            index == 0 ? const [AutofillHints.oneTimeCode] : const <String>[],
         style: GoogleFonts.poppins(
           fontSize: 24,
           fontWeight: FontWeight.bold,

@@ -55,189 +55,21 @@ class _NotificationPermissionPageState extends State<NotificationPermissionPage>
     super.dispose();
   }
 
-  Future<bool> _requestLocationWhenInUse() async {
-    final perm = Permission.locationWhenInUse;
-    final status = await perm.status;
-    if (status.isGranted) return true;
-    if (status.isPermanentlyDenied) return false;
-    final result = await perm.request();
-    return result.isGranted;
-  }
-
-  void _showDismissibleSnackBar({
-    required Color backgroundColor,
-    required Widget content,
-  }) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: content,
-        backgroundColor: backgroundColor,
-        behavior: SnackBarBehavior.floating,
-        dismissDirection: DismissDirection.down,
-        showCloseIcon: true,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
-
   Future<void> _requestPermission() async {
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      final result =
-          await NativeNotificationService.requestNotificationPermission(
-              context);
-
-      final notifGranted = result['granted'] == true;
-
-      bool locationGranted = false;
-      if (mounted) {
-        try {
-          locationGranted = await _requestLocationWhenInUse();
-        } catch (e) {
-          debugPrint('Location permission request error: $e');
-        }
-      }
-
+      final granted =
+          await NativeNotificationService.requestNotificationPermissionDirect(
+        context: context,
+      );
       if (!mounted) return;
-
-      if (notifGranted || locationGranted) {
-        final parts = <String>[];
-        if (notifGranted) parts.add('notifications');
-        if (locationGranted) parts.add('location');
-        final summary = parts.isEmpty
-            ? 'Permissions updated.'
-            : '${parts.map((s) => s[0].toUpperCase() + s.substring(1)).join(' & ')} enabled.';
-
-        _showDismissibleSnackBar(
-          backgroundColor: AppColors.primaryDark,
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      '$summary Thanks!',
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.swipe_down_alt_rounded,
-                      color: Colors.white.withValues(alpha: 0.8), size: 14),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Swipe down to dismiss',
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      color: Colors.white.withValues(alpha: 0.85),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-        Navigator.of(context).pop(true);
-      } else {
-        final msg = result['message']?.toString() ??
-            'Notifications and location were not enabled.';
-        _showDismissibleSnackBar(
-          backgroundColor: Colors.red[700]!,
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.error_outline, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      msg,
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.swipe_down_alt_rounded,
-                      color: Colors.white.withValues(alpha: 0.8), size: 14),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Swipe down to dismiss',
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      color: Colors.white.withValues(alpha: 0.85),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      }
+      Navigator.of(context).pop(granted);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Error: $e'),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.swipe_down_alt_rounded,
-                        color: Colors.white.withValues(alpha: 0.8), size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Swipe down to dismiss',
-                      style: GoogleFonts.poppins(
-                        fontSize: 11,
-                        color: Colors.white.withValues(alpha: 0.85),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            backgroundColor: Colors.red[600],
-            behavior: SnackBarBehavior.floating,
-            dismissDirection: DismissDirection.down,
-            showCloseIcon: true,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
-      }
+      debugPrint('Notification permission error: $e');
+      if (mounted) Navigator.of(context).pop(false);
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -336,7 +168,7 @@ class _NotificationPermissionPageState extends State<NotificationPermissionPage>
                       _buildHeroCard(),
                       const SizedBox(height: 14),
                       Text(
-                        'Notifications & location',
+                        'Order notifications',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(
                           fontSize: 10,
@@ -347,7 +179,7 @@ class _NotificationPermissionPageState extends State<NotificationPermissionPage>
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Stay in the loop and get deliveries right',
+                        'Stay updated on your orders',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(
                           fontSize: 18,
@@ -359,7 +191,7 @@ class _NotificationPermissionPageState extends State<NotificationPermissionPage>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Enable alerts for your orders and share location while you use the app—we use it for delivery options, distances, and address suggestions.',
+                        'Get alerts when your order is confirmed, on the way, or delivered.',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(
                           fontSize: 12,
@@ -573,9 +405,9 @@ class _NotificationPermissionPageState extends State<NotificationPermissionPage>
         AppColors.primary,
       ),
       (
-        Icons.route_rounded,
-        'Smarter delivery',
-        'Routes, ETAs, and nearby pickup or drop-off.',
+        Icons.local_shipping_rounded,
+        'Delivery updates',
+        'Know when your order is on the way.',
         _tealAccent,
       ),
       (
@@ -724,7 +556,7 @@ class _NotificationPermissionPageState extends State<NotificationPermissionPage>
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        'Enable notifications & location',
+                        'Allow notifications',
                         maxLines: 2,
                         textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(

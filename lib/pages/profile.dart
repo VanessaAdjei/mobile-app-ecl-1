@@ -700,6 +700,22 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     primaryColor,
                     2,
                   ),
+                  _buildEnhancedProfileOption(
+                    context,
+                    Icons.calendar_month_outlined,
+                    "My Appointments",
+                    "Upcoming, overdue / past due, and completed consultations",
+                    _userLoggedIn
+                        ? () => _navigateTo(AppRoutes.myAppointments)
+                        : () => _showSignInRequiredDialog(context,
+                            feature: 'appointments'),
+                    primaryColor,
+                    cardColor,
+                    textColor,
+                    subtextColor,
+                    primaryColor,
+                    3,
+                  ),
                   // _buildEnhancedProfileOption(
                   //   context,
                   //   Icons.medical_services_outlined,

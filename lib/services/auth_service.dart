@@ -13,6 +13,7 @@ import '../models/product_model.dart';
 import 'dart:io';
 import '../config/api_config.dart';
 import '../services/http_client_service.dart';
+import '../utils/app_error_utils.dart';
 
 class AuthService {
   static String get baseUrl => ApiConfig.baseUrl;
@@ -39,6 +40,9 @@ class AuthService {
   );
   static bool _isLoggedIn = false;
   static String? _authToken;
+  /// After init, true when we've confirmed there is no logged-in token (guest).
+  static bool _resolvedGuestSession = false;
+  static final Set<String> _keychainFallbackLoggedKeys = {};
   static Timer? _tokenRefreshTimer;
   static Map<String, dynamic>? _cachedUserData;
   static DateTime? _lastTokenVerification;
@@ -49,21 +53,18 @@ class AuthService {
   // this handles those annoying keychain errors
   static Future<String?> _safeRead(String key) async {
     try {
-      final value = await _secureStorage.read(key: key);
-      debugPrint(
-          '[_safeRead] Read from secure storage: key=$key, value=$value');
-      return value;
+      return await _secureStorage.read(key: key);
     } on PlatformException catch (e) {
       // if we get that keychain error, just use regular storage
       if (e.code == '-34018' || e.message?.contains('34018') == true) {
-        debugPrint(
-            'Keychain access error suppressed: $key, falling back to SharedPreferences');
+        if (_keychainFallbackLoggedKeys.add(key)) {
+          debugPrint(
+              'Keychain access error suppressed: $key, falling back to SharedPreferences');
+        }
         // try regular storage instead
         try {
           final prefs = await SharedPreferences.getInstance();
           final value = prefs.getString('secure_$key');
-          debugPrint(
-              '[_safeRead] Read from SharedPreferences fallback: key=secure_$key, value=$value');
           return value;
         } catch (e2) {
           debugPrint('SharedPreferences fallback failed for $key: $e2');
@@ -76,10 +77,7 @@ class AuthService {
       // try regular storage if secure storage fails
       try {
         final prefs = await SharedPreferences.getInstance();
-        final value = prefs.getString('secure_$key');
-        debugPrint(
-            '[_safeRead] Read from SharedPreferences fallback: key=secure_$key, value=$value');
-        return value;
+        return prefs.getString('secure_$key');
       } catch (e2) {
         debugPrint('SharedPreferences fallback failed for $key: $e2');
         return null;
@@ -205,6 +203,7 @@ class AuthService {
         _validateTokenInBackground();
       } else {
         _isLoggedIn = false;
+        _resolvedGuestSession = true;
       }
 
       // move old data to new format in the background
@@ -229,11 +228,13 @@ class AuthService {
             _validateTokenInBackground();
           } else {
             _isLoggedIn = false;
+            _resolvedGuestSession = true;
           }
         } catch (e2) {
           debugPrint('SharedPreferences fallback failed in init: $e2');
           _isLoggedIn = false;
           _authToken = null;
+          _resolvedGuestSession = true;
         }
         return;
       }
@@ -255,16 +256,19 @@ class AuthService {
             _validateTokenInBackground();
           } else {
             _isLoggedIn = false;
+            _resolvedGuestSession = true;
           }
         } catch (e2) {
           debugPrint('SharedPreferences fallback failed in init: $e2');
           _isLoggedIn = false;
           _authToken = null;
+          _resolvedGuestSession = true;
         }
         return;
       }
       _isLoggedIn = false;
       _authToken = null;
+      _resolvedGuestSession = true;
     }
   }
 
@@ -669,16 +673,20 @@ class AuthService {
       await _safeDelete(authTokenKey);
       _authToken = null;
       _isLoggedIn = false;
+      _resolvedGuestSession = true;
       _cachedUserData = null;
       _lastTokenVerification = null;
       _tokenRefreshTimer?.cancel();
-    } catch (e) {}
+    } catch (e, st) {
+      debugPrint('AuthService.clearToken storage error: $e\n$st');
+    }
   }
 
   static Future<void> saveToken(String token) async {
     // Set in-memory state first, so it's correct even if storage fails
     _authToken = token;
     _isLoggedIn = true;
+    _resolvedGuestSession = false;
     _lastTokenVerification = DateTime.now();
 
     try {
@@ -718,120 +726,266 @@ class AuthService {
   static Future<Map<String, dynamic>> signIn(
       String email, String password) async {
     try {
-      final payload = {
-        'email': email,
-        'password': password,
-      };
+      final trimmedEmail = email.trim();
+      final response = await HttpClientService.post(
+        Uri.parse('$baseUrl/login'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'email': trimmedEmail,
+          'password': password,
+        }),
+      ).timeout(const Duration(seconds: 30));
 
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/login'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(payload),
-          )
-          .timeout(const Duration(seconds: 30));
+      final body = response.body.trim();
+      final contentType = response.headers['content-type'] ?? '';
 
-      // Log the full HTTP response for debugging
       debugPrint('=== SIGN IN API RAW RESPONSE ===');
       debugPrint('Status: ${response.statusCode}');
-      debugPrint('Body: ${response.body}');
+      debugPrint('Content-Type: $contentType');
+      debugPrint('Body length: ${response.body.length}');
+      debugPrint('Body: $body');
       debugPrint('===============================');
 
-      final responseData = json.decode(response.body);
+      if (body.isEmpty) {
+        return {
+          'success': false,
+          'message': response.statusCode == 200 || response.statusCode == 204
+              ? 'The server returned an empty response after sign-in. Please try again or contact support.'
+              : 'No response from server. Please check your connection and try again.',
+        };
+      }
 
-      if (response.statusCode == 200) {
-        final token = responseData['access_token'];
-        if (token == null) {
+      if (body.startsWith('<!DOCTYPE') ||
+          body.startsWith('<html') ||
+          contentType.contains('text/html')) {
+        return {
+          'success': false,
+          'message':
+              'Unable to reach the sign-in service. Please try again later.',
+        };
+      }
+
+      final responseData = AppErrorUtils.tryDecodeJsonMap(body);
+      if (responseData == null) {
+        return {
+          'success': false,
+          'message': 'Invalid response from server. Please try again.',
+        };
+      }
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final token = _extractAuthToken(responseData);
+        if (token == null || token.isEmpty) {
           return {
             'success': false,
-            'message': 'Invalid response from server. Please try again.'
+            'message': AppErrorUtils.messageFromMap(
+              responseData,
+              fallback:
+                  'Sign-in failed. The server did not return an authentication token.',
+            ),
           };
         }
 
-        // Update all state consistently
         await saveToken(token);
 
-        // Store user data if available
-        if (responseData['user'] != null) {
-          final userData = responseData['user'];
-          await storeUserData(userData);
-
-          if (userData['name'] != null) {
-            await _safeWrite(userNameKey, userData['name']);
-          }
-          if (userData['email'] != null) {
-            await _safeWrite(userEmailKey, userData['email']);
-          }
-          if (userData['phone'] != null) {
-            await _safeWrite(userPhoneNumberKey, userData['phone']);
-          }
-          if (userData['id'] != null) {
-            await _safeWrite(userIdKey, userData['id'].toString());
-          }
+        final user = _extractUserMap(responseData);
+        if (user != null) {
+          await _persistUserFromLogin(user);
+        } else {
+          await _hydrateUserProfileAfterLogin(trimmedEmail);
         }
 
-        // Clear guest_id after successful login
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove('guest_id');
 
         return {
           'success': true,
           'token': token,
-          'user': responseData['user'],
-        };
-      } else if (response.statusCode == 401) {
-        // Use the actual API error message if available, otherwise use default
-        return {
-          'success': false,
-          'message': responseData['message'] ??
-              'Invalid email or password. Please try again.'
-        };
-      } else if (response.statusCode == 429) {
-        return {
-          'success': false,
-          'message': responseData['message'] ??
-              'Too many attempts. Please wait a few minutes before trying again.'
-        };
-      } else if (response.statusCode >= 500) {
-        // Use the actual API error message if available, otherwise use default
-        return {
-          'success': false,
-          'message': responseData['message'] ??
-              'Server is currently unavailable. Please try again later.'
+          'user': user ?? await getCurrentUser(),
         };
       }
 
-      // For other error status codes, use the API message
+      if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'message': AppErrorUtils.messageFromMap(
+            responseData,
+            fallback: 'Invalid email or password. Please try again.',
+          ),
+        };
+      }
+
+      if (response.statusCode == 422) {
+        final validationMsg = _validationMessageFromMap(responseData);
+        return {
+          'success': false,
+          'message': validationMsg ??
+              AppErrorUtils.messageFromMap(
+                responseData,
+                fallback: 'Please check your email and password.',
+              ),
+        };
+      }
+
+      if (response.statusCode == 429) {
+        return {
+          'success': false,
+          'message': AppErrorUtils.messageFromMap(
+            responseData,
+            fallback:
+                'Too many attempts. Please wait a few minutes before trying again.',
+          ),
+        };
+      }
+
+      if (response.statusCode >= 500) {
+        return {
+          'success': false,
+          'message': AppErrorUtils.messageFromMap(
+            responseData,
+            fallback:
+                'Server is currently unavailable. Please try again later.',
+          ),
+        };
+      }
+
       return {
         'success': false,
-        'message':
-            responseData['message'] ?? 'Unable to sign in. Please try again.'
+        'message': AppErrorUtils.messageFromMap(
+          responseData,
+          fallback: 'Unable to sign in. Please try again.',
+        ),
       };
     } on TimeoutException {
       return {
         'success': false,
-        'message': 'The request took too long to complete. Please try again.'
+        'message': 'The request took too long to complete. Please try again.',
       };
     } on SocketException {
       return {
         'success': false,
         'message':
-            'Unable to connect to the server. Please check your internet connection.'
-      };
-    } on FormatException {
-      return {
-        'success': false,
-        'message': 'Invalid response from server. Please try again.'
+            'Unable to connect to the server. Please check your internet connection.',
       };
     } catch (e) {
+      debugPrint('SignIn unexpected error: $e');
       return {
         'success': false,
-        'message': 'An unexpected error occurred. Please try again.'
+        'message': 'An unexpected error occurred. Please try again.',
       };
     }
   }
 
+  static String? _extractAuthToken(Map<String, dynamic> data) {
+    for (final key in ['access_token', 'token', 'auth_token']) {
+      final value = data[key];
+      if (value != null && value.toString().trim().isNotEmpty) {
+        return value.toString().trim();
+      }
+    }
+
+    final nested = data['data'];
+    if (nested is Map) {
+      final map = Map<String, dynamic>.from(nested);
+      for (final key in ['access_token', 'token', 'auth_token']) {
+        final value = map[key];
+        if (value != null && value.toString().trim().isNotEmpty) {
+          return value.toString().trim();
+        }
+      }
+    }
+
+    return null;
+  }
+
+  static Map<String, dynamic>? _extractUserMap(Map<String, dynamic> data) {
+    final user = data['user'];
+    if (user is Map<String, dynamic>) return user;
+    if (user is Map) return Map<String, dynamic>.from(user);
+
+    final nested = data['data'];
+    if (nested is Map) {
+      final map = Map<String, dynamic>.from(nested);
+      final nestedUser = map['user'];
+      if (nestedUser is Map<String, dynamic>) return nestedUser;
+      if (nestedUser is Map) return Map<String, dynamic>.from(nestedUser);
+    }
+
+    return null;
+  }
+
+  static String? _validationMessageFromMap(Map<String, dynamic> data) {
+    final errors = data['errors'];
+    if (errors is! Map) return null;
+
+    for (final entry in errors.entries) {
+      final value = entry.value;
+      if (value is List && value.isNotEmpty) {
+        return value.first.toString();
+      }
+      if (value != null && value.toString().isNotEmpty) {
+        return value.toString();
+      }
+    }
+    return null;
+  }
+
+  static Future<void> _persistUserFromLogin(Map<String, dynamic> userData) async {
+    await storeUserData(userData);
+
+    if (userData['name'] != null) {
+      await _safeWrite(userNameKey, userData['name'].toString());
+    }
+    if (userData['email'] != null) {
+      await _safeWrite(userEmailKey, userData['email'].toString());
+    }
+    if (userData['phone'] != null) {
+      await _safeWrite(userPhoneNumberKey, userData['phone'].toString());
+    }
+    if (userData['id'] != null) {
+      await _safeWrite(userIdKey, userData['id'].toString());
+    }
+  }
+
+  /// When login returns a token but no user payload, load profile from API.
+  static Future<void> _hydrateUserProfileAfterLogin(String email) async {
+    try {
+      final response = await HttpClientService.get(
+        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.userProfile)),
+        headers: await getAuthHeaders(),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode != 200) return;
+
+      final map = AppErrorUtils.tryDecodeJsonMap(response.body.trim());
+      if (map == null) return;
+
+      final profile = map['data'] is Map
+          ? Map<String, dynamic>.from(map['data'] as Map)
+          : map;
+
+      if (profile['email'] == null && email.isNotEmpty) {
+        profile['email'] = email;
+      }
+
+      await _persistUserFromLogin(profile);
+    } catch (e) {
+      debugPrint('Could not load user profile after login: $e');
+      if (email.isNotEmpty) {
+        await storeUserData({'email': email});
+        await _safeWrite(userEmailKey, email);
+      }
+    }
+  }
+
   static Future<bool> isLoggedIn() async {
+    if (!_isLoggedIn && _resolvedGuestSession && _authToken == null) {
+      return false;
+    }
+
     // First check memory state
     if (_isLoggedIn && _authToken != null) {
       // Only verify token if enough time has passed since last verification
@@ -860,10 +1014,12 @@ class AuthService {
       final token = await _safeRead(authTokenKey);
       if (token == null) {
         _isLoggedIn = false;
+        _resolvedGuestSession = true;
         return false;
       }
       _authToken = token;
       _isLoggedIn = true;
+      _resolvedGuestSession = false;
       // Set verification time to now to avoid immediate re-verification
       _lastTokenVerification = DateTime.now();
     }
@@ -1333,18 +1489,26 @@ class AuthService {
 
   // Add this to your AuthService class
   static Future<String?> getToken() async {
+    if (_authToken != null) return _authToken;
+
+    if (_isLoggedIn) {
+      _authToken = await _safeRead(authTokenKey);
+      return _authToken;
+    }
+
+    if (_resolvedGuestSession) {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('guest_id');
+    }
+
     final loggedIn = await isLoggedIn();
     if (loggedIn) {
-      return await _safeRead(authTokenKey);
+      _authToken ??= await _safeRead(authTokenKey);
+      return _authToken;
     }
-    // Only retrieve a persistent guest id for non-logged-in users if it already exists
+
     final prefs = await SharedPreferences.getInstance();
-    String? guestId = prefs.getString('guest_id');
-    if (!loggedIn && guestId != null) {
-      debugPrint('[AuthService] Using existing guest_id: $guestId');
-      return guestId;
-    }
-    return null;
+    return prefs.getString('guest_id');
   }
 
   /// Clear all guest_id keys from SharedPreferences

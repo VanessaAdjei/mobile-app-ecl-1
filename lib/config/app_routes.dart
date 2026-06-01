@@ -19,6 +19,7 @@ import '../pages/terms_and_conditions_page.dart';
 import '../pages/wallet_page.dart';
 import '../pages/wishlist_page.dart';
 import '../pages/delivery_page.dart';
+import '../pages/my_appointments_page.dart';
 
 /// Central route name constants. Use these for Navigator.pushNamed.
 class AppRoutes {
@@ -41,6 +42,7 @@ class AppRoutes {
   static const String prescriptionHistory = '/prescription-history';
   static const String prescriptionUpload = '/prescription-upload';
   static const String purchases = '/purchases';
+  static const String myAppointments = '/my-appointments';
   static const String aboutUs = '/about-us';
   static const String termsAndConditions = '/terms-and-conditions';
   static const String returnPolicy = '/return-policy';
@@ -112,6 +114,10 @@ class AppRouteGenerator {
         );
       case AppRoutes.purchases:
         return MaterialPageRoute(builder: (_) => const PurchaseScreen());
+      case AppRoutes.myAppointments:
+        return MaterialPageRoute(
+          builder: (_) => const MyAppointmentsPage(),
+        );
       case AppRoutes.aboutUs:
         return MaterialPageRoute(builder: (_) => AboutUsScreen());
       case AppRoutes.termsAndConditions:

@@ -17,18 +17,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'pages/onboarding_splash_page.dart';
 import 'pages/prescription.dart';
 import 'pages/prescription_upload_standalone.dart';
-import 'pages/notification_permission_page.dart';
 import 'pages/terms_acceptance_page.dart';
 import 'pages/clearance_admin_page.dart';
 import 'providers/notification_provider.dart';
 import 'services/app_background_scheduler.dart';
+import 'services/home_preload_service.dart';
 import 'services/order_notification_service.dart';
 import 'services/native_notification_service.dart';
 import 'services/notification_handler_service.dart';
 import 'providers/wallet_provider.dart';
 import 'providers/promotional_event_provider.dart';
 import 'providers/clearance_sale_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'services/notification_service.dart';
 import 'services/http_client_service.dart';
 import 'config/app_routes.dart';
@@ -196,6 +195,24 @@ Future<void> _initializeApp() async {
   debugPrint(
       '🚀 Main: Critical services initialized in ${criticalInitTime.inMilliseconds}ms');
 
+  // Warm catalog from disk before first home frame (shared with HomePage boot).
+  try {
+    await ProductCache.loadFromStorage().timeout(
+      const Duration(seconds: 4),
+    );
+    if (ProductCache.hasProductsInMemory) {
+      ProductCache.warmPopularFromCatalog();
+      HomePreloadService.publishCatalogToHomeServices();
+    }
+  } on TimeoutException {
+    debugPrint(
+      'Main: catalog disk load still running — HomePage will await shared future',
+    );
+  } catch (e) {
+    debugPrint('Main: catalog disk load error: $e');
+  }
+  HomePreloadService.startOnboardingPreload();
+
   // do other stuff in background, dont wait for it
   unawaited(_initBackground());
 
@@ -283,6 +300,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         _isFirstLaunch = true;
       });
       debugPrint('🚀 Main: Fresh install detected - showing onboarding');
+      HomePreloadService.startOnboardingPreload();
     } else {
       // check if they uninstalled and reinstalled the app
       // if the install date is really old (over 30 days), treat it as a fresh install
@@ -299,6 +317,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           });
           debugPrint(
               '🚀 Main: App reinstall detected (${daysSinceInstall} days old) - showing onboarding');
+          HomePreloadService.startOnboardingPreload();
         } else {
           // normal launch, skip onboarding
           if (!mounted) return;
@@ -315,6 +334,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           _isFirstLaunch = true;
         });
         debugPrint('🚀 Main: Date parsing error - treating as fresh install');
+        HomePreloadService.startOnboardingPreload();
       }
     }
   }
@@ -723,8 +743,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       ? OnboardingSplashPage(
                           onFinish: () async {
                             if (!mounted) return;
-                            // Swapping `home` replaces onboarding; `context` here is above
-                            // MaterialApp so Navigator.of(context) is invalid.
+                            final ready =
+                                await HomePreloadService.ensureReadyForHome(
+                              maxWait: const Duration(seconds: 15),
+                            );
+                            if (!mounted) return;
+                            if (!ready) return;
                             setState(() {
                               _isFirstLaunch = false;
                             });
@@ -796,33 +820,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           NativeNotificationService.clearPendingNotificationPayload();
         }
       });
-    }
-  }
-
-  /// Show notification permission request if needed
-  Future<void> _showNotificationPermissionIfNeeded() async {
-    try {
-      if (!mounted) return;
-
-      final permission = Permission.notification;
-      final status = await permission.status;
-
-      if (!mounted) return;
-
-      // only show if we dont have permission and they havent permanently denied it
-      if (!status.isGranted && !status.isPermanentlyDenied) {
-        final context =
-            NativeNotificationService.globalNavigatorKey.currentContext;
-        if (context != null && context.mounted) {
-          await Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => const NotificationPermissionPage(),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('Error showing notification permission: $e');
     }
   }
 
@@ -917,7 +914,8 @@ class _TermsWrapperState extends State<_TermsWrapper> {
   @override
   void initState() {
     super.initState();
-    // Listen for when terms are accepted
+    // Begin catalog load while user reads terms (before onboarding pages).
+    HomePreloadService.startOnboardingPreload();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForAcceptance();
     });

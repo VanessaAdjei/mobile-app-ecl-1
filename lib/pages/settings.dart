@@ -1,4 +1,5 @@
 // pages/settings.dart
+import 'dart:async';
 import 'dart:io';
 import 'package:eclapp/pages/privacypolicy.dart';
 import 'package:eclapp/pages/profile.dart';
@@ -18,6 +19,7 @@ import 'loggedout.dart';
 import 'notifications.dart';
 
 import 'package:eclapp/services/auth_service.dart';
+import 'package:eclapp/services/native_notification_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
@@ -35,12 +37,25 @@ class SettingsScreenState extends State<SettingsScreen> {
   String _userName = "User";
   String _userEmail = "No email available";
   String? _profileImagePath;
+  bool _pushNotificationsEnabled = false;
+  bool _locationEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
     _loadProfileImage();
+    _refreshPermissionStatuses();
+  }
+
+  Future<void> _refreshPermissionStatuses() async {
+    final push = await NativeNotificationService.areNotificationsEnabled();
+    final location = await NativeNotificationService.isLocationWhenInUseGranted();
+    if (!mounted) return;
+    setState(() {
+      _pushNotificationsEnabled = push;
+      _locationEnabled = location;
+    });
   }
 
   Future<void> _loadProfileImage() async {
@@ -368,6 +383,59 @@ class SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                "Permissions",
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Animate(
+              effects: [
+                FadeEffect(duration: 400.ms),
+                SlideEffect(
+                    duration: 400.ms, begin: Offset(0, 0.1), end: Offset(0, 0))
+              ],
+              child: _buildSettingsCard(
+                context,
+                [
+                  _buildPermissionSettingOption(
+                    context,
+                    title: 'Push notifications',
+                    subtitle: _pushNotificationsEnabled ? 'On' : 'Off',
+                    icon: Icons.notifications_active_outlined,
+                    textColor: textColor,
+                    iconColor: primaryColor,
+                    onTap: () async {
+                      await NativeNotificationService
+                          .requestNotificationPermissionDirect(context: context);
+                      await _refreshPermissionStatuses();
+                    },
+                  ),
+                  const Divider(height: 1),
+                  _buildPermissionSettingOption(
+                    context,
+                    title: 'Location for delivery',
+                    subtitle: _locationEnabled ? 'On' : 'Off',
+                    icon: Icons.location_on_outlined,
+                    textColor: textColor,
+                    iconColor: primaryColor,
+                    onTap: () async {
+                      await NativeNotificationService
+                          .requestLocationWhenInUseDirect(context: context);
+                      await _refreshPermissionStatuses();
+                    },
+                  ),
+                ],
+                cardColor,
+              ),
+            ),
+            const SizedBox(height: 16),
             // General Section
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -545,6 +613,66 @@ class SettingsScreenState extends State<SettingsScreen> {
         destination,
         textColor,
         iconColor,
+      ),
+    );
+  }
+
+  Widget _buildPermissionSettingOption(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color textColor,
+    required Color iconColor,
+    required Future<void> Function() onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => unawaited(onTap()),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: iconColor, size: 22),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        color: textColor,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.grey.shade400,
+                size: 16,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

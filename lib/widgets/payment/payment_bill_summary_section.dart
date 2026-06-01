@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'payment_summary_row.dart';
+import '../order_threshold_promo_banner.dart';
 
 /// Bill breakdown + promo code on the payment information screen.
 class PaymentBillSummarySection extends StatelessWidget {
@@ -31,8 +32,11 @@ class PaymentBillSummarySection extends StatelessWidget {
     required this.onRemovePromo,
   });
 
+  double get _displayDeliveryFee =>
+      OrderThresholdPromoBanner.displayDeliveryFee(subtotal, deliveryFee);
+
   double get _total =>
-      subtotal + deliveryFee + emergencyOrderFee - discountAmount;
+      subtotal + _displayDeliveryFee + emergencyOrderFee - discountAmount;
 
   @override
   Widget build(BuildContext context) {
@@ -80,6 +84,8 @@ class PaymentBillSummarySection extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 10),
+            OrderThresholdPromoBanner(compact: true, subtotal: subtotal),
             const SizedBox(height: 8),
             _PromoCodeBlock(
               appliedPromoCode: appliedPromoCode,
@@ -114,18 +120,19 @@ class PaymentBillSummarySection extends StatelessWidget {
                       isDiscount: true,
                     ),
                   ],
-                  if (showDeliveryFee) ...[
+                  if (showDeliveryFee &&
+                      _displayDeliveryFee > 0) ...[
                     const SizedBox(height: 6),
                     PaymentSummaryRow(
                       label: 'Delivery fee',
-                      value: deliveryFee,
+                      value: _displayDeliveryFee,
                       icon: Icons.local_shipping_outlined,
                     ),
                   ],
                   if (emergencyOrderFee > 0) ...[
                     const SizedBox(height: 6),
                     PaymentSummaryRow(
-                      label: 'Urgent Order Fee',
+                      label: 'Urgent order fee',
                       value: emergencyOrderFee,
                       icon: Icons.flash_on,
                     ),

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import 'native_notification_service.dart';
 import 'order_notification_service.dart';
+import '../utils/app_error_utils.dart';
 
 class BackgroundOrderTrackingService {
   static Timer? _trackingTimer;
@@ -155,7 +156,9 @@ class BackgroundOrderTrackingService {
         if (id.isNotEmpty) byId[id] = Map<String, dynamic>.from(o);
       }
       await prefs.setString('user_orders', json.encode(byId.values.toList()));
-    } catch (e) {}
+    } catch (e, st) {
+      AppErrorUtils.log('BackgroundOrderTracking._mergeOrders', e, st);
+    }
   }
 
   // Send status change notification for every tracking stage
@@ -233,7 +236,9 @@ class BackgroundOrderTrackingService {
       for (final order in shippedOrders) {
         await _checkDeliveryStatus(order);
       }
-    } catch (e) {}
+    } catch (e, st) {
+      AppErrorUtils.log('BackgroundOrderTracking._checkDeliveryUpdates', e, st);
+    }
   }
 
   // Check delivery status for shipped orders
@@ -255,8 +260,8 @@ class BackgroundOrderTrackingService {
           );
         }
       }
-    } catch (e) {
-
+    } catch (e, st) {
+      AppErrorUtils.log('BackgroundOrderTracking._checkDeliveryStatus', e, st);
     }
   }
 
@@ -278,7 +283,13 @@ class BackgroundOrderTrackingService {
         final data = json.decode(response.body);
         return data['delivery_status'];
       }
-    } catch (e) {}
+    } catch (e, st) {
+      AppErrorUtils.log(
+        'BackgroundOrderTracking._getDeliveryStatusFromServer',
+        e,
+        st,
+      );
+    }
     return null;
   }
 

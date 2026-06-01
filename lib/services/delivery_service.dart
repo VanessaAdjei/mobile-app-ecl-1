@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import '../config/api_config.dart';
 import '../models/store_location_model.dart';
 import 'package:eclapp/services/auth_service.dart';
+import '../utils/app_error_utils.dart';
 
 class DeliveryService {
   static const String baseUrl = ApiConfig.baseUrl;
@@ -16,6 +17,11 @@ class DeliveryService {
   static const Duration _apiTimeout = Duration(seconds: 5);
 
   static final Map<String, Map<String, dynamic>> _deliveryFeeApiCache = {};
+
+  static List<Map<String, dynamic>>? _storesForFeeEstimateCache;
+  static DateTime? _storesForFeeEstimateCachedAt;
+  static Future<List<Map<String, dynamic>>>? _storesForFeeEstimateLoadFuture;
+  static const Duration _storesCacheTtl = Duration(hours: 6);
 
   // Delivery pricing constants
   // Base fee = 20
@@ -378,24 +384,28 @@ class DeliveryService {
           'data': data, // keep the original data just in case we need it later
         };
       } else {
-        final errorData = json.decode(response.body);
+        final errorData = AppErrorUtils.tryDecodeJsonMap(response.body);
         debugPrint('=== API SAVE ERROR ===');
         debugPrint('Error status code: ${response.statusCode}');
-        debugPrint('Error response: ${json.encode(errorData)}');
-        debugPrint('Error message: ${errorData['message']}');
+        debugPrint('Error response body: ${response.body}');
         debugPrint('=====================');
         return {
           'success': false,
-          'message':
-              errorData['message'] ?? 'Failed to save delivery information',
+          'message': AppErrorUtils.messageFromMap(
+            errorData,
+            fallback: AppErrorUtils.messageFromApiBody(
+              response.body,
+              fallback: 'Failed to save delivery information',
+            ),
+          ),
         };
       }
-    } catch (e) {
-      debugPrint('Error saving delivery info: $e');
-      return {
-        'success': false,
-        'message': 'Network error. Please check your connection and try again.',
-      };
+    } catch (e, st) {
+      AppErrorUtils.log('DeliveryService.saveDeliveryInfo', e, st);
+      return AppErrorUtils.failure(
+        e,
+        fallback: 'Failed to save delivery information',
+      );
     }
   }
 
@@ -609,11 +619,116 @@ class DeliveryService {
     };
   }
 
+  /// Instant fee from distance_text using the same tiered formula as the server.
+  static Map<String, dynamic>? localDeliveryFeeResult(String distanceText) {
+    final parsed = calculateDeliveryFeeFromDistanceText(distanceText);
+    if (parsed == null) return null;
+    return {
+      'distance': parsed['distanceKm'],
+      'delivery_fee': parsed['fee'],
+    };
+  }
+
+  /// Cached store list for map-based fee estimates (background preload).
+  static Future<List<Map<String, dynamic>>> getStoresForFeeEstimate() async {
+    if (_storesForFeeEstimateCache != null &&
+        _storesForFeeEstimateCachedAt != null &&
+        DateTime.now().difference(_storesForFeeEstimateCachedAt!) <
+            _storesCacheTtl) {
+      return _storesForFeeEstimateCache!;
+    }
+
+    _storesForFeeEstimateLoadFuture ??= _loadStoresForFeeEstimate();
+    try {
+      return await _storesForFeeEstimateLoadFuture!;
+    } finally {
+      _storesForFeeEstimateLoadFuture = null;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> _loadStoresForFeeEstimate() async {
+    try {
+      final result = await getAllStores();
+      if (result['success'] == true && result['data'] is List) {
+        final list = (result['data'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        _storesForFeeEstimateCache = list;
+        _storesForFeeEstimateCachedAt = DateTime.now();
+        return list;
+      }
+    } catch (e) {
+      debugPrint('getStoresForFeeEstimate error: $e');
+    }
+    return _storesForFeeEstimateCache ?? [];
+  }
+
+  /// Auth headers aligned with [saveDeliveryInfo] (Bearer vs Guest).
+  static Future<Map<String, String>> deliveryAuthHeaders() async {
+    final isLoggedIn = await AuthService.isLoggedIn();
+    if (isLoggedIn) {
+      final token = await AuthService.getToken();
+      if (token == null || token.isEmpty) return {};
+      return {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      };
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final guestId = prefs.getString('guest_id');
+    if (guestId == null || guestId.isEmpty) return {};
+    return {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': 'Guest $guestId',
+      'X-Guest-ID': guestId,
+    };
+  }
+
+  /// Parses calculate-delivery-fee JSON (supports nested `data` wrapper).
+  static Map<String, dynamic>? parseCalculateDeliveryFeePayload(
+    Map<String, dynamic> root,
+  ) {
+    final payloads = <Map<String, dynamic>>[root];
+    final nested = root['data'];
+    if (nested is Map) {
+      payloads.add(Map<String, dynamic>.from(nested));
+    }
+
+    for (final map in payloads) {
+      final deliveryFeeRaw =
+          map['delivery_fee'] ?? map['deliveryFee'] ?? map['fee'];
+      if (deliveryFeeRaw == null) continue;
+
+      final feeValue = deliveryFeeRaw is num
+          ? deliveryFeeRaw.toDouble()
+          : (double.tryParse(deliveryFeeRaw.toString()) ?? 0.0);
+
+      final distance = map['distance'] ?? map['distance_km'];
+      double? distanceKm;
+      if (distance is num) {
+        distanceKm = distance.toDouble();
+      } else if (distance != null) {
+        distanceKm = double.tryParse(distance.toString()) ??
+            parseDistanceTextToKm(distance.toString());
+      }
+
+      return {
+        'distance': distanceKm,
+        'delivery_fee': feeValue,
+        'from_api': true,
+      };
+    }
+    return null;
+  }
+
   /// Call /calculate-delivery-fee API with distance_text (e.g. "1.9 km").
-  /// Returns { distance: num, delivery_fee: double } or null on failure.
-  /// Results are cached by distance_text to avoid repeated slow API calls.
+  /// Returns { distance, delivery_fee, from_api } or null. Caches API results only.
   static Future<Map<String, dynamic>?> fetchDeliveryFeeFromApi({
     required String distanceText,
+    bool fallbackToLocalEstimate = false,
   }) async {
     try {
       final key = distanceText.trim();
@@ -623,101 +738,84 @@ class DeliveryService {
       }
 
       final cached = _deliveryFeeApiCache[key];
-      if (cached != null) {
+      if (cached != null && cached['from_api'] == true) {
         return Map<String, dynamic>.from(cached);
       }
-      final isLoggedIn = await AuthService.isLoggedIn();
-      String? token;
-      String? guestId;
-      if (isLoggedIn) {
-        token = await AuthService.getToken();
-      } else {
-        final prefs = await SharedPreferences.getInstance();
-        guestId = prefs.getString('guest_id');
-      }
-      if (!isLoggedIn && (guestId == null || guestId.isEmpty)) {
-        debugPrint('calculate-delivery-fee: Guest auth required');
-        return null;
-      }
-      if (isLoggedIn && (token == null || token.isEmpty)) {
+
+      final headers = await deliveryAuthHeaders();
+      if (headers.isEmpty || !headers.containsKey('Authorization')) {
         debugPrint('calculate-delivery-fee: Auth required');
-        return null;
+        return fallbackToLocalEstimate ? _localEstimateResult(key) : null;
       }
 
       final url = ApiConfig.getEndpointUrl(ApiConfig.calculateDeliveryFee);
-      final headers = <String, String>{
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        if (isLoggedIn) 'Authorization': 'Bearer $token',
-        if (!isLoggedIn && guestId != null) ...{
-          'Authorization': 'Guest $guestId',
-          'X-Guest-ID': guestId,
-        },
-      };
-      // API expects "distance_text" - try JSON body first
-      final jsonBody = json.encode({'distance_text': distanceText.trim()});
-      final formBody =
-          'distance_text=${Uri.encodeComponent(distanceText.trim())}';
+      final jsonBody = json.encode({'distance_text': key});
 
-      print('📤 [CALCULATE-DELIVERY-FEE] Calling API: $url');
-      print('📤 [CALCULATE-DELIVERY-FEE] distance_text: "$distanceText"');
+      debugPrint('📤 [CALCULATE-DELIVERY-FEE] Calling API: $url');
+      debugPrint('📤 [CALCULATE-DELIVERY-FEE] distance_text: "$key"');
 
       var response = await http
           .post(Uri.parse(url), headers: headers, body: jsonBody)
           .timeout(_apiTimeout);
 
-      // If JSON fails (401, 422, etc), try form-urlencoded
       if (response.statusCode != 200 && response.statusCode != 201) {
         final formHeaders = <String, String>{
           ...headers,
           'Content-Type': 'application/x-www-form-urlencoded',
         };
         response = await http
-            .post(Uri.parse(url), headers: formHeaders, body: formBody)
+            .post(
+              Uri.parse(url),
+              headers: formHeaders,
+              body: 'distance_text=${Uri.encodeComponent(key)}',
+            )
             .timeout(_apiTimeout);
       }
 
-      print(
-          '📥 [CALCULATE-DELIVERY-FEE] Response status: ${response.statusCode}');
-      print('📥 [CALCULATE-DELIVERY-FEE] Response body: ${response.body}');
+      debugPrint(
+          '📥 [CALCULATE-DELIVERY-FEE] status=${response.statusCode} body=${response.body}');
 
       if (response.statusCode != 200 && response.statusCode != 201) {
-        print('❌ [CALCULATE-DELIVERY-FEE] Non-success status, using fallback');
-        return null;
-      }
-      final data = json.decode(response.body) as Map<String, dynamic>?;
-      if (data == null) {
-        print(
-            '❌ [CALCULATE-DELIVERY-FEE] Response body could not be parsed, using fallback');
-        return null;
+        debugPrint('❌ [CALCULATE-DELIVERY-FEE] Non-success status');
+        return fallbackToLocalEstimate ? _localEstimateResult(key) : null;
       }
 
-      final distance = data['distance'];
-      final deliveryFeeRaw =
-          data['delivery_fee'] ?? data['deliveryFee'] ?? data['fee'];
-      if (deliveryFeeRaw == null) {
-        print(
-            '❌ [CALCULATE-DELIVERY-FEE] No delivery_fee in response, using fallback');
-        return null;
+      final decoded = AppErrorUtils.tryDecodeJsonMap(response.body);
+      if (decoded == null) {
+        debugPrint('❌ [CALCULATE-DELIVERY-FEE] Unexpected response shape');
+        return fallbackToLocalEstimate ? _localEstimateResult(key) : null;
       }
 
-      final feeValue = deliveryFeeRaw is num
-          ? deliveryFeeRaw.toDouble()
-          : (double.tryParse(deliveryFeeRaw.toString()) ?? 0.0);
-      final distanceKm = distance is num
-          ? distance.toDouble()
-          : (distance != null ? double.tryParse(distance.toString()) : null);
+      final parsed = parseCalculateDeliveryFeePayload(decoded);
+      if (parsed == null) {
+        debugPrint('❌ [CALCULATE-DELIVERY-FEE] No delivery_fee in response');
+        return fallbackToLocalEstimate ? _localEstimateResult(key) : null;
+      }
 
-      final result = <String, dynamic>{
-        'distance': distanceKm,
-        'delivery_fee': feeValue,
-      };
-      _deliveryFeeApiCache[key] = result;
-      return result;
+      _deliveryFeeApiCache[key] = parsed;
+      return parsed;
+    } on TimeoutException catch (e) {
+      debugPrint('❌ [CALCULATE-DELIVERY-FEE] Timeout: $e');
+      return fallbackToLocalEstimate
+          ? _localEstimateResult(distanceText.trim())
+          : null;
+    } on SocketException catch (e) {
+      debugPrint('❌ [CALCULATE-DELIVERY-FEE] Network: $e');
+      return fallbackToLocalEstimate
+          ? _localEstimateResult(distanceText.trim())
+          : null;
     } catch (e) {
-      print('❌ [CALCULATE-DELIVERY-FEE] Error: $e');
-      return null;
+      debugPrint('❌ [CALCULATE-DELIVERY-FEE] Error: $e');
+      return fallbackToLocalEstimate
+          ? _localEstimateResult(distanceText.trim())
+          : null;
     }
+  }
+
+  static Map<String, dynamic>? _localEstimateResult(String key) {
+    final local = localDeliveryFeeResult(key);
+    if (local == null) return null;
+    return {...local, 'from_api': false};
   }
 
   /// Calculate delivery fee based on region and city

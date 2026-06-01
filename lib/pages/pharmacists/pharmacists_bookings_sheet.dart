@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'pharmacists_booking_helpers.dart';
+import '../../widgets/booking_appointment_card.dart';
 
 /// Cancel-booking confirmation dialog. Use from main page or booking card.
 Widget buildCancelBookingConfirmDialog(BuildContext context) {
@@ -243,9 +243,17 @@ class BookingsListSheet extends StatelessWidget {
                         padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
                         itemCount: bookings.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 14),
-                        itemBuilder: (context, i) => _BookingCardModal(
-                          bookings[i],
-                          onCancel: onCancelBooking,
+                        itemBuilder: (context, i) => BookingAppointmentCard(
+                          booking: bookings[i],
+                          onCancel: onCancelBooking == null
+                              ? null
+                              : (b) async {
+                                  final ok = await onCancelBooking!(b);
+                                  if (context.mounted && ok) {
+                                    Navigator.pop(context);
+                                  }
+                                  return ok;
+                                },
                         ),
                       ),
               ),
@@ -272,200 +280,6 @@ class BookingsListSheet extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _BookingCardModal extends StatelessWidget {
-  final Map<String, dynamic> b;
-  final Future<bool> Function(Map<String, dynamic> booking)? onCancel;
-
-  const _BookingCardModal(this.b, {this.onCancel});
-
-  @override
-  Widget build(BuildContext context) {
-    final hasId = b['id'] != null;
-    final isUpcoming = getBookingStatus(b) == 'Upcoming';
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                width: 4,
-                decoration: BoxDecoration(
-                  color: isUpcoming ? Colors.green.shade500 : Colors.grey.shade400,
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${bookingDisplayDate(b)} · ${bookingDisplayTime(b)}',
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade800,
-                                letterSpacing: -0.2,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isUpcoming
-                                  ? Colors.green.shade50
-                                  : Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              getBookingStatus(b),
-                              style: GoogleFonts.poppins(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: isUpcoming
-                                    ? Colors.green.shade700
-                                    : Colors.grey.shade700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _detailRow(Icons.person_outline_rounded, bookingDisplayName(b)),
-                            const SizedBox(height: 8),
-                            _detailRow(Icons.phone_outlined, b['phone'] ?? ''),
-                            const SizedBox(height: 8),
-                            _detailRow(Icons.email_outlined, b['email'] ?? ''),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Icon(Icons.videocam_outlined, size: 16, color: Colors.grey.shade600),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    '${bookingDisplayConsultationType(b)} · ${bookingDisplayPlatform(b)}',
-                                    style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade700),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (bookingDisplaySymptoms(b).isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        Text(
-                          bookingDisplaySymptoms(b),
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
-                            height: 1.35,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                      if (hasId && isUpcoming && onCancel != null) ...[
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () async {
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => buildCancelBookingConfirmDialog(ctx),
-                                );
-                                if (confirm == true) {
-                                  final ok = await onCancel!(b);
-                                  if (context.mounted && ok) Navigator.pop(context);
-                                }
-                              },
-                              borderRadius: BorderRadius.circular(8),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.cancel_outlined, size: 16, color: Colors.red.shade600),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'Cancel booking',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.red.shade600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _detailRow(IconData icon, String text) {
-    if (text.isEmpty) return const SizedBox.shrink();
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 16, color: Colors.grey.shade600),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade800),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
     );
   }
 }

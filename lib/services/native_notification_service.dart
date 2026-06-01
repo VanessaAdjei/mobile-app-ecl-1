@@ -155,11 +155,12 @@ class NativeNotificationService {
   static Future<void> _initializeLocalNotifications() async {
     if (_localNotificationsInitialized) return;
     try {
-      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const androidSettings =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
       const iosSettings = DarwinInitializationSettings(
-        requestAlertPermission: true,
-        requestBadgePermission: true,
-        requestSoundPermission: true,
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
       );
       const initSettings = InitializationSettings(
         android: androidSettings,
@@ -170,23 +171,12 @@ class NativeNotificationService {
         onDidReceiveNotificationResponse: (NotificationResponse response) {
           if (response.payload != null && response.payload!.isNotEmpty) {
             _pendingNotificationPayload = response.payload;
-            Future.microtask(() => _handleNotificationImmediately(
-                response.payload!, null));
+            Future.microtask(
+                () => _handleNotificationImmediately(response.payload!, null));
           }
         },
       );
-      if (Platform.isAndroid) {
-        await _localNotifications
-            .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin>()
-            ?.requestNotificationsPermission();
-      }
-      if (Platform.isIOS) {
-        await _localNotifications
-            .resolvePlatformSpecificImplementation<
-                IOSFlutterLocalNotificationsPlugin>()
-            ?.requestPermissions(alert: true, badge: true, sound: true);
-      }
+      // Do not request OS permission here — avoids a duplicate prompt before the user opts in.
       _localNotificationsInitialized = true;
       debugPrint('📱 Native: flutter_local_notifications initialized');
     } catch (e) {
@@ -226,8 +216,10 @@ class NativeNotificationService {
         android: androidDetails,
         iOS: iosDetails,
       );
-      await _localNotifications.show(id, title, body, details, payload: payload);
-      debugPrint('📱 Native: Notification shown via flutter_local_notifications');
+      await _localNotifications.show(id, title, body, details,
+          payload: payload);
+      debugPrint(
+          '📱 Native: Notification shown via flutter_local_notifications');
     } catch (e) {
       debugPrint('📱 Native: flutter_local_notifications show failed: $e');
     }
@@ -426,8 +418,141 @@ class NativeNotificationService {
     }
   }
 
+  static Future<bool> isLocationWhenInUseGranted() async {
+    try {
+      final status = await Permission.locationWhenInUse.status;
+      return status.isGranted;
+    } catch (e) {
+      debugPrint('Error checking location permission: $e');
+      return false;
+    }
+  }
+
+  /// True when at least one onboarding permission is still missing.
+  static Future<bool> needsPermissionsPrompt() async {
+    final notifications = await areNotificationsEnabled();
+    final location = await isLocationWhenInUseGranted();
+    return !notifications || !location;
+  }
+
+  /// Single OS location prompt (when-in-use) — no extra in-app dialog.
+  static Future<bool> requestLocationWhenInUseDirect({BuildContext? context}) async {
+    final dialogContext = context ?? globalNavigatorKey.currentContext;
+    try {
+      final perm = Permission.locationWhenInUse;
+      var status = await perm.status;
+      debugPrint('📱 Location when-in-use status: $status');
+
+      if (status.isGranted) return true;
+
+      if (status.isPermanentlyDenied) {
+        if (dialogContext != null && dialogContext.mounted) {
+          await _showLocationSettingsDialog(dialogContext);
+        }
+        return false;
+      }
+
+      status = await perm.request();
+      debugPrint('📱 Location request result: $status');
+      return status.isGranted;
+    } catch (e) {
+      debugPrint('Error requesting location permission: $e');
+      return false;
+    }
+  }
+
+  static Future<void> _showLocationSettingsDialog(BuildContext context) async {
+    final open = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Location access'),
+        content: const Text(
+          'Location is off for this app. Enable it in Settings to see delivery options and distances.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Not now'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+    if (open == true) await openAppSettings();
+  }
+
+  /// Notifications then location — used during onboarding.
+  static Future<({bool notifications, bool location})>
+      requestOnboardingPermissions({BuildContext? context}) async {
+    final dialogContext = context ?? globalNavigatorKey.currentContext;
+    final notifications = await requestNotificationPermissionDirect(
+      context: dialogContext,
+    );
+    final location = await requestLocationWhenInUseDirect(
+      context: dialogContext,
+    );
+    return (notifications: notifications, location: location);
+  }
+
+  /// Shows the OS notification prompt via flutter_local_notifications + permission_handler.
+  static Future<bool> requestNotificationPermissionDirect({
+    BuildContext? context,
+  }) async {
+    final dialogContext = context ?? globalNavigatorKey.currentContext;
+    try {
+      await _initializeLocalNotifications();
+
+      if (Platform.isAndroid) {
+        final android = _localNotifications
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>();
+        final granted = await android?.requestNotificationsPermission();
+        debugPrint('📱 Android notification plugin request: $granted');
+        if (granted == true) return true;
+      }
+
+      if (Platform.isIOS) {
+        final ios = _localNotifications
+            .resolvePlatformSpecificImplementation<
+                IOSFlutterLocalNotificationsPlugin>();
+        final granted = await ios?.requestPermissions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        debugPrint('📱 iOS notification plugin request: $granted');
+        if (granted == true) return true;
+      }
+
+      final permission = Permission.notification;
+      final status = await permission.status;
+      debugPrint('📱 Notification permission status: $status');
+
+      if (status.isGranted) return true;
+
+      if (status.isPermanentlyDenied) {
+        if (dialogContext != null && dialogContext.mounted) {
+          await _showPermissionSettingsDialog(dialogContext);
+        }
+        return false;
+      }
+
+      final result = await permission.request();
+      debugPrint('📱 Notification permission request result: $result');
+      return result.isGranted;
+    } catch (e) {
+      debugPrint('Error requesting notification permission: $e');
+      return false;
+    }
+  }
+
   static Future<Map<String, dynamic>> requestNotificationPermission(
-      BuildContext context) async {
+    BuildContext context, {
+    bool skipPreDialog = false,
+  }) async {
     try {
       debugPrint('📱 Native: Requesting notification permission...');
 
@@ -444,7 +569,6 @@ class NativeNotificationService {
       }
 
       if (status.isPermanentlyDenied) {
-        // Show dialog to go to settings
         if (!context.mounted) {
           return {
             'granted': false,
@@ -454,24 +578,23 @@ class NativeNotificationService {
         return await _showPermissionSettingsDialog(context);
       }
 
-      // Show custom permission dialog first
-      if (!context.mounted) {
-        return {
-          'granted': false,
-          'message': 'Context not mounted during permission check'
-        };
-      }
-      final userWantsPermission = await _showPermissionDialog(context);
-      if (!userWantsPermission) {
-        return {
-          'granted': false,
-          'message': 'User declined notification permission'
-        };
+      if (!skipPreDialog) {
+        if (!context.mounted) {
+          return {
+            'granted': false,
+            'message': 'Context not mounted during permission check'
+          };
+        }
+        final userWantsPermission = await _showPermissionDialog(context);
+        if (!userWantsPermission) {
+          return {
+            'granted': false,
+            'message': 'User declined notification permission'
+          };
+        }
       }
 
-      // Request permission using permission_handler
       final permissionResult = await permission.request();
-
       final granted = permissionResult.isGranted;
       debugPrint('📱 Native: Permission request result: $granted');
 

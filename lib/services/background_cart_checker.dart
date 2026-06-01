@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
+import '../utils/app_error_utils.dart';
 import '../providers/cart_provider.dart';
 import 'auth_service.dart';
 
@@ -95,7 +96,9 @@ class BackgroundCartChecker {
       final cartItems = _cartProvider!.cartItems;
 
       await _cartProvider!.syncWithApi();
-    } catch (e) {}
+    } catch (e, st) {
+      AppErrorUtils.log('BackgroundCartChecker._checkCartChanges', e, st);
+    }
   }
 
   /// Perform periodic server sync
@@ -115,7 +118,9 @@ class BackgroundCartChecker {
 
       // Sync with server
       await _cartProvider!.syncWithApi();
-    } catch (e) {}
+    } catch (e, st) {
+      AppErrorUtils.log('BackgroundCartChecker._performPeriodicSync', e, st);
+    }
   }
 
   // force a cart check right away

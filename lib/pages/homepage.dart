@@ -23,8 +23,11 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/product_card.dart';
-import '../widgets/smart_tips.dart';
+import '../widgets/home_first_visit_flow.dart';
+import '../widgets/home_page_tour.dart';
 import '../services/banner_cache_service.dart';
+import '../services/home_preload_service.dart';
+import '../services/product_image_preload_service.dart';
 import '../services/homepage_optimization_service.dart';
 import '../widgets/empty_state.dart';
 import 'section_products_page.dart';
@@ -32,12 +35,12 @@ import 'package:animations/animations.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/native_notification_service.dart';
 
 import '../widgets/clearance_sale_banner.dart';
 import '../services/category_optimization_service.dart';
 import 'categories.dart';
 
-import 'notification_permission_page.dart';
 
 class _BannerData {
   final String image;
@@ -48,6 +51,54 @@ class _BannerData {
 }
 
 const String prescribedShieldAsset = 'assets/images/prescribed_shield.png';
+
+/// Parse full catalog API body off the UI thread (large JSON).
+List<Product> _parseCatalogApiResponse(String body) {
+  final data = json.decode(body) as Map<String, dynamic>;
+  final list = data['data'] as List? ?? [];
+  return _productsFromApiDataList(list);
+}
+
+List<Product> _productsFromApiDataList(List<dynamic> items) {
+  final products = <Product>[];
+  for (final raw in items) {
+    try {
+      if (raw is! Map) continue;
+      final item = Map<String, dynamic>.from(raw);
+      final productRaw = item['product'];
+      if (productRaw is! Map) continue;
+      final productData = Map<String, dynamic>.from(productRaw);
+      products.add(Product(
+        id: productData['id'] ?? 0,
+        name: productData['name'] ?? 'No name',
+        description: productData['description'] ?? '',
+        urlName: productData['url_name'] ?? '',
+        status: productData['status'] ?? '',
+        batch_no: item['batch_no'] ?? '',
+        price: (item['price'] ?? 0).toString(),
+        thumbnail: productData['thumbnail'] ?? productData['image'] ?? '',
+        quantity: item['qty_in_stock']?.toString() ?? '',
+        category: productData['category'] ?? '',
+        route: productData['route'] ?? '',
+        otcpom: productData['otcpom'],
+        drug: productData['drug'],
+        wellness: productData['wellness'],
+        selfcare: productData['selfcare'],
+        accessories: productData['accessories'],
+      ));
+    } catch (_) {
+      // skip malformed row
+    }
+  }
+  return products;
+}
+
+List<Product> _decodeStoredProductsJson(String jsonStr) {
+  final allList = json.decode(jsonStr) as List;
+  return allList
+      .map((e) => Product.fromJson(e as Map<String, dynamic>))
+      .toList();
+}
 
 class ImagePreloader {
   static final Map<String, bool> _preloadedImages = {};
@@ -84,14 +135,32 @@ class ProductCache {
   static List<Product> _cachedProducts = [];
   static List<Product> _cachedPopularProducts = [];
   static DateTime? _lastCacheTime;
-  static DateTime? _lastShuffleTime;
 
   static const Duration _cacheValidDuration = Duration(hours: 2);
   static const Duration _staleWhileRevalidateDuration = Duration(hours: 6);
-  static const Duration _shuffleInterval = Duration(hours: 1);
+  static const String _allProductsKey = 'cached_all_products';
   static const String _popularProductsKey = 'cached_popular_products';
   static const String _lastCacheTimeKey = 'last_cache_time';
-  static const String _lastShuffleTimeKey = 'last_shuffle_time';
+  static bool _prefetchInFlight = false;
+  static Future<void>? _catalogLoadFuture;
+  static Future<void>? _storageLoadFuture;
+  static final List<VoidCallback> _catalogListeners = [];
+
+  /// Notified when the in-memory catalog gains products (e.g. prefetch finished).
+  static void addCatalogListener(VoidCallback listener) {
+    _catalogListeners.add(listener);
+  }
+
+  static void removeCatalogListener(VoidCallback listener) {
+    _catalogListeners.remove(listener);
+  }
+
+  static void _notifyCatalogListeners() {
+    if (_catalogListeners.isEmpty) return;
+    for (final listener in List<VoidCallback>.from(_catalogListeners)) {
+      listener();
+    }
+  }
 
   static bool get isCacheValid {
     if (_lastCacheTime == null) return false;
@@ -104,26 +173,77 @@ class ProductCache {
         _staleWhileRevalidateDuration;
   }
 
-  static bool get shouldShuffle {
-    if (_lastShuffleTime == null) return true;
-    return DateTime.now().difference(_lastShuffleTime!) >= _shuffleInterval;
-  }
-
-  static List<Product> get popularProductsWithShuffle {
-    if (shouldShuffle) _shufflePopularProducts();
-    return _cachedPopularProducts;
-  }
-
   static void cacheProducts(List<Product> products) {
+    final hadProducts = _cachedProducts.isNotEmpty;
     _cachedProducts = products;
     _lastCacheTime = DateTime.now();
+    unawaited(_saveAllProductsToStorage());
+    if (products.isNotEmpty && !hadProducts) {
+      _notifyCatalogListeners();
+    }
   }
 
   static void cachePopularProducts(List<Product> products) {
     _cachedPopularProducts = products;
     _lastCacheTime = DateTime.now();
-    _lastShuffleTime = DateTime.now();
-    _saveToStorage();
+    unawaited(_saveToStorage());
+    if (products.isNotEmpty) {
+      _notifyCatalogListeners();
+    }
+  }
+
+  static bool get hasProductsInMemory => _cachedProducts.isNotEmpty;
+
+  /// Waits until the in-flight prefetch finishes (legacy — prefer [ensureCatalogReady]).
+  static Future<void> waitForPrefetch({
+    Duration maxWait = const Duration(seconds: 4),
+  }) async {
+    await ensureCatalogReady(maxWait: maxWait);
+  }
+
+  /// Blocks until **get-all-products** is in memory (required before home).
+  static Future<bool> ensureCatalogReady({
+    Duration maxWait = const Duration(seconds: 60),
+  }) async {
+    if (hasProductsInMemory) {
+      debugPrint(
+          'ProductCache: catalog ready (${_cachedProducts.length} products)');
+      return true;
+    }
+
+    await loadFromStorage();
+    if (hasProductsInMemory) {
+      debugPrint(
+          'ProductCache: catalog ready from disk (${_cachedProducts.length})');
+      return true;
+    }
+
+    try {
+      await prefetchFromNetwork().timeout(maxWait);
+    } on TimeoutException {
+      debugPrint('ProductCache: get-all-products timed out after ${maxWait.inSeconds}s');
+    }
+
+    final ready = hasProductsInMemory;
+    debugPrint(
+      'ProductCache: ensureCatalogReady ${ready ? "ok" : "FAILED"} '
+      '(${_cachedProducts.length} products from get-all-products)',
+    );
+    return ready;
+  }
+
+  /// Instant popular strip from catalog (no network).
+  static void warmPopularFromCatalog() => _fillPopularFromCatalogIfNeeded();
+
+  /// Ensures popular strip can render; network fetch only if catalog cannot supply it.
+  static Future<void> ensurePopularReady() async {
+    if (_cachedPopularProducts.isNotEmpty) return;
+    warmPopularFromCatalog();
+    if (_cachedPopularProducts.isNotEmpty) return;
+    if (!_prefetchInFlight) {
+      await _fetchAndCachePopularProducts();
+    }
+    warmPopularFromCatalog();
   }
 
   static List<Product> get cachedProducts => _cachedProducts;
@@ -133,81 +253,182 @@ class ProductCache {
     _cachedProducts.clear();
     _cachedPopularProducts.clear();
     _lastCacheTime = null;
-    _lastShuffleTime = null;
     _clearFromStorage();
   }
 
   static Future<void> loadFromStorage() async {
+    _storageLoadFuture ??= _loadFromStorageOnce();
+    await _storageLoadFuture;
+  }
+
+  static Future<void> _loadFromStorageOnce() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final lastCacheTimeString = prefs.getString(_lastCacheTimeKey);
-      final lastShuffleTimeString = prefs.getString(_lastShuffleTimeKey);
 
-      if (lastCacheTimeString != null) {
-        _lastCacheTime = DateTime.parse(lastCacheTimeString);
+      if (lastCacheTimeString == null) return;
 
-        if (isCacheValid) {
-          final productsJson = prefs.getString(_popularProductsKey);
-          if (productsJson != null) {
-            final List<dynamic> productsList = json.decode(productsJson);
-            _cachedPopularProducts =
-                productsList.map((json) => Product.fromJson(json)).toList();
-
-            if (lastShuffleTimeString != null) {
-              _lastShuffleTime = DateTime.parse(lastShuffleTimeString);
-            }
-          }
-        } else {
-          _clearFromStorage();
-        }
+      _lastCacheTime = DateTime.parse(lastCacheTimeString);
+      if (!canUseStaleData) {
+        await _clearPersistedStorageOnly();
+        return;
       }
+
+      final allJson = prefs.getString(_allProductsKey);
+      if (allJson != null && allJson.isNotEmpty) {
+        _cachedProducts = await compute(_decodeStoredProductsJson, allJson);
+      }
+
+      final popularJson = prefs.getString(_popularProductsKey);
+      if (popularJson != null && popularJson.isNotEmpty) {
+        _cachedPopularProducts =
+            await compute(_decodeStoredProductsJson, popularJson);
+      }
+
+      debugPrint(
+          'ProductCache: loaded ${_cachedProducts.length} products, '
+          '${_cachedPopularProducts.length} popular from disk');
     } catch (e) {
       debugPrint('ProductCache: Error loading from storage: $e');
-      _clearFromStorage();
+      await _clearPersistedStorageOnly();
+    }
+  }
+
+  /// Loads **get-all-products** then popular. Concurrent callers share one request.
+  static Future<void> prefetchFromNetwork() async {
+    if (_cachedProducts.isNotEmpty && isCacheValid) return;
+    if (_catalogLoadFuture != null) {
+      return _catalogLoadFuture;
+    }
+
+    _catalogLoadFuture = _runCatalogNetworkLoad();
+    try {
+      await _catalogLoadFuture;
+    } finally {
+      _catalogLoadFuture = null;
+    }
+  }
+
+  static Future<void> _runCatalogNetworkLoad() async {
+    if (_prefetchInFlight) return;
+    _prefetchInFlight = true;
+    try {
+      debugPrint('ProductCache: GET get-all-products (catalog API)...');
+      await _fetchAndCacheAllProducts();
+      if (!hasProductsInMemory) {
+        debugPrint('ProductCache: get-all-products returned no products');
+        return;
+      }
+      debugPrint(
+          'ProductCache: get-all-products OK — ${_cachedProducts.length} products');
+      if (_cachedPopularProducts.isEmpty) {
+        await _fetchAndCachePopularProducts();
+      }
+      _fillPopularFromCatalogIfNeeded();
+      _notifyCatalogListeners();
+      debugPrint(
+          'ProductCache: catalog load done — ${_cachedProducts.length} products, '
+          '${_cachedPopularProducts.length} popular');
+    } catch (e) {
+      debugPrint('ProductCache: catalog load error: $e');
+    } finally {
+      _prefetchInFlight = false;
+    }
+  }
+
+  static void _fillPopularFromCatalogIfNeeded() {
+    if (_cachedProducts.isEmpty || _cachedPopularProducts.isNotEmpty) return;
+    final shuffled = List<Product>.from(_cachedProducts)..shuffle();
+    final take = shuffled.length.clamp(0, 20);
+    if (take > 0) {
+      cachePopularProducts(shuffled.take(take).toList());
+    }
+  }
+
+  static Future<void> _fetchAndCacheAllProducts() async {
+    final response = await http
+        .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode != 200) return;
+    final products = await compute(_parseCatalogApiResponse, response.body);
+    if (products.isNotEmpty) cacheProducts(products);
+  }
+
+  static Future<void> _fetchAndCachePopularProducts() async {
+    final response = await http
+        .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.popularProducts)))
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) return;
+    final products = await compute(_parseCatalogApiResponse, response.body);
+    if (products.isNotEmpty) {
+      cachePopularProducts(products);
+    } else {
+      _fillPopularFromCatalogIfNeeded();
+    }
+  }
+
+  static Future<void> _saveAllProductsToStorage() async {
+    if (_cachedProducts.isEmpty || _lastCacheTime == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _allProductsKey,
+        json.encode(_cachedProducts.map((p) => p.toJson()).toList()),
+      );
+      await prefs.setString(
+          _lastCacheTimeKey, _lastCacheTime!.toIso8601String());
+    } catch (e) {
+      debugPrint('ProductCache: Error saving all products: $e');
     }
   }
 
   static Future<void> _saveToStorage() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final productsJson =
-          json.encode(_cachedPopularProducts.map((p) => p.toJson()).toList());
-      await prefs.setString(_popularProductsKey, productsJson);
-      await prefs.setString(
-          _lastCacheTimeKey, _lastCacheTime!.toIso8601String());
-      if (_lastShuffleTime != null) {
+      if (_cachedPopularProducts.isNotEmpty) {
+        final productsJson = json.encode(
+            _cachedPopularProducts.map((p) => p.toJson()).toList());
+        await prefs.setString(_popularProductsKey, productsJson);
+      }
+      if (_lastCacheTime != null) {
         await prefs.setString(
-            _lastShuffleTimeKey, _lastShuffleTime!.toIso8601String());
+            _lastCacheTimeKey, _lastCacheTime!.toIso8601String());
+      }
+      if (_cachedProducts.isNotEmpty) {
+        await prefs.setString(
+          _allProductsKey,
+          json.encode(_cachedProducts.map((p) => p.toJson()).toList()),
+        );
       }
     } catch (e) {
       debugPrint('ProductCache: Error saving to storage: $e');
     }
   }
 
-  static Future<void> _clearFromStorage() async {
+  static Future<void> _clearPersistedStorageOnly() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_allProductsKey);
       await prefs.remove(_popularProductsKey);
       await prefs.remove(_lastCacheTimeKey);
-      await prefs.remove(_lastShuffleTimeKey);
+      // Clean up the legacy shuffle-time key from older installs.
+      await prefs.remove('last_shuffle_time');
     } catch (e) {
-      debugPrint('ProductCache: Error clearing from storage: $e');
+      debugPrint('ProductCache: Error clearing persisted cache: $e');
     }
   }
 
-  static void _shufflePopularProducts() {
-    if (_cachedPopularProducts.isNotEmpty) {
-      final shuffled = List<Product>.from(_cachedPopularProducts);
-      shuffled.shuffle();
-      _cachedPopularProducts = shuffled;
-      _lastShuffleTime = DateTime.now();
-      _saveToStorage();
-    }
+  static Future<void> _clearFromStorage() async {
+    await _clearPersistedStorageOnly();
+    _cachedProducts = [];
+    _cachedPopularProducts = [];
+    _lastCacheTime = null;
   }
+
 }
 
-// ─── Background isolate for product processing ───────────────────────────────
-Map<String, List<Product>> _processProductsIsolate(List<Product> allProducts) {
+// ─── Home section buckets (shared by sync hydrate + background isolate) ─────
+Map<String, List<Product>> categorizeProductsForHome(List<Product> allProducts) {
   final otcDrug = <Product>[];
   final prescribed = <Product>[];
   final wellness = <Product>[];
@@ -235,6 +456,9 @@ Map<String, List<Product>> _processProductsIsolate(List<Product> allProducts) {
     'accessories': accessories,
   };
 }
+
+Map<String, List<Product>> _processProductsIsolate(List<Product> allProducts) =>
+    categorizeProductsForHome(allProducts);
 
 class SafeTypeAheadField extends StatefulWidget {
   final TextEditingController controller;
@@ -438,6 +662,10 @@ class HomePageState extends State<HomePage>
   final TextEditingController searchController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey _tourSearchKey = GlobalKey();
+  final GlobalKey _tourCartKey = GlobalKey();
+  final GlobalKey _tourCategoriesKey = GlobalKey();
+  final GlobalKey _tourMenuKey = GlobalKey();
   final ScrollController _popularScrollController = ScrollController();
 
   bool _isScrolled = false;
@@ -457,12 +685,17 @@ class HomePageState extends State<HomePage>
   DateTime? _lastSectionShuffleTime;
   static const Duration _sectionShuffleInterval = Duration(hours: 1);
 
+  /// Set by pull-to-refresh so the next [_processProducts] reshuffles the
+  /// sections immediately, bypassing the hourly gate (a manual refresh is an
+  /// explicit "mix it up" request). Consumed once, then reset.
+  bool _forceSectionShuffleOnce = false;
+
   // ─── Cache / load guard ───────────────────────────────────────────────────
   // true after the first successful fetch; never reset except on explicit
   // pull-to-refresh or reloadHomePage().
   bool _hasBeenLoaded = false;
   bool _isLoadingContent = false;
-  Future<void>? _bootstrapFuture;
+  bool _spotlightTourScheduled = false;
   bool _isRoutePushInProgress = false;
 
   @override
@@ -506,30 +739,22 @@ class HomePageState extends State<HomePage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    _checkAndShowWelcomeMessage();
-
-    // Restore last in-memory snapshot immediately when page is recreated.
+    _hydrateFromProductCacheSync();
+    _hydrateCategoriesSync();
     _restoreSnapshotToState();
-
-    // Show whatever is in cache immediately (no skeleton if cache exists)
-    _applyCacheToState();
-
-    // Load persistent cache + optimization service before first fetch.
-    _bootstrapFuture = _initializeServicesInBackground();
-
+    if (ProductCache.hasProductsInMemory) {
+      _hasBeenLoaded = true;
+      HomePreloadService.publishCatalogToHomeServices();
+      _applyCacheToState();
+    }
+    ProductCache.addCatalogListener(_onProductCacheUpdated);
     _loadSectionShuffleTimeSync();
+    _seedOptimizationFromProductCache();
+    unawaited(_bootHomeProducts());
 
-    // Trigger real fetch only on first open
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !_hasBeenLoaded) {
-        unawaited(_bootstrapAndLoadContent());
-      }
-    });
-
-    // Categories
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) _loadCategories();
-    });
+    if (_categories.isEmpty) {
+      unawaited(_loadCategories());
+    }
 
     _scrollController.addListener(() {
       if (!mounted) return;
@@ -543,6 +768,53 @@ class HomePageState extends State<HomePage>
     _popularScrollController.addListener(() {
       if (mounted) setState(() {});
     });
+  }
+
+  /// Categories preloaded during onboarding — apply before first frame.
+  void _hydrateCategoriesSync() {
+    final cached = HomePreloadService.cachedCategories;
+    if (cached.isEmpty) return;
+    _categories = List<dynamic>.from(cached);
+    _isLoadingCategories = false;
+    _hasTriedLoadingCategories = true;
+  }
+
+  /// Apply preloaded get-all-products catalog before the first frame.
+  void _hydrateFromProductCacheSync() {
+    if (!ProductCache.hasProductsInMemory) return;
+    final cachedAll = List<Product>.from(ProductCache.cachedProducts);
+    _products = cachedAll;
+    filteredProducts = List<Product>.from(cachedAll);
+    _applySectionBuckets(cachedAll);
+    _isLoading = false;
+    _error = null;
+    final cachedPopular = ProductCache.cachedPopularProducts;
+    ProductCache.warmPopularFromCatalog();
+    if (cachedPopular.isNotEmpty) {
+      popularProducts = List<Product>.from(cachedPopular);
+    } else if (ProductCache.cachedPopularProducts.isNotEmpty) {
+      popularProducts = List<Product>.from(ProductCache.cachedPopularProducts);
+    }
+    _isLoadingPopular = popularProducts.isEmpty;
+  }
+
+  void _applySectionBuckets(List<Product> allProducts) {
+    final sections = categorizeProductsForHome(allProducts);
+    drugsSectionProducts = List<Product>.from(sections['drugs']!);
+    prescribedProducts = List<Product>.from(sections['prescribed']!);
+    wellnessProducts = List<Product>.from(sections['wellness']!);
+    selfcareProducts = List<Product>.from(sections['selfcare']!);
+    accessoriesProducts = List<Product>.from(sections['accessories']!);
+  }
+
+  void _onProductCacheUpdated() {
+    if (!mounted) return;
+    _applyCacheToState();
+    if (_products.isNotEmpty) {
+      if (!_hasBeenLoaded) _hasBeenLoaded = true;
+      unawaited(_processProducts(_products));
+      _scheduleSpotlightTour();
+    }
   }
 
   /// Instantly populate state from whatever is already in ProductCache.
@@ -572,48 +844,39 @@ class HomePageState extends State<HomePage>
     }
   }
 
-  // Seed section lists immediately so homepage sections render
-  // while isolate-based processing is still running.
   void _seedSectionsFromProducts(List<Product> allProducts) {
-    if (allProducts.isEmpty) return;
-    drugsSectionProducts = allProducts
-        .where((p) =>
-            p.drug?.toLowerCase() == 'drug' && p.otcpom?.toLowerCase() != 'pom')
-        .toList(growable: false);
-    prescribedProducts = allProducts
-        .where((p) => p.otcpom?.toLowerCase() == 'pom')
-        .toList(growable: false);
-    wellnessProducts = allProducts
-        .where((p) => p.wellness?.toLowerCase() == 'wellness')
-        .toList(growable: false);
-    selfcareProducts = allProducts
-        .where((p) => p.selfcare?.toLowerCase() == 'selfcare')
-        .toList(growable: false);
-    accessoriesProducts = allProducts
-        .where((p) => p.accessories?.toLowerCase() == 'accessories')
-        .toList(growable: false);
+    _applySectionBuckets(allProducts);
+  }
+
+  void _seedOptimizationFromProductCache() {
+    if (!ProductCache.hasProductsInMemory) return;
+    _optimizationService.seedFromCatalog(
+      allProducts: ProductCache.cachedProducts,
+      popularProducts: ProductCache.cachedPopularProducts,
+    );
   }
 
   void _applyCacheToState() {
     final cachedAll = ProductCache.cachedProducts;
     final cachedPopular = ProductCache.cachedPopularProducts;
+    _seedOptimizationFromProductCache();
 
     setState(() {
       if (cachedAll.isNotEmpty) {
-        _products = cachedAll;
-        filteredProducts = cachedAll;
-        _seedSectionsFromProducts(cachedAll);
+        _products = List<Product>.from(cachedAll);
+        filteredProducts = List<Product>.from(cachedAll);
+        _applySectionBuckets(_products);
         _isLoading = false;
+        _hasBeenLoaded = true;
       } else if (_products.isEmpty) {
-        // Show skeleton only when we truly have nothing to render yet.
         _isLoading = true;
       }
 
       if (cachedPopular.isNotEmpty) {
-        popularProducts = cachedPopular;
+        popularProducts = List<Product>.from(cachedPopular);
         _isLoadingPopular = false;
-      } else {
-        _isLoadingPopular = true;
+      } else if (_products.isNotEmpty) {
+        _isLoadingPopular = popularProducts.isEmpty;
       }
 
       _error = null;
@@ -621,18 +884,166 @@ class HomePageState extends State<HomePage>
     _persistSnapshot();
   }
 
-  Future<void> _initializeServicesInBackground() async {
-    await ProductCache.loadFromStorage();
-    await _optimizationService.initialize();
+  /// Network only when preloaded catalog was not applied.
+  Future<void> _bootHomeProducts() async {
+    if (_hasBeenLoaded && _products.isNotEmpty) {
+      _schedulePostInitHomeWork();
+      _scheduleSpotlightTour();
+      unawaited(_syncPopularFromCache());
+      return;
+    }
 
-    // After storage load, re-apply cache (may now have persisted products)
-    if (mounted) _applyCacheToState();
+    if (!ProductCache.hasProductsInMemory) {
+      await ProductCache.loadFromStorage();
+    }
+    if (!mounted) return;
+
+    ProductCache.warmPopularFromCatalog();
+
+    if (ProductCache.hasProductsInMemory) {
+      HomePreloadService.publishCatalogToHomeServices();
+      _applyCacheToState();
+      _hasBeenLoaded = true;
+      if (mounted) {
+        unawaited(_processProducts(_products));
+        _schedulePostInitHomeWork();
+        _scheduleSpotlightTour();
+      }
+      if (!ProductCache.isCacheValid) {
+        unawaited(_refreshCatalogInBackground());
+      }
+      unawaited(_syncPopularFromCache());
+      return;
+    }
+
+    unawaited(ProductCache.prefetchFromNetwork());
+    final ready = await ProductCache.ensureCatalogReady(
+      maxWait: const Duration(seconds: 10),
+    );
+    if (!mounted) return;
+
+    if (ready && ProductCache.hasProductsInMemory) {
+      ProductCache.warmPopularFromCatalog();
+      HomePreloadService.publishCatalogToHomeServices();
+      _applyCacheToState();
+      _hasBeenLoaded = true;
+      unawaited(_processProducts(_products));
+      _schedulePostInitHomeWork();
+      _scheduleSpotlightTour();
+      unawaited(_syncPopularFromCache());
+      return;
+    }
+
+    unawaited(_optimizationService.initialize());
+    await _loadAllContent();
   }
 
-  Future<void> _bootstrapAndLoadContent() async {
-    await (_bootstrapFuture ?? Future.value());
-    if (!mounted || _hasBeenLoaded) return;
-    await _loadAllContent();
+  Future<void> _syncPopularFromCache() async {
+    await ProductCache.ensurePopularReady();
+    if (!mounted) return;
+    final cached = ProductCache.cachedPopularProducts;
+    if (cached.isEmpty) return;
+    setState(() {
+      popularProducts = List<Product>.from(cached);
+      _isLoadingPopular = false;
+      _popularError = null;
+    });
+    _persistSnapshot();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _startPopularProductsAutoScroll();
+    });
+  }
+
+  Future<void> _refreshCatalogInBackground() async {
+    if (_isLoadingContent || !mounted) return;
+    if (ProductCache.isCacheValid) return;
+    _isLoadingContent = true;
+    try {
+      await ProductCache.prefetchFromNetwork();
+      if (!mounted) return;
+      _applyCacheToState();
+    } finally {
+      _isLoadingContent = false;
+    }
+  }
+
+  void _scheduleSpotlightTour() {
+    if (_spotlightTourScheduled) return;
+    if (_products.isEmpty) return;
+    _spotlightTourScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_runSpotlightTourWithRetry());
+      });
+    });
+  }
+
+  /// Context-dependent work (precacheImage, sheets) must run after [initState].
+  void _schedulePostInitHomeWork() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ProductImagePreloadService.warmRemainingInBackground(
+        catalog: ProductCache.cachedProducts,
+        popular: ProductCache.cachedPopularProducts,
+      );
+      unawaited(HomeFirstVisitFlow.runDeferredPrompts(
+        context: context,
+        showDeferredPermissionsSheet: _showDeferredPermissionsSheet,
+      ));
+    });
+  }
+
+  /// Brief layout settle after onboarding before coach marks.
+  Future<void> _waitForFirstHomeUiReady() async {
+    for (var i = 0; i < 8; i++) {
+      if (!mounted) return;
+      if (_products.isNotEmpty && !_isLoading) {
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+    }
+  }
+
+  Future<void> _runSpotlightTourWithRetry() async {
+    final prefs = await SharedPreferences.getInstance();
+    final justFinished = prefs.getBool('just_finished_onboarding') ?? false;
+    final forceTour =
+        justFinished || !(prefs.getBool('has_seen_smart_tips') ?? false);
+
+    if (justFinished) {
+      await _waitForFirstHomeUiReady();
+      if (!mounted) return;
+    }
+
+    for (var attempt = 0; attempt < 8; attempt++) {
+      if (!mounted) return;
+      if (_products.isEmpty || (_isLoading && _products.isEmpty)) {
+        await Future<void>.delayed(Duration(milliseconds: 350 * (attempt + 1)));
+        continue;
+      }
+      if (attempt > 0) {
+        await Future<void>.delayed(Duration(milliseconds: 400 * attempt));
+      }
+      final shown = await HomePageTour.maybeStart(
+        context: context,
+        targets: HomePageTourTargets(
+          searchKey: _tourSearchKey,
+          cartKey: _tourCartKey,
+          categoriesKey: _tourCategoriesKey,
+          menuKey: _tourMenuKey,
+        ),
+        scrollController: _scrollController,
+        force: forceTour && attempt == 0,
+      );
+      if (shown) {
+        if (justFinished) {
+          await prefs.setBool('just_finished_onboarding', false);
+        }
+        return;
+      }
+    }
+    debugPrint('HomePageTour: not shown after retries');
   }
 
   // ─── Content loading ──────────────────────────────────────────────────────
@@ -647,10 +1058,27 @@ class HomePageState extends State<HomePage>
     _isLoadingContent = true;
 
     try {
-      // Run both fetches in parallel
+      if (ProductCache.hasProductsInMemory) {
+        _applyCacheToState();
+        _hasBeenLoaded = true;
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _isLoadingPopular = popularProducts.isEmpty;
+          });
+          unawaited(_processProducts(_products));
+          _schedulePostInitHomeWork();
+          _scheduleSpotlightTour();
+        }
+        if (!ProductCache.isCacheValid) {
+          unawaited(_refreshCatalogInBackground());
+        }
+        return;
+      }
+
       await Future.wait([
-        _fetchPopularProducts(),
         loadProducts(),
+        _fetchPopularProducts(),
       ]);
 
       _hasBeenLoaded = true;
@@ -662,46 +1090,43 @@ class HomePageState extends State<HomePage>
       if (mounted) setState(() => _isLoading = false);
       if (_refreshController.isRefresh) _refreshController.refreshCompleted();
       if (mounted) {
-        _optimizationService.preloadAllProductImages(context);
+        _schedulePostInitHomeWork();
+        _scheduleSpotlightTour();
       }
     }
   }
 
-  Future<void> loadProducts() async {
+  Future<void> loadProducts({bool forceRefresh = false}) async {
     if (!mounted) return;
+
+    if (!forceRefresh &&
+        ProductCache.hasProductsInMemory &&
+        ProductCache.isCacheValid) {
+      final cached = ProductCache.cachedProducts;
+      if (mounted) {
+        setState(() {
+          _products = cached;
+          filteredProducts = cached;
+          _seedSectionsFromProducts(cached);
+          _isLoading = false;
+          _error = null;
+        });
+        _persistSnapshot();
+      }
+      unawaited(_processProducts(cached));
+      return;
+    }
 
     try {
       if (mounted) setState(() => _error = null);
 
       final response = await http
           .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        final List<dynamic> dataList = responseData['data'];
-
-        final allProducts = dataList.map<Product>((item) {
-          final productData = item['product'] as Map<String, dynamic>;
-          return Product(
-            id: productData['id'] ?? 0,
-            name: productData['name'] ?? 'No name',
-            description: productData['description'] ?? '',
-            urlName: productData['url_name'] ?? '',
-            status: productData['status'] ?? '',
-            batch_no: item['batch_no'] ?? '',
-            price: (item['price'] ?? 0).toString(),
-            thumbnail: productData['thumbnail'] ?? productData['image'] ?? '',
-            quantity: item['qty_in_stock']?.toString() ?? '',
-            category: productData['category'] ?? '',
-            route: productData['route'] ?? '',
-            otcpom: productData['otcpom'],
-            drug: productData['drug'],
-            wellness: productData['wellness'],
-            selfcare: productData['selfcare'],
-            accessories: productData['accessories'],
-          );
-        }).toList();
+        final allProducts =
+            await compute(_parseCatalogApiResponse, response.body);
 
         ProductCache.cacheProducts(allProducts);
 
@@ -767,7 +1192,9 @@ class HomePageState extends State<HomePage>
     final sections = await compute(_processProductsIsolate, allProducts);
     if (!mounted) return;
 
-    final shouldShuffle = _shouldShuffleSections();
+    final forced = _forceSectionShuffleOnce;
+    _forceSectionShuffleOnce = false;
+    final shouldShuffle = forced || _shouldShuffleSections();
 
     final drugs = sections['drugs']!;
     final prescribed = sections['prescribed']!;
@@ -796,8 +1223,22 @@ class HomePageState extends State<HomePage>
     }
   }
 
-  Future<void> _fetchPopularProducts() async {
+  Future<void> _fetchPopularProducts({bool forceRefresh = false}) async {
     if (!mounted) return;
+
+    if (!forceRefresh &&
+        ProductCache.cachedPopularProducts.isNotEmpty &&
+        ProductCache.isCacheValid) {
+      if (mounted) {
+        setState(() {
+          popularProducts = ProductCache.cachedPopularProducts;
+          _isLoadingPopular = false;
+          _popularError = null;
+        });
+        _persistSnapshot();
+      }
+      return;
+    }
 
     if (mounted) setState(() => _popularError = null);
 
@@ -807,31 +1248,15 @@ class HomePageState extends State<HomePage>
           .timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        final List<dynamic> productsData = data['data'] ?? [];
         if (!mounted) return;
 
-        List<Product> list = productsData.map<Product>((item) {
-          final productData = item['product'] as Map<String, dynamic>;
-          return Product(
-            id: productData['id'] ?? 0,
-            name: productData['name'] ?? 'No name',
-            description: productData['description'] ?? '',
-            urlName: productData['url_name'] ?? '',
-            status: productData['status'] ?? '',
-            batch_no: item['batch_no'] ?? '',
-            price: (item['price'] ?? 0).toString(),
-            thumbnail: productData['thumbnail'] ?? '',
-            quantity: item['qty_in_stock']?.toString() ?? '',
-            category: productData['category'] ?? '',
-            route: productData['route'] ?? '',
-            otcpom: productData['otcpom'],
-            drug: productData['drug'],
-            wellness: productData['wellness'],
-            selfcare: productData['selfcare'],
-            accessories: productData['accessories'],
-          );
-        }).toList();
+        List<Product> list =
+            await compute(_parseCatalogApiResponse, response.body);
+        if (list.isEmpty && ProductCache.cachedProducts.isNotEmpty) {
+          final shuffled = List<Product>.from(ProductCache.cachedProducts)
+            ..shuffle();
+          list = shuffled.take(20).toList();
+        }
 
         ProductCache.cachePopularProducts(list);
 
@@ -879,21 +1304,36 @@ class HomePageState extends State<HomePage>
   }
 
   // ─── Refresh ───────────────────────────────────────────────────────────────
-  /// Pull-to-refresh: clears cache and re-fetches everything.
+  /// Pull-to-refresh: soft revalidate. Fetches fresh data while keeping the
+  /// existing cache (memory + disk) intact as a fallback. The fetchers only
+  /// overwrite the cache on a successful response and fall back to the current
+  /// cache on failure, so a failed refresh never wipes what's on screen.
   Future<void> _handleRefresh() async {
-    _hasBeenLoaded = false;
-    ProductCache.clearCache();
-    ImagePreloader.clearPreloadedImages();
-    await _loadAllContent();
+    if (_isLoadingContent) return;
+    _isLoadingContent = true;
+    // A manual refresh reshuffles the sections regardless of the hourly gate.
+    _forceSectionShuffleOnce = true;
+    try {
+      await Future.wait([
+        loadProducts(forceRefresh: true),
+        _fetchPopularProducts(forceRefresh: true),
+      ]);
+      _hasBeenLoaded = true;
+    } catch (e) {
+      debugPrint('HomePage: refresh error: $e');
+    } finally {
+      _isLoadingContent = false;
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isLoadingPopular = false;
+        });
+      }
+    }
   }
 
   /// Called externally (e.g. from another page) to force a reload.
-  Future<void> reloadHomePage() async {
-    _hasBeenLoaded = false;
-    ProductCache.clearCache();
-    ImagePreloader.clearPreloadedImages();
-    await _loadAllContent();
-  }
+  Future<void> reloadHomePage() => _handleRefresh();
 
   // ─── Shuffle helpers ───────────────────────────────────────────────────────
   bool _shouldShuffleSections() {
@@ -970,6 +1410,7 @@ class HomePageState extends State<HomePage>
   // ─── Lifecycle ─────────────────────────────────────────────────────────────
   @override
   void dispose() {
+    ProductCache.removeCatalogListener(_onProductCacheUpdated);
     WidgetsBinding.instance.removeObserver(this);
     searchController.dispose();
     _searchController.dispose();
@@ -1063,119 +1504,82 @@ class HomePageState extends State<HomePage>
   }
 
   // ─── Welcome / notification ────────────────────────────────────────────────
-  Future<void> _checkAndShowWelcomeMessage() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool('has_shown_welcome_message') ?? false) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (mounted) {
-        await _showWelcomePage();
-        await prefs.setBool('has_shown_welcome_message', true);
-      }
-    });
-  }
 
-  Future<void> _showWelcomePage() async {
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (context) => Scaffold(
-        backgroundColor: Colors.white,
-        body: SafeArea(
-          child: Column(children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(32),
-                child: Column(children: [
-                  const SizedBox(height: 20),
-                  Image.asset('assets/images/png.png',
-                      height: 50, fit: BoxFit.contain),
-                  const SizedBox(height: 20),
-                  Text('Welcome',
-                      style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w300,
-                          color: Colors.grey.shade900,
-                          letterSpacing: 1.0)),
-                  const SizedBox(height: 8),
-                  Text('ERNEST CHEMIST LIMITED',
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey.shade500,
-                          letterSpacing: 2.0)),
-                  const SizedBox(height: 40),
-                  Text(
-                      "We appreciate you choosing us for your health and wellness essentials.",
-                      style: TextStyle(
-                          fontSize: 15,
-                          height: 1.7,
-                          color: Colors.grey.shade700),
-                      textAlign: TextAlign.center),
-                  const SizedBox(height: 24),
-                  Text(
-                      "Thank you. Remember, we are always ready to assist the best way possible.",
-                      style: TextStyle(
-                          fontSize: 14,
-                          height: 1.6,
-                          color: Colors.grey.shade600),
-                      textAlign: TextAlign.center),
-                  const SizedBox(height: 50),
-                  Container(
-                      width: 60,
-                      height: 2,
-                      decoration: BoxDecoration(
-                          color: Colors.green.shade600,
-                          borderRadius: BorderRadius.circular(2))),
-                  const SizedBox(height: 16),
-                  Text('Your health, our priority',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey.shade600,
-                          letterSpacing: 0.5)),
-                  const SizedBox(height: 20),
-                ]),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    Navigator.of(context).pop();
-                    await _showNotificationPermissionIfNeeded();
-                  },
-                  style: ElevatedButton.styleFrom(
+  Future<void> _showDeferredPermissionsSheet() async {
+    final prefs = await SharedPreferences.getInstance();
+    final enable = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Icon(Icons.notifications_active_outlined,
+                    size: 40, color: Colors.green.shade700),
+                const SizedBox(height: 16),
+                Text(
+                  'Enable alerts & location?',
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Order updates and your delivery address work best with '
+                  'notifications and location while you use the app. '
+                  'You can change this anytime in Settings.',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    height: 1.5,
+                    color: Colors.grey.shade700,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green.shade700,
                       foregroundColor: Colors.white,
-                      elevation: 0,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14))),
-                  child: const Text('Get Started',
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 1)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Enable'),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 10),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: Text(
+                    'Not now',
+                    style: GoogleFonts.poppins(color: Colors.grey.shade600),
+                  ),
+                ),
+              ],
             ),
-          ]),
-        ),
-      ),
-    ));
-  }
+          ),
+        );
+      },
+    );
 
-  Future<void> _showNotificationPermissionIfNeeded() async {
-    try {
-      if (!mounted) return;
-      final status = await Permission.notification.status;
-      if (!mounted) return;
-      if (!status.isGranted && !status.isPermanentlyDenied) {
-        await Navigator.of(context).push(MaterialPageRoute(
-            builder: (context) => const NotificationPermissionPage()));
-      }
-    } catch (e) {
-      debugPrint('Error showing notification permission: $e');
+    await prefs.setBool('deferred_permissions_prompt_shown', true);
+    if (enable == true && mounted) {
+      await NativeNotificationService.requestOnboardingPermissions(
+        context: context,
+      );
+      await prefs.setBool('notification_prompt_attempted', true);
     }
   }
 
@@ -1466,7 +1870,8 @@ class HomePageState extends State<HomePage>
 
   // ─── Categories ────────────────────────────────────────────────────────────
   Future<void> _loadCategories() async {
-    if (_isLoadingCategories || !mounted) return;
+    if (_categories.isNotEmpty || _isLoadingCategories || !mounted) return;
+    _hasTriedLoadingCategories = true;
     setState(() => _isLoadingCategories = true);
     try {
       await _categoryService.initialize();
@@ -1485,13 +1890,17 @@ class HomePageState extends State<HomePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final shouldShowSkeleton = _isLoading && _products.isEmpty;
+    // Catalog preloaded during onboarding — never full-page skeleton if cache has data.
+    final shouldShowSkeleton =
+        _products.isEmpty && !ProductCache.hasProductsInMemory;
     return Scaffold(
-      body: Stack(children: [
-        shouldShowSkeleton ? _buildSkeletonWithLoading() : _buildMainContent(),
-        const SmartTips(),
-      ]),
-      bottomNavigationBar: CustomBottomNav(initialIndex: 0),
+      body: shouldShowSkeleton
+          ? _buildSkeletonWithLoading()
+          : _buildMainContent(),
+      bottomNavigationBar: CustomBottomNav(
+        initialIndex: 0,
+        tourMenuKey: _tourMenuKey,
+      ),
     );
   }
 
@@ -1575,6 +1984,7 @@ class HomePageState extends State<HomePage>
                           height: isTablet ? 32 : 20),
                     ),
                     CartIconButton(
+                      key: _tourCartKey,
                       iconColor: Colors.white,
                       iconSize: isTablet ? 28 : 24,
                       backgroundColor: Colors.transparent,
@@ -1590,7 +2000,11 @@ class HomePageState extends State<HomePage>
               SliverToBoxAdapter(child: const ClearanceSaleBanner()),
               SliverToBoxAdapter(child: buildOrderMedicineCard()),
               SliverToBoxAdapter(
-                  child: _buildCategoryScroll(isTablet: isTablet)),
+                child: _buildCategoryScroll(
+                  isTablet: isTablet,
+                  tourChipsKey: _tourCategoriesKey,
+                ),
+              ),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 16),
@@ -1713,7 +2127,9 @@ class HomePageState extends State<HomePage>
     return Padding(
       padding: EdgeInsets.fromLTRB(isTablet ? 24 : 16, isTablet ? 50 : 40,
           isTablet ? 24 : 16, isTablet ? 12 : 8),
-      child: SizedBox(
+      child: KeyedSubtree(
+        key: _tourSearchKey,
+        child: SizedBox(
         height: isTablet ? 56 : 48,
         child: Builder(builder: (context) {
           if (!mounted) return const SizedBox.shrink();
@@ -1931,7 +2347,7 @@ class HomePageState extends State<HomePage>
               ),
               hideOnEmpty: true,
               hideOnLoading: false,
-              debounceDuration: const Duration(milliseconds: 10),
+              debounceDuration: const Duration(milliseconds: 350),
               suggestionsBoxDecoration: SuggestionsBoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(isTablet ? 24 : 18),
@@ -1942,12 +2358,16 @@ class HomePageState extends State<HomePage>
             return const SizedBox.shrink();
           }
         }),
+        ),
       ),
     );
   }
 
   // ─── Category scroll ───────────────────────────────────────────────────────
-  Widget _buildCategoryScroll({bool isTablet = false}) {
+  Widget _buildCategoryScroll({
+    bool isTablet = false,
+    Key? tourChipsKey,
+  }) {
     if (!_hasTriedLoadingCategories &&
         !_isLoadingCategories &&
         _categories.isEmpty) {
@@ -2038,14 +2458,16 @@ class HomePageState extends State<HomePage>
           ),
         )
       else if (_categories.isNotEmpty)
-        SizedBox(
-          height: 38,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(horizontal: isTablet ? 24 : 18),
-            physics: const BouncingScrollPhysics(),
-            itemCount: _categories.length,
-            itemBuilder: (context, index) {
+        KeyedSubtree(
+          key: tourChipsKey,
+          child: SizedBox(
+            height: 38,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.symmetric(horizontal: isTablet ? 24 : 18),
+              physics: const BouncingScrollPhysics(),
+              itemCount: _categories.length,
+              itemBuilder: (context, index) {
               final category = _categories[index];
               final categoryName = category['name'] ?? '';
               final hasSubcategories = category['has_subcategories'] ?? false;
@@ -2099,6 +2521,7 @@ class HomePageState extends State<HomePage>
               );
             },
           ),
+        ),
         ),
     ]);
   }

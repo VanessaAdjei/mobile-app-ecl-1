@@ -86,10 +86,10 @@ class ErrorDisplay extends StatelessWidget {
             const SizedBox(height: 32),
 
             // action buttons
-            if (showRetry || onAction != null)
+            if (showRetry || onRetry != null || onAction != null)
               Column(
                 children: [
-                  if (showRetry && onRetry != null)
+                  if ((showRetry || onRetry != null) && onRetry != null)
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
@@ -106,7 +106,9 @@ class ErrorDisplay extends StatelessWidget {
                         ),
                       ),
                     ),
-                  if (showRetry && onRetry != null && onAction != null)
+                  if ((showRetry || onRetry != null) &&
+                      onRetry != null &&
+                      onAction != null)
                     const SizedBox(height: 12),
                   if (onAction != null)
                     SizedBox(

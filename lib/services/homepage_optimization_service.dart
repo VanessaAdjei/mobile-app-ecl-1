@@ -71,6 +71,19 @@ class HomepageOptimizationService {
 
   // ==================== PRODUCTS OPTIMIZATION ====================
 
+  /// Seeds in-memory cache from [ProductCache] (see homepage boot).
+  void seedFromCatalog({
+    List<Product>? allProducts,
+    List<Product>? popularProducts,
+  }) {
+    if (allProducts != null && allProducts.isNotEmpty) {
+      _cacheProducts(List<Product>.from(allProducts));
+    }
+    if (popularProducts != null && popularProducts.isNotEmpty) {
+      _cachePopularProducts(List<Product>.from(popularProducts));
+    }
+  }
+
   Future<List<Product>> getProducts({bool forceRefresh = false}) async {
     _optimizationService.startTimer('HomepageService_GetProducts');
 
@@ -82,44 +95,33 @@ class HomepageOptimizationService {
       return _cachedProducts;
     }
 
-    // Always try to fetch from server first
+    if (!forceRefresh && _cachedProducts.isNotEmpty) {
+      if (!_isProductsCacheValid) {
+        unawaited(_fetchProducts().catchError((_) => _cachedProducts));
+      }
+      _optimizationService.endTimer('HomepageService_GetProducts');
+      return _cachedProducts;
+    }
+
     debugPrint(
-        '🔄 [HomepageService] Attempting to fetch products from server...');
+        '🔄 [HomepageService] Fetching products from server (cache empty or refresh)...');
     try {
       final products = await _fetchProducts();
       debugPrint(
-          '✅ [HomepageService] Successfully fetched ${products.length} products from server');
+          '✅ [HomepageService] Fetched ${products.length} products from server');
       return products;
     } catch (e) {
       debugPrint('❌ [HomepageService] Error fetching products: $e');
-      debugPrint('❌ [HomepageService] Error type: ${e.runtimeType}');
 
-      // Check if this is a connectivity error
-      final errorString = e.toString();
-      final isConnectivityError = errorString.contains('Connection failed') ||
-          errorString.contains('No internet connection') ||
-          errorString.contains('Unable to connect') ||
-          errorString.contains('Request timeout') ||
-          errorString.contains('SocketException') ||
-          errorString.contains('TimeoutException');
-
-      debugPrint(
-          '❌ [HomepageService] Is connectivity error: $isConnectivityError');
-      debugPrint(
-          '❌ [HomepageService] Has cached products: ${_cachedProducts.isNotEmpty}');
-
-      if (isConnectivityError && _cachedProducts.isNotEmpty) {
-        // Only use cache when offline (connectivity error)
+      if (_cachedProducts.isNotEmpty) {
         debugPrint(
-            '⚠️ [HomepageService] Connectivity error - using ${_cachedProducts.length} cached products');
+            '⚠️ [HomepageService] Using ${_cachedProducts.length} cached products after error');
         _optimizationService.endTimer('HomepageService_GetProducts');
         return _cachedProducts;
       }
 
-      // For other errors, rethrow
-      debugPrint('❌ [HomepageService] Non-connectivity error - rethrowing');
       _optimizationService.endTimer('HomepageService_GetProducts');
-      rethrow;
+      return [];
     }
   }
 
@@ -328,7 +330,7 @@ class HomepageOptimizationService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
-        final List<dynamic> dataList = responseData['data'];
+        final List<dynamic> dataList = responseData['data'] ?? [];
 
         debugPrint(
             '📦 [HomepageService] Processing ${dataList.length} popular products...');
@@ -410,24 +412,15 @@ class HomepageOptimizationService {
     try {
       return await _fetchCategorizedProducts();
     } catch (e) {
-      // Check if this is a connectivity error
-      final errorString = e.toString();
-      final isConnectivityError = errorString.contains('Connection failed') ||
-          errorString.contains('No internet connection') ||
-          errorString.contains('Unable to connect') ||
-          errorString.contains('Request timeout') ||
-          errorString.contains('SocketException');
-
-      if (isConnectivityError && _cachedCategorizedProducts.isNotEmpty) {
-        // Only use cache when offline
-        debugPrint('Connectivity error - using cached categorized products');
+      if (_cachedCategorizedProducts.isNotEmpty) {
+        debugPrint(
+            '⚠️ [HomepageService] Using cached categorized products after error');
         _optimizationService.endTimer('HomepageService_GetCategorizedProducts');
         return _cachedCategorizedProducts;
       }
 
-      // For other errors, rethrow
       _optimizationService.endTimer('HomepageService_GetCategorizedProducts');
-      rethrow;
+      return {};
     }
   }
 

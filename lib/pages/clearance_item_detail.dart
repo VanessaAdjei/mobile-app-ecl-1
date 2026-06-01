@@ -25,6 +25,7 @@ import '../widgets/full_screen_image_viewer.dart';
 import '../widgets/optimized_quantity_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/universal_page_optimization_service.dart';
+import '../utils/related_products_parser.dart';
 import '../services/clearance_sale_api_service.dart';
 import 'prescription.dart';
 
@@ -331,89 +332,10 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
       if (response.statusCode == 200) {
         try {
           final Map<String, dynamic> data = json.decode(response.body);
-          if (data.containsKey('data') && data['data'] is List) {
-            return (data['data'] as List)
-                .map((item) {
-                  try {
-                    String otcpom = item['otcpom'] ?? '';
-                    if (otcpom.isEmpty) {
-                      final cachedProducts = ProductCache.cachedProducts;
-                      final matchingProduct = cachedProducts.firstWhere(
-                        (product) =>
-                            product.urlName ==
-                            (item['url_name'] ??
-                                item['product']?['url_name'] ??
-                                ''),
-                        orElse: () => Product(
-                          id: 0,
-                          name: '',
-                          description: '',
-                          urlName: '',
-                          status: '',
-                          price: '0',
-                          thumbnail: '',
-                          quantity: '',
-                          category: '',
-                          route: '',
-                          batch_no: '',
-                        ),
-                      );
-                      if (matchingProduct.id != 0) {
-                        otcpom = matchingProduct.otcpom ?? '';
-                      }
-                    }
-
-                    return Product(
-                      id: item['product_id'] ?? item['id'] ?? 0,
-                      name: item['name'] ??
-                          item['product_name'] ??
-                          (item['product'] != null
-                              ? item['product']['name'] ?? ''
-                              : ''),
-                      description: item['description'] ??
-                          (item['product'] != null
-                              ? item['product']['description'] ?? ''
-                              : ''),
-                      urlName: item['url_name'] ??
-                          (item['product'] != null
-                              ? item['product']['url_name'] ?? ''
-                              : ''),
-                      status: item['status'] ??
-                          (item['product'] != null
-                              ? item['product']['status'] ?? ''
-                              : ''),
-                      batch_no: item['batch_no'] ?? '',
-                      price: item['price']?.toString() ?? '0.00',
-                      thumbnail: item['thumbnail'] ??
-                          item['product_img'] ??
-                          (item['product'] != null
-                              ? item['product']['thumbnail'] ??
-                                  item['product']['product_img'] ??
-                                  ''
-                              : ''),
-                      quantity: item['qty_in_stock']?.toString() ??
-                          item['quantity']?.toString() ??
-                          '',
-                      category: item['category'] ?? '',
-                      route: '',
-                      otcpom: otcpom,
-                      uom: item['uom'] ??
-                          item['unit_of_measure'] ??
-                          (item['product'] != null
-                              ? item['product']['uom'] ??
-                                  item['product']['unit_of_measure'] ??
-                                  ''
-                              : ''),
-                    );
-                  } catch (e) {
-                    return null;
-                  }
-                })
-                .where((product) => product != null)
-                .cast<Product>()
-                .toList();
-          }
-          return [];
+          return RelatedProductsParser.fromResponseBody(
+            data,
+            excludeUrlName: urlName,
+          );
         } catch (e) {
           return [];
         }

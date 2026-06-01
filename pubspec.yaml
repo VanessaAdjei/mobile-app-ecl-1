@@ -49,6 +49,7 @@ dependencies:
   geolocator: ^10.1.0
   webview_flutter: ^4.7.0
   cached_network_image: ^3.4.1
+  flutter_cache_manager: ^3.4.1
   flutter_animate: ^4.2.0
   flutter_typeahead: ^4.1.0
   flutter_keyboard_visibility: ^5.4.1
@@ -78,7 +79,7 @@ dependencies:
   google_generative_ai: ^0.2.0
 
   # OTP Auto-fill
-  sms_autofill: ^2.3.0
+  sms_autofill: ^2.4.1
 
   # Animations (used in multiple files)
   animations: ^2.0.11

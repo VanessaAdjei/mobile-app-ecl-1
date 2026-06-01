@@ -1,6 +1,13 @@
 // pages/onboarding_splash_page.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:eclapp/config/app_colors.dart';
+import 'package:eclapp/pages/homepage.dart';
+import 'package:eclapp/services/home_preload_service.dart';
+import 'package:eclapp/services/native_notification_service.dart';
+import 'package:eclapp/widgets/onboarding/onboarding_permissions_slide.dart';
+import 'package:eclapp/widgets/onboarding/onboarding_welcome_slide.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:video_player/video_player.dart';
@@ -34,14 +41,21 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
     with TickerProviderStateMixin {
   final PageController _controller = PageController();
   int _currentPage = 0;
+  bool _isRequestingPermissions = false;
+
+  static const int _permissionsPageIndex = 5;
+  static const int _welcomePageIndex = 6;
 
   late AnimationController _animController;
   VideoPlayerController? _videoController;
   bool _videoInitFailed = false;
 
+  bool _isCompletingOnboarding = false;
+
   @override
   void initState() {
     super.initState();
+    HomePreloadService.startOnboardingPreload();
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -127,31 +141,142 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       'iconColor': Colors.amber.shade700,
     },
     {
-      'icon': Icons.verified_user,
-      'title': 'Why Sign Up?',
+      'icon': Icons.notifications_active_outlined,
+      'title': 'Permissions',
+      'desc': '',
+      'button': 'Continue',
+      'iconColor': AppColors.primary,
+      'isPermissions': true,
+    },
+    {
+      'icon': Icons.favorite_outline,
+      'title': 'Welcome',
       'desc': '',
       'button': 'Get Started',
       'iconColor': AppColors.primary,
+      'isWelcome': true,
     },
   ];
 
-  void _onNext() async {
-    if (_currentPage == _pages.length - 1) {
+  Future<void> _requestOnboardingPermissions() async {
+    if (!mounted) return;
+    try {
+      await NativeNotificationService.requestOnboardingPermissions(
+        context: context,
+      ).timeout(const Duration(seconds: 45));
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('hasLaunchedBefore', true);
-      widget.onFinish();
-    } else {
-      _controller.nextPage(
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOut,
+      await prefs.setBool('notification_prompt_attempted', true);
+    } on TimeoutException {
+      debugPrint('Onboarding: permission request timed out');
+    } catch (e, st) {
+      debugPrint('Onboarding: permission request error: $e\n$st');
+    }
+  }
+
+  void _handleContinueTap() {
+    unawaited(_onNextImpl());
+  }
+
+  Future<void> _completeOnboarding() async {
+    if (mounted) setState(() => _isCompletingOnboarding = true);
+    var catalogReady = false;
+    try {
+      catalogReady = await HomePreloadService.ensureReadyForHome(
+        maxWait: const Duration(seconds: 25),
       );
+    } finally {
+      if (mounted) setState(() => _isCompletingOnboarding = false);
+    }
+    if (!mounted) return;
+    if (!catalogReady) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not load products. Check your connection and try again.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hasLaunchedBefore', true);
+    await prefs.setBool('just_finished_onboarding', true);
+    await prefs.setBool('has_shown_welcome_message', true);
+    if (!mounted) return;
+    widget.onFinish();
+  }
+
+  Future<void> _onNextImpl() async {
+    try {
+      if (_currentPage == _permissionsPageIndex) {
+        setState(() => _isRequestingPermissions = true);
+        try {
+          await _requestOnboardingPermissions();
+        } finally {
+          if (mounted) setState(() => _isRequestingPermissions = false);
+        }
+        if (!mounted) return;
+        if (_controller.hasClients) {
+          await _controller.nextPage(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+          );
+        }
+        return;
+      }
+
+      if (_currentPage == _welcomePageIndex) {
+        await _completeOnboarding();
+        return;
+      }
+
+      if (_controller.hasClients) {
+        await _controller.nextPage(
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+        );
+      }
+    } catch (e, st) {
+      debugPrint('Onboarding continue error: $e\n$st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not continue. Please try again.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
   void _onSkip() async {
     debugPrint('Onboarding: Skip button pressed');
+    if (mounted) setState(() => _isCompletingOnboarding = true);
+    var catalogReady = false;
+    try {
+      catalogReady = await HomePreloadService.ensureReadyForHome(
+        maxWait: const Duration(seconds: 25),
+      );
+    } finally {
+      if (mounted) setState(() => _isCompletingOnboarding = false);
+    }
+    if (!mounted) return;
+    if (!catalogReady) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not load products. Check your connection and try again.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('hasLaunchedBefore', true);
+    await prefs.setBool('just_finished_onboarding', true);
+    await prefs.setBool('has_shown_welcome_message', true);
     debugPrint('Onboarding: Calling widget.onFinish()');
     widget.onFinish();
   }
@@ -163,7 +288,24 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       body: Stack(
         children: [
           // Background image (no padding, outside SafeArea)
-          if (_currentPage == 0 ||
+          if (_currentPage == _permissionsPageIndex ||
+              _currentPage == _welcomePageIndex)
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white,
+                      AppColors.primary.withValues(alpha: 0.06),
+                      const Color(0xFF0D9488).withValues(alpha: 0.08),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else if (_currentPage == 0 ||
               _currentPage == 1 ||
               _currentPage == 3 ||
               _currentPage == 4)
@@ -216,6 +358,34 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                   onPageChanged: _onPageChanged,
                   itemBuilder: (context, index) {
                     final page = _pages[index];
+                    final isPermissions = index == _permissionsPageIndex;
+                    final isWelcome = index == _welcomePageIndex;
+
+                    if (isPermissions) {
+                      return SingleChildScrollView(
+                        key: const ValueKey('permissions_slide'),
+                        child: Column(
+                          children: [
+                            OnboardingPermissionsSlide(
+                              isLoading: _isRequestingPermissions,
+                              onAllow: _handleContinueTap,
+                            ),
+                            _buildProgressDots(),
+                            const SizedBox(height: 24),
+                          ],
+                        ),
+                      );
+                    }
+
+                    if (isWelcome) {
+                      return OnboardingWelcomeSlide(
+                        key: const ValueKey('welcome_slide'),
+                        onGetStarted: _handleContinueTap,
+                        progressDots: _buildProgressDots(),
+                        isLoading: _isCompletingOnboarding,
+                      );
+                    }
+
                     return SingleChildScrollView(
                       key: ValueKey(_currentPage),
                       child: Padding(
@@ -225,21 +395,19 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            SizedBox(height: 64),
-                            // Add semantic label for illustration
+                            const SizedBox(height: 64),
                             Semantics(
                               label: _getHeadlineForIndex(index, page),
                               child: _getPlaceholderIconForIndex(index),
                             ),
-                            SizedBox(height: 16),
-                            // Headline (skip on last page, index 4)
+                            const SizedBox(height: 16),
                             if (index != 4) ...[
                               SizedBox(
                                 width: double.infinity,
                                 child: Text(
                                   _getHeadlineForIndex(index, page),
                                   style: const TextStyle(
-                                    fontSize: 28, // increased for accessibility
+                                    fontSize: 28,
                                     fontWeight: FontWeight.bold,
                                     color: Colors.black,
                                   ),
@@ -250,14 +418,13 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                               ),
                               const SizedBox(height: 10),
                             ],
-                            // Subtitle
                             SizedBox(
                               width: double.infinity,
                               child: Text(
                                 _getSubtitleForIndex(index, page),
                                 style: const TextStyle(
-                                  fontSize: 18, // increased for accessibility
-                                  color: Colors.black87, // improved contrast
+                                  fontSize: 18,
+                                  color: Colors.black87,
                                 ),
                                 textAlign: TextAlign.center,
                                 softWrap: true,
@@ -265,69 +432,30 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                               ),
                             ),
                             const SizedBox(height: 10),
-                            // Spacer replaced with a SizedBox for scrollable layout
-                            // Progress dots
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: List.generate(
-                                _pages.length,
-                                (dotIndex) => AnimatedContainer(
-                                  duration: const Duration(milliseconds: 300),
-                                  margin:
-                                      const EdgeInsets.symmetric(horizontal: 4),
-                                  width: _currentPage == dotIndex ? 24 : 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: _currentPage == dotIndex
-                                        ? AppColors.primary
-                                        : AppColors.primary.withOpacity(0.3),
-                                    borderRadius: BorderRadius.circular(4),
+                            _buildProgressDots(),
+                            const SizedBox(height: 18),
+                            Center(
+                              child: SizedBox(
+                                width: 220,
+                                height: 52,
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(28),
+                                    ),
+                                    elevation: 2,
+                                  ),
+                                  onPressed: _isRequestingPermissions
+                                      ? null
+                                      : _handleContinueTap,
+                                  child: const Icon(
+                                    Icons.arrow_forward,
+                                    color: Colors.white,
+                                    size: 28,
                                   ),
                                 ),
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            // Animated Next button for all pages
-                            Center(
-                              child: TweenAnimationBuilder<double>(
-                                tween: Tween(begin: 1.0, end: 1.0),
-                                duration: const Duration(milliseconds: 200),
-                                builder: (context, scale, child) {
-                                  return GestureDetector(
-                                    onTapDown: (_) => setState(() {}),
-                                    onTapUp: (_) => setState(() {}),
-                                    child: AnimatedScale(
-                                      scale: 1.0,
-                                      duration:
-                                          const Duration(milliseconds: 100),
-                                      child: Semantics(
-                                        button: true,
-                                        label: 'Next',
-                                        child: SizedBox(
-                                          width: 220,
-                                          height: 52,
-                                          child: ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  AppColors.primary,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(28),
-                                              ),
-                                              elevation: 2,
-                                            ),
-                                            onPressed: _onNext,
-                                            child: Icon(
-                                              Icons.arrow_forward,
-                                              color: Colors.white,
-                                              size: 28,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
                               ),
                             ),
                             const SizedBox(height: 16),
@@ -341,19 +469,17 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
                 Positioned(
                   top: 16,
                   right: 16,
-                  child: (_currentPage != _pages.length - 1)
-                      ? TextButton(
-                          onPressed: _onSkip,
-                          child: const Text(
-                            'Skip',
-                            style: TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
+                  child: TextButton(
+                    onPressed: _isCompletingOnboarding ? null : _onSkip,
+                    child: const Text(
+                      'Skip',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -371,13 +497,13 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
       case 1:
         return 'Easy to buy your pharmacy products';
       case 2:
-        return 'All your health needs, one app';
+        return 'All your health needs, One app';
       case 3:
         return 'Speak to a pharmacist about your concerns';
       case 4:
         return 'Important Safety Information';
       case 5:
-        return 'Why Sign Up?';
+        return 'Permissions';
       default:
         return page['title'] ?? '';
     }
@@ -527,108 +653,31 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
           ],
         );
       case 5:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Headline on top for 'Why Sign Up?'
-            SizedBox(
-              width: double.infinity,
-              // child: Text(
-              //   'Why Sign Up?',
-              //   style: const TextStyle(
-              //     fontSize: 28,
-              //     fontWeight: FontWeight.bold,
-              //     color: Colors.black,
-              //   ),
-              //   textAlign: TextAlign.center,
-              //   softWrap: true,
-              //   overflow: TextOverflow.visible,
-              // ),
-            ),
-            const SizedBox(height: 8),
-            SvgPicture.asset(
-              'assets/images/signin.svg',
-              height: 80,
-              fit: BoxFit.contain,
-            ),
-            const SizedBox(height: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                _benefitRow(
-                    Icons.medical_services, 'Order prescriptions easily',
-                    center: true,
-                    iconColor: AppColors.primary, // Green
-                    dense: true),
-                _benefitRow(Icons.local_shipping, 'Track your orders',
-                    center: true,
-                    iconColor: Colors.amber.shade700, // Amber
-                    dense: true),
-                _benefitRow(Icons.flash_on, 'Faster checkout',
-                    center: true,
-                    iconColor: AppColors.primary, // Green
-                    dense: true),
-                _benefitRow(Icons.card_giftcard, 'Exclusive offers & rewards',
-                    center: true,
-                    iconColor: Colors.red.shade600, // Red
-                    dense: true),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Divider(thickness: 1, height: 24, color: Colors.tealAccent),
-            const SizedBox(height: 10),
-          ],
-        );
+        return const SizedBox.shrink();
       default:
         return const SizedBox.shrink();
     }
   }
 
-  Widget _benefitRow(IconData icon, String text,
-      {bool center = false, Color? iconColor, bool dense = false}) {
-    if (center) {
-      return Padding(
-        padding:
-            EdgeInsets.symmetric(vertical: dense ? 4.0 : 8.0, horizontal: 16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Icon(icon, color: iconColor ?? AppColors.primary, size: 28),
-            SizedBox(height: dense ? 3 : 6),
-            Text(
-              text,
-              style: TextStyle(
-                  fontSize: 15,
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w500),
-              textAlign: TextAlign.center,
-            ),
-          ],
+  Widget _buildProgressDots() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(
+        _pages.length,
+        (dotIndex) => AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          width: _currentPage == dotIndex ? 24 : 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: _currentPage == dotIndex
+                ? AppColors.primary
+                : AppColors.primary.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(4),
+          ),
         ),
-      );
-    } else {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            Icon(icon, color: iconColor ?? AppColors.primary, size: 22),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                text,
-                style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w500),
-                textAlign: TextAlign.start,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+      ),
+    );
   }
 
   Widget _disclaimerItem(

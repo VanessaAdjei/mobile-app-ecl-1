@@ -120,6 +120,11 @@ class SignInScreenState extends State<SignInScreen> {
     final lowerMessage = message.toLowerCase();
 
     // make api error messages nicer and easier to understand
+    if (lowerMessage.contains('invalid response') ||
+        lowerMessage.contains('empty response')) {
+      return 'We could not complete sign-in because the server sent an unexpected response. Please try again in a moment.';
+    }
+
     if (lowerMessage.contains('login information invalid') ||
         lowerMessage.contains('invalid') && lowerMessage.contains('password')) {
       return 'The email or password you entered doesn\'t match our records. Please double-check your credentials and try again.';
@@ -194,9 +199,7 @@ class SignInScreenState extends State<SignInScreen> {
       debugPrint('============================');
 
       // Check if login was successful
-      if (result['success'] == true &&
-          result['token'] != null &&
-          result['user'] != null) {
+      if (result['success'] == true && result['token'] != null) {
         // Add a delay to ensure token is properly saved
         await Future.delayed(const Duration(milliseconds: 100));
 
@@ -209,7 +212,9 @@ class SignInScreenState extends State<SignInScreen> {
           final authProvider =
               Provider.of<AuthProvider>(context, listen: false);
           await authProvider.refreshAuthState();
-        } catch (e) {}
+        } catch (e, st) {
+          debugPrint('SignIn: authProvider.refreshAuthState failed: $e\n$st');
+        }
 
         // get the current auth state
         if (!context.mounted) return;

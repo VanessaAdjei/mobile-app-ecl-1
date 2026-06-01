@@ -8,6 +8,7 @@ import 'package:eclapp/widgets/error_display.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../utils/app_error_utils.dart';
 import '../widgets/app_header_bar.dart';
 
 const Color _kRxAccent = Color(0xFF0D7A4C);
@@ -146,10 +147,13 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
             'Unable to connect to the server (${response.statusCode})');
       }
     } catch (e) {
-      debugPrint('🔍 Error fetching prescriptions: $e');
+      AppErrorUtils.log('PrescriptionHistory._fetchPrescriptions', e);
       if (mounted) {
         setState(() {
-          _error = e.toString().replaceAll('Exception: ', '');
+          _error = AppErrorUtils.userMessage(
+            e,
+            fallback: 'Could not load prescriptions',
+          );
           _isLoading = false;
         });
       }

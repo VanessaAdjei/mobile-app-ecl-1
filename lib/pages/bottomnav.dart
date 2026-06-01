@@ -19,10 +19,12 @@ import 'notifications.dart';
 
 class CustomBottomNav extends StatefulWidget {
   final int initialIndex;
+  final GlobalKey? tourMenuKey;
 
   const CustomBottomNav({
     super.key,
     this.initialIndex = 0,
+    this.tourMenuKey,
   });
 
   @override
@@ -417,7 +419,9 @@ class _CustomBottomNavState extends State<CustomBottomNav>
             );
           },
         );
-      } catch (e) {}
+      } catch (e, st) {
+        debugPrint('BottomNav: menu sheet error: $e\n$st');
+      }
     });
   }
 
@@ -1109,6 +1113,7 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                           highlightColor:
                               const Color(0xFF20AF67).withValues(alpha: 0.1),
                           child: Container(
+                            key: widget.tourMenuKey,
                             width: 60,
                             height: 60,
                             decoration: BoxDecoration(

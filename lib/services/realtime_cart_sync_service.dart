@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/cart_provider.dart';
 import 'auth_service.dart';
+import '../utils/app_error_utils.dart';
 
 class RealtimeCartSyncService {
   static final RealtimeCartSyncService _instance =
@@ -73,7 +74,9 @@ class RealtimeCartSyncService {
 
       // sync with server right away
       await _cartProvider!.syncWithApi();
-    } catch (e) {}
+    } catch (e, st) {
+      AppErrorUtils.log('RealtimeCartSyncService._performImmediateSync', e, st);
+    }
   }
 
   /// Perform periodic sync as backup
@@ -89,7 +92,9 @@ class RealtimeCartSyncService {
 
       // Sync with server
       await _cartProvider!.syncWithApi();
-    } catch (e) {}
+    } catch (e, st) {
+      AppErrorUtils.log('RealtimeCartSyncService._performPeriodicSync', e, st);
+    }
   }
 
   // force an immediate sync (for manual refresh)

@@ -15,6 +15,7 @@ import '../services/auth_service.dart';
 import '../services/order_history_transformer.dart';
 import '../services/background_order_checker.dart';
 import '../widgets/cart_icon_button.dart';
+import '../utils/app_error_utils.dart';
 import '../widgets/error_display.dart';
 import 'order_tracking_page.dart';
 
@@ -130,10 +131,14 @@ class PurchaseScreenState extends State<PurchaseScreen> {
       } else {
         throw Exception(result['message'] ?? 'Failed to load orders');
       }
-    } catch (e) {
+    } catch (e, st) {
+      AppErrorUtils.log('PurchaseScreen._fetchOrders', e, st);
       if (mounted) {
         setState(() {
-          _error = e.toString().replaceAll('Exception: ', '');
+          _error = AppErrorUtils.userMessage(
+            e,
+            fallback: 'Could not load your orders',
+          );
           _isLoading = false;
           // Refresh completed
         });
@@ -925,9 +930,10 @@ class PurchaseScreenState extends State<PurchaseScreen> {
         SliverFillRemaining(
           hasScrollBody: false,
           child: ErrorDisplay(
-            title: 'Error Loading Orders',
+            title: 'Could not load orders',
             message: _error ??
                 'An error occurred while loading your orders',
+            showRetry: true,
             onRetry: _refreshOrders,
           ),
         ),

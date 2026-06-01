@@ -12,7 +12,10 @@ import 'package:eclapp/services/pending_payment_polling_service.dart';
 import 'package:eclapp/utils/non_ui_error_reporter.dart';
 import 'package:eclapp/widgets/live_tracking_placeholder_card.dart';
 import 'package:eclapp/widgets/order_confirmed_on_screen_banner.dart';
+import 'package:eclapp/widgets/order_courier_card.dart';
+import 'package:eclapp/widgets/order_status_hero_card.dart';
 import 'package:eclapp/widgets/order_status_timeline.dart';
+import 'package:eclapp/widgets/order_tracking_eta_tiles.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -47,6 +50,37 @@ class PostCheckoutOrderPage extends StatefulWidget {
   final double? deliveryFee;
   final double discount;
   final String initialStatus;
+
+  /// Unified post-checkout route after payment (webview or direct).
+  static Route<void> route({
+    required Map<String, dynamic> paymentParams,
+    required List<CartItem> purchasedItems,
+    required String initialTransactionId,
+    required String paymentMethod,
+    required String deliveryAddress,
+    required String contactNumber,
+    required String deliveryOption,
+    required String estimatedDeliveryTime,
+    double? deliveryFee,
+    required double discount,
+    String initialStatus = 'pending',
+  }) {
+    return MaterialPageRoute<void>(
+      builder: (_) => PostCheckoutOrderPage(
+        paymentParams: paymentParams,
+        purchasedItems: purchasedItems,
+        initialTransactionId: initialTransactionId,
+        paymentMethod: paymentMethod,
+        deliveryAddress: deliveryAddress,
+        contactNumber: contactNumber,
+        deliveryOption: deliveryOption,
+        estimatedDeliveryTime: estimatedDeliveryTime,
+        deliveryFee: deliveryFee,
+        discount: discount,
+        initialStatus: initialStatus,
+      ),
+    );
+  }
 
   @override
   State<PostCheckoutOrderPage> createState() => _PostCheckoutOrderPageState();
@@ -195,7 +229,8 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
     OrderTrackingProvider.onOrderConfirmedStageUi = _showOrderConfirmedOnScreen;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _showOrderConfirmedOnScreenIfAlreadyConfirmed(_provider.order);
+      if (mounted)
+        _showOrderConfirmedOnScreenIfAlreadyConfirmed(_provider.order);
     });
   }
 
@@ -236,9 +271,8 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
         order.stage != OrderTrackingStage.orderConfirmed) {
       return const [];
     }
-    final orderRef = order.orderNumber.isNotEmpty
-        ? order.orderNumber
-        : order.transactionId;
+    final orderRef =
+        order.orderNumber.isNotEmpty ? order.orderNumber : order.transactionId;
     return [
       OrderConfirmedOnScreenBanner(
         orderReference: orderRef,
@@ -1682,108 +1716,115 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
               child: isReady
                   ? Container(
                       key: const ValueKey('pickup-ready-map'),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: accent.withValues(alpha: 0.2)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        CircleAvatar(
-                          radius: 14,
-                          backgroundColor: accent.withValues(alpha: 0.12),
-                          child: Icon(
-                            Icons.location_on_rounded,
-                            size: 16,
-                            color: accent,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border:
+                            Border.all(color: accent.withValues(alpha: 0.2)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Collect from',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey.shade500,
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                CircleAvatar(
+                                  radius: 14,
+                                  backgroundColor:
+                                      accent.withValues(alpha: 0.12),
+                                  child: Icon(
+                                    Icons.location_on_rounded,
+                                    size: 16,
+                                    color: accent,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Collect from',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.grey.shade500,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        pickupLocation.isNotEmpty
+                                            ? pickupLocation
+                                            : 'Selected store location',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFF0F172A),
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              bottom: Radius.circular(12),
+                            ),
+                            child: SizedBox(
+                              height: 190,
+                              child: TrackingMap(
+                                order: order.copyWith(
+                                    deliveryAddress: pickupLocation),
+                                accent: accent,
+                                showShopLocation: false,
+                                destinationMarkerTitle: 'Pickup location',
+                                deliveryCoordinates:
+                                    (pickupLat != null && pickupLng != null)
+                                        ? LatLng(pickupLat, pickupLng)
+                                        : null,
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 8),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: FilledButton.icon(
+                                onPressed: pickupLocation.isNotEmpty
+                                    ? () =>
+                                        _openPickupDirections(pickupLocation)
+                                    : null,
+                                icon: const Icon(Icons.navigation_rounded,
+                                    size: 20),
+                                label: const Text('Get directions'),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: accent,
+                                  foregroundColor: Colors.white,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                pickupLocation.isNotEmpty
-                                    ? pickupLocation
-                                    : 'Selected store location',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF0F172A),
-                                  height: 1.35,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      bottom: Radius.circular(12),
-                    ),
-                    child: SizedBox(
-                      height: 190,
-                      child: TrackingMap(
-                        order: order.copyWith(deliveryAddress: pickupLocation),
-                        accent: accent,
-                        showShopLocation: false,
-                        destinationMarkerTitle: 'Pickup location',
-                        deliveryCoordinates:
-                            (pickupLat != null && pickupLng != null)
-                                ? LatLng(pickupLat, pickupLng)
-                                : null,
+                        ],
                       ),
-                    ),
-                  ),
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: pickupLocation.isNotEmpty
-                            ? () => _openPickupDirections(pickupLocation)
-                            : null,
-                        icon: const Icon(Icons.navigation_rounded, size: 20),
-                        label: const Text('Get directions'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: accent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            )
+                    )
                   : Container(
                       key: const ValueKey('pickup-prep-store'),
                       padding: const EdgeInsets.symmetric(
@@ -1849,36 +1890,36 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
           _staggerReveal(
             2,
             Container(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Order progress',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade700,
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
-                ),
-                const SizedBox(height: 2),
-                OrderStatusTimeline(
-                  steps: _pickupTimelineSteps(order),
-                  accent: accent,
-                ),
-              ],
-            ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Order progress',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  OrderStatusTimeline(
+                    steps: _pickupTimelineSteps(order),
+                    accent: accent,
+                  ),
+                ],
+              ),
             ),
           ),
           if (order.items.isNotEmpty) ...[
@@ -2180,150 +2221,28 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                                               const Duration(
                                                             milliseconds: 380,
                                                           ),
-                                                          child: Container(
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .symmetric(
-                                                            horizontal: 16,
-                                                            vertical: 14,
-                                                          ),
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            color: Colors.white,
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        12),
-                                                            border: Border.all(
-                                                              color: Colors.grey
-                                                                  .shade100,
-                                                              width: 1,
-                                                            ),
-                                                            boxShadow: [
-                                                              BoxShadow(
-                                                                color: Colors
-                                                                    .black
-                                                                    .withValues(
-                                                                        alpha:
-                                                                            0.04),
-                                                                blurRadius: 10,
-                                                                offset:
-                                                                    const Offset(
-                                                                        0, 2),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                          child: Column(
-                                                            crossAxisAlignment:
-                                                                CrossAxisAlignment
-                                                                    .start,
-                                                            children: [
-                                                              Row(
-                                                                crossAxisAlignment:
-                                                                    CrossAxisAlignment
-                                                                        .start,
-                                                                children: [
-                                                                  Expanded(
-                                                                    child:
-                                                                        Column(
-                                                                      crossAxisAlignment:
-                                                                          CrossAxisAlignment
-                                                                              .start,
-                                                                      children: [
-                                                                        Text(
-                                                                          order
-                                                                              .stageLabel,
-                                                                          style:
-                                                                              GoogleFonts.poppins(
-                                                                            fontSize:
-                                                                                16,
-                                                                            fontWeight:
-                                                                                FontWeight.w600,
-                                                                            color:
-                                                                                const Color(0xFF1A1A1A),
-                                                                          ),
-                                                                        ),
-                                                                        const SizedBox(
-                                                                            height:
-                                                                                4),
-                                                                        Text(
-                                                                          'Order #${order.orderNumber}',
-                                                                          style:
-                                                                              TextStyle(
-                                                                            fontSize:
-                                                                                12,
-                                                                            fontWeight:
-                                                                                FontWeight.w500,
-                                                                            color:
-                                                                                Colors.grey.shade600,
-                                                                            letterSpacing:
-                                                                                0.2,
-                                                                          ),
-                                                                        ),
-                                                                      ],
-                                                                    ),
-                                                                  ),
-                                                                  if (order.stage !=
-                                                                          OrderTrackingStage
-                                                                              .failed &&
-                                                                      order.stage !=
-                                                                          OrderTrackingStage
-                                                                              .pendingPayment)
-                                                                    Container(
-                                                                      padding:
-                                                                          const EdgeInsets
-                                                                              .symmetric(
-                                                                        horizontal:
-                                                                            8,
-                                                                        vertical:
-                                                                            4,
-                                                                      ),
-                                                                      decoration:
-                                                                          BoxDecoration(
-                                                                        color: accent.withValues(
-                                                                            alpha:
-                                                                                0.1),
-                                                                        borderRadius:
-                                                                            BorderRadius.circular(8),
-                                                                      ),
-                                                                      child:
-                                                                          Text(
-                                                                        '${order.totalQuantity} item${order.totalQuantity == 1 ? '' : 's'}',
-                                                                        style: GoogleFonts
-                                                                            .poppins(
-                                                                          fontSize:
-                                                                              11,
-                                                                          fontWeight:
-                                                                              FontWeight.w600,
-                                                                          color:
-                                                                              accent,
-                                                                        ),
-                                                                      ),
-                                                                    ),
-                                                                ],
-                                                              ),
-                                                              const SizedBox(
-                                                                  height: 10),
-                                                              Text(
-                                                                order.stage ==
-                                                                        OrderTrackingStage
-                                                                            .failed
-                                                                    ? order
-                                                                        .stageMessage
-                                                                    : 'Arrives in ${order.estimatedDeliveryTime} • GHS ${order.totalAmount.toStringAsFixed(2)}',
-                                                                style:
-                                                                    TextStyle(
-                                                                  fontSize: 12,
-                                                                  color: Colors
-                                                                      .grey
-                                                                      .shade600,
-                                                                  height: 1.35,
-                                                                ),
-                                                              ),
-                                                            ],
+                                                          child:
+                                                              OrderStatusHeroCard(
+                                                            order: order,
+                                                            compact: true,
+                                                            accentOverride:
+                                                                accent,
                                                           ),
                                                         ),
+                                                        const SizedBox(
+                                                            height: 8),
+                                                        OrderTrackingEtaTiles(
+                                                          order: order,
+                                                          accent: accent,
                                                         ),
+                                                        const SizedBox(
+                                                            height: 8),
+                                                        OrderCourierCard(
+                                                          order: order,
+                                                          accent: accent,
+                                                        ),
+                                                        const SizedBox(
+                                                            height: 8),
                                                         if (order.stage ==
                                                                 OrderTrackingStage
                                                                     .outForDelivery &&

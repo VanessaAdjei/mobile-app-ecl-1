@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_config.dart';
+import '../utils/app_error_utils.dart';
 import 'advanced_performance_service.dart';
 
 class UniversalPageOptimizationService {
@@ -194,36 +195,12 @@ class UniversalPageOptimizationService {
   // ==================== ERROR HANDLING ====================
 
   /// Handle errors with user-friendly messages
-  String getErrorMessage(dynamic error) {
-    if (error is http.ClientException) {
-      return 'No internet connection. Please check your network.';
-    } else if (error is TimeoutException) {
-      return 'Request timed out. Please try again.';
-    } else if (error.toString().contains('404')) {
-      return 'Data not found. Please try again later.';
-    } else if (error.toString().contains('500')) {
-      return 'Server error. Please try again later.';
-    } else {
-      return 'Something went wrong. Please try again.';
-    }
-  }
+  String getErrorMessage(dynamic error) =>
+      AppErrorUtils.userMessage(error);
 
   /// Show error snackbar
   void showErrorSnackBar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red[600],
-        duration: const Duration(seconds: 3),
-        action: SnackBarAction(
-          label: 'Dismiss',
-          textColor: Colors.white,
-          onPressed: () {
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          },
-        ),
-      ),
-    );
+    AppErrorUtils.showSnack(context, message);
   }
 
   // ==================== CACHE MANAGEMENT ====================
