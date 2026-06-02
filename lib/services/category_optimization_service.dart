@@ -4,10 +4,10 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config/api_config.dart';
+import '../services/category_catalog_service.dart';
 import 'app_optimization_service.dart';
 
 class CategoryOptimizationService {
@@ -15,6 +15,8 @@ class CategoryOptimizationService {
       CategoryOptimizationService._internal();
   factory CategoryOptimizationService() => _instance;
   CategoryOptimizationService._internal();
+
+  final CategoryCatalogService _catalogService = CategoryCatalogService();
 
   // Cache storage keys
   static const String _categoriesCacheKey = 'categories_cache';
@@ -191,45 +193,20 @@ class CategoryOptimizationService {
       debugPrint('Fetching categories from API...');
       final stopwatch = Stopwatch()..start();
 
-      // Reduced timeout for faster failure detection
-      final response = await http
-          .get(
-            Uri.parse(
-                ApiConfig.getEndpointUrl(ApiConfig.topCategories)),
-          )
-          .timeout(const Duration(seconds: 8)); // Reduced from 10 to 8 seconds
+      final categories = await _catalogService.getTopCategories(
+        timeout: const Duration(seconds: 8),
+      );
 
       stopwatch.stop();
       debugPrint(
           'Category API call completed in ${stopwatch.elapsedMilliseconds}ms');
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        debugPrint('Category API response: ${data.keys.toList()}');
-        debugPrint('Category API success: ${data['success']}');
+      await _cacheCategories(categories);
 
-        if (data['success'] == true) {
-          final categories = data['data'] as List;
-          debugPrint('Raw categories data: ${categories.take(2).map((c) => {
-                'id': c['id'],
-                'name': c['name']
-              }).toList()}');
-
-          // Cache the categories
-          await _cacheCategories(categories);
-
-          _optimizationService.endTimer('CategoryService_GetCategories');
-          debugPrint(
-              'Successfully fetched ${categories.length} categories from API');
-          return categories;
-        } else {
-          debugPrint('API returned success: false with data: $data');
-          throw Exception('API returned success: false');
-        }
-      } else {
-        debugPrint('HTTP error: ${response.statusCode} - ${response.body}');
-        throw Exception('HTTP ${response.statusCode}');
-      }
+      _optimizationService.endTimer('CategoryService_GetCategories');
+      debugPrint(
+          'Successfully fetched ${categories.length} categories from API');
+      return categories;
     } catch (e) {
       _optimizationService.endTimer('CategoryService_GetCategories');
       debugPrint('Category API error: $e');
@@ -247,80 +224,35 @@ class CategoryOptimizationService {
       debugPrint('Fetching products from API...');
       final stopwatch = Stopwatch()..start();
 
-      // Use the same API endpoint as homepage to get otcpom data
       debugPrint('🔍 Using get-all-products API endpoint for otcpom data...');
-      final response = await http
-          .get(
-            Uri.parse(
-                ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)),
-          )
-          .timeout(const Duration(seconds: 15));
+      final allProducts = await _catalogService.getProductsForCategoryCache(
+        timeout: const Duration(seconds: 15),
+      );
 
-      debugPrint('🔍 API Response Status: ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        final List<dynamic> dataList = responseData['data'];
-
-        debugPrint('🔍 API Response Data Structure:');
-        debugPrint('🔍 Total products in response: ${dataList.length}');
-        if (dataList.isNotEmpty) {
-          final firstItem = dataList[0];
-          final productData = firstItem['product'] ?? {};
-          debugPrint('🔍 First product keys: ${productData.keys.toList()}');
-          debugPrint('🔍 First product otcpom: ${productData['otcpom']}');
-        }
-
-        // Convert to the format expected by categories page
-        final allProducts = dataList.map<dynamic>((item) {
-          final productData = item['product'] as Map<String, dynamic>;
-          final convertedProduct = {
-            'id': productData['id'] ?? 0,
-            'name': productData['name'] ?? 'No name',
-            'description': productData['description'] ?? '',
-            'url_name': productData['url_name'] ?? '',
-            'status': productData['status'] ?? '',
-            'batch_no': item['batch_no'] ?? '',
-            'price': (item['price'] ?? 0).toString(),
-            'thumbnail': productData['thumbnail'] ?? productData['image'] ?? '',
-            'qty_in_stock': productData['qty_in_stock']?.toString() ?? '',
-            'category': productData['category'] ?? '',
-            'route': productData['route'] ?? '',
-            'otcpom': productData['otcpom'], // This is the key field we need!
-            'drug': productData['drug'],
-            'wellness': productData['wellness'],
-            'selfcare': productData['selfcare'],
-            'accessories': productData['accessories'],
-          };
-
-          return convertedProduct;
-        }).toList();
-
-        // Debug first few products
-        for (int i = 0; i < allProducts.length && i < 3; i++) {
-          debugPrint(
-              '🔍 Converted product ${allProducts[i]['name']}: otcpom=${allProducts[i]['otcpom']}');
-        }
-
-        // Limit cache size
-        if (allProducts.length > _maxCachedProducts) {
-          allProducts.removeRange(_maxCachedProducts, allProducts.length);
-        }
-
-        // Cache the products
-        await _cacheProducts(allProducts);
-
-        stopwatch.stop();
-        debugPrint(
-            'Product API calls completed in ${stopwatch.elapsedMilliseconds}ms');
-
-        _optimizationService.endTimer('CategoryService_GetProducts');
-        debugPrint(
-            'Successfully fetched ${allProducts.length} products from API with otcpom data');
-        return allProducts;
-      } else {
-        throw Exception('HTTP ${response.statusCode}');
+      debugPrint('🔍 Total products in response: ${allProducts.length}');
+      if (allProducts.isNotEmpty) {
+        debugPrint('🔍 First product otcpom: ${allProducts.first['otcpom']}');
       }
+
+      for (int i = 0; i < allProducts.length && i < 3; i++) {
+        debugPrint(
+            '🔍 Converted product ${allProducts[i]['name']}: otcpom=${allProducts[i]['otcpom']}');
+      }
+
+      if (allProducts.length > _maxCachedProducts) {
+        allProducts.removeRange(_maxCachedProducts, allProducts.length);
+      }
+
+      await _cacheProducts(allProducts);
+
+      stopwatch.stop();
+      debugPrint(
+          'Product API calls completed in ${stopwatch.elapsedMilliseconds}ms');
+
+      _optimizationService.endTimer('CategoryService_GetProducts');
+      debugPrint(
+          'Successfully fetched ${allProducts.length} products from API with otcpom data');
+      return allProducts;
     } catch (e) {
       _optimizationService.endTimer('CategoryService_GetProducts');
       debugPrint('Product API error: $e');
@@ -541,47 +473,5 @@ class CategoryOptimizationService {
   Future<void> refreshAllData() async {
     await getCategories(forceRefresh: true);
     await getProducts(forceRefresh: true);
-  }
-
-  // Enhance products with otcpom data by fetching from individual product API
-  Future<void> _enhanceProductsWithOtcpom(List<dynamic> products) async {
-    debugPrint(
-        '🔍 Starting otcpom enhancement for ${products.length} products');
-
-    for (int i = 0; i < products.length; i++) {
-      final product = products[i];
-      final productId = product['id'];
-
-      try {
-        debugPrint(
-            '🔍 Fetching otcpom for product ${i + 1}/${products.length}: ${product['name']}');
-        final response = await http
-            .get(
-              Uri.parse(
-                  ApiConfig.getProductByIdUrl(productId.toString())),
-            )
-            .timeout(const Duration(seconds: 3));
-
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          if (data['success'] == true) {
-            final productData = data['data'];
-            final otcpom = productData['otcpom'];
-
-            if (otcpom != null) {
-              products[i]['otcpom'] = otcpom;
-              debugPrint('🔍 Enhanced ${product['name']} with otcpom: $otcpom');
-            } else {
-              debugPrint('🔍 No otcpom data for ${product['name']}');
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('🔍 Error enhancing ${product['name']}: $e');
-      }
-    }
-
-    debugPrint(
-        '🔍 Completed otcpom enhancement for ${products.length} products');
   }
 }

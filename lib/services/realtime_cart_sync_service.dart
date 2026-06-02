@@ -1,9 +1,6 @@
 // services/realtime_cart_sync_service.dart
 import 'dart:async';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/cart_provider.dart';
 import 'auth_service.dart';
 import '../utils/app_error_utils.dart';
@@ -20,8 +17,7 @@ class RealtimeCartSyncService {
   CartProvider? _cartProvider;
 
   // how long to wait before syncing
-  static const Duration _immediateSyncDelay =
-      Duration(milliseconds: 500); // wait 500ms
+  static const Duration _immediateSyncDelay = Duration.zero;
   /// Backup sync only; cart changes use [triggerImmediateSync].
   static const Duration _periodicSyncInterval = Duration(minutes: 10);
   static const Duration _syncTimeout = Duration(seconds: 10);

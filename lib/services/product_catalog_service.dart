@@ -1,0 +1,66 @@
+import 'package:flutter/foundation.dart';
+
+import '../models/category_fetch_result.dart';
+import '../models/product_model.dart';
+import '../repositories/product_repository.dart';
+import '../utils/product_catalog_parser.dart';
+
+/// Homepage / ProductCache catalog use-cases.
+class ProductCatalogService {
+  ProductCatalogService({ProductRepository? repository})
+      : _repository = repository ?? ProductRepositoryImpl();
+
+  final ProductRepository _repository;
+
+  /// Fetches and parses the full product catalog (get-all-products).
+  Future<List<Product>> fetchCatalogProducts({
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final result = await _repository.fetchAllProducts(timeout: timeout);
+    _rethrowIfTransportError(result);
+    if (!result.isHttpOk) return const [];
+    return compute(productsFromApiDataList, List<dynamic>.from(result.data));
+  }
+
+  /// Fetches and parses popular products.
+  Future<List<Product>> fetchPopularProducts({
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    final result = await _repository.fetchPopularProducts(timeout: timeout);
+    _rethrowIfTransportError(result);
+    if (!result.isHttpOk) return const [];
+    return compute(productsFromApiDataList, List<dynamic>.from(result.data));
+  }
+
+  /// Search suggestions for the home typeahead field.
+  Future<List<Product>> searchForTypeahead(
+    String query, {
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return const [];
+
+    final result =
+        await _repository.searchProducts(trimmed, timeout: timeout);
+    _rethrowIfTransportError(result);
+    if (!result.isHttpOk) return const [];
+    return productsFromSearchApiList(result.data);
+  }
+
+  void _rethrowIfTransportError(CategoryFetchResult result) {
+    final error = result.error;
+    if (error != null) throw error;
+  }
+
+  /// Raw catalog rows from get-all-products (`data` array).
+  Future<List<dynamic>> fetchCatalogRawItems({
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    final result = await _repository.fetchAllProducts(timeout: timeout);
+    _rethrowIfTransportError(result);
+    if (!result.isHttpOk) {
+      throw Exception('Failed to load products');
+    }
+    return List<dynamic>.from(result.data);
+  }
+}

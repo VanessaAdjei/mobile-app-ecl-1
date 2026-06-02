@@ -16,6 +16,7 @@ import 'storelocation.dart';
 import '../providers/notification_provider.dart';
 import '../services/order_notification_service.dart';
 import 'notifications.dart';
+import '../utils/app_error_utils.dart';
 
 class CustomBottomNav extends StatefulWidget {
   final int initialIndex;
@@ -745,11 +746,8 @@ class _CustomBottomNavState extends State<CustomBottomNav>
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('WhatsApp is not installed on your device'),
-            ),
-          );
+          AppErrorUtils.showSnack(
+              context, 'WhatsApp is not installed on your device');
         }
       }
     } catch (e) {
@@ -767,11 +765,8 @@ class _CustomBottomNavState extends State<CustomBottomNav>
         await launchUrl(emailUri);
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No email app found on your device'),
-            ),
-          );
+          AppErrorUtils.showSnack(
+              context, 'No email app found on your device');
         }
       }
     } catch (e) {

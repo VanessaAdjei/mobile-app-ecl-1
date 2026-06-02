@@ -5,11 +5,13 @@ import 'package:http/http.dart' as http;
 
 import '../../config/api_config.dart';
 import '../../services/auth_service.dart';
+import '../../utils/app_error_utils.dart';
 import '../../services/order_history_transformer.dart';
 import '../../models/order_tracking_model.dart';
 
 abstract class OrderTrackingRemoteDataSource {
   Future<PaymentStatusResult> checkPaymentStatus();
+  Future<String?> fetchOrderStatus(String orderId);
   Future<Map<String, dynamic>?> fetchLatestOrderSnapshot({
     required String orderId,
     required String orderNumber,
@@ -96,7 +98,7 @@ class OrderTrackingRemoteDataSourceImpl
         throw Exception('Payment record not found. Please contact support.');
       }
       if (response.statusCode >= 500) {
-        throw Exception('Server error. Please try again later.');
+        throw Exception(AppErrorUtils.oopsTryAgainMessage);
       }
 
       throw Exception('Failed to verify payment: ${response.statusCode}');
@@ -110,6 +112,10 @@ class OrderTrackingRemoteDataSourceImpl
       throw Exception('Unable to reach the payment server right now.');
     }
   }
+
+  @override
+  Future<String?> fetchOrderStatus(String orderId) =>
+      _fetchDirectStatus(orderId);
 
   @override
   Future<Map<String, dynamic>?> fetchLatestOrderSnapshot({

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../config/app_colors.dart';
+import 'payment_section_style.dart';
 import 'payment_summary_row.dart';
 import '../order_threshold_promo_banner.dart';
 
@@ -41,114 +43,97 @@ class PaymentBillSummarySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 6,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Icon(
-                    Icons.receipt_long,
-                    color: Colors.green[700],
-                    size: 16,
-                  ),
+      margin: PaymentSectionStyle.margin,
+      padding: PaymentSectionStyle.padding,
+      decoration: PaymentSectionStyle.cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 3,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  'BILL',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: Colors.grey[800],
-                    letterSpacing: 0.5,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Bill',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                  color: AppColors.primaryDark,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          OrderThresholdPromoBanner(compact: true, subtotal: subtotal),
+          const SizedBox(height: 6),
+          _PromoCodeBlock(
+            appliedPromoCode: appliedPromoCode,
+            promoError: promoError,
+            isApplyingPromo: isApplyingPromo,
+            promoCodeController: promoCodeController,
+            discountAmount: discountAmount,
+            onApplyPromo: onApplyPromo,
+            onRemovePromo: onRemovePromo,
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF4FAF7),
+              borderRadius:
+                  BorderRadius.circular(PaymentSectionStyle.innerRadius),
+              border: Border.all(color: PaymentSectionStyle.borderColor),
+            ),
+            child: Column(
+              children: [
+                PaymentSummaryRow(
+                  label: 'Subtotal',
+                  value: subtotal,
+                  icon: Icons.shopping_cart_outlined,
+                ),
+                if (discountAmount > 0) ...[
+                  const SizedBox(height: 4),
+                  PaymentSummaryRow(
+                    label: 'Discount',
+                    value: -discountAmount,
+                    icon: Icons.local_offer,
+                    isDiscount: true,
                   ),
+                ],
+                if (showDeliveryFee && _displayDeliveryFee > 0) ...[
+                  const SizedBox(height: 4),
+                  PaymentSummaryRow(
+                    label: 'Delivery fee',
+                    value: _displayDeliveryFee,
+                    icon: Icons.local_shipping_outlined,
+                  ),
+                ],
+                if (emergencyOrderFee > 0) ...[
+                  const SizedBox(height: 4),
+                  PaymentSummaryRow(
+                    label: 'Urgent order fee',
+                    value: emergencyOrderFee,
+                    icon: Icons.flash_on,
+                  ),
+                ],
+                Divider(height: 16, thickness: 1, color: Colors.grey[300]),
+                PaymentSummaryRow(
+                  label: 'Total',
+                  value: _total,
+                  isHighlighted: true,
+                  icon: Icons.payment,
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            OrderThresholdPromoBanner(compact: true, subtotal: subtotal),
-            const SizedBox(height: 8),
-            _PromoCodeBlock(
-              appliedPromoCode: appliedPromoCode,
-              promoError: promoError,
-              isApplyingPromo: isApplyingPromo,
-              promoCodeController: promoCodeController,
-              discountAmount: discountAmount,
-              onApplyPromo: onApplyPromo,
-              onRemovePromo: onRemovePromo,
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.grey[200]!),
-              ),
-              child: Column(
-                children: [
-                  PaymentSummaryRow(
-                    label: 'Subtotal',
-                    value: subtotal,
-                    icon: Icons.shopping_cart_outlined,
-                  ),
-                  if (discountAmount > 0) ...[
-                    const SizedBox(height: 6),
-                    PaymentSummaryRow(
-                      label: 'Discount',
-                      value: -discountAmount,
-                      icon: Icons.local_offer,
-                      isDiscount: true,
-                    ),
-                  ],
-                  if (showDeliveryFee &&
-                      _displayDeliveryFee > 0) ...[
-                    const SizedBox(height: 6),
-                    PaymentSummaryRow(
-                      label: 'Delivery fee',
-                      value: _displayDeliveryFee,
-                      icon: Icons.local_shipping_outlined,
-                    ),
-                  ],
-                  if (emergencyOrderFee > 0) ...[
-                    const SizedBox(height: 6),
-                    PaymentSummaryRow(
-                      label: 'Urgent order fee',
-                      value: emergencyOrderFee,
-                      icon: Icons.flash_on,
-                    ),
-                  ],
-                  Divider(height: 12, thickness: 1, color: Colors.grey[300]),
-                  PaymentSummaryRow(
-                    label: 'TOTAL',
-                    value: _total,
-                    isHighlighted: true,
-                    icon: Icons.payment,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -178,11 +163,11 @@ class _PromoCodeBlock extends StatelessWidget {
     final hasApplied = appliedPromoCode != null;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.shade100),
+        color: const Color(0xFFEEF9F3),
+        borderRadius: BorderRadius.circular(PaymentSectionStyle.innerRadius),
+        border: Border.all(color: const Color(0xFFBBEAD3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,7 +176,8 @@ class _PromoCodeBlock extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Icon(Icons.local_offer_outlined, color: Colors.blue[700], size: 14),
+              Icon(Icons.local_offer_outlined,
+                  color: AppColors.primaryDark, size: 13),
               const SizedBox(width: 6),
               Expanded(
                 child: hasApplied
@@ -201,9 +187,9 @@ class _PromoCodeBlock extends StatelessWidget {
                             child: Text(
                               appliedPromoCode!,
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 10,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.green[800],
+                                color: AppColors.primaryDark,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -211,8 +197,8 @@ class _PromoCodeBlock extends StatelessWidget {
                           ),
                           Icon(
                             Icons.check_circle,
-                            color: Colors.green[600],
-                            size: 14,
+                            color: AppColors.primary,
+                            size: 13,
                           ),
                         ],
                       )
@@ -223,43 +209,45 @@ class _PromoCodeBlock extends StatelessWidget {
                           hintText: 'Promo code',
                           hintStyle: TextStyle(
                             color: Colors.grey[500],
-                            fontSize: 11,
+                            fontSize: 10,
                           ),
                           filled: true,
                           fillColor: Colors.white,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(6),
-                            borderSide: BorderSide(color: Colors.blue.shade100),
+                            borderSide:
+                                const BorderSide(color: Color(0xFFBBEAD3)),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(6),
-                            borderSide: BorderSide(color: Colors.blue.shade100),
+                            borderSide:
+                                const BorderSide(color: Color(0xFFBBEAD3)),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(6),
-                            borderSide: BorderSide(color: Colors.blue.shade300),
+                            borderSide: BorderSide(color: AppColors.primary),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 8,
-                            vertical: 6,
+                            vertical: 5,
                           ),
                         ),
-                        style: const TextStyle(fontSize: 11, height: 1.2),
+                        style: const TextStyle(fontSize: 10, height: 1.2),
                       ),
               ),
               const SizedBox(width: 6),
               SizedBox(
-                height: 28,
+                height: 26,
                 child: TextButton(
                   onPressed: hasApplied
                       ? onRemovePromo
                       : (isApplyingPromo ? null : onApplyPromo),
                   style: TextButton.styleFrom(
                     backgroundColor:
-                        hasApplied ? Colors.red[50] : Colors.blue[600],
+                        hasApplied ? Colors.red[50] : AppColors.primary,
                     foregroundColor:
                         hasApplied ? Colors.red[700] : Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     shape: RoundedRectangleBorder(
@@ -268,8 +256,8 @@ class _PromoCodeBlock extends StatelessWidget {
                   ),
                   child: isApplyingPromo
                       ? const SizedBox(
-                          width: 12,
-                          height: 12,
+                          width: 11,
+                          height: 11,
                           child: CircularProgressIndicator(
                             color: Colors.white,
                             strokeWidth: 2,
@@ -278,7 +266,7 @@ class _PromoCodeBlock extends StatelessWidget {
                       : Text(
                           hasApplied ? 'Remove' : 'Apply',
                           style: const TextStyle(
-                            fontSize: 10,
+                            fontSize: 9,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -287,17 +275,17 @@ class _PromoCodeBlock extends StatelessWidget {
             ],
           ),
           if (promoError != null) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               promoError!,
               style: TextStyle(color: Colors.red[600], fontSize: 9, height: 1.2),
             ),
           ] else if (hasApplied && discountAmount > 0) ...[
-            const SizedBox(height: 3),
+            const SizedBox(height: 2),
             Text(
               'Saved GHS ${discountAmount.toStringAsFixed(2)}',
               style: TextStyle(
-                color: Colors.green[700],
+                color: AppColors.primaryDark,
                 fontSize: 9,
                 fontWeight: FontWeight.w500,
               ),

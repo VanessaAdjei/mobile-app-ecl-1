@@ -101,15 +101,19 @@ class PurchaseScreenState extends State<PurchaseScreen> {
 
       final result = await AuthService.getOrders();
       debugPrint('🔍 Orders API result status: ${result['status']}');
-      debugPrint('🔍 Orders API result data type: ${result['data'].runtimeType}');
-      debugPrint('🔍 Orders API result data length: ${result['data'] is List ? (result['data'] as List).length : 'N/A'}');
+      debugPrint(
+          '🔍 Orders API result data type: ${result['data'].runtimeType}');
+      debugPrint(
+          '🔍 Orders API result data length: ${result['data'] is List ? (result['data'] as List).length : 'N/A'}');
 
       if (result['status'] == 'success' && result['data'] is List) {
         if (mounted) {
           final rawOrders = result['data'] as List;
-          debugPrint('🔍 Raw orders count before processing: ${rawOrders.length}');
+          debugPrint(
+              '🔍 Raw orders count before processing: ${rawOrders.length}');
           if (rawOrders.isNotEmpty) {
-            debugPrint('🔍 Sample raw order: ${rawOrders.first.toString().substring(0, rawOrders.first.toString().length > 300 ? 300 : rawOrders.first.toString().length)}');
+            debugPrint(
+                '🔍 Sample raw order: ${rawOrders.first.toString().substring(0, rawOrders.first.toString().length > 300 ? 300 : rawOrders.first.toString().length)}');
           }
           final processedOrders = await _processOrders(rawOrders);
           debugPrint('🔍 Processed orders count: ${processedOrders.length}');
@@ -207,9 +211,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
         s.contains('declin') ||
         s.contains('fail') ||
         s.contains('reject')) {
-      return isDark
-          ? const Color(0xFF3B1C1C)
-          : Colors.red.shade50;
+      return isDark ? const Color(0xFF3B1C1C) : Colors.red.shade50;
     }
     if (s == 'completed' || s == 'paid' || s.contains('deliver')) {
       return isDark
@@ -295,8 +297,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
-    final borderColor =
-        isDark ? Colors.grey.shade700 : const Color(0xFFDCE5DF);
+    final borderColor = isDark ? Colors.grey.shade700 : const Color(0xFFDCE5DF);
 
     final orderDate = DateTime.tryParse(order['created_at'] ?? '');
     final isMultiItem = order['is_multi_item'] == true;
@@ -379,13 +380,8 @@ class PurchaseScreenState extends State<PurchaseScreen> {
     );
   }
 
-  Widget _buildOrderHeader(
-      DateTime? orderDate,
-      bool isMultiItem,
-      int itemCount,
-      bool isCashOnDelivery,
-      String status,
-      bool isDark) {
+  Widget _buildOrderHeader(DateTime? orderDate, bool isMultiItem, int itemCount,
+      bool isCashOnDelivery, String status, bool isDark) {
     return Row(
       children: [
         Icon(
@@ -525,7 +521,9 @@ class PurchaseScreenState extends State<PurchaseScreen> {
                 Text(
                   'Cash on Delivery',
                   style: GoogleFonts.poppins(
-                    color: isDark ? Colors.orange.shade200 : Colors.orange.shade800,
+                    color: isDark
+                        ? Colors.orange.shade200
+                        : Colors.orange.shade800,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
@@ -541,7 +539,8 @@ class PurchaseScreenState extends State<PurchaseScreen> {
                 ),
               ),
               if (isMultiItem) _buildExpandButton(transactionId, isExpanded),
-              if (isMultiItem && isExpanded) _buildOrderItems(orderItems, isDark),
+              if (isMultiItem && isExpanded)
+                _buildOrderItems(orderItems, isDark),
             ],
           ),
         ),
@@ -593,7 +592,8 @@ class PurchaseScreenState extends State<PurchaseScreen> {
                     color: placeholderBg,
                     child: Icon(
                       Icons.inventory_2_outlined,
-                      color: isDark ? Colors.grey.shade600 : Colors.grey.shade500,
+                      color:
+                          isDark ? Colors.grey.shade600 : Colors.grey.shade500,
                       size: 24,
                     ),
                   ),
@@ -640,8 +640,9 @@ class PurchaseScreenState extends State<PurchaseScreen> {
   }
 
   Widget _buildOrderItems(List<dynamic> orderItems, bool isDark) {
-    final insetBg =
-        isDark ? Colors.grey.shade900.withValues(alpha: 0.5) : const Color(0xFFF4F7F5);
+    final insetBg = isDark
+        ? Colors.grey.shade900.withValues(alpha: 0.5)
+        : const Color(0xFFF4F7F5);
     final lineColor = isDark ? Colors.grey.shade400 : Colors.grey.shade700;
 
     return Padding(
@@ -660,8 +661,9 @@ class PurchaseScreenState extends State<PurchaseScreen> {
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: orderItems.map<Widget>((item) {
-                    final name =
-                        item['product_name'] ?? item['name'] ?? 'Unknown Product';
+                    final name = item['product_name'] ??
+                        item['name'] ??
+                        'Unknown Product';
                     final qty = item['qty'] ?? item['quantity'] ?? 1;
                     final price = item['price'] ?? 0.0;
                     final imgUrl =
@@ -931,8 +933,7 @@ class PurchaseScreenState extends State<PurchaseScreen> {
           hasScrollBody: false,
           child: ErrorDisplay(
             title: 'Could not load orders',
-            message: _error ??
-                'An error occurred while loading your orders',
+            message: _error ?? 'An error occurred while loading your orders',
             showRetry: true,
             onRetry: _refreshOrders,
           ),
@@ -1026,7 +1027,8 @@ class PurchaseScreenState extends State<PurchaseScreen> {
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 36, vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),

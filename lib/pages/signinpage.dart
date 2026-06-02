@@ -6,6 +6,7 @@ import 'package:eclapp/pages/forgot_password.dart';
 import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/pages/createaccount.dart';
 import 'package:eclapp/services/auth_service.dart';
+import 'package:eclapp/utils/app_error_utils.dart';
 import 'package:eclapp/providers/auth_provider.dart';
 import 'package:eclapp/providers/cart_provider.dart';
 import 'package:provider/provider.dart';
@@ -77,10 +78,10 @@ class SignInScreenState extends State<SignInScreen> {
       return 'You\'ve tried signing in too many times. Please wait a few minutes and try again.';
     }
 
-    // server errors
+    // backend / 5xx errors
     if (lowerError.contains('500') ||
         lowerError.contains('internal server error')) {
-      return 'We\'re experiencing some technical issues on our end. Please try again in a few moments.';
+      return AppErrorUtils.oopsTryAgainMessage;
     }
 
     // default error message
@@ -103,9 +104,11 @@ class SignInScreenState extends State<SignInScreen> {
       return 'Connection Issue';
     }
 
-    if (lowerMessage.contains('server') ||
+    if (lowerMessage.contains('500') ||
+        lowerMessage.contains('502') ||
+        lowerMessage.contains('503') ||
         lowerMessage.contains('unavailable')) {
-      return 'Service Temporarily Unavailable';
+      return AppErrorUtils.oopsTitle;
     }
 
     if (lowerMessage.contains('too many') ||
@@ -122,7 +125,7 @@ class SignInScreenState extends State<SignInScreen> {
     // make api error messages nicer and easier to understand
     if (lowerMessage.contains('invalid response') ||
         lowerMessage.contains('empty response')) {
-      return 'We could not complete sign-in because the server sent an unexpected response. Please try again in a moment.';
+      return 'We could not complete sign-in. Please try again in a moment.';
     }
 
     if (lowerMessage.contains('login information invalid') ||
@@ -139,14 +142,16 @@ class SignInScreenState extends State<SignInScreen> {
       return 'You\'ve made too many sign-in attempts. Please wait a few minutes before trying again to keep your account secure.';
     }
 
-    if (lowerMessage.contains('server') ||
+    if (lowerMessage.contains('500') ||
+        lowerMessage.contains('502') ||
+        lowerMessage.contains('503') ||
         lowerMessage.contains('unavailable')) {
-      return 'Our servers are temporarily unavailable. Please try again in a few moments. We apologize for the inconvenience.';
+      return AppErrorUtils.oopsTryAgainMessage;
     }
 
     if (lowerMessage.contains('connection') ||
         lowerMessage.contains('network')) {
-      return 'We couldn\'t connect to our servers. Please check your internet connection and try again.';
+      return 'We couldn\'t connect. Please check your internet connection and try again.';
     }
 
     // if its already a nice message, just return it

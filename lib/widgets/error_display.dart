@@ -1,4 +1,5 @@
 // widgets/error_display.dart
+import 'package:eclapp/utils/app_error_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -173,9 +174,8 @@ class ServerErrorDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ErrorDisplay(
-      title: 'Server Error',
-      message:
-          'Something went wrong on our end. Our team has been notified and is working to fix the issue. Please try again later.',
+      title: AppErrorUtils.oopsTitle,
+      message: AppErrorUtils.oopsTryAgainBody,
       icon: Icons.cloud_off,
       showRetry: true,
       onRetry: onRetry,
@@ -370,7 +370,6 @@ class SnackBarUtils {
         backgroundColor: Colors.green.shade600,
         margin: const EdgeInsets.all(16),
         duration: const Duration(milliseconds: 1500), // Reduced from 3 seconds
-        animation: const SnackBarAnimation(), // Custom fast animation
       ),
     );
   }
@@ -405,7 +404,6 @@ class SnackBarUtils {
         backgroundColor: Colors.red.shade600,
         margin: const EdgeInsets.all(16),
         duration: const Duration(milliseconds: 2000), // Reduced from 3 seconds
-        animation: const SnackBarAnimation(), // Custom fast animation
       ),
     );
   }
@@ -439,9 +437,7 @@ class SnackBarUtils {
         ),
         backgroundColor: Colors.blue.shade600,
         margin: const EdgeInsets.all(16),
-        duration: const Duration(milliseconds: 1500),
-        animation: const SnackBarAnimation(),
-      ),
+        duration: const Duration(milliseconds: 1500),      ),
     );
   }
 
@@ -474,45 +470,7 @@ class SnackBarUtils {
         ),
         backgroundColor: Colors.orange.shade600,
         margin: const EdgeInsets.all(16),
-        duration: const Duration(milliseconds: 2000),
-        animation: const SnackBarAnimation(),
-      ),
+        duration: const Duration(milliseconds: 2000),      ),
     );
   }
-}
-
-// Custom fast animation for SnackBars
-class SnackBarAnimation extends Animation<double> {
-  const SnackBarAnimation();
-
-  @override
-  void addListener(VoidCallback listener) {
-    // no-op implementation
-  }
-
-  @override
-  void addStatusListener(AnimationStatusListener listener) {
-    // no-op implementation
-  }
-
-  @override
-  void removeListener(VoidCallback listener) {
-    // no-op implementation
-  }
-
-  @override
-  void removeStatusListener(AnimationStatusListener listener) {
-    // no-op implementation
-  }
-
-  @override
-  void dispose() {
-    // no-op implementation
-  }
-
-  @override
-  AnimationStatus get status => AnimationStatus.completed;
-
-  @override
-  double get value => 1.0;
 }

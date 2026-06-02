@@ -8,6 +8,7 @@ import 'package:eclapp/services/home_preload_service.dart';
 import 'package:eclapp/services/native_notification_service.dart';
 import 'package:eclapp/widgets/onboarding/onboarding_permissions_slide.dart';
 import 'package:eclapp/widgets/onboarding/onboarding_welcome_slide.dart';
+import '../utils/app_error_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:video_player/video_player.dart';
@@ -55,6 +56,7 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
   @override
   void initState() {
     super.initState();
+    // Begin loading catalog, images, categories, and banners immediately.
     HomePreloadService.startOnboardingPreload();
     _animController = AnimationController(
       vsync: this,
@@ -178,25 +180,22 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
   }
 
   Future<void> _completeOnboarding() async {
-    if (mounted) setState(() => _isCompletingOnboarding = true);
+    if (!HomePreloadService.isFullyReadyForHome && mounted) {
+      setState(() => _isCompletingOnboarding = true);
+    }
     var catalogReady = false;
     try {
       catalogReady = await HomePreloadService.ensureReadyForHome(
-        maxWait: const Duration(seconds: 25),
+        maxWait: const Duration(seconds: 30),
       );
     } finally {
       if (mounted) setState(() => _isCompletingOnboarding = false);
     }
     if (!mounted) return;
     if (!catalogReady) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Could not load products. Check your connection and try again.',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppErrorUtils.showSnack(context,
+          'Could not load products. Check your connection and try again.',
+          isError: true);
       return;
     }
     final prefs = await SharedPreferences.getInstance();
@@ -240,37 +239,30 @@ class _OnboardingSplashPageState extends State<OnboardingSplashPage>
     } catch (e, st) {
       debugPrint('Onboarding continue error: $e\n$st');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not continue. Please try again.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        AppErrorUtils.showSnack(context, 'Could not continue. Please try again.',
+            isError: true);
       }
     }
   }
 
   void _onSkip() async {
     debugPrint('Onboarding: Skip button pressed');
-    if (mounted) setState(() => _isCompletingOnboarding = true);
+    if (!HomePreloadService.isFullyReadyForHome && mounted) {
+      setState(() => _isCompletingOnboarding = true);
+    }
     var catalogReady = false;
     try {
       catalogReady = await HomePreloadService.ensureReadyForHome(
-        maxWait: const Duration(seconds: 25),
+        maxWait: const Duration(seconds: 30),
       );
     } finally {
       if (mounted) setState(() => _isCompletingOnboarding = false);
     }
     if (!mounted) return;
     if (!catalogReady) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Could not load products. Check your connection and try again.',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppErrorUtils.showSnack(context,
+          'Could not load products. Check your connection and try again.',
+          isError: true);
       return;
     }
     final prefs = await SharedPreferences.getInstance();

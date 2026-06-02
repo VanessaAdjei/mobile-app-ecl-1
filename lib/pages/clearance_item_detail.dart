@@ -4,16 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
-import 'dart:io';
-import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
-import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../models/cart_item.dart';
 import 'package:eclapp/models/product_model.dart';
 import 'bottomnav.dart';
 import '../providers/cart_provider.dart';
+import '../utils/app_error_utils.dart';
 import 'package:html/parser.dart' show parse;
 import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -25,7 +23,7 @@ import '../widgets/full_screen_image_viewer.dart';
 import '../widgets/optimized_quantity_button.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/universal_page_optimization_service.dart';
-import '../utils/related_products_parser.dart';
+import '../services/product_detail_service.dart';
 import '../services/clearance_sale_api_service.dart';
 import 'prescription.dart';
 
@@ -58,10 +56,9 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
   late AnimationController _scaleController;
 
   // Optimization variables
-  bool _showSkeleton = true;
-  Timer? _skeletonTimer;
   final UniversalPageOptimizationService _optimizationService =
       UniversalPageOptimizationService();
+  final ProductDetailService _detailService = ProductDetailService();
 
   @override
   void initState() {
@@ -76,11 +73,18 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
       vsync: this,
     );
 
-    // Initialize optimization service
     _initializeOptimization();
 
-    // Load data with skeleton
-    _loadDataWithSkeleton();
+    _relatedProductsFuture =
+        _fetchRelatedProductsWithCache(widget.product.urlName);
+    _relatedProductsFuture.whenComplete(() {
+      if (mounted) {
+        _optimizationService.stopPagePerformanceTracking(
+          'clearance_item_detail_${widget.product.id}',
+          'load',
+        );
+      }
+    });
   }
 
   void _initializeOptimization() {
@@ -88,37 +92,11 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
         'clearance_item_detail_${widget.product.id}', 'load');
   }
 
-  void _loadDataWithSkeleton() async {
-    _skeletonTimer = Timer(const Duration(milliseconds: 800), () {
-      if (mounted) {
-        setState(() {
-          _showSkeleton = false;
-        });
-      }
-    });
-
-    // Load related products
-    _relatedProductsFuture =
-        _fetchRelatedProductsWithCache(widget.product.urlName);
-
-    // Simulate loading time
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    if (mounted) {
-      setState(() {
-        _showSkeleton = false;
-      });
-      _optimizationService.stopPagePerformanceTracking(
-          'clearance_item_detail_${widget.product.id}', 'load');
-    }
-  }
-
   @override
   void dispose() {
     _imagePageController?.dispose();
     _fadeController.dispose();
     _scaleController.dispose();
-    _skeletonTimer?.cancel();
     super.dispose();
   }
 
@@ -160,7 +138,7 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
   Future<List<Product>> _fetchRelatedProductsWithCache(String urlName) async {
     final result = await _optimizationService.fetchData(
       'related_products_$urlName',
-      () => fetchRelatedProducts(urlName),
+      () => _detailService.fetchRelatedProducts(urlName),
       pageName: 'clearance_item_detail',
     );
     return result ?? [];
@@ -298,59 +276,7 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
   }
 
   void _showErrorSnackBar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.error_outline, color: Colors.white, size: 20),
-            SizedBox(width: 8),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: Colors.green.shade600,
-        duration: Duration(seconds: 3),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
-  }
-
-  Future<List<Product>> fetchRelatedProducts(String urlName) async {
-    try {
-      final response = await http
-          .get(
-        Uri.parse(ApiConfig.getRelatedProductsUrl(urlName)),
-      )
-          .timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException('The request timed out. Please try again.');
-        },
-      );
-
-      if (response.statusCode == 200) {
-        try {
-          final Map<String, dynamic> data = json.decode(response.body);
-          return RelatedProductsParser.fromResponseBody(
-            data,
-            excludeUrlName: urlName,
-          );
-        } catch (e) {
-          return [];
-        }
-      } else if (response.statusCode == 404) {
-        return [];
-      } else {
-        return [];
-      }
-    } on TimeoutException {
-      return [];
-    } on SocketException {
-      return [];
-    } catch (e) {
-      return [];
-    }
+    AppErrorUtils.showSnack(context, message);
   }
 
   @override
@@ -411,9 +337,7 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
           ),
         ],
       ),
-      body: _showSkeleton
-          ? _buildLoadingSkeleton()
-          : InteractiveViewer(
+      body: InteractiveViewer(
               minScale: 0.5,
               maxScale: 3.0,
               child: SingleChildScrollView(

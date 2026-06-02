@@ -133,25 +133,16 @@ class _MyAppointmentsPageState extends State<MyAppointmentsPage>
       });
       await _saveBookings(_bookings);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Appointment cancelled'),
-            backgroundColor: Colors.green.shade700,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        AppErrorUtils.showSnack(context, 'Appointment cancelled',
+            isError: false);
       }
       return true;
     }
     if (!mounted) return false;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          result['message']?.toString() ?? 'Failed to cancel appointment',
-        ),
-        backgroundColor: Colors.red.shade700,
-        behavior: SnackBarBehavior.floating,
-      ),
+    AppErrorUtils.showSnack(
+      context,
+      result['message']?.toString() ?? 'Failed to cancel appointment',
+      isError: true,
     );
     return false;
   }

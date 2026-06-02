@@ -45,3 +45,47 @@ String coerceProductImageSource(dynamic value) {
   if (asString.startsWith('{')) return '';
   return asString;
 }
+
+/// Percent-encodes each path segment so filenames with spaces, `'`, `(`, `+`, etc.
+/// work with [CachedNetworkImage] and the preload cache.
+///
+/// Uses [Uri.pathSegments] (decoded segments) so mixed `%20` + raw `(` inputs are
+/// not double-encoded. Apostrophe is encoded explicitly because [Uri.encodeComponent]
+/// leaves `'` unreserved.
+String encodeProductImageUrl(String url) {
+  final trimmed = url.trim();
+  if (trimmed.isEmpty) return '';
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    try {
+      final uri = Uri.parse(trimmed);
+      if (uri.host.isEmpty) return _encodeRelativePath(trimmed);
+      if (uri.pathSegments.isEmpty) return trimmed;
+      final encodedPath =
+          '/${uri.pathSegments.map(_encodePathSegment).join('/')}';
+      return uri.replace(path: encodedPath).toString();
+    } catch (_) {
+      return _minimalPathFix(trimmed);
+    }
+  }
+
+  return _encodeRelativePath(trimmed);
+}
+
+String _encodePathSegment(String segment) {
+  if (segment.isEmpty) return segment;
+  return Uri.encodeComponent(segment).replaceAll("'", '%27');
+}
+
+String _encodeRelativePath(String path) {
+  if (path.startsWith('/')) {
+    final segments =
+        path.split('/').where((s) => s.isNotEmpty).map(_encodePathSegment);
+    return '/${segments.join('/')}';
+  }
+  return _encodePathSegment(path);
+}
+
+String _minimalPathFix(String url) {
+  return url.replaceAll(' ', '%20').replaceAll("'", '%27');
+}

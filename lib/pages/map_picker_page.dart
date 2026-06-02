@@ -6,9 +6,9 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
-import 'package:http/http.dart' as http;
+import '../services/google_places_service.dart';
 import '../widgets/animated_map_pin.dart';
-import '../config/api_config.dart';
+import '../utils/app_error_utils.dart';
 
 typedef LocationSelectedCallback = void Function(
     double lat, double lng, String? address);
@@ -30,6 +30,7 @@ class MapPickerPage extends StatefulWidget {
 }
 
 class _MapPickerPageState extends State<MapPickerPage> {
+  final GooglePlacesService _placesService = GooglePlacesService();
   late GoogleMapController _mapController;
   late LatLng _selectedLocation;
   late LatLng _initialLocation;
@@ -319,46 +320,13 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
       // Try Google Places Autocomplete API first (better for place names)
       try {
-        final placesUri = Uri.parse(
-                'https://maps.googleapis.com/maps/api/place/autocomplete/json')
-            .replace(
-          queryParameters: {
-            'input': query,
-            'key': ApiConfig.googleMapsApiKey,
-            'components': 'country:gh', // Restrict to Ghana
-            'types': 'establishment', // Focus on places/businesses
-          },
-        );
-
-        print('🗺️ [MAP] Calling Google Places Autocomplete: $placesUri');
-
-        final placesResponse =
-            await http.get(placesUri).timeout(const Duration(seconds: 5));
-
-        if (placesResponse.statusCode == 200) {
-          final placesData = json.decode(placesResponse.body);
-          final status = placesData['status'];
-          print('🗺️ [MAP] Places Autocomplete status: $status');
-
-          if (status == 'OK' && placesData['predictions'] != null) {
-            final predictions = placesData['predictions'] as List;
-            print('🗺️ [MAP] Found ${predictions.length} predictions');
-
-            for (final prediction in predictions.take(10)) {
-              final description = prediction['description'] as String?;
-              if (description != null &&
-                  description.isNotEmpty &&
-                  !uniqueSuggestions.contains(description)) {
-                suggestions.add(description);
-                uniqueSuggestions.add(description);
-                if (suggestions.length >= 10) break;
-              }
-            }
-          } else {
-            print('🗺️ [MAP] Places Autocomplete status: $status');
-            if (placesData is Map<String, dynamic>) {
-              _logGoogleMapsApiDenied('Places Autocomplete', placesData);
-            }
+        print('🗺️ [MAP] Calling Google Places Autocomplete for "$query"');
+        final autocompleteSuggestions =
+            await _placesService.autocompleteDescriptions(query);
+        for (final description in autocompleteSuggestions) {
+          if (!uniqueSuggestions.contains(description)) {
+            suggestions.add(description);
+            uniqueSuggestions.add(description);
           }
         }
       } catch (e) {
@@ -415,33 +383,9 @@ class _MapPickerPageState extends State<MapPickerPage> {
     // First, try to get place_id from Places Autocomplete for exact location
     String? placeId;
     try {
-      final autocompleteUri = Uri.parse(
-              'https://maps.googleapis.com/maps/api/place/autocomplete/json')
-          .replace(
-        queryParameters: {
-          'input': query,
-          'key': ApiConfig.googleMapsApiKey,
-          'components': 'country:gh',
-        },
-      );
-
-      final autocompleteResponse =
-          await http.get(autocompleteUri).timeout(const Duration(seconds: 5));
-
-      if (autocompleteResponse.statusCode == 200) {
-        final autocompleteData = json.decode(autocompleteResponse.body);
-        if (autocompleteData['status'] == 'OK' &&
-            autocompleteData['predictions'] != null) {
-          final predictions = autocompleteData['predictions'] as List;
-          // Find exact match
-          for (final prediction in predictions) {
-            if (prediction['description'] == query) {
-              placeId = prediction['place_id'] as String?;
-              print('🗺️ [MAP] Found place_id: $placeId for "$query"');
-              break;
-            }
-          }
-        }
+      placeId = await _placesService.findPlaceIdForDescription(query);
+      if (placeId != null) {
+        print('🗺️ [MAP] Found place_id: $placeId for "$query"');
       }
     } catch (e) {
       print('🗺️ [MAP] Error getting place_id: $e');
@@ -450,26 +394,11 @@ class _MapPickerPageState extends State<MapPickerPage> {
     // If we have place_id, use Places Details API for exact location
     if (placeId != null) {
       try {
-        final detailsUri =
-            Uri.parse('https://maps.googleapis.com/maps/api/place/details/json')
-                .replace(
-          queryParameters: {
-            'place_id': placeId,
-            'key': ApiConfig.googleMapsApiKey,
-            'fields': 'geometry,formatted_address,name',
-          },
-        );
-
-        print('🗺️ [MAP] Calling Places Details API: $detailsUri');
-
-        final detailsResponse =
-            await http.get(detailsUri).timeout(const Duration(seconds: 10));
-
-        if (detailsResponse.statusCode == 200) {
-          final detailsData = json.decode(detailsResponse.body);
-          if (detailsData['status'] == 'OK' && detailsData['result'] != null) {
-            final result = detailsData['result'];
-            final location = result['geometry']['location'];
+        print('🗺️ [MAP] Calling Places Details API for $placeId');
+        final result = await _placesService.fetchPlaceDetails(placeId);
+        if (result != null) {
+            final location = result['geometry']?['location'];
+            if (location is Map) {
             final double lat = (location['lat'] as num).toDouble();
             final double lng = (location['lng'] as num).toDouble();
             final formattedAddress = result['formatted_address'] as String?;
@@ -574,12 +503,11 @@ class _MapPickerPageState extends State<MapPickerPage> {
     print('🗺️ [MAP] ❌ All search attempts failed for: "$query"');
     if (mounted) {
       setState(() => _isUpdatingLocation = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Location not found: $query'),
-          backgroundColor: Colors.orange,
-          duration: const Duration(seconds: 2),
-        ),
+      AppErrorUtils.showSnack(
+        context,
+        'Location not found: $query',
+        isError: true,
+        duration: const Duration(seconds: 2),
       );
     }
   }
@@ -957,12 +885,8 @@ class _MapPickerPageState extends State<MapPickerPage> {
                                   } catch (e) {
                                     print(
                                         '❌ [MAP] Error in onLocationSelected callback: $e');
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Error: $e'),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
+                                    AppErrorUtils.showSnack(
+                                        context, 'Error: $e');
                                   }
 
                                   // Pop after a brief delay to ensure callback completes

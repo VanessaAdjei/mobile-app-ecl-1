@@ -6,12 +6,11 @@ import '../widgets/cart_icon_button.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/delivery_service.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../config/api_config.dart';
+import '../services/order_tracking_service.dart';
 import '../services/auth_service.dart';
-import '../services/order_history_transformer.dart';
+import '../models/order_tracking_page_details.dart';
+import '../utils/order_tracking_page_resolver.dart';
+import '../config/api_config.dart';
 import 'app_back_button.dart';
 
 class OrderTrackingPage extends StatefulWidget {
@@ -27,6 +26,7 @@ class OrderTrackingPage extends StatefulWidget {
 }
 
 class OrderTrackingPageState extends State<OrderTrackingPage> {
+  final OrderTrackingService _orderTrackingService = OrderTrackingService();
   static const double _kTrackRadius = 20;
 
   String? _deliveryAddress;
@@ -248,10 +248,10 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
 
           // first try to get delivery info from their saved address
           debugPrint('🔍 Trying to fetch user\'s saved delivery info...');
-          final deliveryResult = await DeliveryService.getLastDeliveryInfo();
+          final deliveryData =
+              await _orderTrackingService.fetchSavedDeliveryInfo();
 
-          if (deliveryResult['success'] && deliveryResult['data'] != null) {
-            final deliveryData = deliveryResult['data'];
+          if (deliveryData != null) {
             debugPrint('🔍 Successfully fetched delivery info: $deliveryData');
 
             // get delivery info from the saved data
@@ -462,283 +462,66 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     }
   }
 
-  /// Fallback: fetch status directly from /api/orders/{id}/status when order not in list
-  Future<String?> _fetchStatusDirectly(String? orderId) async {
-    if (orderId == null || orderId.isEmpty) return null;
-    try {
-      final token = await AuthService.getToken();
-      if (token == null) return null;
-      final response = await http.get(
-        Uri.parse(ApiConfig.getOrderStatusUrl(orderId)),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json'
-        },
-      ).timeout(const Duration(seconds: 8));
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return data['status']?.toString() ??
-            data['data']?['status']?.toString();
-      }
-    } catch (e) {
-      debugPrint('🔍 Direct status API error: $e');
-    }
-    return null;
-  }
-
-  // try to get order details from api to find delivery info
   Future<void> _fetchOrderDetailsFromAPI() async {
     try {
-      final orderId = widget.orderDetails['id']?.toString();
-      final orderNumber = widget.orderDetails['order_number']?.toString();
-
-      if (orderId == null && orderNumber == null) {
-        debugPrint('🔍 No order ID or number available for API call');
-        return;
-      }
-
-      debugPrint(
-          '🔍 Fetching order details from API for order: $orderId / $orderNumber');
-
-      debugPrint('🔍 Fetching orders via AuthService...');
-      final result = await AuthService.getOrders();
-
-      if (result['status'] == 'success' && result['data'] is List) {
-        final orders = result['data'] as List;
-        final notificationDeliveryId =
-            widget.orderDetails['delivery_id']?.toString() ??
-                widget.orderDetails['transaction_id']?.toString() ??
-                widget.orderDetails['id']?.toString() ??
-                widget.orderDetails['order_number']?.toString();
-
-        debugPrint('🔍 Orders API response received, ${orders.length} orders');
-
-        // Try direct status API first (most reliable for notification flow)
-        final directStatus = await _fetchStatusDirectly(
-            notificationDeliveryId ?? orderId ?? orderNumber);
-        if (directStatus != null && directStatus.isNotEmpty && mounted) {
-          setState(() => _orderStatus = directStatus);
-          debugPrint('🔍 Status from direct API: $directStatus');
-        }
-
-        // print what we're looking for
-        debugPrint('🔍 Looking for order with:');
-        debugPrint('🔍   - orderId: $orderId');
-        debugPrint('🔍   - orderNumber: $orderNumber');
-        debugPrint('🔍   - delivery_id: $notificationDeliveryId');
-
-        if (orders.isNotEmpty) {
-          debugPrint('🔍 Sample orders from API:');
-          for (int i = 0; i < orders.length && i < 5; i++) {
-            final order = orders[i];
-            debugPrint(
-                '🔍 Order ${i + 1}: ID=${order['id']}, Delivery ID=${order['delivery_id']}, status=${order['status']}');
-          }
-        }
-
-        final requestedIds = <String>{
-          if (orderId != null) orderId,
-          if (orderNumber != null) orderNumber,
-          if (notificationDeliveryId != null) notificationDeliveryId,
-        }..removeWhere((value) => value.isEmpty);
-
-        final matchedRows = <dynamic>[];
-        for (final order in orders) {
-          if (order is! Map) continue;
-          final o = Map<String, dynamic>.from(order);
-          final candidateIds = <String>{
-            o['delivery_id']?.toString() ?? '',
-            o['transaction_id']?.toString() ?? '',
-            o['id']?.toString() ?? '',
-            o['order_number']?.toString() ?? '',
-            o['order_id']?.toString() ?? '',
-          }..removeWhere((value) => value.isEmpty);
-
-          if (candidateIds.intersection(requestedIds).isNotEmpty) {
-            matchedRows.add(o);
-          }
-        }
-
-        if (matchedRows.isEmpty &&
-            orderId != null &&
-            orderId.startsWith('ORDER_')) {
-          final numericId = orderId.replaceFirst('ORDER_', '');
-          for (final order in orders) {
-            if (order is! Map) continue;
-            final o = Map<String, dynamic>.from(order);
-            if (o['id']?.toString() == numericId ||
-                o['id'] == int.tryParse(numericId)) {
-              matchedRows.add(o);
-            }
-          }
-        }
-
-        if (matchedRows.isNotEmpty) {
-          _applyResolvedItems(_mergeMatchedOrderRows(matchedRows));
-        }
-
-        Map<String, dynamic>? targetOrder = matchedRows.isNotEmpty
-            ? Map<String, dynamic>.from(matchedRows.first as Map)
-            : null;
-
-        if (targetOrder != null) {
-          debugPrint('🔍 Found target order in orders list: $targetOrder');
-          debugPrint('🔍 Available fields in target order:');
-          targetOrder.forEach((key, value) {
-            debugPrint('🔍   $key: $value');
-          });
-
-          // Check if we need to update total and delivery fee
-          // Group orders by delivery_id to calculate actual total
-          final deliveryId = targetOrder['delivery_id']?.toString();
-          if (deliveryId != null) {
-            // Find all orders with same delivery_id to get the complete order
-            final groupedOrders = orders
-                .where((o) => o['delivery_id']?.toString() == deliveryId)
-                .toList();
-
-            if (groupedOrders.isNotEmpty) {
-              // Calculate actual total from all items in this delivery
-              double actualSubtotal = 0.0;
-              for (var order in groupedOrders) {
-                final price = (order['price'] ?? 0.0).toDouble();
-                final qty = (order['qty'] ?? 1).toInt();
-                actualSubtotal += price * qty;
-              }
-
-              debugPrint(
-                  '🔍 Grouped ${groupedOrders.length} orders for delivery_id: $deliveryId');
-              debugPrint(
-                  '🔍 Calculated subtotal from grouped orders: $actualSubtotal');
-
-              // Check if there's a delivery fee field in any of the orders
-              double? foundDeliveryFee;
-              for (var order in groupedOrders) {
-                final fee = order['delivery_fee'] ?? order['deliveryFee'];
-                if (fee != null) {
-                  foundDeliveryFee = (fee is num)
-                      ? fee.toDouble()
-                      : (double.tryParse(fee.toString()) ?? 0.0);
-                  debugPrint(
-                      '🔍 Found delivery fee in order: $foundDeliveryFee');
-                  if (foundDeliveryFee > 0) break;
-                }
-              }
-
-              // If delivery fee not found in orders, the API doesn't return it
-              // We'll need to calculate it from the actual paid amount if available
-              // For now, we'll estimate it based on the difference if total_price > subtotal
-              if (foundDeliveryFee == null || foundDeliveryFee <= 0) {
-                debugPrint('🔍 Delivery fee not in orders API response');
-                debugPrint(
-                    '🔍 Note: Orders API does not return delivery fee field');
-                debugPrint(
-                    '🔍 Delivery fee should be passed from order confirmation page');
-              }
-
-              // If we found delivery fee, store it
-              if (foundDeliveryFee != null && foundDeliveryFee > 0) {
-                final feeValue = foundDeliveryFee;
-                debugPrint('🔍 ✅ Storing delivery fee from API: $feeValue');
-                if (mounted) {
-                  setState(() {
-                    _actualDeliveryFee = feeValue;
-                    _actualTotalAmount = actualSubtotal + feeValue;
-                  });
-                }
-              } else {
-                debugPrint('🔍 ⚠️ Could not find delivery fee in API response');
-                debugPrint(
-                    '🔍 This is expected - orders API does not return delivery fee');
-                debugPrint(
-                    '🔍 Delivery fee should come from order confirmation page data');
-              }
-            }
-          }
-
-          // get delivery info from the order we found
-          // note: the api response doesnt seem to have delivery address fields
-          // we'll use what we have and show a message if info is missing
-          final address = targetOrder['delivery_address']?.toString() ??
-              targetOrder['shipping_address']?.toString() ??
-              targetOrder['address']?.toString() ??
-              targetOrder['addr_1']?.toString();
-          final contact = targetOrder['contact_number']?.toString() ??
-              targetOrder['phone']?.toString() ??
-              targetOrder['user_phone']?.toString();
-          final method = targetOrder['delivery_option']?.toString() ??
-              targetOrder['shipping_method']?.toString() ??
-              targetOrder['delivery_method']?.toString() ??
-              targetOrder['shipping_type']?.toString();
-
-          if (address != null &&
-              address.isNotEmpty &&
-              _deliveryAddress == 'Address not available') {
-            debugPrint('🔍 Found delivery address from orders API: $address');
-            setState(() {
-              _deliveryAddress = address;
-            });
-          }
-
-          if (contact != null &&
-              contact.isNotEmpty &&
-              _contactNumber == 'Contact not available') {
-            debugPrint('🔍 Found contact number from orders API: $contact');
-            setState(() {
-              _contactNumber = contact;
-            });
-          }
-
-          if (method != null &&
-              method.isNotEmpty &&
-              _deliveryOption == 'Standard Delivery') {
-            debugPrint('🔍 Found delivery method from orders API: $method');
-            setState(() {
-              _deliveryOption = method;
-            });
-          }
-
-          // Update order status from API so the delivery progression timeline can move
-          String? apiStatus = targetOrder['status']?.toString() ??
-              targetOrder['order_status']?.toString();
-          if (apiStatus == null || apiStatus.isEmpty) {
-            final dId = targetOrder['delivery_id']?.toString();
-            if (dId != null) {
-              final group = orders
-                  .where((o) => o['delivery_id']?.toString() == dId)
-                  .toList();
-              for (final o in group) {
-                final s =
-                    o['status']?.toString() ?? o['order_status']?.toString();
-                if (s != null && s.isNotEmpty) {
-                  apiStatus = s;
-                  break;
-                }
-              }
-            }
-          }
-          if (apiStatus != null && apiStatus.isNotEmpty && mounted) {
-            setState(() {
-              _orderStatus = apiStatus;
-            });
-            debugPrint('🔍 Updated order status from API: $apiStatus');
-          }
-
-          // if we still dont have delivery info, show a message
-          if (_deliveryAddress == 'Address not available' &&
-              _contactNumber == 'Contact not available') {
-            debugPrint(
-                '🔍 No delivery info found in orders API - this appears to be a limitation of the current API');
-          }
-        } else {
-          debugPrint(
-              '🔍 Target order not found in list (direct API already tried)');
-        }
-      } else {
-        debugPrint('🔍 Orders API did not return success: ${result['status']}');
-      }
+      final details =
+          await _orderTrackingService.fetchPageDetails(widget.orderDetails);
+      if (!mounted) return;
+      _applyPageDetails(details);
     } catch (e) {
       debugPrint('🔍 Error fetching order details from API: $e');
+    }
+  }
+
+  void _applyPageDetails(OrderTrackingPageDetails details) {
+    if (!mounted) return;
+
+    if (details.directStatus != null &&
+        details.directStatus!.isNotEmpty) {
+      setState(() => _orderStatus = details.directStatus);
+      debugPrint('🔍 Status from direct API: ${details.directStatus}');
+    }
+
+    if (details.orderItems.isNotEmpty) {
+      _applyResolvedItems(details.orderItems);
+    }
+
+    if (details.actualDeliveryFee != null && details.actualDeliveryFee! > 0) {
+      setState(() {
+        _actualDeliveryFee = details.actualDeliveryFee;
+        if (details.actualTotalAmount != null) {
+          _actualTotalAmount = details.actualTotalAmount;
+        }
+      });
+    }
+
+    if (details.deliveryAddress != null &&
+        details.deliveryAddress!.isNotEmpty &&
+        _deliveryAddress == 'Address not available') {
+      setState(() => _deliveryAddress = details.deliveryAddress);
+    }
+
+    if (details.contactNumber != null &&
+        details.contactNumber!.isNotEmpty &&
+        _contactNumber == 'Contact not available') {
+      setState(() => _contactNumber = details.contactNumber);
+    }
+
+    if (details.deliveryOption != null &&
+        details.deliveryOption!.isNotEmpty &&
+        _deliveryOption == 'Standard Delivery') {
+      setState(() => _deliveryOption = details.deliveryOption);
+    }
+
+    if (details.orderStatus != null &&
+        details.orderStatus!.isNotEmpty) {
+      setState(() => _orderStatus = details.orderStatus);
+      debugPrint('🔍 Updated order status from API: ${details.orderStatus}');
+    }
+
+    if (!details.foundInOrdersList) {
+      debugPrint(
+          '🔍 Target order not found in list (direct API already tried)');
     }
   }
 
@@ -747,46 +530,8 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
     return ApiConfig.getImageOrStorageUrl(url);
   }
 
-  int _parseItemCount(dynamic value) {
-    if (value is int) return value;
-    return int.tryParse(value?.toString() ?? '') ?? 0;
-  }
-
-  List<Map<String, dynamic>> _extractItemsList(Map<String, dynamic> source) {
-    for (final key in ['order_items', 'items']) {
-      final raw = source[key];
-      if (raw is List && raw.isNotEmpty) {
-        final items = raw
-            .whereType<Map>()
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList();
-        if (items.isNotEmpty) {
-          return items;
-        }
-      }
-    }
-
-    final itemCount = _parseItemCount(source['item_count']);
-    final isMultiItem =
-        source['is_multi_item'] == true || itemCount > 1;
-    if (!isMultiItem &&
-        (source['product_name'] != null || source['name'] != null)) {
-      return [
-        {
-          'product_name': source['product_name'] ?? source['name'] ?? 'Unknown Product',
-          'product_img': source['product_img'] ??
-              source['image'] ??
-              source['imageUrl'] ??
-              '',
-          'qty': source['qty'] ?? source['quantity'] ?? 1,
-          'price': source['price'] ?? 0.0,
-          'batch_no': source['batch_no'] ?? source['batchNo'] ?? '',
-        },
-      ];
-    }
-
-    return [];
-  }
+  List<Map<String, dynamic>> _extractItemsList(Map<String, dynamic> source) =>
+      extractOrderItemsList(source);
 
   void _applyResolvedItems(List<Map<String, dynamic>> candidate) {
     if (candidate.isEmpty || !mounted) return;
@@ -796,19 +541,6 @@ class OrderTrackingPageState extends State<OrderTrackingPage> {
       return;
     }
     setState(() => _resolvedOrderItems = next);
-  }
-
-  List<Map<String, dynamic>> _mergeMatchedOrderRows(List<dynamic> matchedRows) {
-    if (matchedRows.isEmpty) return [];
-    final mergeKey =
-        OrderHistoryTransformer.getTransactionId(matchedRows.first);
-    final merged = matchedRows.length == 1
-        ? OrderHistoryTransformer.processSingleOrder(
-            matchedRows.first,
-            mergeKey,
-          )
-        : OrderHistoryTransformer.processMultiOrder(matchedRows, mergeKey);
-    return _extractItemsList(merged);
   }
 
   // Helper method to get order items - handles both single and multiple items

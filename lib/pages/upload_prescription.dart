@@ -10,6 +10,7 @@ import 'app_back_button.dart';
 import 'signinpage.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../utils/app_error_utils.dart';
 
 class UploadPrescriptionPage extends StatefulWidget {
   final Product product;
@@ -250,12 +251,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error picking image: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppErrorUtils.showSnack(context, 'Error picking image: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -316,12 +312,7 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
   Future<void> _submitPrescriptionAfterLogin() async {
     if (_image == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Please upload a prescription first'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        AppErrorUtils.showSnack(context, 'Please upload a prescription first');
       }
       return;
     }
@@ -338,14 +329,10 @@ class _UploadPrescriptionPageState extends State<UploadPrescriptionPage> {
         _isSubmitting = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Prescription submitted successfully!'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
+      AppErrorUtils.showSnack(
+        context,
+        'Prescription submitted successfully!',
+        isError: false,
       );
 
       // Navigate back after successful submission

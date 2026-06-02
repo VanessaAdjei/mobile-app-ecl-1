@@ -1,12 +1,11 @@
 // services/payment_optimization_service.dart
-// services/payment_optimization_service.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import 'auth_service.dart';
+import 'checkout_payment_service.dart';
 import '../providers/cart_provider.dart';
 import '../models/cart_item.dart';
 import '../config/api_config.dart';
@@ -18,6 +17,8 @@ class PaymentOptimizationService {
   factory PaymentOptimizationService() => _instance;
   PaymentOptimizationService._internal();
 
+  final CheckoutPaymentService _checkoutPayment = CheckoutPaymentService();
+
   // Cache configuration
   static const String _cacheKey = 'payment_cache';
   static const String _promoCacheKey = 'promo_cache';
@@ -25,10 +26,6 @@ class PaymentOptimizationService {
   static const Duration _cacheDuration = Duration(minutes: 30);
   static const Duration _promoCacheDuration = Duration(minutes: 5);
   static const Duration _userDataCacheDuration = Duration(minutes: 15);
-
-  // API endpoints
-  static String get _expressPaymentUrl => ApiConfig.getEndpointUrl(ApiConfig.expressPayment);
-  static String get _checkPaymentUrl => ApiConfig.getEndpointUrl(ApiConfig.checkPayment);
 
   // Performance tracking
   final PerformanceService _performanceService = PerformanceService();
@@ -124,12 +121,8 @@ class PaymentOptimizationService {
       }
     }
 
-    // Validate promo code
     _performanceService.startTimer('promo_validation');
     try {
-      // Simulate API call for promo code validation
-      await Future.delayed(Duration(milliseconds: 500));
-
       Map<String, dynamic> result;
       if (promoCode.toLowerCase() == 'save10' ||
           promoCode.toLowerCase() == 'discount20') {
@@ -150,7 +143,6 @@ class PaymentOptimizationService {
         };
       }
 
-      // Cache the result
       final dataToCache = {
         'timestamp': DateTime.now().toIso8601String(),
         'result': result,
@@ -386,47 +378,22 @@ class PaymentOptimizationService {
     _performanceService.startTimer('online_payment');
 
     try {
-      final authToken = await AuthService.getToken();
-      if (authToken == null) {
-        throw Exception('Authentication required. Please log in again.');
-      }
-
-      final response = await http
-          .post(
-        Uri.parse(_expressPaymentUrl),
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $authToken',
-        },
-        body: jsonEncode(params),
-      )
-          .timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw TimeoutException(
-              'Payment request timed out. Please try again.');
-        },
+      final redirectUrl = await _checkoutPayment.submitExpressPayment(
+        params: params,
       );
 
-      if (response.statusCode == 200) {
-        final redirectUrl = response.body.trim();
-
-        if (redirectUrl.isEmpty) {
-          throw Exception('Received empty payment URL from server.');
-        }
-
-        _performanceService.stopTimer('online_payment');
-        return {
-          'success': true,
-          'redirectUrl': redirectUrl,
-          'transactionId': transactionId,
-          'paymentMethod': paymentMethod,
-          'purchasedItems': purchasedItems,
-        };
-      } else {
-        throw Exception('Payment Failed, try again');
+      if (redirectUrl.isEmpty) {
+        throw Exception('Received empty payment URL from server.');
       }
+
+      _performanceService.stopTimer('online_payment');
+      return {
+        'success': true,
+        'redirectUrl': redirectUrl.trim(),
+        'transactionId': transactionId,
+        'paymentMethod': paymentMethod,
+        'purchasedItems': purchasedItems,
+      };
     } catch (e) {
       _performanceService.stopTimer('online_payment');
       rethrow;
@@ -464,58 +431,9 @@ class PaymentOptimizationService {
 
     _performanceService.startTimer('payment_status_check');
     try {
-      final tokenRaw = await AuthService.getToken();
-      if (tokenRaw == null || tokenRaw.isEmpty) {
-        throw Exception('Please log in to check payment status');
-      }
+      final data = await _checkoutPayment.checkPaymentStatus();
+      final result = _processPaymentStatus(data);
 
-      final userId = await AuthService.getCurrentUserID();
-      if (userId == null) {
-        throw Exception('User ID not found. Please log in again.');
-      }
-
-      final requestBody = {'user_id': userId};
-
-      final response = await http
-          .post(
-        Uri.parse(_checkPaymentUrl),
-        headers: {
-          'Authorization': 'Bearer $tokenRaw',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode(requestBody),
-      )
-          .timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw TimeoutException(
-              'Payment status check timed out. Please try again.');
-        },
-      );
-
-      Map<String, dynamic> result;
-
-      if (response.statusCode == 200) {
-        if (response.body.isEmpty) {
-          result = {
-            'status': 'pending',
-            'message': 'Waiting for payment confirmation...',
-          };
-        } else {
-          String responseBody = response.body.trim();
-          int jsonStartIndex = responseBody.indexOf('{');
-          if (jsonStartIndex != -1) {
-            responseBody = responseBody.substring(jsonStartIndex);
-          }
-
-          final data = json.decode(responseBody);
-          result = _processPaymentStatus(data);
-        }
-      } else {
-        throw Exception('Failed to verify payment: ${response.statusCode}');
-      }
-
-      // Cache the result
       final cacheKey = '${_cacheKey}_status_${transactionId ?? 'current'}';
       final dataToCache = {
         'timestamp': DateTime.now().toIso8601String(),

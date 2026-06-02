@@ -1,6 +1,8 @@
 // pages/cart.dart
 import 'package:flutter/material.dart';
 
+import '../models/cart_item.dart';
+
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/auth_provider.dart';
@@ -13,10 +15,14 @@ import '../config/app_routes.dart';
 import '../services/auth_service.dart';
 import 'signinpage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/cart/cart_checkout_bottom_bar.dart';
+import '../widgets/cart/remove_from_cart_dialog.dart';
 import '../widgets/cart_quantity_stepper.dart';
 import '../widgets/checkout_progress_stepper.dart';
-import '../widgets/order_threshold_promo_banner.dart';
 import '../services/delivery_service.dart';
+import '../config/app_colors.dart';
+import '../utils/app_error_utils.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class Cart extends StatefulWidget {
   const Cart({super.key});
@@ -26,6 +32,13 @@ class Cart extends StatefulWidget {
 }
 
 class CartState extends State<Cart> {
+  static const Color _cartBg = Color(0xFFF4FAF7);
+  static const Color _cartBorder = Color(0xFFE5E7EB);
+  static const Color _cartGreenBorder = Color(0xFFBBEAD3);
+  static const Color _cartGreenTint = Color(0xFFEEF9F3);
+  static const Color _cartInk = Color(0xFF1F2937);
+  static const Color _cartMuted = Color(0xFF6B7280);
+
   String deliveryOption = 'Delivery';
 
   String? selectedRegion;
@@ -114,16 +127,12 @@ class CartState extends State<Cart> {
   }
 
   void showTopSnackBar(BuildContext context, String message,
-      {Duration? duration}) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text('$message • Swipe down to dismiss'),
-        duration: duration ?? const Duration(seconds: 2),
-        dismissDirection: DismissDirection.down,
-        showCloseIcon: true,
-      ),
+      {Duration? duration, bool isError = false}) {
+    AppErrorUtils.showSnack(
+      context,
+      message,
+      isError: isError,
+      duration: duration ?? const Duration(seconds: 2),
     );
   }
 
@@ -160,119 +169,67 @@ class CartState extends State<Cart> {
     return false;
   }
 
-  Future<bool> _confirmRemove(BuildContext context, String itemName) async {
-    return await showDialog<bool>(
-          context: context,
-          barrierDismissible: true,
-          barrierColor: Colors.black54,
-          builder: (ctx) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+  Future<bool> _confirmRemove(BuildContext context, CartItem item) {
+    return showRemoveFromCartDialog(
+      context,
+      itemName: item.name,
+      imageUrl: getImageUrl(item.image),
+      price: item.price,
+      quantity: item.quantity,
+    );
+  }
+
+  BoxDecoration _cartCardDecoration({bool selected = true}) => BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: selected ? _cartGreenBorder : _cartBorder,
+        ),
+      );
+
+  Widget _buildCartSummaryHeader(CartProvider cart) {
+    final count = cart.cartItems.length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+      child: Row(
+        children: [
+          Container(
+            width: 3,
+            height: 14,
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(2),
             ),
-            elevation: 0,
-            backgroundColor: Colors.transparent,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                    spreadRadius: 0,
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.delete_outline_rounded,
-                      size: 36,
-                      color: Colors.red.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Remove from cart?',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade900,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    itemName.length > 50
-                        ? '${itemName.substring(0, 50)}...'
-                        : itemName,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'This item will be removed from your cart.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.of(ctx).pop(false),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.grey.shade700,
-                            side: BorderSide(color: Colors.grey.shade300),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text('Keep'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => Navigator.of(ctx).pop(true),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red.shade600,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: const Text('Remove'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Your items',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primaryDark,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: _cartGreenTint,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: _cartGreenBorder),
+            ),
+            child: Text(
+              '$count',
+              style: GoogleFonts.poppins(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primaryDark,
               ),
             ),
           ),
-        ) ??
-        false;
+        ],
+      ),
+    );
   }
 
   @override
@@ -290,7 +247,7 @@ class CartState extends State<Cart> {
           // Sync local _isLoggedIn with AuthProvider status
           _isLoggedIn = auth.isLoggedIn;
           return Scaffold(
-            backgroundColor: const Color(0xFFF6F8FC),
+            backgroundColor: _cartBg,
             body: Stack(
               children: [
                 Column(
@@ -370,67 +327,66 @@ class CartState extends State<Cart> {
                         if (snapshot.connectionState == ConnectionState.done &&
                             snapshot.data == true) {
                           return Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            child: Card(
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
+                            padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: _cartGreenTint,
                                 borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(
-                                    color: Colors.green.shade100, width: 1),
+                                border: Border.all(color: _cartGreenBorder),
                               ),
-                              color: Colors.green.shade50,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 6, horizontal: 8),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    // Icon on the left
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.green.shade100,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      padding: const EdgeInsets.all(4),
-                                      child: Icon(Icons.person_outline,
-                                          color: Colors.green.shade700,
-                                          size: 16),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                                horizontal: 10,
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: _cartGreenBorder),
                                     ),
-                                    const SizedBox(width: 6),
-                                    // Text in the middle
-                                    Expanded(
-                                      child: Text(
-                                        "You're shopping as a guest.",
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.green.shade900,
-                                          fontWeight: FontWeight.w500,
-                                        ),
+                                    padding: const EdgeInsets.all(6),
+                                    child: Icon(
+                                      Icons.person_outline,
+                                      color: AppColors.primaryDark,
+                                      size: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      "You're shopping as a guest.",
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 11,
+                                        color: AppColors.primaryDark,
+                                        fontWeight: FontWeight.w500,
+                                        height: 1.3,
                                       ),
                                     ),
-                                    const SizedBox(width: 6),
-                                    // Login button on the right
-                                    OutlinedButton(
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: Colors.green.shade700,
-                                        side: BorderSide(
-                                            color: Colors.green.shade400),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(4),
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 3),
-                                        minimumSize: Size(0, 0),
-                                        tapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  OutlinedButton(
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: AppColors.primaryDark,
+                                      side: const BorderSide(color: AppColors.primary),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
-                                      child: Text(
-                                        "Log in",
-                                        style: TextStyle(fontSize: 10),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
                                       ),
-                                      onPressed: () async {
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: Text(
+                                      'Log in',
+                                      style: GoogleFonts.poppins(fontSize: 10),
+                                    ),
+                                    onPressed: () async {
                                         // Use named route for login and ensure returnTo is passed
                                         await Navigator.pushNamed(
                                           context,
@@ -494,8 +450,7 @@ class CartState extends State<Cart> {
                                   ],
                                 ),
                               ),
-                            ),
-                          );
+                            );
                         }
                         return SizedBox.shrink();
                       },
@@ -509,116 +464,20 @@ class CartState extends State<Cart> {
                 ),
               ],
             ),
-            bottomNavigationBar: Container(
-              margin: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: SafeArea(
-                minimum: EdgeInsets.zero,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      OrderThresholdPromoCartInfo(
-                        subtotal: cart.calculateSubtotal(),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Total',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                if (cart.cartItems.length !=
-                                    cart.getSelectedItems().length)
-                                  Text(
-                                    '${cart.getSelectedItems().length} of ${cart.cartItems.length} items selected',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.grey.shade600,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            Text(
-                              'GHS ${cart.calculateSubtotal().toStringAsFixed(2)}',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.green.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 6),
-
-                      // Checkout Button
-                      Container(
-                        width: double.infinity,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          gradient: cart.getSelectedItems().isNotEmpty
-                              ? LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Colors.green.shade600,
-                                    Colors.green.shade700,
-                                  ],
-                                )
-                              : LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Colors.grey.shade400,
-                                    Colors.grey.shade300,
-                                  ],
-                                ),
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.green.withValues(alpha: 0.2),
-                              blurRadius: 3,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(8),
-                            onTap: (cart.isAnyItemUpdating ||
-                                    cart.getSelectedItems().isEmpty)
-                                ? null
-                                : () async {
+            bottomNavigationBar: cart.cartItems.isEmpty
+                ? null
+                : CartCheckoutBottomBar(
+                    subtotal: cart.calculateSubtotal(),
+                    selectedQuantity: cart.selectedItemsCount,
+                    selectedLineCount: cart.getSelectedItems().length,
+                    totalLineCount: cart.cartItems.length,
+                    checkoutButton: SizedBox(
+                      height: 44,
+                      child: FilledButton.icon(
+                        onPressed: (cart.isAnyItemUpdating ||
+                                cart.getSelectedItems().isEmpty)
+                            ? null
+                            : () async {
                                     // Fresh check from AuthService to avoid stale state issues
                                     final actuallyLoggedIn =
                                         await AuthService.isLoggedIn();
@@ -898,36 +757,31 @@ class CartState extends State<Cart> {
                                       ),
                                     );
                                   },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.shopping_cart_checkout,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Proceed to Checkout',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      disabledBackgroundColor:
+                                          const Color(0xFFD1D5DB),
+                                      foregroundColor: Colors.white,
+                                      disabledForegroundColor: Colors.white70,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.shopping_cart_checkout_outlined,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      'Checkout',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            ),
           );
         },
       ),
@@ -956,9 +810,12 @@ class CartState extends State<Cart> {
             child: ListView.builder(
               controller: _cartScrollController,
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 12),
-              itemCount: cart.cartItems.length,
-              itemBuilder: (context, index) => _buildCartItem(cart, index),
+              padding: const EdgeInsets.only(bottom: 16),
+              itemCount: cart.cartItems.length + 1,
+              itemBuilder: (context, index) {
+                if (index == 0) return _buildCartSummaryHeader(cart);
+                return _buildCartItem(cart, index - 1);
+              },
             ),
           ),
           if (_showScrollHint)
@@ -977,15 +834,15 @@ class CartState extends State<Cart> {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            const Color(0xFFF6F8FC).withValues(alpha: 0),
-                            const Color(0xFFF6F8FC),
+                            _cartBg.withValues(alpha: 0),
+                            _cartBg,
                           ],
                         ),
                       ),
                     ),
                     Container(
                       width: double.infinity,
-                      color: const Color(0xFFF6F8FC),
+                      color: _cartBg,
                       padding: const EdgeInsets.only(bottom: 2),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -993,15 +850,15 @@ class CartState extends State<Cart> {
                           Icon(
                             Icons.keyboard_arrow_down_rounded,
                             size: 18,
-                            color: Colors.green.shade700,
+                            color: AppColors.primary,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             'Scroll for more items',
-                            style: TextStyle(
+                            style: GoogleFonts.poppins(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: Colors.green.shade800,
+                              color: AppColors.primaryDark,
                             ),
                           ),
                         ],
@@ -1020,97 +877,69 @@ class CartState extends State<Cart> {
     return Center(
       child: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: _cartGreenTint,
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.grey.shade200, width: 1),
+                  border: Border.all(color: _cartGreenBorder),
                 ),
                 child: Icon(
                   Icons.shopping_cart_outlined,
-                  size: 40,
-                  color: Colors.grey.shade400,
+                  size: 42,
+                  color: AppColors.primary.withValues(alpha: 0.7),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Text(
                 'Your cart is empty',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade800,
-                  letterSpacing: 0.3,
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: _cartInk,
+                  letterSpacing: -0.2,
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Text(
-                'Looks like you haven\'t added any items to your cart yet.',
+                'Browse products and add items to get started.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: GoogleFonts.poppins(
                   fontSize: 12,
-                  color: Colors.grey.shade600,
-                  height: 1.35,
+                  color: _cartMuted,
+                  height: 1.45,
                 ),
               ),
-              const SizedBox(height: 18),
-              Container(
+              const SizedBox(height: 22),
+              SizedBox(
                 width: double.infinity,
-                height: 40,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.green.shade600,
-                      Colors.green.shade700,
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.green.withValues(alpha: 0.25),
-                      blurRadius: 6,
-                      offset: Offset(0, 2),
+                height: 44,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pushReplacementNamed(
+                      context,
+                      AppRoutes.home,
+                    );
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ],
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () {
-                      Navigator.pushReplacementNamed(
-                        context,
-                        AppRoutes.home,
-                      );
-                    },
-                    child: Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.shopping_bag,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            'Start Shopping',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ],
-                      ),
+                  ),
+                  icon: const Icon(Icons.storefront_outlined, size: 18),
+                  label: Text(
+                    'Start shopping',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -1124,106 +953,113 @@ class CartState extends State<Cart> {
 
   Widget _buildCartItem(CartProvider cart, int index) {
     final item = cart.cartItems[index];
+    final lineTotal = item.price * item.quantity;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: item.isSelected
-              ? const Color(0xFFBBF7D0)
-              : const Color(0xFFE2E8F0),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+      decoration: _cartCardDecoration(selected: item.isSelected),
       child: Padding(
         padding: const EdgeInsets.all(8),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Product Image - Compact Design with Placeholder
-            SizedBox(
+            Container(
               width: 52,
               height: 52,
-              child: ClipRRect(
+              decoration: BoxDecoration(
+                color: _cartGreenTint,
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _cartGreenBorder.withValues(alpha: 0.7)),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(7),
                 child: CachedNetworkImage(
                   imageUrl: getImageUrl(item.image),
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain,
                   memCacheWidth: 120,
                   memCacheHeight: 120,
                   maxWidthDiskCache: 120,
                   maxHeightDiskCache: 120,
-                  fadeInDuration: Duration(milliseconds: 300),
-                  placeholder: (context, url) => Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Center(
-                      child: Icon(
-                        Icons.medication,
-                        color: Colors.grey.shade400,
-                        size: 14,
-                      ),
+                  fadeInDuration: const Duration(milliseconds: 200),
+                  placeholder: (context, url) => Center(
+                    child: Icon(
+                      Icons.medical_services_outlined,
+                      color: AppColors.primary.withValues(alpha: 0.35),
+                      size: 18,
                     ),
                   ),
-                  errorWidget: (context, url, error) {
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Center(
-                        child: Icon(
-                          Icons.medication,
-                          color: Colors.grey.shade400,
-                          size: 14,
-                        ),
-                      ),
-                    );
-                  },
-                  httpHeaders: {
+                  errorWidget: (context, url, error) => Center(
+                    child: Icon(
+                      Icons.medical_services_outlined,
+                      color: AppColors.primary.withValues(alpha: 0.35),
+                      size: 18,
+                    ),
+                  ),
+                  httpHeaders: const {
                     'User-Agent': 'Mozilla/5.0 (compatible; Flutter)',
                   },
                 ),
               ),
             ),
-
             const SizedBox(width: 8),
-
-            // Product Details
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    item.name,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: item.isSelected
-                          ? Colors.black87
-                          : Colors.grey.shade600,
-                      height: 1.2,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item.name,
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: item.isSelected ? _cartInk : _cartMuted,
+                            height: 1.3,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () async {
+                            final confirmed =
+                                await _confirmRemove(context, item);
+                            if (confirmed) {
+                              cart.removeFromCart(
+                                item.id,
+                                rowIndex: index,
+                              );
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(6),
+                          child: Padding(
+                            padding: const EdgeInsets.all(2),
+                            child: Icon(
+                              Icons.close_rounded,
+                              color: Colors.red.shade400,
+                              size: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 5),
-
+                  Text(
+                    'GHS ${item.price.toStringAsFixed(2)} each',
+                    style: GoogleFonts.poppins(
+                      fontSize: 9,
+                      color: _cartMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   Row(
                     children: [
                       CartQuantityStepper(
                         quantity: item.quantity,
-                        isUpdating: cart.isItemUpdating(item.id, index),
                         onDecrement: () {
                           cart.updateQuantityById(
                             item.id,
@@ -1233,7 +1069,7 @@ class CartState extends State<Cart> {
                         },
                         onRemoveWhenOne: () async {
                           final confirmed =
-                              await _confirmRemove(context, item.name);
+                              await _confirmRemove(context, item);
                           if (confirmed) {
                             cart.removeFromCart(
                               item.id,
@@ -1249,47 +1085,13 @@ class CartState extends State<Cart> {
                           );
                         },
                       ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade50,
-                          borderRadius: BorderRadius.circular(5),
-                          border: Border.all(color: Colors.green.shade200),
-                        ),
-                        child: Text(
-                          'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.green.shade700,
-                          ),
-                        ),
-                      ),
                       const Spacer(),
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () async {
-                            final confirmed =
-                                await _confirmRemove(context, item.name);
-                            if (confirmed) {
-                              cart.removeFromCart(
-                                item.id,
-                                rowIndex: index,
-                              );
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(4),
-                          child: Padding(
-                            padding: const EdgeInsets.all(3),
-                            child: Icon(
-                              Icons.delete_outline,
-                              color: Colors.red.shade400,
-                              size: 14,
-                            ),
-                          ),
+                      Text(
+                        'GHS ${lineTotal.toStringAsFixed(2)}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
                         ),
                       ),
                     ],

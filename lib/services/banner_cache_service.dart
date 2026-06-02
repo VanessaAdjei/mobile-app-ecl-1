@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../config/api_config.dart';
 
 class BannerModel {
@@ -395,6 +396,45 @@ class BannerCacheService {
           ? '${(_cacheHits / (_cacheHits + _cacheMisses) * 100).toStringAsFixed(1)}%'
           : '0%',
     };
+  }
+
+  /// Downloads banner images to disk (no [BuildContext] — for onboarding preload).
+  Future<void> warmBannerImagesToDisk({
+    Duration maxWait = const Duration(seconds: 45),
+    int maxConcurrent = 8,
+  }) async {
+    if (_cachedBanners.isEmpty) {
+      try {
+        await getBanners().timeout(maxWait);
+      } on TimeoutException {
+        debugPrint('BannerCacheService: banner fetch timed out during warm');
+      }
+    }
+    if (_cachedBanners.isEmpty) return;
+
+    final cache = DefaultCacheManager();
+    final urls = _cachedBanners
+        .map((b) => _getBannerImageUrl(b.img))
+        .where((u) => u.isNotEmpty)
+        .toList();
+    if (urls.isEmpty) return;
+
+    debugPrint('BannerCacheService: warming ${urls.length} banner images...');
+    final deadline = DateTime.now().add(maxWait);
+    var index = 0;
+    while (index < urls.length && DateTime.now().isBefore(deadline)) {
+      final chunk = urls.skip(index).take(maxConcurrent).toList();
+      index += chunk.length;
+      await Future.wait(chunk.map((url) async {
+        try {
+          final cached = await cache.getFileFromCache(url);
+          if (cached != null) return;
+          await cache.downloadFile(url);
+        } catch (e) {
+          debugPrint('BannerCacheService: skip banner $url ($e)');
+        }
+      }));
+    }
   }
 
   // Preload banner images with optimization

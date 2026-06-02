@@ -4,22 +4,17 @@ import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'app_back_button.dart';
 import '../config/app_colors.dart';
+import '../utils/app_error_utils.dart';
 import '../widgets/cart_icon_button.dart';
 import 'pharmacists/pharmacists_bookings_sheet.dart';
 import 'pharmacists/pharmacists_booking_helpers.dart';
-import 'pharmacists/pharmacists_ernest_config_dialog.dart';
-import 'pharmacists/pharmacists_models.dart';
-import 'pharmacists/ernest_chat_page.dart';
-import 'pharmacists/simple_ernest_chat_page.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/health_tips_service.dart';
 import '../models/health_tip.dart';
-import '../services/ernest_ai_service.dart';
 import '../services/auth_service.dart';
 import 'signinpage.dart';
 import '../services/booking_service.dart';
@@ -82,9 +77,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   List<HealthTip> _healthTips = [];
   bool _isLoadingHealthTips = false;
   bool _isUserLoggedIn = false;
-  bool _isCheckingAuth = true; // Track if auth check is in progress
-  bool _shouldHighlightBooking = false;
-
   static List<HealthTip> _cachedHealthTips = [];
   static DateTime? _lastHealthTipsCacheTime;
   static const Duration _healthTipsCacheExpiration = Duration(minutes: 15);
@@ -289,15 +281,10 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
   }
 
   Future<void> _checkLoginStatus() async {
-    setState(() {
-      _isCheckingAuth = true;
-    });
-
     try {
       final isLoggedIn = await AuthService.isLoggedIn();
       setState(() {
         _isUserLoggedIn = isLoggedIn;
-        _isCheckingAuth = false;
       });
 
       if (isLoggedIn) {
@@ -307,7 +294,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     } catch (e) {
       setState(() {
         _isUserLoggedIn = false;
-        _isCheckingAuth = false;
       });
       debugPrint('Error checking login status: $e');
     }
@@ -448,22 +434,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               if (!context.mounted) return;
 
               // show success message
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: [
-                      Icon(Icons.check_circle, color: Colors.white, size: 16),
-                      SizedBox(width: 8),
-                      Text('Welcome back! You can now book consultations.'),
-                    ],
-                  ),
-                  backgroundColor: Colors.green[600],
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  duration: Duration(seconds: 3),
-                ),
-              );
+              AppErrorUtils.showSnack(context,
+                  'Welcome back! You can now book consultations.',
+                  isError: false);
             }
           },
         ),
@@ -490,7 +463,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     return Container(
       margin: margin,
       padding: EdgeInsets.all(pad),
-      decoration: BoxDecoration(
+        decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(cardRadius),
         border: Border.all(color: AppColors.primary.withOpacity(0.28)),
@@ -505,11 +478,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               ],
       ),
       child: Row(
-        children: [
-          Container(
+              children: [
+                Container(
             width: iconBox,
             height: iconBox,
-            decoration: BoxDecoration(
+                  decoration: BoxDecoration(
               color: const Color(0xFFE8F5E9),
               borderRadius: BorderRadius.circular(iconRadius),
             ),
@@ -517,102 +490,57 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 color: AppColors.accent, size: compact ? 16 : 20),
           ),
           SizedBox(width: compact ? 8 : 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  compact ? 'Sign in to sync bookings' : 'Sign in to manage bookings',
-                  style: GoogleFonts.poppins(
+                    children: [
+                      Text(
+                  compact
+                      ? 'Sign in to sync bookings'
+                      : 'Sign in to manage bookings',
+                        style: GoogleFonts.poppins(
                     fontSize: titleSize,
                     fontWeight: FontWeight.w600,
                     color: const Color(0xFF374151),
                   ),
                 ),
                 if (!compact)
-                  Text(
+                      Text(
                     'Use your Ernest account to book and track consultations.',
-                    style: GoogleFonts.poppins(
+                        style: GoogleFonts.poppins(
                       fontSize: bodySize,
                       color: const Color(0xFF6B7280),
                       height: 1.3,
-                    ),
+                        ),
+                      ),
+                    ],
                   ),
-              ],
-            ),
-          ),
+                ),
           SizedBox(width: compact ? 6 : 8),
           Material(
             color: AppColors.primary,
             borderRadius: BorderRadius.circular(compact ? 8 : 12),
-            child: InkWell(
+                child: InkWell(
               borderRadius: BorderRadius.circular(compact ? 8 : 12),
-              onTap: _navigateToLogin,
+                  onTap: _navigateToLogin,
               child: Padding(
                 padding: EdgeInsets.symmetric(
                   horizontal: compact ? 8 : 14,
                   vertical: compact ? 6 : 10,
                 ),
-                child: Text(
+                    child: Text(
                   'Login',
-                  style: GoogleFonts.poppins(
+                      style: GoogleFonts.poppins(
                     fontSize: compact ? 10 : 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLoginRequiredButton() {
-    return Container(
-      width: double.infinity,
-      height: 45,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.orange[500]!, Colors.orange[600]!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.orange.withValues(alpha: 0.25),
-            blurRadius: 10,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: ElevatedButton(
-        onPressed: _showLoginRequiredDialog,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.login, color: Colors.white, size: 16),
-            SizedBox(width: 6),
-            Text(
-              'Login to Book',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
           ],
-        ),
       ),
     );
   }
@@ -665,27 +593,12 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       setState(() =>
           _bookings.removeWhere((e) => e['id'] == id || identical(e, booking)));
       await _saveBookings();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Booking cancelled'),
-          backgroundColor: Colors.green.shade700,
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      AppErrorUtils.showSnack(context, 'Booking cancelled', isError: false);
       return true;
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text(result['message']?.toString() ?? 'Failed to cancel booking'),
-          backgroundColor: Colors.red.shade600,
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      AppErrorUtils.showSnack(context,
+          result['message']?.toString() ?? 'Failed to cancel booking',
+          isError: true);
       return false;
     }
   }
@@ -950,26 +863,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not open the link'),
-            backgroundColor: Colors.red[600],
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        AppErrorUtils.showSnack(context, 'Could not open the link',
+            isError: true);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error opening link: $e'),
-          backgroundColor: Colors.red[600],
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      AppErrorUtils.showSnack(context, 'Error opening link: $e', isError: true);
     }
   }
 
@@ -991,11 +889,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
             ];
 
             return Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: EdgeInsets.zero,
-              child: Container(
-                width: MediaQuery.of(context).size.width,
-                height: MediaQuery.of(context).size.height,
+                backgroundColor: Colors.transparent,
+                insetPadding: EdgeInsets.zero,
+                child: Container(
+                  width: MediaQuery.of(context).size.width,
+                  height: MediaQuery.of(context).size.height,
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
@@ -1005,52 +903,52 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       Color(0xFFE8F2EC),
                     ],
                   ),
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [AppColors.accent, AppColors.primaryDark],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
                             color: AppColors.primary.withValues(alpha: 0.25),
                             blurRadius: 16,
                             offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: SafeArea(
-                        bottom: false,
-                        child: Padding(
+                            ),
+                          ],
+                        ),
+                        child: SafeArea(
+                          bottom: false,
+                          child: Padding(
                           padding: const EdgeInsets.fromLTRB(8, 8, 16, 14),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                children: [
-                                  IconButton(
+                              children: [
+                                IconButton(
                                     icon: const Icon(Icons.close_rounded,
                                         size: 24, color: Colors.white),
-                                    onPressed: () {
-                                      if (_bookingStep > 0) {
-                                        setDialogState(() {
-                                          _bookingStep -= 1;
-                                        });
-                                        return;
-                                      }
-                                      Navigator.pop(context);
-                                    },
+                                  onPressed: () {
+                                    if (_bookingStep > 0) {
+                                      setDialogState(() {
+                                        _bookingStep -= 1;
+                                      });
+                                      return;
+                                    }
+                                    Navigator.pop(context);
+                                  },
                                     style: IconButton.styleFrom(
-                                      backgroundColor: Colors.white
-                                          .withValues(alpha: 0.18),
-                                    ),
+                                      backgroundColor:
+                                          Colors.white.withValues(alpha: 0.18),
+                                ),
                                   ),
                                   const SizedBox(width: 4),
-                                  Expanded(
+                                Expanded(
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
@@ -1059,7 +957,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                                           'Book appointment',
                                           style: GoogleFonts.poppins(
                                             fontSize: 11,
-                                            fontWeight: FontWeight.w600,
+                                      fontWeight: FontWeight.w600,
                                             color: Colors.white
                                                 .withValues(alpha: 0.88),
                                             letterSpacing: 0.4,
@@ -1070,23 +968,22 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                                           style: GoogleFonts.poppins(
                                             fontSize: 20,
                                             fontWeight: FontWeight.w700,
-                                            color: Colors.white,
+                                      color: Colors.white,
                                             height: 1.15,
-                                          ),
+                                    ),
                                         ),
                                       ],
-                                    ),
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
+                            ),
                               const SizedBox(height: 12),
                               Text(
                                 stepHints[_bookingStep],
                                 style: GoogleFonts.poppins(
                                   fontSize: 12,
                                   height: 1.35,
-                                  color:
-                                      Colors.white.withValues(alpha: 0.88),
+                                  color: Colors.white.withValues(alpha: 0.88),
                                 ),
                               ),
                               const SizedBox(height: 14),
@@ -1096,7 +993,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                         ),
                       ),
                     ),
-                    Expanded(
+                      Expanded(
                       child: Container(
                         width: double.infinity,
                         decoration: const BoxDecoration(
@@ -1108,32 +1005,32 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                         clipBehavior: Clip.antiAlias,
                         child: SafeArea(
                           top: false,
-                          child: AnimatedSwitcher(
+                        child: AnimatedSwitcher(
                             duration: const Duration(milliseconds: 220),
                             switchInCurve: Curves.easeOutCubic,
                             switchOutCurve: Curves.easeInCubic,
-                            child: _bookingStep == 0
-                                ? _buildSelectDateStep(
-                                    key: const ValueKey('step0'),
-                                    setDialogState: setDialogState,
+                          child: _bookingStep == 0
+                              ? _buildSelectDateStep(
+                                  key: const ValueKey('step0'),
+                                  setDialogState: setDialogState,
                                     loadingSessionsHolder:
                                         loadingSessionsHolder,
-                                  )
-                                : _bookingStep == 1
-                                    ? _buildSelectTimeStep(
-                                        key: const ValueKey('step1'),
-                                        setDialogState: setDialogState,
-                                      )
-                                    : _buildBookingFormStep(
-                                        key: const ValueKey('step2'),
-                                        setDialogState: setDialogState,
+                                )
+                              : _bookingStep == 1
+                                  ? _buildSelectTimeStep(
+                                      key: const ValueKey('step1'),
+                                      setDialogState: setDialogState,
+                                    )
+                                  : _buildBookingFormStep(
+                                      key: const ValueKey('step2'),
+                                      setDialogState: setDialogState,
                                       ),
                           ),
+                                    ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
               ),
             );
           },
@@ -1175,9 +1072,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: current
-                  ? Colors.white
-                  : Colors.white.withValues(alpha: 0.2),
+              color:
+                  current ? Colors.white : Colors.white.withValues(alpha: 0.2),
               border: current
                   ? null
                   : Border.all(
@@ -1404,18 +1300,18 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                     color: AppColors.accent, size: 22),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
                         'Open days only',
-                        style: GoogleFonts.poppins(
+            style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                           color: const Color(0xFF1B5E20),
                         ),
                       ),
-                      Text(
+          Text(
                         'Greyed-out dates are fully booked or closed.',
                         style: GoogleFonts.poppins(
                           fontSize: 12,
@@ -1446,18 +1342,18 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: CalendarDatePicker(
-                  initialDate: initialDate,
-                  firstDate: firstDate,
-                  lastDate: lastDate,
-                  selectableDayPredicate: (date) {
-                    return _availableDateKeys.contains(_dateKey(date));
-                  },
-                  onDateChanged: (date) {
-                    setDialogState(() {
-                      _availabilityDate = date;
-                    });
-                  },
+              child: CalendarDatePicker(
+                initialDate: initialDate,
+                firstDate: firstDate,
+                lastDate: lastDate,
+                selectableDayPredicate: (date) {
+                  return _availableDateKeys.contains(_dateKey(date));
+                },
+                onDateChanged: (date) {
+                  setDialogState(() {
+                    _availabilityDate = date;
+                  });
+                },
                 ),
               ),
             ),
@@ -1549,10 +1445,10 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       children: [
                         Text(
                           'See available times',
-                          style: GoogleFonts.poppins(
+                      style: GoogleFonts.poppins(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
-                          ),
+                      ),
                         ),
                         const SizedBox(width: 8),
                         const Icon(Icons.arrow_forward_rounded, size: 20),
@@ -1597,14 +1493,14 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   Expanded(
                     child: Text(
                       DateFormat('EEEE, MMMM d, y').format(date),
-                      style: GoogleFonts.poppins(
-                        fontSize: 15,
+              style: GoogleFonts.poppins(
+                fontSize: 15,
                         fontWeight: FontWeight.w700,
                         color: const Color(0xFF0F172A),
-                      ),
-                    ),
+              ),
+            ),
                   ),
-                ],
+          ],
               ),
             ),
           if (date != null) const SizedBox(height: 16),
@@ -1622,7 +1518,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
-                      child: Text(
+                    child: Text(
                         'No times left for this day. Go back and pick another date.',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(
@@ -1649,14 +1545,14 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       return Material(
                         color: Colors.transparent,
                         child: InkWell(
-                          onTap: () =>
-                              setDialogState(() => _availabilityTime = t),
+                        onTap: () =>
+                            setDialogState(() => _availabilityTime = t),
                           borderRadius: BorderRadius.circular(14),
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 180),
                             curve: Curves.easeOutCubic,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
                               gradient: isSelected
                                   ? const LinearGradient(
                                       colors: [
@@ -1667,12 +1563,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                                       end: Alignment.bottomRight,
                                     )
                                   : null,
-                              color: isSelected
-                                  ? null
-                                  : const Color(0xFFF8FAF9),
+                              color:
+                                  isSelected ? null : const Color(0xFFF8FAF9),
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: isSelected
+                            border: Border.all(
+                              color: isSelected
                                     ? AppColors.primaryDark
                                     : const Color(0xFFDCE5DF),
                                 width: isSelected ? 1.5 : 1,
@@ -1687,11 +1582,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                                       ),
                                     ]
                                   : null,
-                            ),
-                            child: Text(
-                              t.format(context),
-                              style: GoogleFonts.poppins(
-                                fontSize: 13,
+                          ),
+                          child: Text(
+                            t.format(context),
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
                                 fontWeight: FontWeight.w700,
                                 color: isSelected
                                     ? Colors.white
@@ -1732,10 +1627,10 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 children: [
                   Text(
                     'Continue to details',
-                    style: GoogleFonts.poppins(
+                style: GoogleFonts.poppins(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                    ),
+                ),
                   ),
                   const SizedBox(width: 8),
                   const Icon(Icons.edit_note_rounded, size: 22),
@@ -1794,8 +1689,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                   'Mode of Consultation',
                   _selectedConsultationType,
                   _consultationTypes,
-                  (value) => setDialogState(
-                      () => _selectedConsultationType = value!),
+                  (value) =>
+                      setDialogState(() => _selectedConsultationType = value!),
                 ),
                 const SizedBox(height: 12),
                 _buildSimpleDropdownField(
@@ -1816,7 +1711,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               ],
             ),
             const SizedBox(height: 14),
-
             _buildSimpleFormSection(
               'Your details',
               Icons.person_outline_rounded,
@@ -1864,7 +1758,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               ],
             ),
             const SizedBox(height: 14),
-
             _buildSimpleFormSection(
               'Reason for visit',
               Icons.healing_outlined,
@@ -1884,7 +1777,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               ],
             ),
             const SizedBox(height: 14),
-
             _buildSimpleFormSection(
               'Schedule',
               Icons.schedule_rounded,
@@ -1938,511 +1830,12 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               ],
             ),
             const SizedBox(height: 22),
-
             _buildSimpleSubmitButton(),
             const SizedBox(height: 16),
           ],
         ),
       ),
     );
-  }
-
-  Widget _buildProgressIndicator() {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.green[50]!, Colors.blue[50]!],
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green[200]!, width: 1),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.green[600],
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(Icons.check, color: Colors.white, size: 16),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Booking Progress',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.green[800],
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Fill in your details to book your consultation',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: Colors.green[700],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // form section
-  Widget _buildFormSection(
-      String title, IconData icon, Color color, List<Widget> children) {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.15), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // section title
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [color, color.withValues(alpha: 0.8)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.2),
-                      blurRadius: 4,
-                      offset: Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Icon(icon, color: Colors.white, size: 16),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Container(
-                      height: 2,
-                      width: 30,
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(1),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-          // section content
-          ...children,
-        ],
-      ),
-    );
-  }
-
-  // Enhanced Dropdown Field
-  Widget _buildEnhancedDropdownField(
-    String label,
-    String value,
-    List<String> items,
-    Function(String?) onChanged,
-    IconData icon,
-    Color color,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Icon(icon, color: color, size: 14),
-            ),
-            SizedBox(width: 10),
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 6),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withValues(alpha: 0.3)),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.04),
-                blurRadius: 6,
-                offset: Offset(0, 1),
-              ),
-            ],
-          ),
-          child: DropdownButtonFormField<String>(
-            value: value,
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              contentPadding:
-                  EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              filled: true,
-              fillColor: Colors.grey[100],
-            ),
-            items: items.map((item) {
-              return DropdownMenuItem(
-                value: item,
-                child: Text(
-                  item,
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    color: Colors.grey[800],
-                  ),
-                ),
-              );
-            }).toList(),
-            onChanged: onChanged,
-            icon: Icon(Icons.keyboard_arrow_down, color: color, size: 18),
-            dropdownColor: Colors.white,
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              color: Colors.grey[800],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // text input field
-  Widget _buildEnhancedTextField(
-    String label,
-    TextEditingController controller,
-    IconData icon,
-    Color color, {
-    String? Function(String?)? validator,
-    int maxLines = 1,
-    GlobalKey<FormFieldState<dynamic>>? fieldKey,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Icon(icon, color: color, size: 14),
-            ),
-            SizedBox(width: 10),
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 6),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withValues(alpha: 0.3)),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.04),
-                blurRadius: 6,
-                offset: Offset(0, 1),
-              ),
-            ],
-          ),
-          child: TextFormField(
-            key: fieldKey,
-            controller: controller,
-            maxLines: maxLines,
-            validator: validator,
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              contentPadding:
-                  EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              filled: true,
-              fillColor: Colors.grey[100],
-              hintText: 'Enter ${label.toLowerCase()}',
-              hintStyle: GoogleFonts.poppins(
-                fontSize: 13,
-                color: Colors.grey[400],
-              ),
-            ),
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              color: Colors.grey[800],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Enhanced Date Picker
-  Widget _buildEnhancedDatePicker() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(Icons.calendar_today, color: Colors.orange, size: 16),
-            ),
-            SizedBox(width: 12),
-            Text(
-              'Preferred Date',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 8),
-        InkWell(
-          onTap: () async {
-            final date = await showDatePicker(
-              context: context,
-              initialDate: _selectedDate,
-              firstDate: DateTime.now(),
-              lastDate: DateTime.now().add(Duration(days: 30)),
-              builder: (context, child) {
-                return Theme(
-                  data: Theme.of(context).copyWith(
-                    colorScheme: ColorScheme.light(
-                      primary: Colors.orange[600]!,
-                      onPrimary: Colors.white,
-                    ),
-                  ),
-                  child: child!,
-                );
-              },
-            );
-            if (date != null) {
-              setState(() => _selectedDate = date);
-            }
-          },
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.orange.withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey[800],
-                  ),
-                ),
-                Icon(Icons.calendar_today, color: Colors.orange),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Enhanced Time Picker
-  Widget _buildEnhancedTimePicker() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(Icons.access_time, color: Colors.orange, size: 16),
-            ),
-            SizedBox(width: 12),
-            Text(
-              'Preferred Time',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 8),
-        InkWell(
-          onTap: () async {
-            final time = await showTimePicker(
-              context: context,
-              initialTime: _selectedTime,
-              builder: (context, child) {
-                return Theme(
-                  data: Theme.of(context).copyWith(
-                    colorScheme: ColorScheme.light(
-                      primary: Colors.orange[600]!,
-                      onPrimary: Colors.white,
-                    ),
-                  ),
-                  child: child!,
-                );
-              },
-            );
-            if (time != null) {
-              setState(() => _selectedTime = time);
-            }
-          },
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.orange.withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey[800],
-                  ),
-                ),
-                Icon(Icons.access_time, color: Colors.orange),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEnhancedSubmitButton() {
-    return Container(
-      width: double.infinity,
-      height: 52,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.green[500]!, Colors.green[600]!, Colors.green[700]!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          stops: [0.0, 0.5, 1.0],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.green.withValues(alpha: 0.3),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: _submitBookingWithValidation,
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.check_circle,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                SizedBox(width: 12),
-                Text(
-                  'Book Consultation',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ).animate().fadeIn(delay: 1200.ms).scale(begin: Offset(0.8, 0.8));
   }
 
   // Simplified form section
@@ -2478,16 +1871,16 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
+                      title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
                     fontWeight: FontWeight.w700,
                     color: const Color(0xFF1F2937),
                   ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
           const SizedBox(height: 14),
           ...children,
         ],
@@ -2505,14 +1898,14 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.poppins(
+            Text(
+              label,
+              style: GoogleFonts.poppins(
             fontSize: 12,
-            fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w600,
             color: const Color(0xFF64748B),
-          ),
-        ),
+              ),
+            ),
         const SizedBox(height: 6),
         Container(
           decoration: BoxDecoration(
@@ -2566,27 +1959,27 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.poppins(
+            Text(
+              label,
+              style: GoogleFonts.poppins(
             fontSize: 12,
-            fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w600,
             color: const Color(0xFF64748B),
           ),
         ),
         const SizedBox(height: 6),
         TextFormField(
-          key: fieldKey,
-          controller: controller,
-          maxLines: maxLines,
-          validator: validator,
+            key: fieldKey,
+            controller: controller,
+            maxLines: maxLines,
+            validator: validator,
           autofillHints: autofillHints,
-          decoration: InputDecoration(
-            filled: true,
+            decoration: InputDecoration(
+              filled: true,
             fillColor: const Color(0xFFF8FAF9),
             hintText: maxLines > 1 ? null : 'Enter $label',
-            hintStyle: GoogleFonts.poppins(
-              fontSize: 13,
+              hintStyle: GoogleFonts.poppins(
+                fontSize: 13,
               color: Colors.grey.shade400,
             ),
             contentPadding:
@@ -2601,119 +1994,17 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+              borderSide:
+                  const BorderSide(color: AppColors.primary, width: 1.5),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: Colors.red.shade400),
             ),
           ),
-          style: GoogleFonts.poppins(
-            fontSize: 14,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
             color: const Color(0xFF1F2937),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Simplified date picker
-  Widget _buildSimpleDatePicker() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Preferred Date',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: Colors.grey.shade700,
-          ),
-        ),
-        const SizedBox(height: 6),
-        InkWell(
-          onTap: () async {
-            final date = await showDatePicker(
-              context: context,
-              initialDate: _selectedDate,
-              firstDate: DateTime.now(),
-              lastDate: DateTime.now().add(const Duration(days: 30)),
-            );
-            if (date != null) {
-              setState(() => _selectedDate = date);
-            }
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.shade300),
-              color: Colors.grey.shade50,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  DateFormat('MMM d, y').format(_selectedDate),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade900,
-                  ),
-                ),
-                Icon(Icons.calendar_today,
-                    color: Colors.grey.shade600, size: 18),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Simplified time picker
-  Widget _buildSimpleTimePicker() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Preferred Time',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: Colors.grey.shade700,
-          ),
-        ),
-        const SizedBox(height: 6),
-        InkWell(
-          onTap: () async {
-            final time = await showTimePicker(
-              context: context,
-              initialTime: _selectedTime,
-            );
-            if (time != null) {
-              setState(() => _selectedTime = time);
-            }
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.shade300),
-              color: Colors.grey.shade50,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _selectedTime.format(context),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade900,
-                  ),
-                ),
-                Icon(Icons.access_time, color: Colors.grey.shade600, size: 18),
-              ],
-            ),
           ),
         ),
       ],
@@ -2735,15 +2026,15 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           ),
           elevation: 0,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
             const Icon(Icons.check_circle_outline_rounded, size: 22),
             const SizedBox(width: 10),
-            Text(
+                Text(
               'Submit booking request',
-              style: GoogleFonts.poppins(
-                fontSize: 15,
+                  style: GoogleFonts.poppins(
+              fontSize: 15,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -2772,16 +2063,8 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       } else if (_symptomsController.text.isEmpty) {
         _scrollToField(_symptomsFieldKey);
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please complete all required fields.'),
-          backgroundColor: Colors.red[600],
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          duration: Duration(seconds: 4),
-        ),
-      );
+      AppErrorUtils.showSnack(context, 'Please complete all required fields.',
+          isError: true, duration: Duration(seconds: 4));
       return;
     }
     final sessionDate =
@@ -2836,16 +2119,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         await _saveBookings();
         _showSuccessDialog();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message']?.toString() ?? 'Booking failed'),
-            backgroundColor: Colors.red[600],
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            duration: Duration(seconds: 4),
-          ),
-        );
+        AppErrorUtils.showSnack(
+            context, result['message']?.toString() ?? 'Booking failed',
+            isError: true, duration: Duration(seconds: 4));
       }
     } catch (e) {
       if (!mounted) return;
@@ -3022,309 +2298,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     );
   }
 
-  Widget _buildModernDropdownField(String label, String value,
-      List<String> options, Function(String?) onChanged, IconData icon) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, color: Colors.green[700], size: 20),
-            SizedBox(width: 8),
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[800],
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey[300]!),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: DropdownButtonFormField<String>(
-            value: value,
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              contentPadding:
-                  EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              suffixIcon:
-                  Icon(Icons.keyboard_arrow_down, color: Colors.green[700]),
-            ),
-            items: options.map((String option) {
-              return DropdownMenuItem<String>(
-                value: option,
-                child: Text(
-                  option,
-                  style: GoogleFonts.poppins(fontSize: 14),
-                ),
-              );
-            }).toList(),
-            onChanged: onChanged,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildModernTextField(
-      String label, TextEditingController controller, IconData icon,
-      {int maxLines = 1, String? Function(String?)? validator, Key? fieldKey}) {
-    return Column(
-      key: fieldKey,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, color: Colors.green[700], size: 20),
-            SizedBox(width: 8),
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[800],
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 8),
-        TextFormField(
-          controller: controller,
-          maxLines: maxLines,
-          validator: validator,
-          decoration: InputDecoration(
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.green[700]!, width: 2),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.red, width: 2),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.red, width: 2),
-            ),
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildModernDatePicker() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.calendar_today, color: Colors.green[700], size: 20),
-            SizedBox(width: 8),
-            Text(
-              'Preferred Date',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[800],
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 8),
-        InkWell(
-          onTap: () async {
-            final date = await showDatePicker(
-              context: context,
-              initialDate: _selectedDate,
-              firstDate: DateTime.now(),
-              lastDate: DateTime.now().add(Duration(days: 30)),
-              builder: (context, child) {
-                return Theme(
-                  data: Theme.of(context).copyWith(
-                    colorScheme: ColorScheme.light(
-                      primary: Colors.green[700]!,
-                      onPrimary: Colors.white,
-                    ),
-                  ),
-                  child: child!,
-                );
-              },
-            );
-            if (date != null) {
-              setState(() => _selectedDate = date);
-            }
-          },
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey[300]!),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
-                  style: GoogleFonts.poppins(fontSize: 14),
-                ),
-                Icon(Icons.calendar_today, color: Colors.green[700]),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildModernTimePicker() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.access_time, color: Colors.green[700], size: 20),
-            SizedBox(width: 8),
-            Text(
-              'Preferred Time',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[800],
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 8),
-        InkWell(
-          onTap: () async {
-            final time = await showTimePicker(
-              context: context,
-              initialTime: _selectedTime,
-              initialEntryMode: TimePickerEntryMode.input,
-              builder: (context, child) {
-                return Theme(
-                  data: Theme.of(context).copyWith(
-                    timePickerTheme: TimePickerThemeData(
-                      hourMinuteTextColor: Colors.green[700],
-                      hourMinuteColor: Colors.green[50],
-                      dialHandColor: Colors.green[700],
-                      dialBackgroundColor: Colors.green[50],
-                      dialTextColor: Colors.green[700],
-                      entryModeIconColor: Colors.green[700],
-                    ),
-                  ),
-                  child: child!,
-                );
-              },
-            );
-            if (time != null) {
-              setState(() => _selectedTime = time);
-            }
-          },
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey[300]!),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _selectedTime.format(context),
-                  style: GoogleFonts.poppins(fontSize: 14),
-                ),
-                Icon(Icons.access_time, color: Colors.green[700]),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGradientButton(
-      String text, IconData icon, VoidCallback onPressed) {
-    return Container(
-      width: double.infinity,
-      height: 45,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.green[600]!, Colors.green[700]!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.green.withValues(alpha: 0.25),
-            blurRadius: 10,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white, size: 16),
-            SizedBox(width: 6),
-            Text(
-              text,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   /// Unified “your bookings” area under the app bar (next visit + actions).
   Widget _buildTopBookingsStrip() {
     final visible = _pharmacistPageBookings;
@@ -3334,59 +2307,58 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     final shellBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
 
     void openAllBookings() {
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) => BookingsListSheet(
+                                    showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (_) => BookingsListSheet(
           bookings: visible,
-          onClear: _clearBookings,
-          onCancelBooking: _cancelBooking,
-        ),
+                                        onClear: _clearBookings,
+                                        onCancelBooking: _cancelBooking,
+                                      ),
       );
     }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
       child: DecoratedBox(
-        decoration: BoxDecoration(
+      decoration: BoxDecoration(
           color: shellBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
+        border: Border.all(
             color: isDark ? Colors.grey.shade800 : const Color(0xFFD4EBDC),
-          ),
-          boxShadow: [
-            BoxShadow(
+        ),
+        boxShadow: [
+          BoxShadow(
               color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
               blurRadius: 6,
               offset: const Offset(0, 1),
-            ),
-          ],
-        ),
+          ),
+        ],
+      ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
-          child: Column(
+      child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
-            children: [
+        children: [
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: Row(
-                  children: [
+            children: [
                     Icon(
                       Icons.event_note_rounded,
                       size: 16,
                       color: AppColors.accent,
                     ),
                     const SizedBox(width: 6),
-                    Expanded(
+              Expanded(
                       child: Text(
                         visible.length == 1
                             ? 'Next booking'
                             : 'Bookings (${visible.length})',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
                           fontWeight: FontWeight.w700,
                           color: isDark
                               ? Colors.grey.shade200
@@ -3427,14 +2399,14 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                       ),
                       child: Text(
                         'Clear',
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
                         ),
                       ),
-                    ),
-                  ],
-                ),
+          ),
+        ],
+      ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
@@ -3448,11 +2420,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                     : _buildLoginPromptCard(
                         margin: EdgeInsets.zero,
                         compact: true,
-                      ),
-              ),
-            ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
       ),
     );
   }
@@ -3473,7 +2445,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         ),
         title: Text(
           'Pharmacist care',
-          style: GoogleFonts.poppins(
+                  style: GoogleFonts.poppins(
             fontSize: 17,
             fontWeight: FontWeight.w600,
             color: Colors.white,
@@ -3491,10 +2463,10 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 iconSize: 22,
                 backgroundColor: Colors.transparent,
               ),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(
           parent: AlwaysScrollableScrollPhysics(),
@@ -3551,1456 +2523,138 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
           ),
           Padding(
             padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.primary, AppColors.primaryDark],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withOpacity(0.28),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.local_pharmacy_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Expert guidance',
-                      style: GoogleFonts.poppins(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.accent,
-                        letterSpacing: 0.35,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'Medication help & consultations',
-                      style: GoogleFonts.poppins(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF111827),
-                        height: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      'Book a pharmacist session when it works for you.',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: const Color(0xFF6B7280),
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3FAF5),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFDCEEE2)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.verified_outlined,
-                    size: 16, color: AppColors.accent),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Licensed pharmacists · Private · Available anytime',
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      color: const Color(0xFF4B5563),
-                      height: 1.3,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 44,
-            child: ElevatedButton(
-              onPressed: _showBookingForm,
-              style: ElevatedButton.styleFrom(
-                elevation: 0,
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.calendar_month_rounded, size: 18),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Book appointment',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTrustStat(String value, String label) {
-    return Expanded(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            value,
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
-          ),
-          SizedBox(height: 2),
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 10,
-              color: Colors.white.withOpacity(0.92),
-              fontWeight: FontWeight.w500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTrustDivider() {
-    return Container(
-      width: 1,
-      height: 26,
-      color: Colors.white.withOpacity(0.25),
-      margin: EdgeInsets.symmetric(horizontal: 2),
-    );
-  }
-
-  Widget _buildModernSectionHeader(
-      String title, IconData icon, String subtitle) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 6),
-      padding: EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.grey[50]!, Colors.white],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.green[400]!, Colors.green[500]!],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.green.withValues(alpha: 0.2),
-                  blurRadius: 4,
-                  offset: Offset(0, 1),
-                ),
-              ],
-            ),
-            child: Icon(icon, color: Colors.white, size: 18),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[800],
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModernSectionHeaderWithRefresh(
-      String title, IconData icon, String subtitle, VoidCallback onRefresh) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 2),
-      padding: EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.grey[50]!, Colors.white],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.green[400]!, Colors.green[500]!],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.green.withValues(alpha: 0.2),
-                  blurRadius: 4,
-                  offset: Offset(0, 1),
-                ),
-              ],
-            ),
-            child: Icon(icon, color: Colors.white, size: 18),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[800],
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.green[400]!, Colors.green[500]!],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.green.withValues(alpha: 0.2),
-                  blurRadius: 4,
-                  offset: Offset(0, 1),
-                ),
-              ],
-            ),
-            child: IconButton(
-              onPressed: onRefresh,
-              icon: Icon(Icons.refresh, color: Colors.white, size: 18),
-              tooltip: 'Refresh',
-              padding: EdgeInsets.all(8),
-              constraints: BoxConstraints(minWidth: 36, minHeight: 36),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModernVirtualAssistantCard() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.purple[50]!, Colors.purple[100]!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.purple[200]!, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.purple.withValues(alpha: 0.15),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header with AI icon
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.purple[500]!, Colors.purple[600]!],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.purple.withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  Icons.smart_toy,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Ask Ernest',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.purple[800],
-                      ),
-                    ),
-                    Text(
-                      'Your AI Health Companion',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: Colors.purple[700],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-
-          // Features list
-          Column(
             children: [
-              _buildFeatureRow(
-                Icons.lightbulb_outline,
-                'Instant Health Tips',
-                'Get personalized recommendations',
-                Colors.amber[600]!,
-              ),
-              SizedBox(height: 12),
-              _buildFeatureRow(
-                Icons.medical_services,
-                'Symptom Analysis',
-                'Understand your health concerns',
-                Colors.blue[600]!,
-              ),
-              SizedBox(height: 12),
-              _buildFeatureRow(
-                Icons.medication,
-                'Medication Guidance',
-                'Learn about your prescriptions',
-                Colors.green[600]!,
-              ),
-              SizedBox(height: 12),
-              _buildFeatureRow(
-                Icons.psychology,
-                'Wellness Advice',
-                'Mental health & lifestyle tips',
-                Colors.teal[600]!,
-              ),
-            ],
-          ),
-          SizedBox(height: 20),
-
-          // Action button
           Container(
-            width: double.infinity,
-            height: 48,
+                      width: 42,
+                      height: 42,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.purple[500]!,
-                  Colors.purple[600]!,
-                  Colors.purple[700]!
-                ],
+                        gradient: const LinearGradient(
+                          colors: [AppColors.primary, AppColors.primaryDark],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                stops: [0.0, 0.5, 1.0],
               ),
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.purple.withValues(alpha: 0.3),
+                            color: AppColors.primary.withOpacity(0.28),
                   blurRadius: 8,
-                  offset: Offset(0, 3),
+                            offset: const Offset(0, 3),
                 ),
               ],
             ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: _openVirtualAssistant,
-                child: Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.chat_bubble_outline,
+                      child: const Icon(
+                        Icons.local_pharmacy_rounded,
                         color: Colors.white,
-                        size: 20,
+                        size: 22,
                       ),
-                      SizedBox(width: 8),
-                      Text(
-                        'Ask Ernest AI',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFeatureRow(
-      IconData icon, String title, String description, Color color) {
-    return Row(
-      children: [
-        Container(
-          padding: EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color.withValues(alpha: 0.3)),
-          ),
-          child: Icon(
-            icon,
-            color: color,
-            size: 16,
-          ),
-        ),
-        SizedBox(width: 12),
+                    ),
+                    const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                title,
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[800],
-                ),
-              ),
-              Text(
-                description,
+                            'Expert guidance',
                 style: GoogleFonts.poppins(
                   fontSize: 11,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _openVirtualAssistant() async {
-    // Simple chat page without AI integration
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const SimpleErnestChatPage(),
-      ),
-    );
-
-    // If user pressed Book Appointment, open the form directly
-    if (result == 'open_form' && mounted) {
-      _showBookingForm();
-    } else if (result == true && mounted) {
-      // Legacy: highlight the booking box
-      setState(() {
-        _shouldHighlightBooking = true;
-      });
-
-      // Remove highlight after 3 seconds
-      Future.delayed(Duration(seconds: 3), () {
-        if (mounted) {
-          setState(() {
-            _shouldHighlightBooking = false;
-          });
-        }
-      });
-    }
-  }
-
-  void _testErnestConnection() async {
-    try {
-      final result = await ErnestAIService.testConnection();
-
-      if (result['success']) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ Ernest AI connection successful!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Connection failed: ${result['message']}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Test failed: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _testAlternativeModels() async {
-    try {
-      final result = await ErnestAIService.testAlternativeModels();
-
-      if (result['success']) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ Found working model: ${result['working_model']}'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ All models failed'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Test failed: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _showErnestChat() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const ErnestChatPage(),
-      ),
-    );
-  }
-
-  Widget _buildModernPlatformSelection() {
-    return Column(
-      children: [
-        _buildModernPlatformOption(
-          'Video Call',
-          Icons.video_call,
-          Colors.blue,
-          'Face-to-face consultation',
-          _selectedConsultationType == 'Video Call',
-          () => setState(() => _selectedConsultationType = 'Video Call'),
-        ),
-        SizedBox(height: 8),
-        _buildModernPlatformOption(
-          'Audio Call',
-          Icons.call,
-          Colors.green,
-          'Voice consultation',
-          _selectedConsultationType == 'Audio Call',
-          () => setState(() => _selectedConsultationType = 'Audio Call'),
-        ),
-        SizedBox(height: 8),
-        _buildModernPlatformOption(
-          'Chat',
-          Icons.chat,
-          Colors.orange,
-          'Text messaging',
-          _selectedConsultationType == 'Chat',
-          () => setState(() => _selectedConsultationType = 'Chat'),
-        ),
-        SizedBox(height: 8),
-      ],
-    );
-  }
-
-  Widget _buildModernPlatformOption(String title, IconData icon, Color color,
-      String description, bool isSelected, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: AnimatedContainer(
-        duration: Duration(milliseconds: 300),
-        padding: EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          gradient: isSelected
-              ? LinearGradient(
-                  colors: [
-                    color.withValues(alpha: 0.1),
-                    color.withValues(alpha: 0.05)
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          color: isSelected ? null : Colors.grey[50],
-          border: Border.all(
-            color: isSelected ? color : Colors.grey[200]!,
-            width: isSelected ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.2),
-                    blurRadius: 6,
-                    offset: Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                gradient: isSelected
-                    ? LinearGradient(
-                        colors: [color, color.withValues(alpha: 0.8)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : null,
-                color: isSelected ? null : Colors.grey[200],
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: color.withValues(alpha: 0.3),
-                          blurRadius: 4,
-                          offset: Offset(0, 1),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Icon(
-                icon,
-                color: isSelected ? Colors.white : Colors.grey[600],
-                size: 14,
-              ),
-            ),
-            SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? color : Colors.grey[800],
+                              color: AppColors.accent,
+                              letterSpacing: 0.35,
                     ),
                   ),
+                          const SizedBox(height: 3),
                   Text(
-                    description,
+                            'Medication help & consultations',
                     style: GoogleFonts.poppins(
-                      fontSize: 10,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (isSelected)
-              Container(
-                padding: EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.check,
-                  color: Colors.white,
-                  size: 12,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Consolidated Services Card - Combines Virtual Consultation and Ernest AI
-  Widget _buildConsolidatedServicesCard() {
-    return Container(
-      padding: EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Color(0xFFE5EEF7)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF1565C0), Color(0xFF0D47A1)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  Icons.health_and_safety_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Consultation Hub',
-                      style: GoogleFonts.poppins(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E293B),
-                      ),
-                    ),
-                    Text(
-                      'Choose pharmacist consultation or AI guidance.',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildServiceTile(
-                  title: 'Book Consultation',
-                  subtitle: 'Video, Audio, and Chat support',
-                  badge: '24/7 available',
-                  icon: Icons.video_call_rounded,
-                  primary: Color(0xFF2E7D32),
-                  secondary: Color(0xFF66BB6A),
-                  onTap: _showBookingForm,
-                  highlighted: _shouldHighlightBooking,
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: _buildServiceTile(
-                  title: 'Ask Ernest AI',
-                  subtitle: 'Get quick health guidance',
-                  badge: 'Instant answers',
-                  icon: Icons.smart_toy_rounded,
-                  primary: Color(0xFFF57C00),
-                  secondary: Color(0xFFFFB74D),
-                  onTap: _openVirtualAssistant,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildServiceTile({
-    required String title,
-    required String subtitle,
-    required String badge,
-    required IconData icon,
-    required Color primary,
-    required Color secondary,
-    required VoidCallback onTap,
-    bool highlighted = false,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: AnimatedContainer(
-        duration: Duration(milliseconds: 250),
-        padding: EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: highlighted
-                ? [primary, secondary]
-                : [primary.withOpacity(0.08), secondary.withOpacity(0.14)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: highlighted
-                ? Colors.white.withOpacity(0.4)
-                : primary.withOpacity(0.28),
-            width: highlighted ? 1.4 : 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: primary.withOpacity(highlighted ? 0.28 : 0.12),
-              blurRadius: highlighted ? 14 : 10,
-              offset: Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color:
-                    highlighted ? Colors.white.withOpacity(0.22) : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                icon,
-                color: highlighted ? Colors.white : primary,
-                size: 26,
-              ),
-            ),
-            SizedBox(height: 14),
-            Text(
-              title,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: highlighted ? Colors.white : Color(0xFF1F2937),
-              ),
-            ),
-            SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: GoogleFonts.poppins(
-                fontSize: 11,
-                color: highlighted
-                    ? Colors.white.withOpacity(0.9)
-                    : Color(0xFF4B5563),
-                height: 1.25,
-              ),
-            ),
-            SizedBox(height: 12),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-              decoration: BoxDecoration(
-                color: highlighted
-                    ? Colors.white.withOpacity(0.2)
-                    : primary.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                badge,
-                style: GoogleFonts.poppins(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w600,
-                  color: highlighted ? Colors.white : primary,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSimplifiedHealthInsightsCard() {
-    if (_isLoadingHealthTips) {
-      return Container(
-        height: 140,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.green[50]!, Colors.white],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.green[200]!),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.green[100],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(Colors.green[600]!),
-                    strokeWidth: 2,
-                  ),
-                ),
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Loading health insights...',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  color: Colors.green[700],
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_healthTips.isEmpty) {
-      return Container(
-        height: 140,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.grey[50]!, Colors.white],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey[200]!),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.health_and_safety,
-                  size: 28,
-                  color: Colors.grey[600],
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'No health insights available',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.white, Colors.green[50]!, Colors.blue[50]!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          stops: [0.0, 0.5, 1.0],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.green[200]!, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.green.withValues(alpha: 0.1),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Enhanced Header
-          Container(
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.green[500]!, Colors.green[600]!],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(8),
-                    border:
-                        Border.all(color: Colors.white.withValues(alpha: 0.3)),
-                  ),
-                  child: Icon(
-                    Icons.article,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Health Insights',
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: IconButton(
-                    onPressed: _refreshHealthTips,
-                    icon: Icon(Icons.refresh, size: 18, color: Colors.white),
-                    padding: EdgeInsets.all(8),
-                    constraints: BoxConstraints(minWidth: 36, minHeight: 36),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 16),
-          // Enhanced Health Tips
-          ...(_healthTips
-              .take(2)
-              .map((tip) => _buildEnhancedHealthTipItem(tip))),
-          if (_healthTips.length > 2)
-            Container(
-              margin: EdgeInsets.only(top: 12),
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.green[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green[200]!),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.green[600], size: 16),
-                  SizedBox(width: 8),
-                  Text(
-                    '${_healthTips.length - 2} more insights available',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: Colors.green[700],
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEnhancedHealthTipItem(HealthTip tip) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green[200]!),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.green.withValues(alpha: 0.1),
-            blurRadius: 6,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Image Section
-          if (tip.imageUrl != null && tip.imageUrl!.isNotEmpty)
-            Container(
-              width: double.infinity,
-              height: 120,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-                child: Image.network(
-                  tip.imageUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return _buildFallbackImage(tip.category);
-                  },
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Container(
-                      color: Colors.grey[100],
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.green[600]!),
-                          strokeWidth: 2,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            )
-          else
-            _buildFallbackImage(tip.category),
-
-          // Content Section
-          Padding(
-            padding: EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color:
-                        _getCategoryColor(tip.category).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: _getCategoryColor(tip.category)
-                          .withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Icon(
-                    _getCategoryIcon(tip.category),
-                    color: _getCategoryColor(tip.category),
-                    size: 18,
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF111827),
+                              height: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
                       Text(
-                        tip.title,
+                            'Book a pharmacist session when it works for you.',
                         style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[800],
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      SizedBox(height: 4),
-                      Container(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: _getCategoryColor(tip.category)
-                              .withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: _getCategoryColor(tip.category)
-                                .withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Text(
-                          tip.category,
-                          style: GoogleFonts.poppins(
-                            fontSize: 11,
-                            color: _getCategoryColor(tip.category),
-                            fontWeight: FontWeight.w600,
-                          ),
+                              fontSize: 12,
+                              color: const Color(0xFF6B7280),
+                              height: 1.4,
                         ),
                       ),
-                      if (tip.summary != null && tip.summary!.isNotEmpty) ...[
-                        SizedBox(height: 6),
-                        Text(
-                          tip.summary!,
-                          style: GoogleFonts.poppins(
-                            fontSize: 11,
-                            color: Colors.grey[600],
-                            height: 1.3,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
                     ],
                   ),
                 ),
               ],
             ),
+                const SizedBox(height: 10),
+                              Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                decoration: BoxDecoration(
+                    color: const Color(0xFFF3FAF5),
+                                  borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFDCEEE2)),
+            ),
+            child: Row(
+              children: [
+                      Icon(Icons.verified_outlined,
+                          size: 16, color: AppColors.accent),
+                      const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                          'Licensed pharmacists · Private · Available anytime',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: const Color(0xFF4B5563),
+                            height: 1.3,
+                          ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
-    );
-  }
-
-  // Helper method to get category-specific colors
-  Color _getCategoryColor(String category) {
-    switch (category.toLowerCase()) {
-      case 'nutrition':
-      case 'diet':
-        return Colors.orange;
-      case 'exercise':
-      case 'physical activity':
-        return Colors.blue;
-      case 'mental health':
-        return Colors.purple;
-      case 'prevention':
-        return Colors.green;
-      case 'wellness':
-        return Colors.teal;
-      case 'heart health':
-      case 'cardiovascular':
-        return Colors.red;
-      case 'diabetes':
-        return Colors.orange;
-      case 'pregnancy':
-      case 'women\'s health':
-        return Colors.pink;
-      default:
-        return Colors.green;
-    }
-  }
-
-  // Helper method to get category-specific icons
-  IconData _getCategoryIcon(String category) {
-    switch (category.toLowerCase()) {
-      case 'nutrition':
-      case 'diet':
-        return Icons.restaurant;
-      case 'exercise':
-      case 'physical activity':
-        return Icons.fitness_center;
-      case 'mental health':
-        return Icons.psychology;
-      case 'prevention':
-        return Icons.shield;
-      case 'wellness':
-        return Icons.health_and_safety;
-      case 'heart health':
-      case 'cardiovascular':
-        return Icons.favorite;
-      case 'diabetes':
-        return Icons.monitor_heart;
-      case 'pregnancy':
-      case 'women\'s health':
-        return Icons.pregnant_woman;
-      default:
-        return Icons.health_and_safety;
-    }
-  }
-
-  // Fallback image when no image URL is available
-  Widget _buildFallbackImage(String category) {
-    return Container(
+                const SizedBox(height: 12),
+                SizedBox(
       width: double.infinity,
-      height: 120,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            _getCategoryColor(category).withValues(alpha: 0.1),
-            _getCategoryColor(category).withValues(alpha: 0.05),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              _getCategoryIcon(category),
-              color: _getCategoryColor(category),
-              size: 32,
-            ),
-            SizedBox(height: 8),
-            Text(
-              category,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: _getCategoryColor(category),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSimpleHealthTipItem(HealthTip tip) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 8),
-      padding: EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[200]!),
+                  height: 44,
+                  child: ElevatedButton(
+                    onPressed: _showBookingForm,
+                    style: ElevatedButton.styleFrom(
+                      elevation: 0,
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
       ),
       child: Row(
-        children: [
-          Icon(
-            Icons.health_and_safety,
-            color: Colors.green[600],
-            size: 16,
-          ),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              tip.title,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+                        const Icon(Icons.calendar_month_rounded, size: 18),
+                        const SizedBox(width: 6),
+              Text(
+                          'Book appointment',
+                style: GoogleFonts.poppins(
+                            fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+            ],
+          ),
+        ),
+                    ),
+                  ],
+                ),
           ),
         ],
-      ),
-    );
-  }
+        ),
+      );
+    }
 
   ({IconData icon, Color primary, Color accent}) _categoryVisualsForTip(
       HealthTip tip) {
@@ -5097,30 +2751,30 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         borderRadius: BorderRadius.circular(10),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
+                        child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
+                          children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: SizedBox(
                   width: 52,
                   height: 52,
                   child: DecoratedBox(
-                    decoration: BoxDecoration(
+        decoration: BoxDecoration(
                       border: Border.all(color: const Color(0xFFE2E8F0)),
                       color: v.accent,
                     ),
                     child: hasImage
                         ? CachedNetworkImage(
-                            imageUrl: resolvedImageUrl!,
+                            imageUrl: resolvedImageUrl,
                             fit: BoxFit.cover,
                             fadeInDuration: const Duration(milliseconds: 180),
                             placeholder: (_, __) => Center(
                               child: SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
                                   color: v.primary.withOpacity(0.75),
                                 ),
                               ),
@@ -5142,24 +2796,24 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 ),
               ),
               const SizedBox(width: 10),
-              Expanded(
+            Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
+                      children: [
+                        Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
+                          decoration: BoxDecoration(
                         color: v.accent,
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(
+                          child: Text(
                         tip.category,
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
+                            overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.poppins(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
                           color: v.primary,
                         ),
                       ),
@@ -5168,35 +2822,35 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                     Text(
                       tip.title,
                       maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
+                              overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: const Color(0xFF111827),
                         height: 1.25,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
+                      const SizedBox(height: 2),
+                      Text(
                       preview,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
                         fontSize: 10,
                         color: const Color(0xFF6B7280),
                         height: 1.3,
                       ),
                     ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              Icon(
+                      Icon(
                 Icons.chevron_right_rounded,
                 size: 20,
                 color: Colors.grey.shade400,
-              ),
-            ],
-          ),
+                      ),
+                    ],
+                  ),
         ),
       ),
     );
@@ -5204,9 +2858,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
 
   Widget _buildCompactHealthTipsList() {
     if (_isLoadingHealthTips) {
-      return Container(
+    return Container(
         height: 56,
-        decoration: BoxDecoration(
+      decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.9),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0xFFE2E8F0)),
@@ -5214,7 +2868,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         child: Center(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+        children: [
               SizedBox(
                 width: 20,
                 height: 20,
@@ -5224,32 +2878,32 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 ),
               ),
               const SizedBox(width: 10),
-              Text(
+          Text(
                 'Loading tips…',
-                style: GoogleFonts.poppins(
+            style: GoogleFonts.poppins(
                   fontSize: 12,
                   color: const Color(0xFF64748B),
-                  fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w500,
                 ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-      );
-    }
+      ),
+    );
+  }
 
     if (_healthTips.isEmpty) {
-      return Container(
+    return Container(
         height: 64,
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
+      decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.9),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0xFFE2E8F0)),
         ),
         child: Center(
           child: Row(
-            children: [
+        children: [
               Icon(Icons.lightbulb_outline_rounded,
                   size: 22, color: AppColors.accent),
               const SizedBox(width: 10),
@@ -5276,9 +2930,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
           for (int i = 0; i < tips.length; i++) ...[
             if (i > 0)
               Divider(
@@ -5293,294 +2947,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     );
   }
 
-  Widget _buildModernHealthTipCard(HealthTip tip) {
-    // Get appropriate icon and color based on category
-    IconData icon;
-    Color primaryColor;
-    Color accentColor;
-
-    switch (tip.category.toLowerCase()) {
-      case 'nutrition':
-      case 'diet':
-        icon = Icons.restaurant;
-        primaryColor = Colors.orange[600]!;
-        accentColor = Colors.orange[100]!;
-        break;
-      case 'exercise':
-      case 'physical activity':
-        icon = Icons.fitness_center;
-        primaryColor = Colors.blue[600]!;
-        accentColor = Colors.blue[100]!;
-        break;
-      case 'mental health':
-        icon = Icons.psychology;
-        primaryColor = Colors.purple[600]!;
-        accentColor = Colors.purple[100]!;
-        break;
-      case 'prevention':
-        icon = Icons.shield;
-        primaryColor = Colors.green[600]!;
-        accentColor = Colors.green[100]!;
-        break;
-      case 'wellness':
-        icon = Icons.health_and_safety;
-        primaryColor = Colors.teal[600]!;
-        accentColor = Colors.teal[100]!;
-        break;
-      case 'heart health':
-      case 'cardiovascular':
-        icon = Icons.favorite;
-        primaryColor = Colors.red[600]!;
-        accentColor = Colors.red[100]!;
-        break;
-      case 'diabetes':
-        icon = Icons.monitor_heart;
-        primaryColor = Colors.orange[600]!;
-        accentColor = Colors.orange[100]!;
-        break;
-      case 'pregnancy':
-      case 'women\'s health':
-        icon = Icons.pregnant_woman;
-        primaryColor = Colors.pink[600]!;
-        accentColor = Colors.pink[100]!;
-        break;
-      default:
-        icon = Icons.health_and_safety;
-        primaryColor = Colors.green[600]!;
-        accentColor = Colors.green[100]!;
-    }
-
-    return InkWell(
-      onTap: tip.url.isNotEmpty ? () => _showHealthTipDetails(tip) : null,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 20,
-              offset: Offset(0, 8),
-            ),
-            BoxShadow(
-              color: primaryColor.withValues(alpha: 0.12),
-              blurRadius: 30,
-              offset: Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top section with image and category badge
-            Stack(
-              children: [
-                // Image container
-                Container(
-                  width: double.infinity,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(20),
-                      topRight: Radius.circular(20),
-                    ),
-                    color: accentColor,
-                  ),
-                  child: tip.imageUrl != null && tip.imageUrl!.isNotEmpty
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(20),
-                            topRight: Radius.circular(20),
-                          ),
-                          child: Image.network(
-                            tip.imageUrl!,
-                            width: double.infinity,
-                            height: 120,
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                width: double.infinity,
-                                height: 120,
-                                decoration: BoxDecoration(
-                                  color: accentColor,
-                                ),
-                                child: Icon(
-                                  icon,
-                                  color: primaryColor,
-                                  size: 32,
-                                ),
-                              );
-                            },
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Container(
-                                width: double.infinity,
-                                height: 120,
-                                decoration: BoxDecoration(
-                                  color: accentColor,
-                                ),
-                                child: Center(
-                                  child: CircularProgressIndicator(
-                                    value: loadingProgress.expectedTotalBytes !=
-                                            null
-                                        ? loadingProgress
-                                                .cumulativeBytesLoaded /
-                                            loadingProgress.expectedTotalBytes!
-                                        : null,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                        primaryColor),
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        )
-                      : Icon(
-                          icon,
-                          color: primaryColor,
-                          size: 24,
-                        ),
-                ),
-                // Category badge positioned at top-right with smaller size
-                Positioned(
-                  top: 4,
-                  right: 4,
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: primaryColor,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: primaryColor.withValues(alpha: 0.3),
-                          blurRadius: 4,
-                          offset: Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      tip.category.toUpperCase(),
-                      style: GoogleFonts.poppins(
-                        fontSize: 7,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            // Content section
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.all(4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title with icon
-                    Row(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(3),
-                          decoration: BoxDecoration(
-                            color: accentColor,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Icon(
-                            icon,
-                            color: primaryColor,
-                            size: 10,
-                          ),
-                        ),
-                        SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            tip.title,
-                            style: GoogleFonts.poppins(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.grey[800],
-                              height: 1.1,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 2),
-                    // Summary text
-                    Text(
-                      tip.summary ?? tip.content,
-                      style: GoogleFonts.poppins(
-                        fontSize: 8,
-                        color: Colors.grey[600],
-                        height: 1.1,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    SizedBox(height: 4),
-                    // Action button
-                    if (tip.url.isNotEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.symmetric(vertical: 4),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              primaryColor,
-                              primaryColor.withValues(alpha: 0.8)
-                            ],
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: primaryColor.withValues(alpha: 0.3),
-                              blurRadius: 4,
-                              offset: Offset(0, 1),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.arrow_forward,
-                              size: 12,
-                              color: Colors.white,
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              'Learn More',
-                              style: GoogleFonts.poppins(
-                                fontSize: 9,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildSlimBookingCard(
     Map<String, dynamic> b, {
-    EdgeInsetsGeometry margin =
-        const EdgeInsets.symmetric(horizontal: 16),
+    EdgeInsetsGeometry margin = const EdgeInsets.symmetric(horizontal: 16),
     bool compact = false,
     bool omitDetailLine = false,
   }) {
@@ -5611,12 +2980,12 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         boxShadow: compact
             ? null
             : [
-                BoxShadow(
+          BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 14,
                   offset: const Offset(0, 5),
-                ),
-              ],
+          ),
+        ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(radius),
@@ -5670,9 +3039,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                                   ? Color(0xFFE8F5E9)
                                   : isPastDue
                                       ? Colors.amber.shade50
-                                      : Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(
-                                  compact ? 8 : 12),
+                                  : Colors.grey.shade100,
+                              borderRadius:
+                                  BorderRadius.circular(compact ? 8 : 12),
                             ),
                             child: Text(
                               getBookingStatus(b),
@@ -5683,7 +3052,7 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                                     ? Color(0xFF2E7D32)
                                     : isPastDue
                                         ? Colors.amber.shade900
-                                        : Colors.grey.shade700,
+                                    : Colors.grey.shade700,
                               ),
                             ),
                           ),
@@ -5698,9 +3067,9 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                             fontWeight: FontWeight.w600,
                             color: Color(0xFF374151),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                         const SizedBox(height: 2),
                         Text(
                           '${bookingDisplayConsultationType(b)} · ${bookingDisplayPlatform(b)}',
@@ -5728,25 +3097,25 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                         SizedBox(height: compact ? 3 : 8),
                         Align(
                           alignment: Alignment.centerRight,
-                          child: InkWell(
-                            onTap: () async {
-                              final confirm = await showDialog<bool>(
-                                context: context,
+                            child: InkWell(
+                              onTap: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
                                 builder: (ctx) =>
                                     buildCancelBookingConfirmDialog(ctx),
-                              );
+                                );
                               if (confirm == true) await _cancelBooking(b);
-                            },
+                              },
                             borderRadius: BorderRadius.circular(6),
-                            child: Padding(
+                              child: Padding(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 6, vertical: 2),
                               child: Text(
-                                'Cancel booking',
-                                style: GoogleFonts.poppins(
+                                      'Cancel booking',
+                                      style: GoogleFonts.poppins(
                                   fontSize: compact ? 10 : 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.red.shade600,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.red.shade600,
                                 ),
                               ),
                             ),
@@ -5759,395 +3128,6 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEnhancedBookingCard(Map<String, dynamic> b) {
-    final isUpcoming = isBookingUpcoming(b);
-    final isPastDue = isBookingPastDue(b);
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.white, Colors.green[50]!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green[200]!, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.green.withValues(alpha: 0.08),
-            blurRadius: 6,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header with date/time and status
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.green[500]!, Colors.green[600]!],
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.calendar_today,
-                        color: Colors.white,
-                        size: 14,
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      '${bookingDisplayDate(b)} at ${bookingDisplayTime(b)}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green[800],
-                      ),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    gradient: isUpcoming
-                        ? LinearGradient(
-                            colors: [Colors.green[400]!, Colors.green[500]!],
-                          )
-                        : null,
-                    color: isUpcoming
-                        ? null
-                        : isPastDue
-                            ? Colors.amber.shade100
-                            : Colors.grey[300],
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: isUpcoming
-                        ? [
-                            BoxShadow(
-                              color: Colors.green.withValues(alpha: 0.3),
-                              blurRadius: 4,
-                              offset: Offset(0, 1),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Text(
-                    getBookingStatus(b),
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: isUpcoming
-                          ? Colors.white
-                          : isPastDue
-                              ? Colors.amber.shade900
-                              : Colors.grey[700],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 12),
-
-            // Details grid
-            Row(
-              children: [
-                Expanded(
-                  child: _buildDetailItem(
-                    Icons.person,
-                    'Name',
-                    bookingDisplayName(b),
-                    Colors.blue[600]!,
-                  ),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: _buildDetailItem(
-                    Icons.phone,
-                    'Phone',
-                    b['phone'] ?? '',
-                    Colors.green[600]!,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildDetailItem(
-                    Icons.email,
-                    'Email',
-                    b['email'] ?? '',
-                    Colors.orange[600]!,
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _buildDetailItem(
-                    Icons.video_call,
-                    'Type',
-                    bookingDisplayConsultationType(b),
-                    Colors.purple[600]!,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 12),
-
-            // Symptoms section
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey[200]!),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.medical_services,
-                        color: Colors.red[600],
-                        size: 14,
-                      ),
-                      SizedBox(width: 6),
-                      Text(
-                        'Symptoms/Concerns',
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 6),
-                  Text(
-                    bookingDisplaySymptoms(b),
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      color: Colors.grey[600],
-                      height: 1.3,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailItem(
-      IconData icon, String label, String value, Color color) {
-    return Container(
-      padding: EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 12),
-              SizedBox(width: 4),
-              Text(
-                label,
-                style: GoogleFonts.poppins(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 3),
-          Text(
-            value,
-            style: GoogleFonts.poppins(
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey[800],
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBookingCard(Map<String, dynamic> b) {
-    final isUpcoming = isBookingUpcoming(b);
-    final isPastDue = isBookingPastDue(b);
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      elevation: 1,
-      margin: EdgeInsets.symmetric(horizontal: 16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.calendar_today,
-                        color: Colors.green[700], size: 15),
-                    SizedBox(width: 6),
-                    Text(
-                      '${bookingDisplayDate(b)} at ${bookingDisplayTime(b)}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green[800],
-                      ),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: isUpcoming
-                        ? Colors.green[100]
-                        : isPastDue
-                            ? Colors.amber.shade100
-                            : Colors.grey[300],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    getBookingStatus(b),
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: isUpcoming
-                          ? Colors.green[800]
-                          : isPastDue
-                              ? Colors.amber.shade900
-                              : Colors.grey[700],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Icon(Icons.person, color: Colors.green[400], size: 13),
-                SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    bookingDisplayName(b),
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Icon(Icons.phone, color: Colors.green[400], size: 13),
-                SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    b['phone'] ?? '',
-                    style: GoogleFonts.poppins(fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Icon(Icons.email, color: Colors.green[400], size: 13),
-                SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    b['email'] ?? '',
-                    style: GoogleFonts.poppins(fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Icon(Icons.video_call, color: Colors.green[400], size: 13),
-                SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    bookingDisplayConsultationType(b),
-                    style: GoogleFonts.poppins(fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Icon(Icons.computer, color: Colors.green[400], size: 13),
-                SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    'Platform: ${bookingDisplayPlatform(b)}',
-                    style: GoogleFonts.poppins(fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.medical_services,
-                    color: Colors.green[400], size: 13),
-                SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    bookingDisplaySymptoms(b),
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: Colors.grey[700],
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ],
         ),
       ),
     );
@@ -6169,33 +3149,33 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
         ),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFC8E6D0)),
-        boxShadow: [
-          BoxShadow(
+          boxShadow: [
+            BoxShadow(
             color: AppColors.accent.withOpacity(0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
+            ),
+          ],
+        ),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
+          mainAxisSize: MainAxisSize.min,
+          children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
+          children: [
+            Container(
                 padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
+            decoration: BoxDecoration(
+              color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
                       color: AppColors.primary.withOpacity(0.12),
                       blurRadius: 6,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
+                    offset: const Offset(0, 1),
+                  ),
+                ],
                 ),
                 child: Icon(
                   Icons.auto_awesome_rounded,
@@ -6233,18 +3213,18 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 onPressed: _refreshHealthTips,
                 tooltip: 'New tips',
                 style: IconButton.styleFrom(
-                  backgroundColor: Colors.white,
+        backgroundColor: Colors.white,
                   foregroundColor: AppColors.accent,
-                  elevation: 0,
+        elevation: 0,
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.all(4),
                   minimumSize: const Size(32, 32),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 icon: const Icon(Icons.refresh_rounded, size: 18),
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
           const SizedBox(height: 8),
           _buildCompactHealthTipsList(),
         ],

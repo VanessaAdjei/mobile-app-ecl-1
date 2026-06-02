@@ -38,8 +38,9 @@ class ApiConfig {
   static const String logout = '/logout';
   static const String otpVerification = '/otp-verification';
   static const String resendOtp = '/resend-otp';
-  static const String resetPassword = '/reset-pwd';
-  static const String forgotPassword = '/forgot-password';
+  static const String resetPassword = '/reset-pwd'; // used by forgot-password flow
+  static const String forgotPassword =
+      '/forgot-password'; // legacy alias — not used by the app
   static const String guestId = '/guest-id';
   static const String checkAuth = '/check-auth';
 
@@ -196,34 +197,28 @@ class ApiConfig {
   static const String googleMapsGeocodingUrl =
       'https://maps.googleapis.com/maps/api/geocode/json';
 
-  /// Google Maps API key. Set via --dart-define=GOOGLE_MAPS_API_KEY=your_key
-  /// or configured in android/local.properties and ios/Runner/Info.plist
-  static String get googleMapsApiKey {
-    // First try --dart-define
-    final fromEnv =
-        String.fromEnvironment('GOOGLE_MAPS_API_KEY', defaultValue: '');
-    if (fromEnv.isNotEmpty) return fromEnv;
+  /// Google Maps API key for web-service REST calls (Places, geocoding).
+  ///
+  /// Provided at build time and never hardcoded in source, e.g.:
+  ///   flutter run --dart-define-from-file=.env
+  /// where `.env` (git-ignored) contains:
+  ///   GOOGLE_MAPS_API_KEY=your_key
+  ///
+  /// NOTE: web-service keys are sent as a query parameter and are NOT protected
+  /// by Android/iOS bundle-ID restrictions, so this key must be restricted by
+  /// HTTP referrer / IP and API in the Google Cloud Console.
+  static const String googleMapsApiKey =
+      String.fromEnvironment('GOOGLE_MAPS_API_KEY', defaultValue: '');
 
-    // Fallback to hardcoded key (this is restricted by app bundle ID in Google Cloud Console)
-    return 'AIzaSyBqGNL-wuTz1671t-R2qQHmGOpKfesodVI';
-  }
+  /// Whether a Maps web-service key is configured for this build.
+  static bool get hasGoogleMapsApiKey => googleMapsApiKey.isNotEmpty;
 
   // ==================== HELPER METHODS ====================
   // functions to build full urls from endpoints
 
-  /// Backend sometimes returns filenames or paths with spaces; raw URLs then fail
-  /// [Uri.parse] / HTTP clients. Encode spaces as `%20` (path/query only).
-  static String _encodeSpacesInHttpOrPath(String value) {
-    if (!value.contains(' ')) return value;
-    if (value.startsWith('http://') || value.startsWith('https://')) {
-      try {
-        return Uri.parse(value).toString();
-      } catch (_) {
-        return value.replaceAll(' ', '%20');
-      }
-    }
-    return value.replaceAll(' ', '%20');
-  }
+  /// Encodes product / upload image URLs for HTTP (spaces, `'`, `(`, `+`, etc.).
+  static String _encodeProductImageUrl(String value) =>
+      encodeProductImageUrl(value);
 
   // build the full url for a product image
   static String getProductImageUrl(String? imagePath) {
@@ -234,16 +229,16 @@ class ApiConfig {
 
     // if its already a full url, just return it
     if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
-      return _encodeSpacesInHttpOrPath(normalized);
+      return _encodeProductImageUrl(normalized);
     }
 
     // if it starts with /, use the admin base url
     if (normalized.startsWith('/')) {
-      return _encodeSpacesInHttpOrPath('$adminBaseUrl$normalized');
+      return _encodeProductImageUrl('$adminBaseUrl$normalized');
     }
 
     // otherwise assume its just a filename and add it to the product image url
-    return _encodeSpacesInHttpOrPath('$productImageBaseUrl/$normalized');
+    return _encodeProductImageUrl('$productImageBaseUrl/$normalized');
   }
 
   /// Build URL for image or storage path (uploads/, storage/, or product filename).
@@ -251,15 +246,15 @@ class ApiConfig {
     final normalized = coerceProductImageSource(url);
     if (normalized.isEmpty) return '';
     if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
-      return _encodeSpacesInHttpOrPath(normalized);
+      return _encodeProductImageUrl(normalized);
     }
     if (normalized.startsWith('/uploads/')) {
-      return _encodeSpacesInHttpOrPath('$adminBaseUrl$normalized');
+      return _encodeProductImageUrl('$adminBaseUrl$normalized');
     }
     if (normalized.startsWith('/storage/')) {
-      return _encodeSpacesInHttpOrPath('$appBaseUrl$normalized');
+      return _encodeProductImageUrl('$appBaseUrl$normalized');
     }
-    return _encodeSpacesInHttpOrPath('$productImageBaseUrl/$normalized');
+    return _encodeProductImageUrl('$productImageBaseUrl/$normalized');
   }
 
   /// Build URL for storage path (e.g. categories, banners).

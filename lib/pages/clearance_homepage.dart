@@ -1,10 +1,9 @@
 // pages/clearance_homepage.dart
 import 'dart:async';
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:google_fonts/google_fonts.dart';
+import '../services/product_catalog_service.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:provider/provider.dart';
@@ -13,6 +12,7 @@ import '../services/clearance_sale_api_service.dart';
 import '../widgets/cart_icon_button.dart';
 import '../config/api_config.dart';
 import '../config/app_routes.dart';
+import '../utils/app_error_utils.dart';
 import '../providers/cart_provider.dart';
 import '../models/cart_item.dart';
 import 'clearance_item_detail.dart';
@@ -28,6 +28,7 @@ class ClearanceHomePage extends StatefulWidget {
 
 class _ClearanceHomePageState extends State<ClearanceHomePage>
     with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+  final ProductCatalogService _catalogService = ProductCatalogService();
   bool _isLoading = true;
 
   // Safe Google Fonts wrapper - handles network errors gracefully
@@ -243,21 +244,13 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
     try {
       print('🔄 Loading clearance products from API...');
 
-      final response = await http
-          .get(
-            Uri.parse(
-                ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)),
-          )
-          .timeout(const Duration(seconds: 10));
+      final dataList = await _catalogService.fetchCatalogRawItems(
+        timeout: const Duration(seconds: 10),
+      );
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        final List<dynamic> dataList = responseData['data'];
-
-        print('✅ API Response: ${dataList.length} products received');
-        print('✅ Response structure: ${responseData.keys.toList()}');
-        if (dataList.isNotEmpty) {
-          print('✅ First product structure: ${dataList[0].keys.toList()}');
+      print('✅ API Response: ${dataList.length} products received');
+      if (dataList.isNotEmpty) {
+        print('✅ First product structure: ${(dataList[0] as Map).keys.toList()}');
           if (dataList[0]['product'] != null) {
             final productData = dataList[0]['product'] as Map<String, dynamic>;
             print('✅ Product data structure: ${productData.keys.toList()}');
@@ -398,9 +391,6 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
           print(
               '  - Price: GHS ${product.originalPrice} -> GHS ${product.clearancePrice}');
         }
-      } else {
-        throw Exception('API returned status code: ${response.statusCode}');
-      }
     } catch (e) {
       print('❌ API Error Details: $e');
       print('❌ Error Type: ${e.runtimeType}');
@@ -528,7 +518,7 @@ class _ClearanceHomePageState extends State<ClearanceHomePage>
           e);
     } on HttpException catch (e) {
       _handleAddToCartError(
-          product, 'Server error. Please try again later.', 'Server Error', e);
+          product, AppErrorUtils.oopsTryAgainMessage, AppErrorUtils.oopsTitle, e);
     } on FormatException catch (e) {
       _handleAddToCartError(
           product, 'Data processing error. Please try again.', 'Data Error', e);

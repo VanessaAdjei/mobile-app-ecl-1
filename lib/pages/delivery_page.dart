@@ -36,13 +36,13 @@ class DeliveryPageState extends State<DeliveryPage> {
       return await Navigator.push<T>(context, route);
     } finally {
       if (mounted) {
-        await Future.delayed(const Duration(milliseconds: 250));
         _isNavigatingToNextPage = false;
       }
     }
   }
 
   void _onAddressFieldsChanged() {
+    if (_suppressAddressDrivenFeeRefresh > 0) return;
     // Only trigger if all fields are non-empty
     if (_regionController.text.trim().isNotEmpty &&
         _cityController.text.trim().isNotEmpty &&
@@ -56,6 +56,7 @@ class DeliveryPageState extends State<DeliveryPage> {
   double? _distanceKm; // actual distance in km from closest store
   bool _isUpdatingDeliveryFee = false;
   bool _isProceedingToPayment = false;
+  int _suppressAddressDrivenFeeRefresh = 0;
   int _feeUpdateGeneration = 0;
   Future<void>? _activeDeliveryFeeRefresh;
   final TextEditingController _nameController = TextEditingController();
@@ -79,9 +80,6 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   /// True when [deliveryFee] came from save-billing or calculate-delivery-fee API.
   bool _deliveryFeeFromApi = false;
-
-  /// Store coordinates for optional placeholder estimates while the fee API runs.
-  List<Map<String, dynamic>> _feeEstimateStores = [];
 
   String? _lastDeliveryErrorMessage;
 
@@ -125,8 +123,15 @@ class DeliveryPageState extends State<DeliveryPage> {
   Map<String, dynamic>? selectedCity;
   Map<String, dynamic>? selectedPickupSite;
 
+  static const Color _pageBg = Color(0xFFF2F3F5);
+  final ScrollController _scrollController = ScrollController();
+  bool _showScrollHint = false;
+  bool _scrollCanScroll = false;
+
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
@@ -143,23 +148,20 @@ class DeliveryPageState extends State<DeliveryPage> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _loadUserData();
     _loadRegions(); // load regions when the page starts
-    unawaited(_preloadFeeEstimateStores());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateScrollHint();
+    });
   }
 
-  Future<void> _preloadFeeEstimateStores() async {
+  void _runWithSuppressedAddressFeeRefresh(void Function() action) {
+    _suppressAddressDrivenFeeRefresh++;
     try {
-      final stores = await DeliveryService.getStoresForFeeEstimate();
-      if (!mounted) return;
-      _feeEstimateStores = stores;
-      if (deliveryOption == 'delivery' &&
-          _latitude != null &&
-          _longitude != null) {
-        _tryInstantFeeFromCoordinates(_latitude!, _longitude!);
-      }
-    } catch (e) {
-      debugPrint('❌ [DELIVERY] Store preload for fee estimate failed: $e');
+      action();
+    } finally {
+      _suppressAddressDrivenFeeRefresh--;
     }
   }
 
@@ -174,34 +176,34 @@ class DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  /// Placeholder fee from straight-line distance (replaced when API responds).
-  void _tryInstantFeeFromCoordinates(double lat, double lng) {
-    if (deliveryOption != 'delivery' ||
-        _feeEstimateStores.isEmpty ||
-        _deliveryFeeFromApi) {
-      return;
+  void _onScroll() => _updateScrollHint();
+
+  void _updateScrollHint() {
+    if (!mounted || !_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (!position.hasContentDimensions) return;
+
+    final hasScrollableContent = position.maxScrollExtent > 1.0;
+    final nearTop = position.pixels <= 8;
+    final showHint = hasScrollableContent && nearTop;
+
+    if (hasScrollableContent != _scrollCanScroll ||
+        showHint != _showScrollHint) {
+      setState(() {
+        _scrollCanScroll = hasScrollableContent;
+        _showScrollHint = showHint;
+      });
     }
-    final estimate = DeliveryService.estimateFeeFromCoordinates(
-      lat: lat,
-      lng: lng,
-      stores: _feeEstimateStores,
-    );
-    if (estimate == null || !mounted) return;
-    final fee = estimate['delivery_fee'];
-    if (fee is! num) return;
-    setState(() {
-      deliveryFee = fee.toDouble();
-      _distanceKm = (estimate['distance_km'] as num?)?.toDouble();
-      // Do not set _lastFeeDistanceText — that must come from save-billing/API.
-    });
   }
+
+  bool _isFeeGenerationCurrent(int generation) =>
+      mounted && generation == _feeUpdateGeneration;
 
   /// Fetches delivery fee from save-billing + calculate-delivery-fee APIs only.
   Future<void> _refreshDeliveryFeeForCoordinates(
     double lat,
     double lng, {
     bool fullLocationLookup = false,
-    bool clearFee = true,
   }) async {
     if (deliveryOption == 'pickup' || !mounted) return;
 
@@ -210,9 +212,9 @@ class DeliveryPageState extends State<DeliveryPage> {
     setState(() {
       _isUpdatingDeliveryFee = true;
       _deliveryFeeFromApi = false;
-      if (clearFee && deliveryFee <= 0) deliveryFee = 0;
+      _lastFeeDistanceText = null;
+      deliveryFee = 0;
     });
-    _tryInstantFeeFromCoordinates(lat, lng);
 
     final refresh = _runDeliveryFeeRefresh(
       generation,
@@ -227,6 +229,17 @@ class DeliveryPageState extends State<DeliveryPage> {
       }
     }
   }
+
+  /// Fee refresh after region/city/address are known (resolves billing location ids).
+  Future<void> _refreshDeliveryFeeAfterCoordinatesResolved(
+    double lat,
+    double lng,
+  ) =>
+      _refreshDeliveryFeeForCoordinates(
+        lat,
+        lng,
+        fullLocationLookup: true,
+      );
 
   /// Whether save-billing-add has enough data to succeed (avoids 422 on map pick).
   bool _canSyncBillingForFeeRefresh() {
@@ -308,23 +321,22 @@ class DeliveryPageState extends State<DeliveryPage> {
         ? address.trim()
         : null;
 
-    setState(() {
-      _latitude = lat;
-      _longitude = lng;
-      if (deliveryOption == 'delivery') {
-        _isUpdatingDeliveryFee = true;
-        _deliveryFeeFromApi = false;
-        _lastFeeDistanceText = null;
-        if (preferredAddress != null) {
-          _addressController.text = preferredAddress;
-          _highlightAddressField = false;
+    _runWithSuppressedAddressFeeRefresh(() {
+      setState(() {
+        _latitude = lat;
+        _longitude = lng;
+        if (deliveryOption == 'delivery') {
+          _isUpdatingDeliveryFee = true;
+          _deliveryFeeFromApi = false;
+          _lastFeeDistanceText = null;
+          deliveryFee = 0;
+          if (preferredAddress != null) {
+            _addressController.text = preferredAddress;
+            _highlightAddressField = false;
+          }
         }
-      }
+      });
     });
-
-    if (deliveryOption == 'delivery') {
-      _tryInstantFeeFromCoordinates(lat, lng);
-    }
 
     unawaited(_completeMapLocationSelection(lat, lng, preferredAddress));
   }
@@ -344,7 +356,6 @@ class DeliveryPageState extends State<DeliveryPage> {
       lat,
       lng,
       fullLocationLookup: true,
-      clearFee: false,
     );
   }
 
@@ -372,8 +383,13 @@ class DeliveryPageState extends State<DeliveryPage> {
   }
 
   /// Applies ETA and delivery fee from a save-billing-add response.
-  Future<void> _applySaveBillingSideEffects(Map<String, dynamic> result) async {
-    if (result['success'] != true || !mounted) return;
+  Future<void> _applySaveBillingSideEffects(
+    Map<String, dynamic> result, {
+    required int generation,
+  }) async {
+    if (result['success'] != true || !_isFeeGenerationCurrent(generation)) {
+      return;
+    }
 
     final closestStore =
         result['closest_store'] ?? result['data']?['closest_store'];
@@ -387,42 +403,60 @@ class DeliveryPageState extends State<DeliveryPage> {
 
     final distanceText = _distanceTextFromSaveResult(result);
     final feeFromSave = _deliveryFeeFromSaveResult(result);
-    if (feeFromSave != null && feeFromSave > 0) {
-      setState(() {
-        deliveryFee = feeFromSave;
-        _deliveryFeeFromApi = true;
-        if (distanceText != null) {
-          _lastFeeDistanceText = distanceText;
-        }
-      });
+
+    if (distanceText != null) {
+      if (distanceText == _lastFeeDistanceText &&
+          deliveryFee > 0 &&
+          _deliveryFeeFromApi) {
+        return;
+      }
+
+      final fee = await _applyDeliveryFeeFromDistanceText(
+        distanceText,
+        generation: generation,
+      );
+      if (!_isFeeGenerationCurrent(generation)) return;
+
+      if ((fee == null || fee <= 0) &&
+          feeFromSave != null &&
+          feeFromSave > 0) {
+        _applyDeliveryFeeResult(
+          {'delivery_fee': feeFromSave, 'distance': _distanceKm},
+          distanceText,
+          fromApi: true,
+          generation: generation,
+        );
+      }
       return;
     }
 
-    if (distanceText == null) return;
-
-    if (distanceText == _lastFeeDistanceText &&
-        deliveryFee > 0 &&
-        _deliveryFeeFromApi) {
-      debugPrint(
-          '📦 [DELIVERY] Fee unchanged for distance "$distanceText", skipping fee API');
-      return;
+    if (feeFromSave != null &&
+        feeFromSave > 0 &&
+        _isFeeGenerationCurrent(generation)) {
+      _applyDeliveryFeeResult(
+        {'delivery_fee': feeFromSave, 'distance': _distanceKm},
+        '',
+        fromApi: true,
+        generation: generation,
+      );
     }
-
-    await _applyDeliveryFeeFromDistanceText(distanceText);
   }
 
   void _applyDeliveryFeeResult(
     Map<String, dynamic> feeResult,
     String distanceText, {
     required bool fromApi,
+    required int generation,
   }) {
-    if (!mounted) return;
+    if (!_isFeeGenerationCurrent(generation)) return;
     final rawFee = feeResult['delivery_fee'];
     final rawDist = feeResult['distance'];
     if (rawFee is! num) return;
     setState(() {
       deliveryFee = rawFee.toDouble();
-      _lastFeeDistanceText = distanceText.trim();
+      if (distanceText.trim().isNotEmpty) {
+        _lastFeeDistanceText = distanceText.trim();
+      }
       _deliveryFeeFromApi = fromApi;
       if (rawDist is num) {
         _distanceKm = rawDist.toDouble();
@@ -431,7 +465,12 @@ class DeliveryPageState extends State<DeliveryPage> {
   }
 
   /// Fetches the real fee from /calculate-delivery-fee (source of truth).
-  Future<double?> _applyDeliveryFeeFromDistanceText(String distanceText) async {
+  Future<double?> _applyDeliveryFeeFromDistanceText(
+    String distanceText, {
+    required int generation,
+  }) async {
+    if (!_isFeeGenerationCurrent(generation)) return null;
+
     final trimmed = distanceText.trim();
     if (trimmed.isEmpty) return null;
 
@@ -440,6 +479,8 @@ class DeliveryPageState extends State<DeliveryPage> {
         distanceText: trimmed,
         fallbackToLocalEstimate: true,
       );
+      if (!_isFeeGenerationCurrent(generation)) return null;
+
       if (feeResult == null) {
         debugPrint(
             '❌ [DELIVERY] calculate-delivery-fee failed for "$trimmed"; fee not set');
@@ -449,7 +490,14 @@ class DeliveryPageState extends State<DeliveryPage> {
       }
 
       final fromApi = feeResult['from_api'] == true;
-      _applyDeliveryFeeResult(feeResult, trimmed, fromApi: fromApi);
+      _applyDeliveryFeeResult(
+        feeResult,
+        trimmed,
+        fromApi: fromApi,
+        generation: generation,
+      );
+      if (!_isFeeGenerationCurrent(generation)) return null;
+
       if (!fromApi) {
         debugPrint(
             '⚠️ [DELIVERY] Using local estimate for "$trimmed" — API unavailable');
@@ -461,8 +509,10 @@ class DeliveryPageState extends State<DeliveryPage> {
       return deliveryFee;
     } catch (e, st) {
       debugPrint('❌ [DELIVERY] Fee from distance_text failed: $e\n$st');
-      _lastDeliveryErrorMessage =
-          'Could not calculate delivery fee. Please try again.';
+      if (_isFeeGenerationCurrent(generation)) {
+        _lastDeliveryErrorMessage =
+            'Could not calculate delivery fee. Please try again.';
+      }
       return null;
     }
   }
@@ -480,7 +530,10 @@ class DeliveryPageState extends State<DeliveryPage> {
       }
 
       if (saveResult != null && saveResult['success'] == true) {
-        await _applySaveBillingSideEffects(saveResult);
+        await _applySaveBillingSideEffects(
+          saveResult,
+          generation: _feeUpdateGeneration,
+        );
       }
       if (_deliveryFeeFromApi && deliveryFee > 0) return deliveryFee;
 
@@ -488,7 +541,10 @@ class DeliveryPageState extends State<DeliveryPage> {
           ? _distanceTextFromSaveResult(saveResult)
           : _lastFeeDistanceText;
       if (distanceText != null && distanceText.isNotEmpty) {
-        await _applyDeliveryFeeFromDistanceText(distanceText);
+        await _applyDeliveryFeeFromDistanceText(
+          distanceText,
+          generation: _feeUpdateGeneration,
+        );
       }
       if (_deliveryFeeFromApi && deliveryFee > 0) return deliveryFee;
 
@@ -561,10 +617,11 @@ class DeliveryPageState extends State<DeliveryPage> {
         print('🗺️ [MAP COORDINATES] Longitude: ${location.longitude}');
         print('🗺️ [MAP COORDINATES] ======================================');
 
-        unawaited(
-          _refreshDeliveryFeeForCoordinates(_latitude!, _longitude!),
-        );
         await _getAddressFromCoordinates(_latitude!, _longitude!);
+        await _refreshDeliveryFeeAfterCoordinatesResolved(
+          _latitude!,
+          _longitude!,
+        );
 
         if (oldLat != null && oldLng != null) {
           print('   📍 Previous coordinates: ($oldLat, $oldLng)');
@@ -595,10 +652,11 @@ class DeliveryPageState extends State<DeliveryPage> {
             print(
                 '✅ [GEOCODING] Fallback SUCCESS! Using city center coordinates: (${_latitude}, ${_longitude})');
 
-            unawaited(
-              _refreshDeliveryFeeForCoordinates(_latitude!, _longitude!),
-            );
             await _getAddressFromCoordinates(_latitude!, _longitude!);
+            await _refreshDeliveryFeeAfterCoordinatesResolved(
+              _latitude!,
+              _longitude!,
+            );
           } else {
             print('❌ [GEOCODING] Fallback also failed for: "$fallbackAddress"');
           }
@@ -628,10 +686,11 @@ class DeliveryPageState extends State<DeliveryPage> {
           print(
               '✅ [GEOCODING] Fallback SUCCESS after error! Using city center: (${_latitude}, ${_longitude})');
 
-          unawaited(
-            _refreshDeliveryFeeForCoordinates(_latitude!, _longitude!),
-          );
           await _getAddressFromCoordinates(_latitude!, _longitude!);
+          await _refreshDeliveryFeeAfterCoordinatesResolved(
+            _latitude!,
+            _longitude!,
+          );
         }
       } catch (fallbackError) {
         print('❌ [GEOCODING] Fallback also failed: $fallbackError');
@@ -857,7 +916,7 @@ class DeliveryPageState extends State<DeliveryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F3F5),
+      backgroundColor: _pageBg,
       body: Stack(
         children: [
           Column(
@@ -885,9 +944,9 @@ class DeliveryPageState extends State<DeliveryPage> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
+                        color: Colors.black.withValues(alpha: 0.12),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
@@ -897,7 +956,10 @@ class DeliveryPageState extends State<DeliveryPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
                           child: Row(
                             children: [
                               BackButtonUtils.withConfirmation(
@@ -913,21 +975,21 @@ class DeliveryPageState extends State<DeliveryPage> {
                                     'Delivery Information',
                                     style: TextStyle(
                                       color: Colors.white,
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 0.3,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.2,
                                     ),
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 48),
+                              const SizedBox(width: 40),
                             ],
                           ),
                         ),
-                        // Progress steps
                         Container(
-                          padding: const EdgeInsets.fromLTRB(16, 2, 16, 14),
+                          padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
                           child: const CheckoutProgressStepper(
+                            compact: true,
                             steps: [
                               'Cart',
                               'Delivery',
@@ -946,9 +1008,17 @@ class DeliveryPageState extends State<DeliveryPage> {
               Expanded(
                 child: Stack(
                   children: [
-                    SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Column(
+                    NotificationListener<ScrollNotification>(
+                      onNotification: (notification) {
+                        if (notification.depth == 0) {
+                          _updateScrollHint();
+                        }
+                        return false;
+                      },
+                      child: SingleChildScrollView(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Animate(
@@ -961,10 +1031,10 @@ class DeliveryPageState extends State<DeliveryPage> {
                             ],
                             child: _buildDeliveryOptions(),
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 8),
                           if (deliveryOption == 'delivery') ...[
                             _buildUrgentOption(),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 8),
                           ],
                           if (deliveryOption == 'pickup')
                             Animate(
@@ -978,7 +1048,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                               ],
                               child: _buildPickupForm(),
                             ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 12),
                           Animate(
                             effects: [
                               FadeEffect(duration: 400.ms),
@@ -989,9 +1059,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                             ],
                             child: _buildContactInfo(),
                           ),
-                          const SizedBox(height: 20),
-
-                          // only show notes field if they chose delivery
+                          const SizedBox(height: 12),
                           if (deliveryOption == 'delivery') ...[
                             Animate(
                               effects: [
@@ -1003,9 +1071,9 @@ class DeliveryPageState extends State<DeliveryPage> {
                               ],
                               child: _buildDeliveryNotes(),
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 12),
                           ],
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 8),
                           Selector<CartProvider, double>(
                             selector: (_, cart) =>
                                 CartProvider.selectSubtotal(cart),
@@ -1022,7 +1090,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                               );
                             },
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 16),
                           Animate(
                             effects: [
                               FadeEffect(duration: 400.ms),
@@ -1033,10 +1101,61 @@ class DeliveryPageState extends State<DeliveryPage> {
                             ],
                             child: _buildContinueButton(),
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 16),
                         ],
                       ),
                     ),
+                    ),
+                    if (_showScrollHint)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: IgnorePointer(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      _pageBg.withValues(alpha: 0),
+                                      _pageBg,
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                width: double.infinity,
+                                color: _pageBg,
+                                padding: const EdgeInsets.only(bottom: 2),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.keyboard_arrow_down_rounded,
+                                      size: 18,
+                                      color: Colors.green.shade700,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Scroll for more',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.green.shade800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -1048,39 +1167,44 @@ class DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  static const double _cardRadius = 18;
   static const double _fieldRadius = 12;
+  static const double _sectionRadius = 14;
+  static const EdgeInsets _sectionMargin = EdgeInsets.symmetric(horizontal: 14);
+  static const EdgeInsets _sectionPadding = EdgeInsets.all(12);
   static const Color _cardShadow = Color(0x0A000000);
   static const Color _accent = Color(0xFF2E7D32);
 
-  Widget _buildDeliveryOptions() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
+  BoxDecoration _sectionCardDecoration() => BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(_cardRadius),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
+        borderRadius: BorderRadius.circular(_sectionRadius),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: const [
           BoxShadow(
             color: _cardShadow,
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            blurRadius: 6,
+            offset: Offset(0, 1),
           ),
         ],
-      ),
+      );
+
+  Widget _buildDeliveryOptions() {
+    return Container(
+      margin: _sectionMargin,
+      padding: _sectionPadding,
+      decoration: _sectionCardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionLabel('How do you want to receive your order?',
-              compact: false),
-          const SizedBox(height: 10),
-          // Segmented control
+          _buildSectionLabel(
+            'How do you want to receive your order?',
+            compact: true,
+          ),
+          const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.all(3),
+            padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               color: const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
             child: Row(
@@ -1149,7 +1273,7 @@ class DeliveryPageState extends State<DeliveryPage> {
         borderRadius: BorderRadius.circular(5),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+          padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 2),
           decoration: BoxDecoration(
             color: isSelected ? _accent : Colors.transparent,
             borderRadius: BorderRadius.circular(5),
@@ -1160,7 +1284,7 @@ class DeliveryPageState extends State<DeliveryPage> {
             children: [
               Icon(
                 icon,
-                size: 14,
+                size: 13,
                 color: isSelected ? Colors.white : Colors.grey.shade600,
               ),
               const SizedBox(width: 3),
@@ -1171,7 +1295,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    fontSize: 12,
+                    fontSize: 11,
                     color: isSelected ? Colors.white : Colors.grey.shade700,
                   ),
                 ),
@@ -1185,25 +1309,14 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   Widget _buildPickupForm() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(_cardRadius),
-        boxShadow: [
-          BoxShadow(
-            color: _cardShadow,
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      margin: _sectionMargin,
+      padding: _sectionPadding,
+      decoration: _sectionCardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionLabel('Pickup location'),
-          const SizedBox(height: 14),
-          // region dropdown
+          _buildSectionLabel('Pickup location', compact: true),
+          const SizedBox(height: 8),
           _buildPickupDropdown(
             label: 'Select Region',
             value: selectedRegion,
@@ -1214,6 +1327,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                   region['description'] ?? '',
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
+                  style: const TextStyle(fontSize: 13),
                 ),
               );
             }).toList(),
@@ -1232,10 +1346,10 @@ class DeliveryPageState extends State<DeliveryPage> {
               }
             },
             isLoading: isLoadingRegions,
+            compact: true,
           ),
           if (selectedRegion != null) ...[
-            const SizedBox(height: 16),
-            // city dropdown
+            const SizedBox(height: 10),
             _buildPickupDropdown(
               label: 'Select City',
               value: selectedCity,
@@ -1246,6 +1360,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                     city['description'] ?? '',
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
+                    style: const TextStyle(fontSize: 13),
                   ),
                 );
               }).toList(),
@@ -1263,11 +1378,11 @@ class DeliveryPageState extends State<DeliveryPage> {
                 }
               },
               isLoading: isLoadingCities,
+              compact: true,
             ),
           ],
           if (selectedCity != null) ...[
-            const SizedBox(height: 16),
-            // pickup site dropdown
+            const SizedBox(height: 10),
             _buildPickupDropdown(
               label: 'Select Pickup Site',
               value: selectedPickupSite,
@@ -1278,6 +1393,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                     store['description'] ?? '',
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
+                    style: const TextStyle(fontSize: 13),
                   ),
                 );
               }).toList(),
@@ -1287,15 +1403,16 @@ class DeliveryPageState extends State<DeliveryPage> {
                 });
               },
               isLoading: isLoadingStores,
+              compact: true,
             ),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           if (_highlightPickupField) ...[
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: Colors.red.shade50,
-                borderRadius: BorderRadius.circular(_fieldRadius),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: Colors.red.shade200),
               ),
               child: Row(
@@ -1303,28 +1420,28 @@ class DeliveryPageState extends State<DeliveryPage> {
                   Icon(
                     Icons.error_outline_rounded,
                     color: Colors.red.shade600,
-                    size: 18,
+                    size: 16,
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Please select region, city and pickup site',
                       style: TextStyle(
                         color: Colors.red.shade700,
-                        fontSize: 13,
+                        fontSize: 11,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 8),
           ],
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(_fieldRadius),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: Colors.blue.shade100),
             ),
             child: Row(
@@ -1333,15 +1450,15 @@ class DeliveryPageState extends State<DeliveryPage> {
                 Icon(
                   Icons.info_outline_rounded,
                   color: Colors.blue.shade600,
-                  size: 18,
+                  size: 16,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Pickup stations are open till 7pm, Monday to Saturday. Closed on Sundays.',
                     style: TextStyle(
                       color: Colors.blue.shade800,
-                      fontSize: 12,
+                      fontSize: 11,
                       height: 1.35,
                     ),
                   ),
@@ -1360,6 +1477,7 @@ class DeliveryPageState extends State<DeliveryPage> {
     required List<DropdownMenuItem<Map<String, dynamic>>> items,
     required Function(Map<String, dynamic>?) onChanged,
     bool isLoading = false,
+    bool compact = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1370,7 +1488,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               label,
               style: TextStyle(
                 fontWeight: FontWeight.w500,
-                fontSize: 14,
+                fontSize: compact ? 11 : 14,
                 color:
                     _highlightPickupField ? Colors.red : Colors.grey.shade700,
               ),
@@ -1380,11 +1498,12 @@ class DeliveryPageState extends State<DeliveryPage> {
               style: TextStyle(
                 color: Colors.red,
                 fontWeight: FontWeight.bold,
+                fontSize: compact ? 11 : 14,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: compact ? 4 : 8),
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
@@ -1392,20 +1511,21 @@ class DeliveryPageState extends State<DeliveryPage> {
               color: _highlightPickupField ? Colors.red : Colors.grey.shade300,
               width: _highlightPickupField ? 2 : 1,
             ),
-            borderRadius: BorderRadius.circular(_fieldRadius),
+            borderRadius: BorderRadius.circular(compact ? 10 : _fieldRadius),
             color: _highlightPickupField
                 ? Colors.red.shade50
                 : Colors.grey.shade50,
           ),
           child: DropdownButtonFormField<Map<String, dynamic>>(
             value: value,
+            isDense: compact,
             decoration: InputDecoration(
               prefixIcon: isLoading
                   ? SizedBox(
-                      width: 20,
-                      height: 20,
+                      width: 18,
+                      height: 18,
                       child: Padding(
-                        padding: const EdgeInsets.all(8.0),
+                        padding: EdgeInsets.all(compact ? 6 : 8),
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           valueColor: AlwaysStoppedAnimation<Color>(
@@ -1421,11 +1541,13 @@ class DeliveryPageState extends State<DeliveryPage> {
                       color: _highlightPickupField
                           ? Colors.red
                           : Colors.grey.shade600,
-                      size: 22,
+                      size: compact ? 18 : 22,
                     ),
               border: InputBorder.none,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: compact ? 12 : 16,
+                vertical: compact ? 10 : 14,
+              ),
             ),
             hint: Text(
               isLoading
@@ -1433,7 +1555,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                   : (items.isEmpty ? 'No options available' : label),
               style: TextStyle(
                 color: Colors.grey.shade500,
-                fontSize: 14,
+                fontSize: compact ? 13 : 14,
               ),
             ),
             items: items,
@@ -1468,30 +1590,20 @@ class DeliveryPageState extends State<DeliveryPage> {
         _phoneController.text.length == 10 || _phoneController.text.isEmpty;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(_cardRadius),
-        boxShadow: [
-          BoxShadow(
-            color: _cardShadow,
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      margin: _sectionMargin,
+      padding: _sectionPadding,
+      decoration: _sectionCardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildSectionLabel('Contact & address'),
-          const SizedBox(height: 14),
+          _buildSectionLabel('Contact & address', compact: true),
+          const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(_fieldRadius),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: Colors.grey.shade200),
             ),
             child: Column(
@@ -1502,14 +1614,12 @@ class DeliveryPageState extends State<DeliveryPage> {
                   'Personal details',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    fontSize: 12,
+                    fontSize: 11,
                     color: Colors.grey.shade600,
-                    letterSpacing: 0.3,
+                    letterSpacing: 0.2,
                   ),
                 ),
-                const SizedBox(height: 14),
-
-                // name input field
+                const SizedBox(height: 10),
                 _buildFormField(
                   key: nameSectionKey,
                   controller: _nameController,
@@ -1517,15 +1627,14 @@ class DeliveryPageState extends State<DeliveryPage> {
                   icon: Icons.person_outline,
                   isRequired: true,
                   isHighlighted: _highlightNameField,
+                  compact: true,
                   onChanged: (value) {
                     setState(() {
                       _highlightNameField = false;
                     });
                   },
                 ),
-                const SizedBox(height: 16),
-
-                // Email Field
+                const SizedBox(height: 10),
                 _buildFormField(
                   key: emailSectionKey,
                   controller: _emailController,
@@ -1535,43 +1644,40 @@ class DeliveryPageState extends State<DeliveryPage> {
                   isHighlighted: _highlightEmailField,
                   keyboardType: TextInputType.emailAddress,
                   autofillHints: const [AutofillHints.email],
+                  compact: true,
                   onChanged: (value) {
                     setState(() {
                       _highlightEmailField = false;
                     });
                   },
                 ),
-                const SizedBox(height: 16),
-
-                // Phone Field
-                _buildPhoneField(isPhoneValid),
+                const SizedBox(height: 10),
+                _buildPhoneField(isPhoneValid, compact: true),
               ],
             ),
           ),
-
-          // Only show location section for delivery option
           if (deliveryOption == 'delivery') ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             Text(
               'Delivery location',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
-                fontSize: 12,
+                fontSize: 11,
                 color: Colors.grey.shade600,
-                letterSpacing: 0.3,
+                letterSpacing: 0.2,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             Container(
               key: addressSectionKey,
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: (_highlightRegionField ||
                         _highlightCityField ||
                         _highlightAddressField)
                     ? Colors.red.shade50
                     : Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(_fieldRadius),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: (_highlightRegionField ||
                           _highlightCityField ||
@@ -1591,44 +1697,46 @@ class DeliveryPageState extends State<DeliveryPage> {
                     color: Colors.transparent,
                     child: InkWell(
                       onTap: () => _showMapPicker(),
-                      borderRadius: BorderRadius.circular(_fieldRadius),
+                      borderRadius: BorderRadius.circular(10),
                       child: Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 18, vertical: 14),
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
                           color: _accent,
-                          borderRadius: BorderRadius.circular(_fieldRadius),
+                          borderRadius: BorderRadius.circular(10),
                           boxShadow: [
                             BoxShadow(
-                              color: _accent.withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
+                              color: _accent.withValues(alpha: 0.22),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
                             ),
                           ],
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.map_rounded,
                               color: Colors.white,
-                              size: 20,
+                              size: 17,
                             ),
-                            const SizedBox(width: 10),
+                            const SizedBox(width: 8),
                             Text(
                               'Pick location on map',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 14,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             Icon(
                               Icons.arrow_forward_rounded,
                               color: Colors.white.withValues(alpha: 0.85),
-                              size: 16,
+                              size: 14,
                             ),
                           ],
                         ),
@@ -1636,12 +1744,12 @@ class DeliveryPageState extends State<DeliveryPage> {
                     ),
                   ),
                   if (_addressController.text.isNotEmpty) ...[
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(_fieldRadius),
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: _accent.withValues(alpha: 0.4),
                           width: 1,
@@ -1653,9 +1761,9 @@ class DeliveryPageState extends State<DeliveryPage> {
                           Icon(
                             Icons.check_circle_rounded,
                             color: _accent,
-                            size: 20,
+                            size: 16,
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1665,16 +1773,16 @@ class DeliveryPageState extends State<DeliveryPage> {
                                   'Location confirmed',
                                   style: TextStyle(
                                     color: _accent,
-                                    fontSize: 12,
+                                    fontSize: 11,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 2),
                                 Text(
                                   _addressController.text,
                                   style: TextStyle(
                                     color: Colors.grey.shade800,
-                                    fontSize: 13,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w500,
                                     height: 1.3,
                                   ),
@@ -1705,6 +1813,7 @@ class DeliveryPageState extends State<DeliveryPage> {
     required Function(String) onChanged,
     TextInputType? keyboardType,
     List<String>? autofillHints,
+    bool compact = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1716,7 +1825,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               label,
               style: TextStyle(
                 fontWeight: FontWeight.w500,
-                fontSize: 13,
+                fontSize: compact ? 11 : 13,
                 color: isHighlighted ? Colors.red : Colors.grey.shade700,
               ),
             ),
@@ -1726,38 +1835,41 @@ class DeliveryPageState extends State<DeliveryPage> {
                 style: TextStyle(
                   color: Colors.red,
                   fontWeight: FontWeight.bold,
+                  fontSize: compact ? 11 : 14,
                 ),
               ),
           ],
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: compact ? 4 : 8),
         TextField(
           key: key,
           controller: controller,
           keyboardType: keyboardType,
           autofillHints: autofillHints,
+          style: TextStyle(fontSize: compact ? 13 : 14),
           decoration: InputDecoration(
+            isDense: compact,
             prefixIcon: Icon(
               icon,
               color: isHighlighted ? Colors.red : Colors.grey.shade600,
-              size: 22,
+              size: compact ? 18 : 22,
             ),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(_fieldRadius),
+              borderRadius: BorderRadius.circular(compact ? 10 : _fieldRadius),
               borderSide: BorderSide(
                 color: isHighlighted ? Colors.red : Colors.grey.shade300,
                 width: isHighlighted ? 2 : 1,
               ),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(_fieldRadius),
+              borderRadius: BorderRadius.circular(compact ? 10 : _fieldRadius),
               borderSide: BorderSide(
                 color: isHighlighted ? Colors.red : Colors.grey.shade300,
                 width: isHighlighted ? 2 : 1,
               ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(_fieldRadius),
+              borderRadius: BorderRadius.circular(compact ? 10 : _fieldRadius),
               borderSide: BorderSide(
                 color: isHighlighted ? Colors.red : _accent,
                 width: 2,
@@ -1765,8 +1877,10 @@ class DeliveryPageState extends State<DeliveryPage> {
             ),
             filled: true,
             fillColor: isHighlighted ? Colors.red.shade50 : Colors.grey.shade50,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: compact ? 12 : 16,
+              vertical: compact ? 10 : 14,
+            ),
           ),
           onChanged: onChanged,
         ),
@@ -1847,7 +1961,7 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   Future<void> _fetchDeliveryTimeFromAPI() async {
     if (_latitude == null || _longitude == null || !mounted) return;
-    await _refreshDeliveryFeeForCoordinates(_latitude!, _longitude!);
+    await _refreshDeliveryFeeAfterCoordinatesResolved(_latitude!, _longitude!);
   }
 
   Future<bool> _safelyCallDeliveryAPI({
@@ -1915,7 +2029,10 @@ class DeliveryPageState extends State<DeliveryPage> {
       if (!skipFeeWhenAlreadySet &&
           mounted &&
           (generation == null || generation == _feeUpdateGeneration)) {
-        await _applySaveBillingSideEffects(Map<String, dynamic>.from(result));
+        await _applySaveBillingSideEffects(
+          Map<String, dynamic>.from(result),
+          generation: generation ?? _feeUpdateGeneration,
+        );
       } else if (mounted &&
           (generation == null || generation == _feeUpdateGeneration)) {
         final closestStore =
@@ -1941,7 +2058,7 @@ class DeliveryPageState extends State<DeliveryPage> {
     }
   }
 
-  Widget _buildPhoneField(bool isPhoneValid) {
+  Widget _buildPhoneField(bool isPhoneValid, {bool compact = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1951,7 +2068,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               'Phone number',
               style: TextStyle(
                 fontWeight: FontWeight.w500,
-                fontSize: 13,
+                fontSize: compact ? 11 : 13,
                 color: _highlightPhoneField ? Colors.red : Colors.grey.shade700,
               ),
             ),
@@ -1960,15 +2077,17 @@ class DeliveryPageState extends State<DeliveryPage> {
               style: TextStyle(
                 color: Colors.red,
                 fontWeight: FontWeight.bold,
+                fontSize: compact ? 11 : 14,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: compact ? 4 : 8),
         TextField(
           controller: _phoneController,
           keyboardType: TextInputType.number,
           maxLength: 10,
+          style: TextStyle(fontSize: compact ? 13 : 14),
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
             LengthLimitingTextInputFormatter(10),
@@ -1982,7 +2101,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               style: TextStyle(
                 color:
                     currentLength == maxLength ? _accent : Colors.grey.shade500,
-                fontSize: 12,
+                fontSize: compact ? 10 : 12,
               ),
             );
           },
@@ -1992,33 +2111,34 @@ class DeliveryPageState extends State<DeliveryPage> {
             });
           },
           decoration: InputDecoration(
+            isDense: compact,
             prefixIcon: Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: EdgeInsets.all(compact ? 6 : 8),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Text('🇬🇭', style: TextStyle(fontSize: 22)),
-                  SizedBox(width: 4),
-                  Text('+233', style: TextStyle(fontSize: 15)),
+                children: [
+                  Text('🇬🇭', style: TextStyle(fontSize: compact ? 18 : 22)),
+                  SizedBox(width: compact ? 3 : 4),
+                  Text('+233', style: TextStyle(fontSize: compact ? 13 : 15)),
                 ],
               ),
             ),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(_fieldRadius),
+              borderRadius: BorderRadius.circular(compact ? 10 : _fieldRadius),
               borderSide: BorderSide(
                 color: _highlightPhoneField ? Colors.red : Colors.grey.shade300,
                 width: _highlightPhoneField ? 2 : 1,
               ),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(_fieldRadius),
+              borderRadius: BorderRadius.circular(compact ? 10 : _fieldRadius),
               borderSide: BorderSide(
                 color: _highlightPhoneField ? Colors.red : Colors.grey.shade300,
                 width: _highlightPhoneField ? 2 : 1,
               ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(_fieldRadius),
+              borderRadius: BorderRadius.circular(compact ? 10 : _fieldRadius),
               borderSide: BorderSide(
                 color: _highlightPhoneField ? Colors.red : _accent,
                 width: 2,
@@ -2027,9 +2147,12 @@ class DeliveryPageState extends State<DeliveryPage> {
             filled: true,
             fillColor:
                 _highlightPhoneField ? Colors.red.shade50 : Colors.grey.shade50,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: compact ? 12 : 16,
+              vertical: compact ? 10 : 14,
+            ),
             errorText: isPhoneValid ? null : 'Phone number must be 10 digits',
+            errorStyle: TextStyle(fontSize: compact ? 10 : 12),
           ),
         ),
       ],
@@ -2038,29 +2161,19 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   Widget _buildDeliveryNotes() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(_cardRadius),
-        boxShadow: [
-          BoxShadow(
-            color: _cardShadow,
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      margin: _sectionMargin,
+      padding: _sectionPadding,
+      decoration: _sectionCardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Expanded(
-                child: _buildSectionLabel('Delivery notes'),
+                child: _buildSectionLabel('Delivery notes', compact: true),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: Colors.grey.shade200,
                   borderRadius: BorderRadius.circular(6),
@@ -2068,7 +2181,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                 child: Text(
                   'Optional',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: FontWeight.w500,
                     color: Colors.grey.shade600,
                   ),
@@ -2076,30 +2189,32 @@ class DeliveryPageState extends State<DeliveryPage> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           TextField(
             controller: _notesController,
+            style: const TextStyle(fontSize: 13),
             decoration: InputDecoration(
+              isDense: true,
               hintText: 'e.g. gate code, landmarks, or special instructions',
               hintStyle: TextStyle(
                 color: Colors.grey.shade500,
-                fontSize: 14,
+                fontSize: 12,
               ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(_fieldRadius),
+                borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide(color: Colors.grey.shade300),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(_fieldRadius),
+                borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide(color: Colors.grey.shade300),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(_fieldRadius),
+                borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide(color: _accent, width: 2),
               ),
               filled: true,
               fillColor: Colors.grey.shade50,
-              contentPadding: const EdgeInsets.all(16),
+              contentPadding: const EdgeInsets.all(12),
             ),
             maxLines: 3,
             textInputAction: TextInputAction.done,
@@ -2138,13 +2253,11 @@ class DeliveryPageState extends State<DeliveryPage> {
       _isOrderUrgent = false;
       _emergencyOrderFee = null;
     });
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Failed to add urgent delivery fee.'),
-        behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 2),
-      ),
+    AppErrorUtils.showSnack(
+      context,
+      'Failed to add urgent delivery fee.',
+      isError: true,
+      duration: const Duration(seconds: 2),
     );
   }
 
@@ -2154,11 +2267,11 @@ class DeliveryPageState extends State<DeliveryPage> {
     const urgentOrange = Color(0xFFEA580C);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: _sectionMargin,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.fromLTRB(10, 10, 4, 10),
+        padding: const EdgeInsets.fromLTRB(8, 8, 2, 8),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -2175,7 +2288,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                     Colors.white,
                   ],
           ),
-          borderRadius: BorderRadius.circular(_fieldRadius),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isOn
                 ? urgentRed.withValues(alpha: 0.45)
@@ -2184,12 +2297,7 @@ class DeliveryPageState extends State<DeliveryPage> {
           ),
           boxShadow: [
             BoxShadow(
-              color: (isOn ? urgentRed : urgentOrange).withValues(alpha: 0.12),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
+              color: (isOn ? urgentRed : urgentOrange).withValues(alpha: 0.08),
               blurRadius: 4,
               offset: const Offset(0, 1),
             ),
@@ -2199,12 +2307,12 @@ class DeliveryPageState extends State<DeliveryPage> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(7),
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: isOn
                     ? urgentRed.withValues(alpha: 0.12)
                     : urgentOrange.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: isOn
                       ? urgentRed.withValues(alpha: 0.2)
@@ -2213,11 +2321,11 @@ class DeliveryPageState extends State<DeliveryPage> {
               ),
               child: Icon(
                 isOn ? Icons.flash_on_rounded : Icons.flash_on_outlined,
-                size: 20,
+                size: 17,
                 color: isOn ? urgentRed : urgentOrange,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2228,7 +2336,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                         child: Text(
                           isOn ? 'Urgent order' : 'xPress delivery',
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                             height: 1.2,
                             letterSpacing: -0.2,
@@ -2236,22 +2344,22 @@ class DeliveryPageState extends State<DeliveryPage> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 5),
+                      const SizedBox(width: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 2,
+                          horizontal: 4,
+                          vertical: 1,
                         ),
                         decoration: BoxDecoration(
                           color: isOn
                               ? urgentRed.withValues(alpha: 0.12)
                               : urgentOrange.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(5),
+                          borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           isOn ? 'ON' : 'FAST',
                           style: TextStyle(
-                            fontSize: 9,
+                            fontSize: 8,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.5,
                             color: isOn ? urgentRed : urgentOrange,
@@ -2260,13 +2368,13 @@ class DeliveryPageState extends State<DeliveryPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 1),
                   Text(
                     isOn
                         ? 'Prioritized for faster delivery.'
                         : 'Delivered sooner — extra fee applies.',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 10,
                       height: 1.25,
                       fontWeight: FontWeight.w500,
                       color: isOn
@@ -2280,7 +2388,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               ),
             ),
             Transform.scale(
-              scale: 0.88,
+              scale: 0.82,
               alignment: Alignment.center,
               child: Switch.adaptive(
                 value: isOn,
@@ -2318,41 +2426,31 @@ class DeliveryPageState extends State<DeliveryPage> {
     final feePending = isDelivery &&
         !qualifiesForFreeDelivery &&
         !hasConfirmedFee &&
-        (_isUpdatingDeliveryFee || deliveryFee > 0);
+        _isUpdatingDeliveryFee;
 
     final showDeliveryRow = isDelivery &&
         (qualifiesForFreeDelivery || confirmedDeliveryFee > 0 || feePending);
     final total = subtotal + effectiveDeliveryFee + emergencyOrderFee;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(_cardRadius),
-        boxShadow: [
-          BoxShadow(
-            color: _cardShadow,
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      margin: _sectionMargin,
+      padding: _sectionPadding,
+      decoration: _sectionCardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionLabel('Order summary'),
-          const SizedBox(height: 10),
+          _buildSectionLabel('Order summary', compact: true),
+          const SizedBox(height: 8),
           OrderThresholdPromoBanner(
             margin: EdgeInsets.zero,
             subtotal: subtotal,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(_fieldRadius),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: Colors.grey.shade200),
             ),
             child: Column(
@@ -2360,7 +2458,7 @@ class DeliveryPageState extends State<DeliveryPage> {
                 _buildSummaryRow('Subtotal', subtotal,
                     icon: Icons.shopping_cart_rounded),
                 if (showDeliveryRow) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   _buildSummaryRow(
                     'Delivery fee',
                     effectiveDeliveryFee,
@@ -2370,11 +2468,11 @@ class DeliveryPageState extends State<DeliveryPage> {
                   ),
                 ],
                 if (emergencyOrderFee > 0) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   _buildSummaryRow('Urgent order fee', emergencyOrderFee,
                       icon: Icons.flash_on),
                 ],
-                Divider(height: 28, thickness: 1, color: Colors.grey.shade300),
+                Divider(height: 20, thickness: 1, color: Colors.grey.shade300),
                 _buildSummaryRow('Total', total,
                     isHighlighted: true,
                     icon: Icons.payment_rounded,
@@ -2400,17 +2498,17 @@ class DeliveryPageState extends State<DeliveryPage> {
         if (icon != null) ...[
           Icon(
             icon,
-            size: 18,
+            size: 16,
             color: isHighlighted ? _accent : Colors.grey.shade600,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
         ],
         Expanded(
           child: Text(
             label,
             style: TextStyle(
               fontWeight: isHighlighted ? FontWeight.w600 : FontWeight.w500,
-              fontSize: isHighlighted ? 15 : 14,
+              fontSize: isHighlighted ? 13 : 12,
               color:
                   isHighlighted ? Colors.grey.shade800 : Colors.grey.shade700,
             ),
@@ -2433,7 +2531,7 @@ class DeliveryPageState extends State<DeliveryPage> {
         'Calculating…',
         style: TextStyle(
           fontWeight: FontWeight.w600,
-          fontSize: 13,
+          fontSize: 11,
           fontStyle: FontStyle.italic,
           color: Colors.grey.shade500,
         ),
@@ -2445,7 +2543,7 @@ class DeliveryPageState extends State<DeliveryPage> {
         'Free',
         style: TextStyle(
           fontWeight: FontWeight.w700,
-          fontSize: 14,
+          fontSize: 12,
           color: Colors.green.shade700,
         ),
       );
@@ -2455,7 +2553,7 @@ class DeliveryPageState extends State<DeliveryPage> {
       'GHS ${value.toStringAsFixed(2)}',
       style: TextStyle(
         fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w600,
-        fontSize: isHighlighted ? 17 : 14,
+        fontSize: isHighlighted ? 15 : 12,
         color: isHighlighted ? _accent : Colors.grey.shade800,
       ),
     );
@@ -2463,24 +2561,24 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   Widget _buildContinueButton() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: _sectionMargin,
       width: double.infinity,
-      height: 52,
+      height: 44,
       decoration: BoxDecoration(
         color: _accent,
-        borderRadius: BorderRadius.circular(_fieldRadius),
+        borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
-            color: _accent.withValues(alpha: 0.35),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            color: _accent.withValues(alpha: 0.25),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(_fieldRadius),
+          borderRadius: BorderRadius.circular(10),
           onTap: () async {
             bool isValid = true;
 
@@ -2581,50 +2679,7 @@ class DeliveryPageState extends State<DeliveryPage> {
               }
               message += missing.join(', ');
 
-              final messenger = ScaffoldMessenger.of(context);
-              messenger.hideCurrentSnackBar();
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.error_outline, color: Colors.white),
-                          SizedBox(width: 8),
-                          Expanded(child: Text(message)),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.swipe_down_alt_rounded,
-                              color: Colors.white70, size: 14),
-                          SizedBox(width: 4),
-                          Text(
-                            'Swipe down to dismiss',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  backgroundColor: Colors.red[600],
-                  behavior: SnackBarBehavior.floating,
-                  dismissDirection: DismissDirection.down,
-                  showCloseIcon: true,
-                  duration: Duration(seconds: 2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  margin: EdgeInsets.all(16),
-                ),
-              );
+              AppErrorUtils.showSnack(context, message, isError: true);
               return;
             }
 
@@ -2730,14 +2785,14 @@ class DeliveryPageState extends State<DeliveryPage> {
                       Icon(
                         Icons.payment_rounded,
                         color: Colors.white,
-                        size: 22,
+                        size: 18,
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       Text(
                         'Continue to payment',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 0.2,
                         ),
@@ -3042,31 +3097,34 @@ class DeliveryPageState extends State<DeliveryPage> {
         // Update all location fields with the found data from reverse geocoding
         if (mounted) {
           _invalidateBillingLocationCache();
-          setState(() {
-            // Update region with administrative area
-            if (placemark.administrativeArea != null &&
-                placemark.administrativeArea!.isNotEmpty) {
-              _regionController.text = placemark.administrativeArea!;
+          _runWithSuppressedAddressFeeRefresh(() {
+            setState(() {
+              // Update region with administrative area
+              if (placemark.administrativeArea != null &&
+                  placemark.administrativeArea!.isNotEmpty) {
+                _regionController.text = placemark.administrativeArea!;
+                print(
+                    '🗺️ [REVERSE GEOCODING] Updated region: ${placemark.administrativeArea}');
+              }
+
+              // Update city with locality
+              if (placemark.locality != null &&
+                  placemark.locality!.isNotEmpty) {
+                _cityController.text = placemark.locality!;
+                print(
+                    '🗺️ [REVERSE GEOCODING] Updated city: ${placemark.locality}');
+              }
+
+              // Update address field: use preferred (e.g. from Places) or placemark-built
+              _addressController.text = (preferredAddress ?? address).trim();
               print(
-                  '🗺️ [REVERSE GEOCODING] Updated region: ${placemark.administrativeArea}');
-            }
+                  '🗺️ [REVERSE GEOCODING] Updated address: ${preferredAddress ?? address}');
 
-            // Update city with locality
-            if (placemark.locality != null && placemark.locality!.isNotEmpty) {
-              _cityController.text = placemark.locality!;
-              print(
-                  '🗺️ [REVERSE GEOCODING] Updated city: ${placemark.locality}');
-            }
-
-            // Update address field: use preferred (e.g. from Places) or placemark-built
-            _addressController.text = (preferredAddress ?? address).trim();
-            print(
-                '🗺️ [REVERSE GEOCODING] Updated address: ${preferredAddress ?? address}');
-
-            // Clear validation highlights since user picked a valid location
-            _highlightRegionField = false;
-            _highlightCityField = false;
-            _highlightAddressField = false;
+              // Clear validation highlights since user picked a valid location
+              _highlightRegionField = false;
+              _highlightCityField = false;
+              _highlightAddressField = false;
+            });
           });
         }
       } else {

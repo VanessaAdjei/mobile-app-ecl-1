@@ -21,6 +21,9 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
   /// When true, pads below the status bar / notch (use for full-screen body headers).
   final bool reserveStatusBar;
 
+  /// Tighter toolbar padding and title size (checkout flow headers).
+  final bool compact;
+
   const AppHeaderBar({
     super.key,
     required this.title,
@@ -30,11 +33,14 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
     this.showCart = true,
     this.background = AppHeaderBackground.standard,
     this.reserveStatusBar = false,
+    this.compact = false,
   });
 
   bool get _hasSubtitle => subtitle != null && subtitle!.trim().isNotEmpty;
 
-  double _contentHeight() => kToolbarHeight + (_hasSubtitle ? 52 : 12);
+  double _contentHeight() =>
+      (compact ? 44.0 : kToolbarHeight) +
+      (_hasSubtitle ? 52 : (compact ? 6 : 12));
 
   static double _statusBarHeight(BuildContext context) =>
       MediaQuery.paddingOf(context).top;
@@ -43,8 +49,10 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
     BuildContext context, {
     bool hasSubtitle = false,
     bool reserveStatusBar = true,
+    bool compact = false,
   }) {
-    final content = kToolbarHeight + (hasSubtitle ? 52 : 12);
+    final content = (compact ? 44.0 : kToolbarHeight) +
+        (hasSubtitle ? 52 : (compact ? 6 : 12));
     final top = reserveStatusBar ? _statusBarHeight(context) : 0;
     return top + content;
   }
@@ -59,12 +67,18 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
     bool showBack = true,
     bool showCart = true,
     AppHeaderBackground background = AppHeaderBackground.standard,
+    bool compact = false,
   }) {
     final hasSub = subtitle != null && subtitle.trim().isNotEmpty;
     return PreferredSize(
       key: key,
       preferredSize: Size.fromHeight(
-        totalHeight(context, hasSubtitle: hasSub, reserveStatusBar: true),
+        totalHeight(
+          context,
+          hasSubtitle: hasSub,
+          reserveStatusBar: true,
+          compact: compact,
+        ),
       ),
       child: AppHeaderBar(
         title: title,
@@ -74,6 +88,7 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
         showCart: showCart,
         background: background,
         reserveStatusBar: true,
+        compact: compact,
       ),
     );
   }
@@ -91,7 +106,10 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
     final contentHeight = _contentHeight();
 
     final toolbar = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 12 : 16,
+        vertical: compact ? 4 : 10,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -123,11 +141,11 @@ class AppHeaderBar extends StatelessWidget implements PreferredSizeWidget {
                     Text(
                       title,
                       style: GoogleFonts.poppins(
-                        fontSize: 18,
+                        fontSize: compact ? 15 : 18,
                         fontWeight: FontWeight.w600,
                         height: 1.1,
                         color: Colors.white,
-                        letterSpacing: -0.2,
+                        letterSpacing: compact ? 0.2 : -0.2,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

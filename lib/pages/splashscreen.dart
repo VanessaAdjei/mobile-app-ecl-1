@@ -14,8 +14,7 @@ class SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
 
-    // Navigate to homepage after 1.5 seconds (reduced from 3 seconds)
-    Future.delayed(const Duration(milliseconds: 1500), () {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -23,9 +22,9 @@ class SplashScreenState extends State<SplashScreen> {
             pageBuilder: (context, animation, secondaryAnimation) => HomePage(),
             transitionsBuilder:
                 (context, animation, secondaryAnimation, child) {
-              return FadeTransition(opacity: animation, child: child);
+              return child;
             },
-            transitionDuration: const Duration(milliseconds: 300),
+            transitionDuration: Duration.zero,
           ),
         );
       }

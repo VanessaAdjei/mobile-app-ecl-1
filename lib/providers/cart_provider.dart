@@ -5,12 +5,14 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
-import 'package:http/http.dart' as http;
-import '../config/api_config.dart';
+import '../services/cart_service.dart';
+import '../models/category_fetch_result.dart';
 import '../services/realtime_cart_sync_service.dart';
 
 class CartProvider with ChangeNotifier {
   static const Duration _cartHttpTimeout = Duration(seconds: 12);
+
+  final CartService _cartService = CartService();
 
   // Map to store carts for different users
   Map<String, List<CartItem>> _userCarts = {};
@@ -33,16 +35,15 @@ class CartProvider with ChangeNotifier {
     required String url,
     Map<String, String>? headers,
     String? requestBody,
-    required http.Response response,
+    required CategoryFetchResult result,
   }) {
-    debugPrint('=== $label ===');
-    debugPrint('URL: $url');
-    if (requestBody != null) debugPrint('Request Body: $requestBody');
-    if (headers != null) debugPrint('Request Headers: $headers');
-    debugPrint('Response Status: ${response.statusCode}');
-    debugPrint('Response Headers: ${response.headers}');
-    debugPrint('Response Body: ${response.body}');
-    debugPrint('================================');
+    _cartService.logCartApiResponse(
+      label: label,
+      url: url,
+      headers: headers,
+      requestBody: requestBody,
+      result: result,
+    );
   }
 
   String _normalizeProductName(String name) {
@@ -423,16 +424,21 @@ class CartProvider with ChangeNotifier {
         return;
       }
 
-      final response = await http.get(
-        Uri.parse(ApiConfig.getCheckoutUrl(hashedLink)),
+      final response = await _cartService.fetchLoggedInCart(
+        hashedLink: hashedLink,
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
         },
-      ).timeout(const Duration(seconds: 5)); // reduced timeout
+        timeout: const Duration(seconds: 5),
+      );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = CartService.decodeBody(response);
+        if (data == null) {
+          debugPrint('⚠️ Cart sync failed: Could not decode server response');
+          return;
+        }
 
         if (data['cart_items'] != null) {
           final rawItems = data['cart_items'] as List;
@@ -574,13 +580,13 @@ class CartProvider with ChangeNotifier {
         } else {
           debugPrint(
               '⚠️ Cart sync failed: Missing "cart_items" in server response');
-          debugPrint('Response body: ${response.body}');
+          debugPrint('Response body: ${response.rawBody}');
         }
       } else {
         debugPrint(
             '⚠️ Cart sync failed: Server returned status code ${response.statusCode}');
         if (response.statusCode >= 400) {
-          debugPrint('Response body: ${response.body}');
+          debugPrint('Response body: ${response.rawBody}');
         }
       }
     } catch (e) {
@@ -717,11 +723,11 @@ class CartProvider with ChangeNotifier {
       if (token != null) {
         if (isLoggedIn) {
           headers['Authorization'] = 'Bearer $token';
-          debugPrint('[CartProvider] Using Bearer token for cart sync: $token');
+          debugPrint('[CartProvider] Using Bearer token for cart sync');
         } else if (token.startsWith('guest')) {
           headers['Authorization'] = 'Guest $token';
           headers['X-Guest-ID'] = token;
-          debugPrint('[CartProvider] Using Guest token for cart sync: $token');
+          debugPrint('[CartProvider] Using Guest token for cart sync');
         } else {
           debugPrint('Token present but not logged in and not a guest_id.');
           return false;
@@ -739,122 +745,105 @@ class CartProvider with ChangeNotifier {
       }
 
       final qtyToSend = syncQuantity ?? item.quantity;
-      final url = ApiConfig.getEndpointUrl(ApiConfig.checkAuth);
       final catalogProductId =
           item.originalProductId ?? item.productId;
 
-      http.Response? response;
-      for (final productIdToUse in candidates) {
-        debugPrint('✅ Trying check-auth productID: $productIdToUse');
-        final requestBody = <String, dynamic>{
-          'productID': productIdToUse,
-          'quantity': qtyToSend > 0 ? qtyToSend : 1,
-        };
-        if (item.batchNo.isNotEmpty) {
-          requestBody['batch_no'] = item.batchNo;
-        }
+      final response = await _cartService.checkAuthWithProductCandidates(
+        headers: headers,
+        productIds: candidates,
+        quantity: qtyToSend,
+        batchNo: item.batchNo.isNotEmpty ? item.batchNo : null,
+        timeout: _cartHttpTimeout,
+        onAttempt: ({
+          required String url,
+          required Map<String, String> headers,
+          required String requestBody,
+          required CategoryFetchResult result,
+        }) {
+          _logCartApiResponse(
+            label: 'ADD TO CART API RESPONSE',
+            url: url,
+            headers: headers,
+            requestBody: requestBody,
+            result: result,
+          );
+        },
+      );
 
-        response = await http
-            .post(
-              Uri.parse(url),
-              headers: headers,
-              body: jsonEncode(requestBody),
-            )
-            .timeout(_cartHttpTimeout);
-
-        _logCartApiResponse(
-          label: 'ADD TO CART API RESPONSE',
-          url: url,
-          headers: headers,
-          requestBody: jsonEncode(requestBody),
-          response: response,
-        );
-
-        if (response.statusCode == 200 || response.statusCode == 201) {
-          break;
-        }
-        if (response.statusCode != 404) {
-          break;
-        }
+      if (!CartService.isSuccessStatus(response.statusCode)) {
         debugPrint(
-            '⚠️ productID $productIdToUse not found (404), trying next id...');
+            'Failed to add/update cart item on server: ${response.statusCode}');
+        if (response.statusCode == 404) {
+          debugPrint('⚠️ Product not found (404) after trying ids: $candidates');
+          debugPrint('Product: ${item.name}');
+          debugPrint('Batch: ${item.batchNo}');
+          debugPrint('Response: ${response.rawBody}');
+        }
+        return false;
       }
 
-      if (response == null) return false;
+      debugPrint('Successfully added item to server cart');
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        debugPrint('Successfully added item to server cart');
-
-        List<dynamic> serverItems = [];
-        var serverLineIdApplied = false;
-        try {
-          final responseData =
-              jsonDecode(response.body) as Map<String, dynamic>;
+      List<dynamic> serverItems = [];
+      var serverLineIdApplied = false;
+      try {
+        final responseData = CartService.decodeBody(response);
+        if (responseData != null) {
           serverItems = responseData['items'] as List? ?? [];
-          if (syncQuantity != null) {
-            final idx =
-                _findLocalCartIndex(name: item.name, batchNo: item.batchNo);
-            final targetQty =
-                idx >= 0 ? _cartItems[idx].quantity : item.quantity;
-            _applyLocalQuantityTarget(
-              item,
-              targetQty,
-              serverItems,
-              catalogProductId: catalogProductId,
-            );
-          } else {
-            _reconcileLocalQuantityFromServerResponse(
-              serverItems,
-              item,
-              catalogProductId: catalogProductId,
-            );
-          }
-          serverLineIdApplied = _applyServerCartLinesFromResponse(
+        }
+        if (syncQuantity != null) {
+          final idx =
+              _findLocalCartIndex(name: item.name, batchNo: item.batchNo);
+          final targetQty =
+              idx >= 0 ? _cartItems[idx].quantity : item.quantity;
+          _applyLocalQuantityTarget(
+            item,
+            targetQty,
             serverItems,
-            pendingOriginalProductId: catalogProductId,
-            pendingName: item.name,
-            pendingBatch: item.batchNo,
+            catalogProductId: catalogProductId,
           );
-        } catch (e) {
-          debugPrint('⚠️ Error extracting server cart ID from response: $e');
+        } else {
+          _reconcileLocalQuantityFromServerResponse(
+            serverItems,
+            item,
+            catalogProductId: catalogProductId,
+          );
         }
-
-        if (serverLineIdApplied) {
-          _consolidateDuplicateCartLines();
-          return true;
-        }
-
-        final syncedItemIndex = _findLocalCartIndex(
-          name: item.name,
-          batchNo: item.batchNo,
+        serverLineIdApplied = _applyServerCartLinesFromResponse(
+          serverItems,
+          pendingOriginalProductId: catalogProductId,
+          pendingName: item.name,
+          pendingBatch: item.batchNo,
         );
-        if (syncedItemIndex != -1) {
-          _cartItems[syncedItemIndex] = _cartItems[syncedItemIndex].copyWith(
-            originalProductId: catalogProductId,
-          );
-          notifyListeners();
-          await _saveUserCarts();
-          _consolidateDuplicateCartLines();
-          return true;
-        }
+      } catch (e) {
+        debugPrint('⚠️ Error extracting server cart ID from response: $e');
+      }
 
-        _pendingOriginalProductId = catalogProductId;
-        _pendingItemName = item.name;
-        _pendingItemBatch = item.batchNo;
-        await syncWithApi();
+      if (serverLineIdApplied) {
         _consolidateDuplicateCartLines();
         return true;
       }
 
-      debugPrint(
-          'Failed to add/update cart item on server: ${response.statusCode}');
-      if (response.statusCode == 404) {
-        debugPrint('⚠️ Product not found (404) after trying ids: $candidates');
-        debugPrint('Product: ${item.name}');
-        debugPrint('Batch: ${item.batchNo}');
-        debugPrint('Response: ${response.body}');
+      final syncedItemIndex = _findLocalCartIndex(
+        name: item.name,
+        batchNo: item.batchNo,
+      );
+      if (syncedItemIndex != -1) {
+        _cartItems[syncedItemIndex] = _cartItems[syncedItemIndex].copyWith(
+          originalProductId: catalogProductId,
+        );
+        notifyListeners();
+        await _saveUserCarts();
+        _consolidateDuplicateCartLines();
+        return true;
       }
-      return false;
+
+      _pendingOriginalProductId = catalogProductId;
+      _pendingItemName = item.name;
+      _pendingItemBatch = item.batchNo;
+      await syncWithApi();
+      _consolidateDuplicateCartLines();
+      return true;
     } catch (e) {
       debugPrint('Error adding/updating cart item on server: $e');
       return false;
@@ -1111,19 +1100,8 @@ class CartProvider with ChangeNotifier {
     return candidates.isEmpty ? null : candidates.first;
   }
 
-  Map<String, String> _cartAuthHeaders(String token, bool isLoggedIn) {
-    final headers = <String, String>{
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-    };
-    if (isLoggedIn) {
-      headers['Authorization'] = 'Bearer $token';
-    } else {
-      headers['Authorization'] = 'Guest $token';
-      headers['X-Guest-ID'] = token;
-    }
-    return headers;
-  }
+  Map<String, String> _cartAuthHeaders(String token, bool isLoggedIn) =>
+      CartService.cartAuthHeaders(token, isLoggedIn);
 
   int _localLineCountForProduct(CartItem item) {
     return _cartItems.where((c) => _sameCartProduct(c, item)).length;
@@ -1149,7 +1127,6 @@ class CartProvider with ChangeNotifier {
     final productId = _resolveCartProductId(item);
     if (productId == null) return false;
 
-    final url = ApiConfig.getEndpointUrl(ApiConfig.checkAuth);
     final headers = _cartAuthHeaders(token, isLoggedIn);
     final body = <String, dynamic>{
       'productID': productId,
@@ -1160,28 +1137,27 @@ class CartProvider with ChangeNotifier {
     }
     final requestBody = jsonEncode(body);
 
-    final response = await http
-        .post(
-          Uri.parse(url),
-          headers: headers,
-          body: requestBody,
-        )
-        .timeout(_cartHttpTimeout);
+    final response = await _cartService.checkAuth(
+      headers: headers,
+      body: body,
+      timeout: _cartHttpTimeout,
+    );
 
     _logCartApiResponse(
       label: 'UPDATE QUANTITY API RESPONSE (check-auth)',
-      url: url,
+      url: 'check-auth',
       headers: headers,
       requestBody: requestBody,
-      response: response,
+      result: response,
     );
 
-    if (response.statusCode != 200 && response.statusCode != 201) {
+    if (!CartService.isSuccessStatus(response.statusCode)) {
       return false;
     }
 
     try {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = CartService.decodeBody(response);
+      if (data == null) return false;
       final items = data['items'] as List? ?? [];
       final catalogId = item.originalProductId ?? item.productId;
 
@@ -1206,34 +1182,31 @@ class CartProvider with ChangeNotifier {
     bool isLoggedIn, {
     String? reason,
   }) async {
-    final url = ApiConfig.getEndpointUrl(ApiConfig.removeFromCart);
     final headers = _cartAuthHeaders(token, isLoggedIn);
     final requestBody = jsonEncode({'cart_id': cartLineId});
 
-    final response = await http
-        .post(
-          Uri.parse(url),
-          headers: headers,
-          body: requestBody,
-        )
-        .timeout(_cartHttpTimeout);
+    final response = await _cartService.removeCartLine(
+      headers: headers,
+      cartLineId: cartLineId,
+      timeout: _cartHttpTimeout,
+    );
 
     _logCartApiResponse(
       label: reason != null
           ? 'REMOVE FROM CART API RESPONSE ($reason)'
           : 'REMOVE FROM CART API RESPONSE',
-      url: url,
+      url: 'remove-from-cart',
       headers: headers,
       requestBody: requestBody,
-      response: response,
+      result: response,
     );
 
-    if (response.statusCode != 200 && response.statusCode != 201) {
+    if (!CartService.isSuccessStatus(response.statusCode)) {
       return false;
     }
     try {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return data['status']?.toString() == 'success';
+      final data = CartService.decodeBody(response);
+      return data?['status']?.toString() == 'success';
     } catch (_) {
       return true;
     }
@@ -1372,13 +1345,12 @@ class CartProvider with ChangeNotifier {
       }
 
       final headers = _cartAuthHeaders(token, isLoggedIn);
-      headers.remove('Content-Type');
+      final fetchHeaders = Map<String, String>.from(headers);
+      fetchHeaders.remove('Content-Type');
 
-      // Get current cart from server to find all instances
-      http.Response cartResponse;
+      CategoryFetchResult cartResponse;
       String fetchUrl;
       String? fetchBody;
-      Map<String, String> fetchHeaders = headers;
 
       if (isLoggedIn) {
         final hashedLink = await AuthService.getHashedLink();
@@ -1386,35 +1358,38 @@ class CartProvider with ChangeNotifier {
           debugPrint('Cannot remove instances - missing hashed link');
           return;
         }
-        fetchUrl = ApiConfig.getCheckoutUrl(hashedLink);
-        cartResponse = await http.get(
-          Uri.parse(fetchUrl),
-          headers: headers,
+        fetchUrl = 'checkout/$hashedLink';
+        cartResponse = await _cartService.fetchLoggedInCart(
+          hashedLink: hashedLink,
+          headers: fetchHeaders,
         );
       } else {
-        fetchUrl = ApiConfig.getEndpointUrl(ApiConfig.checkAuth);
+        fetchUrl = 'check-auth';
         fetchBody = jsonEncode({'productID': 0, 'quantity': 0});
-        fetchHeaders = {
-          ...headers,
-          'Content-Type': 'application/json',
-        };
-        cartResponse = await http.post(
-          Uri.parse(fetchUrl),
-          headers: fetchHeaders,
-          body: fetchBody,
+        cartResponse = await _cartService.fetchGuestCart(
+          headers: {
+            ...fetchHeaders,
+            'Content-Type': 'application/json',
+          },
         );
       }
 
       _logCartApiResponse(
         label: 'FETCH CART (before remove all) API RESPONSE',
         url: fetchUrl,
-        headers: fetchHeaders,
+        headers: isLoggedIn
+            ? fetchHeaders
+            : {
+                ...fetchHeaders,
+                'Content-Type': 'application/json',
+              },
         requestBody: fetchBody,
-        response: cartResponse,
+        result: cartResponse,
       );
 
       if (cartResponse.statusCode == 200) {
-        final cartData = jsonDecode(cartResponse.body);
+        final cartData = CartService.decodeBody(cartResponse);
+        if (cartData == null) return;
         final cartItems = isLoggedIn
             ? (cartData['cart_items'] as List? ?? [])
             : (cartData['items'] as List? ?? []);
@@ -1468,32 +1443,29 @@ class CartProvider with ChangeNotifier {
         body['batch_no'] = item.batchNo;
       }
 
-      final url = ApiConfig.getEndpointUrl(ApiConfig.checkAuth);
       final headers = _cartAuthHeaders(token, isLoggedIn);
       final requestBody = jsonEncode(body);
 
-      final addResponse = await http
-          .post(
-            Uri.parse(url),
-            headers: headers,
-            body: requestBody,
-          )
-          .timeout(_cartHttpTimeout);
+      final addResponse = await _cartService.checkAuth(
+        headers: headers,
+        body: body,
+        timeout: _cartHttpTimeout,
+      );
 
       _logCartApiResponse(
         label: 'UPDATE QUANTITY API RESPONSE (check-auth re-add)',
-        url: url,
+        url: 'check-auth',
         headers: headers,
         requestBody: requestBody,
-        response: addResponse,
+        result: addResponse,
       );
 
-      if (addResponse.statusCode == 200 || addResponse.statusCode == 201) {
+      if (CartService.isSuccessStatus(addResponse.statusCode)) {
         try {
-          final data = jsonDecode(addResponse.body) as Map<String, dynamic>;
+          final data = CartService.decodeBody(addResponse);
           _syncLocalLineIdFromCheckAuthResponse(
             item,
-            data['items'] as List? ?? [],
+            data?['items'] as List? ?? [],
           );
           await _saveUserCarts();
         } catch (_) {}
@@ -1779,19 +1751,19 @@ class CartProvider with ChangeNotifier {
   Future<void> _clearServerCart(String token) async {
     try {
       final hashedLink = await AuthService.getHashedLink() ?? '';
-      final response = await http.get(
-        Uri.parse(ApiConfig.getCheckoutUrl(hashedLink)),
+      final response = await _cartService.fetchLoggedInCart(
+        hashedLink: hashedLink,
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
         },
-      ).timeout(const Duration(seconds: 3));
+        timeout: const Duration(seconds: 3),
+      );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['cart_items'] != null) {
-          // Remove each item from server
-          final serverItems = data['cart_items'] as List;
+        final data = CartService.decodeBody(response);
+        if (data?['cart_items'] != null) {
+          final serverItems = data!['cart_items'] as List;
           for (final item in serverItems) {
             final itemId = item['id']?.toString();
             if (itemId != null) {
@@ -1808,14 +1780,14 @@ class CartProvider with ChangeNotifier {
   // Remove item from server
   Future<void> _removeFromServer(String itemId, String token) async {
     try {
-      final url = '${ApiConfig.baseUrl}${ApiConfig.checkout}/$itemId';
-      await http.delete(
-        Uri.parse(url),
+      await _cartService.deleteCheckoutItem(
+        itemId: itemId,
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
         },
-      ).timeout(const Duration(seconds: 3));
+        timeout: const Duration(seconds: 3),
+      );
     } catch (e) {
       debugPrint('⚠️ Remove from server error: $e');
     }
@@ -1875,8 +1847,8 @@ class CartProvider with ChangeNotifier {
 
       // Get current cart from server
       final hashedLink = await AuthService.getHashedLink() ?? '';
-      final cartResponse = await http.get(
-        Uri.parse(ApiConfig.getCheckoutUrl(hashedLink)),
+      final cartResponse = await _cartService.fetchLoggedInCart(
+        hashedLink: hashedLink,
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -1884,8 +1856,8 @@ class CartProvider with ChangeNotifier {
       );
 
       if (cartResponse.statusCode == 200) {
-        final cartData = jsonDecode(cartResponse.body);
-        final cartItems = cartData['cart_items'] as List? ?? [];
+        final cartData = CartService.decodeBody(cartResponse);
+        final cartItems = cartData?['cart_items'] as List? ?? [];
 
         // Group items by product name and batch
         final Map<String, List<Map<String, dynamic>>> groupedItems = {};
@@ -1911,14 +1883,13 @@ class CartProvider with ChangeNotifier {
             for (int i = 1; i < items.length; i++) {
               final itemId = items[i]['id']?.toString();
               if (itemId != null) {
-                await http.post(
-                  Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.removeFromCart)),
+                await _cartService.removeCartLine(
                   headers: {
                     'Authorization': 'Bearer $token',
                     'Accept': 'application/json',
                     'Content-Type': 'application/json',
                   },
-                  body: jsonEncode({'cart_id': itemId}),
+                  cartLineId: itemId,
                 );
                 debugPrint('Removed duplicate item ID: $itemId');
               }

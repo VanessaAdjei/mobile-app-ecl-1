@@ -1,7 +1,6 @@
 // pages/prescription_history.dart
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import '../services/prescription_service.dart';
 import 'package:eclapp/config/api_config.dart';
 import 'package:eclapp/services/auth_service.dart';
 import 'package:eclapp/widgets/error_display.dart';
@@ -24,6 +23,7 @@ class PrescriptionHistoryScreen extends StatefulWidget {
 }
 
 class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
+  final PrescriptionService _prescriptionService = PrescriptionService();
   List<Map<String, dynamic>> _prescriptions = [];
   bool _isLoading = true;
 
@@ -93,58 +93,28 @@ class PrescriptionHistoryScreenState extends State<PrescriptionHistoryScreen> {
       final token = await AuthService.getToken();
       final authToken = token ?? 'guest-temp-token';
 
-      // Show loading skeleton immediately
       if (mounted) {
         setState(() {
           _isLoading = true;
         });
       }
 
-      // Start API call
-      final responseFuture = http.post(
-        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.viewPrescription)),
-        headers: {
-          'Authorization': 'Bearer $authToken',
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 8));
+      final prescriptions = await _prescriptionService.fetchPrescriptions(
+        authToken: authToken,
+      );
 
-      // Ensure minimum loading time for better UX (prevents flickering)
-      final response = await Future.wait([
-        responseFuture,
-        Future.delayed(const Duration(milliseconds: 500)),
-      ]).then((results) => results[0] as http.Response);
+      debugPrint(
+          '🔍 Fetched ${prescriptions.length} prescriptions from API');
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['data'] != null) {
-          final prescriptions = List<Map<String, dynamic>>.from(data['data']);
+      _cachedPrescriptions = prescriptions;
+      _lastFetchTime = DateTime.now();
 
-          debugPrint(
-              '🔍 Fetched ${prescriptions.length} prescriptions from API');
-
-          // Cache the data
-          _cachedPrescriptions = prescriptions;
-          _lastFetchTime = DateTime.now();
-
-          if (mounted) {
-            setState(() {
-              _prescriptions = prescriptions;
-              _isLoading = false;
-            });
-
-            // Preload images for better performance
-            _preloadImages();
-          }
-        } else {
-          throw Exception('No prescription data found');
-        }
-      } else if (response.statusCode == 401) {
-        throw Exception('Unable to load prescriptions. Please try again.');
-      } else {
-        throw Exception(
-            'Unable to connect to the server (${response.statusCode})');
+      if (mounted) {
+        setState(() {
+          _prescriptions = prescriptions;
+          _isLoading = false;
+        });
+        _preloadImages();
       }
     } catch (e) {
       AppErrorUtils.log('PrescriptionHistory._fetchPrescriptions', e);

@@ -6,14 +6,12 @@ class CartQuantityStepper extends StatelessWidget {
   const CartQuantityStepper({
     super.key,
     required this.quantity,
-    required this.isUpdating,
     required this.onIncrement,
     required this.onDecrement,
     required this.onRemoveWhenOne,
   });
 
   final int quantity;
-  final bool isUpdating;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
   final VoidCallback onRemoveWhenOne;
@@ -44,39 +42,28 @@ class CartQuantityStepper extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _StepperTap(
-            onTap: isUpdating
-                ? null
-                : () {
-                    HapticFeedback.lightImpact();
-                    if (showRemove) {
-                      onRemoveWhenOne();
-                    } else {
-                      onDecrement();
-                    }
-                  },
+            onTap: () {
+              HapticFeedback.lightImpact();
+              if (showRemove) {
+                onRemoveWhenOne();
+              } else {
+                onDecrement();
+              }
+            },
             borderRadius: const BorderRadius.horizontal(
               left: Radius.circular(13),
             ),
             backgroundColor:
                 showRemove ? const Color(0xFFFFF1F2) : const Color(0xFFF8FAFC),
-            child: isUpdating
-                ? SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.5,
-                      color: _green.withValues(alpha: 0.8),
-                    ),
-                  )
-                : Icon(
-                    showRemove
-                        ? Icons.delete_outline_rounded
-                        : Icons.remove_rounded,
-                    size: 16,
-                    color: showRemove
-                        ? const Color(0xFFE11D48)
-                        : const Color(0xFF64748B),
-                  ),
+            child: Icon(
+              showRemove
+                  ? Icons.delete_outline_rounded
+                  : Icons.remove_rounded,
+              size: 16,
+              color: showRemove
+                  ? const Color(0xFFE11D48)
+                  : const Color(0xFF64748B),
+            ),
           ),
           Container(
             width: 1,
@@ -103,21 +90,19 @@ class CartQuantityStepper extends StatelessWidget {
             color: _border,
           ),
           _StepperTap(
-            onTap: isUpdating
-                ? null
-                : () {
-                    HapticFeedback.lightImpact();
-                    onIncrement();
-                  },
+            onTap: () {
+              HapticFeedback.lightImpact();
+              onIncrement();
+            },
             borderRadius: const BorderRadius.horizontal(
               right: Radius.circular(13),
             ),
-            backgroundColor: isUpdating ? const Color(0xFFDCFCE7) : _green,
+            backgroundColor: _green,
             pressedColor: _greenDark,
-            child: Icon(
+            child: const Icon(
               Icons.add_rounded,
               size: 16,
-              color: isUpdating ? _green.withValues(alpha: 0.5) : Colors.white,
+              color: Colors.white,
             ),
           ),
         ],
@@ -161,9 +146,8 @@ class _StepperTapState extends State<_StepperTap> {
       color: Colors.transparent,
       child: InkWell(
         onTap: widget.onTap,
-        onHighlightChanged: enabled
-            ? (value) => setState(() => _pressed = value)
-            : null,
+        onHighlightChanged:
+            enabled ? (value) => setState(() => _pressed = value) : null,
         borderRadius: widget.borderRadius,
         splashColor: Colors.white.withValues(alpha: 0.2),
         highlightColor: widget.pressedColor?.withValues(alpha: 0.15),

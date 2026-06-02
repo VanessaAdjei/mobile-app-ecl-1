@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/ernest_ai_service.dart';
+import '../../utils/app_error_utils.dart';
 import 'pharmacists_models.dart';
 
 // Ernest AI Chat Page
@@ -365,12 +366,7 @@ class _ErnestChatPageState extends State<ErnestChatPage> {
     final success = await ErnestAIService.clearConfiguration();
     if (success) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Configuration cleared'),
-          backgroundColor: Colors.orange[600],
-        ),
-      );
+      AppErrorUtils.showSnack(context, 'Configuration cleared', isError: false);
     }
   }
 

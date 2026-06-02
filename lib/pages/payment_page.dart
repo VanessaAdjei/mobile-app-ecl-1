@@ -1,10 +1,9 @@
 // pages/payment_page.dart
 import 'dart:async';
-import 'dart:convert';
 import 'package:eclapp/pages/paymentwebview.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import '../services/checkout_payment_service.dart';
 import '../services/auth_service.dart';
 import '../providers/cart_provider.dart';
 import 'app_back_button.dart';
@@ -17,6 +16,8 @@ import '../widgets/payment/payment_bill_summary_section.dart';
 import '../widgets/payment/payment_delivery_details_card.dart';
 import '../widgets/payment/payment_order_items_section.dart';
 import '../widgets/order_threshold_promo_banner.dart';
+import '../widgets/checkout_progress_stepper.dart';
+import '../config/app_colors.dart';
 
 // Post-checkout uses PostCheckoutOrderPage (see paymentwebview.dart).
 
@@ -61,6 +62,8 @@ class PaymentPage extends StatefulWidget {
 }
 
 class PaymentPageState extends State<PaymentPage> {
+  final CheckoutPaymentService _checkoutPaymentService =
+      CheckoutPaymentService();
   String selectedPaymentMethod = 'Online Payment';
   bool savePaymentMethod = false;
   bool _isProcessingPayment = false;
@@ -127,53 +130,8 @@ class PaymentPageState extends State<PaymentPage> {
 
   Future<Map<String, dynamic>> _verifyPayment(
       String token, String transactionId) async {
-    final authToken = await AuthService.getToken();
-    debugPrint('[DEBUG] Using token for payment verification: $authToken');
-    if (authToken == null) {
-      return {
-        'verified': false,
-        'status': 'error',
-        'message': 'No auth token found',
-      };
-    }
-
-    try {
-      final response = await http
-          .post(
-            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.checkPayment)),
-            headers: {
-              'Authorization': 'Bearer $authToken',
-              'Accept': 'application/json',
-            },
-            body: jsonEncode({
-              'user_id': await AuthService.getCurrentUserID(),
-            }),
-          )
-          .timeout(const Duration(seconds: 15));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        debugPrint('[CHECK PAYMENT API RESPONSE] ${response.body}');
-        print('[CHECK PAYMENT API RESPONSE] ${response.body}');
-        return {
-          'verified': true,
-          'status': data['status'] ?? 'success',
-          'message': data['message'] ?? 'Payment verified successfully',
-        };
-      }
-
-      return {
-        'verified': false,
-        'status': 'error',
-        'message': 'Payment verification failed',
-      };
-    } catch (e) {
-      return {
-        'verified': false,
-        'status': 'error',
-        'message': 'Payment verification error: $e',
-      };
-    }
+    debugPrint('[DEBUG] Using token for payment verification: $token');
+    return _checkoutPaymentService.verifyPayment();
   }
 
   Future<String?> getAuthHeader() async {
@@ -191,10 +149,6 @@ class PaymentPageState extends State<PaymentPage> {
     debugPrint('[DEBUG] Entered processPayment');
     if (!mounted) return;
 
-    final debugToken = await AuthService.getToken();
-    debugPrint('[DEBUG] Payment button pressed. Method: '
-        '$selectedPaymentMethod Token:$debugToken');
-
     setState(() {
       _paymentError = null;
       _isProcessingPayment = true;
@@ -210,50 +164,39 @@ class PaymentPageState extends State<PaymentPage> {
         throw Exception(
             'Please select at least one item to proceed with payment.');
       }
-      debugPrint(
-          '[DEBUG] Passed selected items check (${selectedItems.length} items selected)');
 
       final subtotal = cart.calculateSubtotal();
       if (subtotal <= 0) {
-        debugPrint('[DEBUG] Returning early: subtotal <= 0');
         throw Exception(
             'Invalid order amount. Please check your selected items.');
       }
-      debugPrint('[DEBUG] Passed subtotal check');
+
+      final headers = await buildCheckoutAuthHeaders();
+      if (!headers.containsKey('Authorization')) {
+        throw Exception(
+          'You must be logged in or have a guest session to use online payment. Please log in.',
+        );
+      }
+      final isGuest = headers['Authorization']!.startsWith('Guest ');
+
+      if (!isGuest &&
+          (_userEmail.isEmpty || _userEmail == "No email available")) {
+        throw Exception(
+            'Please update your email address in your profile before making a payment.');
+      }
+
+      if (widget.contactNumber?.isEmpty ?? true) {
+        throw Exception('Please provide a valid contact number for delivery.');
+      }
 
       final emergencyOrderFee = widget.emergencyOrderFee ?? 0.00;
       final deliveryFeeCharged = OrderThresholdPromoBanner.displayDeliveryFee(
         subtotal,
         widget._effectiveDeliveryFee,
       );
-      final total = subtotal +
-          deliveryFeeCharged +
-          emergencyOrderFee -
-          _discountAmount;
+      final total =
+          subtotal + deliveryFeeCharged + emergencyOrderFee - _discountAmount;
 
-      // check if theyre a guest or logged in
-      final authHeader = await getAuthHeader();
-      final isGuest = authHeader != null && authHeader.startsWith('Guest ');
-      debugPrint('[DEBUG] Passed guest check');
-      debugPrint('[DEBUG] isGuest: $isGuest, authHeader: $authHeader');
-
-      // make sure we have their info
-      if (!isGuest &&
-          (_userEmail.isEmpty || _userEmail == "No email available")) {
-        debugPrint(
-            '[DEBUG] Returning early: user email is empty or not available');
-        throw Exception(
-            'Please update your email address in your profile before making a payment.');
-      }
-      debugPrint('[DEBUG] Passed user data check');
-
-      if (widget.contactNumber?.isEmpty ?? true) {
-        debugPrint('[DEBUG] Returning early: contact number is empty');
-        throw Exception('Please provide a valid contact number for delivery.');
-      }
-      debugPrint('[DEBUG] Passed contact number check');
-
-      // make a description of what theyre ordering (only selected items)
       String orderDesc = selectedItems
           .map((item) => '${item.quantity}x ${item.name}')
           .join(', ');
@@ -261,7 +204,6 @@ class PaymentPageState extends State<PaymentPage> {
         orderDesc = '${orderDesc.substring(0, 97)}...';
       }
 
-      // add promo code info if they used one
       if (_appliedPromoCode != null) {
         orderDesc += ' (Promo: $_appliedPromoCode)';
       }
@@ -275,8 +217,7 @@ class PaymentPageState extends State<PaymentPage> {
         'request': 'submit',
         'order_id': 'ORDER_${DateTime.now().millisecondsSinceEpoch}',
         'currency': 'GHS',
-        'amount':
-            double.parse(total.toStringAsFixed(2)), // Send as float, not string
+        'amount': double.parse(total.toStringAsFixed(2)),
         'order_desc': orderDesc,
         'user_name': _userEmail,
         'first_name': firstName,
@@ -298,88 +239,33 @@ class PaymentPageState extends State<PaymentPage> {
         'deliveryFee': deliveryFeeCharged,
       };
 
-      // Only include selected items in purchased items
       final purchasedItems = List<CartItem>.from(selectedItems);
       final transactionId = params['order_id'];
 
-      // Online Payment Flow
-      final isLoggedIn = await AuthService.isLoggedIn();
-      final token = await AuthService.getToken();
-      final headers = <String, String>{
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      };
-      if (isLoggedIn && token != null && token.isNotEmpty) {
-        headers['Authorization'] = 'Bearer $token';
-      } else if (!isLoggedIn && token != null && token.isNotEmpty) {
-        final guestId = token;
-        headers['Authorization'] = 'Guest $guestId';
-        headers['X-Guest-ID'] = guestId;
-        debugPrint('[DEBUG] Guest payment status check: guest_id = $guestId');
-      } else {
-        setState(() {
-          _paymentError =
-              'You must be logged in or have a guest session to use online payment. Please log in.';
-        });
-        debugPrint('[DEBUG] Returning early: no valid token for payment');
-        return;
-      }
-
-      debugPrint('[DEBUG] Payment API Request Headers: $headers');
-      debugPrint('[DEBUG] Payment API Request Body: ${jsonEncode(params)}');
-      debugPrint('[DEBUG] About to call expresspay API');
-      http.Response? response;
-      try {
-        // Convert params to form-encoded body (backend expects form data, not JSON)
-        final formBody = params.entries
-            .map((e) =>
-                '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value.toString())}')
-            .join('&');
-
-        final formHeaders = <String, String>{
-          ...headers,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        };
-
-        response = await http.post(
-          Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.expressPayment)),
-          headers: formHeaders,
-          body: formBody,
-        );
-        debugPrint(
-            '[DEBUG] Online Payment API Response: Status: ${response.statusCode}, Body: ${response.body}');
-
-        // Log full API response for express payment
-        debugPrint('✅ [EXPRESS PAYMENT API] RESPONSE RECEIVED:');
-        debugPrint('📊 Status Code: ${response.statusCode}');
-        debugPrint('📋 Full Response Body: ${response.body}');
-        debugPrint('📋 Response Headers: ${response.headers}');
-        debugPrint('🔍 Request Params: ${jsonEncode(params)}');
-        debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      } catch (e) {
-        debugPrint('[DEBUG] Exception during expresspay API call: $e');
-        rethrow;
-      }
-      debugPrint('[DEBUG] Finished expresspay API call');
-
-      // Status code gate intentionally disabled as requested.
-      // if (response.statusCode == 200) {
-      // API may return a bare URL, quoted string, or JSON { "redirect_url": "..." }.
-      final redirectUrl = parsePaymentRedirectUrl(response.body);
-      if (redirectUrl == null || redirectUrl.isEmpty) {
-        throw Exception(
-          'Could not read a payment page URL from the server. '
-          'Please try again or contact support if this continues.',
-        );
-      }
-
       if (!mounted) return;
+
+      // Open the payment screen immediately; portal URL resolves in the background.
+      setState(() => _isProcessingPayment = false);
 
       await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => PaymentWebView(
-            url: redirectUrl,
+            resolveRedirectUrl: () async {
+              debugPrint('[DEBUG] About to call expresspay API');
+              final responseBody = await _checkoutPaymentService
+                  .submitExpressPayment(params: params);
+              debugPrint(
+                  '[DEBUG] Online Payment API Response Body: $responseBody');
+              final redirectUrl = parsePaymentRedirectUrl(responseBody);
+              if (redirectUrl == null || redirectUrl.isEmpty) {
+                throw Exception(
+                  'Could not read a payment page URL from the server. '
+                  'Please try again or contact support if this continues.',
+                );
+              }
+              return redirectUrl;
+            },
             paymentParams: params,
             purchasedItems: purchasedItems,
             paymentMethod: selectedPaymentMethod,
@@ -458,7 +344,7 @@ class PaymentPageState extends State<PaymentPage> {
     final topPadding = MediaQuery.of(context).padding.top;
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF4FAF7),
       body: Stack(
         children: [
           Column(
@@ -487,18 +373,19 @@ class PaymentPageState extends State<PaymentPage> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.15),
-                        blurRadius: 12,
-                        offset: Offset(0, 4),
+                        color: Colors.black.withValues(alpha: 0.12),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
                       ),
                     ],
                   ),
                   child: Column(
                     children: [
-                      // Header with back button and title
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
                         child: Row(
                           children: [
                             BackButtonUtils.withConfirmation(
@@ -514,69 +401,58 @@ class PaymentPageState extends State<PaymentPage> {
                                   'Payment Information',
                                   style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.3,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.2,
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(
-                                width: 48), // Balance the back button
+                            const SizedBox(width: 40),
                           ],
                         ),
                       ),
-                      // Enhanced progress indicator
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 16, horizontal: 8),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildProgressStep("Cart",
-                                  isActive: false, isCompleted: true, step: 1),
-                              _buildProgressLine(isActive: false),
-                              _buildProgressStep("Delivery",
-                                  isActive: false, isCompleted: true, step: 2),
-                              _buildProgressLine(isActive: false),
-                              _buildProgressStep("Payment",
-                                  isActive: true, isCompleted: false, step: 3),
-                              _buildProgressLine(isActive: false),
-                              _buildProgressStep("Confirmation",
-                                  isActive: false, isCompleted: false, step: 4),
-                            ],
-                          ),
+                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+                        child: const CheckoutProgressStepper(
+                          compact: true,
+                          steps: [
+                            'Cart',
+                            'Delivery',
+                            'Payment',
+                            'Confirmation',
+                          ],
+                          activeStep: 3,
+                          completedSteps: {1, 2},
                         ),
                       ),
                       if (widget.isOrderUrgent) ...[
                         Container(
                           width: double.infinity,
-                          margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                          margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.red.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: Colors.red.withValues(alpha: 0.4),
-                              width: 1,
                             ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.emergency_rounded,
-                                  size: 18, color: Colors.red.shade700),
-                              const SizedBox(width: 8),
+                                  size: 15, color: Colors.red.shade700),
+                              const SizedBox(width: 6),
                               Text(
                                 'Urgent Order',
                                 style: TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.red.shade800,
-                                  letterSpacing: 0.2,
                                 ),
                               ),
                             ],
@@ -591,11 +467,10 @@ class PaymentPageState extends State<PaymentPage> {
                 child: Consumer<CartProvider>(
                   builder: (context, cart, child) {
                     return SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Order Items Section (First) - Item details
                           Animate(
                             effects: [
                               FadeEffect(duration: 400.ms),
@@ -608,9 +483,7 @@ class PaymentPageState extends State<PaymentPage> {
                               selectedItems: cart.getSelectedItems(),
                             ),
                           ),
-                          const SizedBox(height: 8),
-
-                          // Delivery Information Section (Second) - if delivery
+                          const SizedBox(height: 6),
                           if (widget._isDelivery) ...[
                             Animate(
                               effects: [
@@ -625,10 +498,8 @@ class PaymentPageState extends State<PaymentPage> {
                                 contactNumber: widget.contactNumber,
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                           ],
-
-                          // Order Summary Section (Third) - Price breakdown
                           Animate(
                             effects: [
                               FadeEffect(duration: 400.ms),
@@ -652,11 +523,8 @@ class PaymentPageState extends State<PaymentPage> {
                               onRemovePromo: _removePromoCode,
                             ),
                           ),
-                          const SizedBox(height: 8),
-
-                          // Error Display
                           if (_paymentError != null) ...[
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             Animate(
                               effects: [
                                 FadeEffect(duration: 400.ms),
@@ -666,35 +534,23 @@ class PaymentPageState extends State<PaymentPage> {
                                     end: Offset(0, 0))
                               ],
                               child: Container(
-                                margin:
-                                    const EdgeInsets.symmetric(horizontal: 16),
-                                padding: const EdgeInsets.all(10),
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                ),
+                                padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   color: Colors.red.shade50,
-                                  borderRadius: BorderRadius.circular(6),
+                                  borderRadius: BorderRadius.circular(10),
                                   border:
                                       Border.all(color: Colors.red.shade200),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.red.withValues(alpha: 0.1),
-                                      blurRadius: 4,
-                                      offset: Offset(0, 1),
-                                    ),
-                                  ],
                                 ),
                                 child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.red.shade100,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Icon(
-                                        Icons.error_outline,
-                                        size: 40,
-                                        color: Colors.red.shade600,
-                                      ),
+                                    Icon(
+                                      Icons.error_outline,
+                                      size: 18,
+                                      color: Colors.red.shade600,
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
@@ -703,20 +559,20 @@ class PaymentPageState extends State<PaymentPage> {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            'Payment Error',
+                                            'Payment error',
                                             style: TextStyle(
                                               fontWeight: FontWeight.w600,
-                                              fontSize: 12,
+                                              fontSize: 11,
                                               color: Colors.red.shade700,
                                             ),
                                           ),
-                                          const SizedBox(height: 1),
+                                          const SizedBox(height: 2),
                                           Text(
                                             _paymentError!,
                                             style: TextStyle(
-                                              fontSize: 11,
+                                              fontSize: 10,
                                               color: Colors.red.shade600,
-                                              height: 1.25,
+                                              height: 1.3,
                                             ),
                                             maxLines: 5,
                                             overflow: TextOverflow.ellipsis,
@@ -729,9 +585,7 @@ class PaymentPageState extends State<PaymentPage> {
                               ),
                             ),
                           ],
-
-                          // Bottom spacing for fixed payment section
-                          const SizedBox(height: 120),
+                          const SizedBox(height: 96),
                         ],
                       ),
                     );
@@ -741,10 +595,26 @@ class PaymentPageState extends State<PaymentPage> {
               // Fixed Payment Methods and Button at Bottom
               SafeArea(
                 top: false,
-                child: Consumer<CartProvider>(
-                  builder: (context, cart, child) {
-                    return _buildSlideToPay(cart);
-                  },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(18),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        blurRadius: 20,
+                        offset: const Offset(0, -6),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+                  child: Consumer<CartProvider>(
+                    builder: (context, cart, child) {
+                      return _buildSlideToPay(cart);
+                    },
+                  ),
                 ),
               ),
             ],
@@ -761,80 +631,18 @@ class PaymentPageState extends State<PaymentPage> {
     );
   }
 
-  Widget _buildProgressLine({required bool isActive}) {
-    return Container(
-      width: 50,
-      height: 1,
-      color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.3),
-    );
-  }
-
-  Widget _buildProgressStep(String text,
-      {required bool isActive, required bool isCompleted, required int step}) {
-    final color = isCompleted
-        ? Colors.white
-        : isActive
-            ? Colors.white
-            : Colors.white.withValues(alpha: 0.6);
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 20,
-          height: 20,
-          decoration: BoxDecoration(
-            color: isCompleted || isActive
-                ? Colors.white.withValues(alpha: 0.2)
-                : Colors.transparent,
-            border: Border.all(
-              color: color,
-              width: 1.5,
-            ),
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: isCompleted
-                ? Icon(Icons.check, size: 12, color: Colors.white)
-                : Text(
-                    step.toString(),
-                    style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 10,
-                    ),
-                  ),
-          ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          text,
-          style: TextStyle(
-            color: color,
-            fontSize: 10,
-            fontWeight:
-                isActive || isCompleted ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ],
-    );
-  }
-
   String getImageUrl(String? url) {
     if (url == null || url.isEmpty) return '';
     return ApiConfig.getImageOrStorageUrl(url);
   }
 
   Widget _buildSlideToPay(CartProvider cart) {
-    final double containerWidth =
-        MediaQuery.of(context).size.width - 24; // Account for padding (12*2)
-    final double handleSize = 44.0;
-    final double maxSlideDistance =
-        containerWidth - handleSize; // Account for handle width
-    final double threshold = maxSlideDistance * 0.8; // 80% to trigger payment
+    final double containerWidth = MediaQuery.of(context).size.width - 28;
+    final double handleSize = 38.0;
+    final double maxSlideDistance = containerWidth - handleSize;
+    final double threshold = maxSlideDistance * 0.8;
     final bool isCompleted = _slidePosition >= threshold;
-    final bool wasCompleted =
-        _slidePosition >= threshold - 10; // For haptic feedback
+    final bool wasCompleted = _slidePosition >= threshold - 10;
     return GestureDetector(
       onHorizontalDragStart: (_) {
         if (!_isProcessingPayment && cart.getSelectedItems().isNotEmpty) {
@@ -873,13 +681,13 @@ class PaymentPageState extends State<PaymentPage> {
         }
       },
       child: Container(
-        height: 50,
+        height: 44,
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(25),
+          color: const Color(0xFFF4FAF7),
+          borderRadius: BorderRadius.circular(22),
           border: Border.all(
-            color: Colors.green.shade600,
-            width: 2,
+            color: AppColors.primary,
+            width: 1.5,
           ),
         ),
         child: Stack(
@@ -895,10 +703,10 @@ class PaymentPageState extends State<PaymentPage> {
                 curve: Curves.easeOut,
                 width: _slidePosition,
                 decoration: BoxDecoration(
-                  color: Colors.green.shade600,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(25),
-                    bottomLeft: Radius.circular(25),
+                  color: AppColors.primary,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(22),
+                    bottomLeft: Radius.circular(22),
                   ),
                 ),
               ),
@@ -906,41 +714,41 @@ class PaymentPageState extends State<PaymentPage> {
             // Text on the right side
             Positioned.fill(
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     if (_isProcessingPayment) ...[
                       SizedBox(
-                        width: 16,
-                        height: 16,
+                        width: 14,
+                        height: 14,
                         child: CircularProgressIndicator(
-                          color: Colors.green.shade600,
-                          strokeWidth: 2.5,
+                          color: AppColors.primary,
+                          strokeWidth: 2,
                         ),
                       ),
-                      SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       Text(
-                        'Processing Payment...',
+                        'Processing payment…',
                         style: TextStyle(
                           color: Colors.grey.shade800,
                           fontWeight: FontWeight.w600,
-                          fontSize: 14,
+                          fontSize: 12,
                         ),
                       ),
                     ] else ...[
                       Icon(
                         Icons.lock_outline,
-                        size: 16,
+                        size: 14,
                         color: Colors.grey.shade600,
                       ),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Text(
-                        isCompleted ? 'Release to Pay' : 'Swipe right to pay',
+                        isCompleted ? 'Release to pay' : 'Swipe right to pay',
                         style: TextStyle(
                           color: Colors.grey.shade800,
                           fontWeight: FontWeight.w600,
-                          fontSize: 14,
+                          fontSize: 12,
                         ),
                       ),
                     ],
@@ -959,23 +767,23 @@ class PaymentPageState extends State<PaymentPage> {
                 width: handleSize,
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(25),
+                  borderRadius: BorderRadius.circular(22),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
                     ),
                   ],
                 ),
                 child: Center(
                   child: _isProcessingPayment
                       ? SizedBox(
-                          width: 20,
-                          height: 20,
+                          width: 18,
+                          height: 18,
                           child: CircularProgressIndicator(
-                            color: Colors.green.shade600,
-                            strokeWidth: 2.5,
+                            color: AppColors.primary,
+                            strokeWidth: 2,
                           ),
                         )
                       : Icon(
@@ -983,9 +791,9 @@ class PaymentPageState extends State<PaymentPage> {
                               ? Icons.check_circle
                               : Icons.arrow_forward,
                           color: isCompleted
-                              ? Colors.green.shade600
+                              ? AppColors.primary
                               : Colors.grey.shade700,
-                          size: 22,
+                          size: 20,
                         ),
                 ),
               ),
@@ -1048,28 +856,21 @@ class PaymentPageState extends State<PaymentPage> {
       }
 
       // Make API call
-      debugPrint(
-          '[DEBUG] Apply Coupon API Request: ${jsonEncode(requestBody)}');
-      debugPrint('[DEBUG] Apply Coupon API Headers: $headers');
+      debugPrint('[DEBUG] Apply Coupon API Request: $promoCode');
 
-      final response = await http
-          .post(
-            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.applyCoupon)),
-            headers: headers,
-            body: jsonEncode(requestBody),
-          )
-          .timeout(const Duration(seconds: 15));
+      final result = await _checkoutPaymentService.applyCoupon(
+        promoCode: promoCode,
+      );
+      final statusCode = result['statusCode'] as int? ?? 0;
+      final data = Map<String, dynamic>.from(
+        (result['body'] as Map?) ?? const {},
+      );
 
       debugPrint(
-          '[DEBUG] Apply Coupon API Response: Status: ${response.statusCode}, Body: ${response.body}');
+          '[DEBUG] Apply Coupon API Response: Status: $statusCode, Body: $data');
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = json.decode(response.body);
-
-        // Check if the response indicates success
+      if (statusCode == 200 || statusCode == 201) {
         if (data['success'] == true || data['status'] == 'success') {
-          // Extract discount information from response
-          // The API returns totalDiscount which should be subtracted from the total
           final discountAmount = (data['totalDiscount'] ?? 0.0).toDouble();
 
           debugPrint('Promo code applied: $promoCode');
@@ -1081,12 +882,10 @@ class PaymentPageState extends State<PaymentPage> {
             _promoError = null;
           });
 
-          // Force rebuild of the order summary
           if (mounted) {
             setState(() {});
           }
         } else {
-          // API returned error message
           final errorMessage = data['message'] ??
               data['error'] ??
               'Invalid promo code. Please try again.';
@@ -1095,20 +894,12 @@ class PaymentPageState extends State<PaymentPage> {
           });
         }
       } else {
-        // Handle non-200 status codes
-        try {
-          final errorData = json.decode(response.body);
-          final errorMessage = errorData['message'] ??
-              errorData['error'] ??
-              'Failed to apply promo code. Please try again.';
-          setState(() {
-            _promoError = errorMessage;
-          });
-        } catch (e) {
-          setState(() {
-            _promoError = 'Failed to apply promo code. Please try again.';
-          });
-        }
+        final errorMessage = data['message'] ??
+            data['error'] ??
+            'Failed to apply promo code. Please try again.';
+        setState(() {
+          _promoError = errorMessage;
+        });
       }
     } catch (e) {
       debugPrint('[DEBUG] Exception during apply coupon API call: $e');

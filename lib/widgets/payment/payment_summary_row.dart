@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../config/app_colors.dart';
+
 /// Single line in the payment bill breakdown.
 class PaymentSummaryRow extends StatelessWidget {
   final String label;
@@ -20,29 +22,29 @@ class PaymentSummaryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
           if (icon != null) ...[
             Icon(
               icon,
-              size: 18,
+              size: 16,
               color: isDiscount
-                  ? Colors.green[600]
+                  ? AppColors.primary
                   : isHighlighted
-                      ? Colors.green[700]
+                      ? AppColors.primaryDark
                       : Colors.grey[600],
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
           ],
           Expanded(
             child: Text(
               label,
               style: TextStyle(
-                fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w500,
-                fontSize: isHighlighted ? 16 : 14,
+                fontWeight: isHighlighted ? FontWeight.w600 : FontWeight.w500,
+                fontSize: isHighlighted ? 13 : 12,
                 color: isDiscount
-                    ? Colors.green[600]
+                    ? AppColors.primary
                     : isHighlighted
                         ? Colors.grey[800]
                         : Colors.grey[700],
@@ -54,12 +56,12 @@ class PaymentSummaryRow extends StatelessWidget {
                 ? '-GHS ${value.abs().toStringAsFixed(2)}'
                 : 'GHS ${value.toStringAsFixed(2)}',
             style: TextStyle(
-              fontWeight: isHighlighted ? FontWeight.w800 : FontWeight.w600,
-              fontSize: isHighlighted ? 18 : 14,
+              fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w600,
+              fontSize: isHighlighted ? 15 : 12,
               color: isDiscount
-                  ? Colors.green[600]
+                  ? AppColors.primary
                   : isHighlighted
-                      ? Colors.green[700]
+                      ? AppColors.primary
                       : Colors.grey[800],
             ),
           ),

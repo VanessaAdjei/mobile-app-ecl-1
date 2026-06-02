@@ -1,7 +1,5 @@
 // pages/categories.dart
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
@@ -12,12 +10,16 @@ import 'package:eclapp/pages/app_back_button.dart';
 import 'package:eclapp/widgets/cart_icon_button.dart';
 import 'package:eclapp/config/api_config.dart';
 import '../widgets/ecl_expandable_sliver_app_bar.dart';
+import '../utils/app_error_utils.dart';
+import '../utils/product_detail_parser.dart';
+import '../widgets/error_display.dart';
 import 'package:eclapp/pages/bulk_purchase_page.dart';
 import 'package:eclapp/pages/bottomnav.dart';
 import '../services/category_optimization_service.dart';
+import '../services/category_catalog_service.dart';
+import '../cache/product_catalog_memory.dart';
 import 'package:flutter/foundation.dart';
 import 'package:animations/animations.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 /// List/subcategory APIs often send `url_name` or `slug`; [ItemPage] needs that slug.
 /// Skips full `http` URLs so we do not pass an image URL as [urlName].
@@ -43,6 +45,9 @@ String? slugForProductDetailPage(dynamic product) {
     if (v != null) return v;
   }
 
+  final fromUrl = slugFromProductLink(p['url']?.toString());
+  if (fromUrl != null) return fromUrl;
+
   final inv = p['inventory'];
   if (inv is Map) {
     final im = Map<String, dynamic>.from(inv);
@@ -62,9 +67,13 @@ String? slugForProductDetailPage(dynamic product) {
   }
 
   final route = pick(p['route']);
-  if (route != null && route.contains('/')) {
-    final segs = route.split('/').where((s) => s.trim().isNotEmpty).toList();
-    if (segs.isNotEmpty) return segs.last;
+  if (route != null) {
+    final fromRoute = slugFromProductLink(route);
+    if (fromRoute != null) return fromRoute;
+    if (route.contains('/')) {
+      final segs = route.split('/').where((s) => s.trim().isNotEmpty).toList();
+      if (segs.isNotEmpty) return segs.last;
+    }
   }
 
   return null;
@@ -128,6 +137,84 @@ void mergeUrlNameFromCatalogMaps(
   }
 }
 
+/// Lookup maps from disk/memory catalog caches (no network).
+CatalogLookupMaps buildLocalCatalogLookupMaps() {
+  final otcpomByNameLower = <String, String?>{};
+  final urlByProductId = <int, String>{};
+  final urlByNameLower = <String, String>{};
+
+  void absorb(int id, String name, String urlName, String? otcpom) {
+    final nameLower = name.toLowerCase().trim();
+    if (nameLower.isNotEmpty) {
+      otcpomByNameLower[nameLower] = otcpom;
+    }
+    if (urlName.isEmpty) return;
+    urlByProductId[id] = urlName;
+    if (nameLower.isNotEmpty) {
+      urlByNameLower[nameLower] = urlName;
+    }
+  }
+
+  for (final p in ProductCatalogMemory.products) {
+    absorb(p.id, p.name, p.urlName, p.otcpom);
+  }
+  for (final p in ProductCache.cachedProducts) {
+    absorb(p.id, p.name, p.urlName, p.otcpom);
+  }
+  for (final raw in CategoryCache.cachedAllProducts) {
+    if (raw is! Map) continue;
+    final m = Map<String, dynamic>.from(raw);
+    final id = _parseIntId(m['id']);
+    if (id == null) continue;
+    absorb(
+      id,
+      m['name']?.toString() ?? '',
+      m['url_name']?.toString().trim() ?? '',
+      m['otcpom']?.toString(),
+    );
+  }
+
+  return CatalogLookupMaps(
+    otcpomByNameLower: otcpomByNameLower,
+    urlByProductId: urlByProductId,
+    urlByNameLower: urlByNameLower,
+  );
+}
+
+String? _lookupUrlNameInMaps(
+  int? id,
+  String? nameLower,
+  Map<int, String> urlByProductId,
+  Map<String, String> urlByNameLower,
+) {
+  if (id != null) {
+    final byId = urlByProductId[id];
+    if (byId != null && byId.isNotEmpty) return byId;
+  }
+  if (nameLower != null && nameLower.isNotEmpty) {
+    final byName = urlByNameLower[nameLower];
+    if (byName != null && byName.isNotEmpty) return byName;
+  }
+  return null;
+}
+
+int? _productRowId(dynamic product) {
+  if (product is! Map) return null;
+  Map<String, dynamic>? nestedProduct;
+  final np = product['product'];
+  if (np is Map<String, dynamic>) {
+    nestedProduct = np;
+  } else if (np is Map) {
+    nestedProduct = Map<String, dynamic>.from(np);
+  }
+  return _parseIntId(product['id']) ??
+      _parseIntId(product['product_id']) ??
+      (nestedProduct != null
+          ? _parseIntId(nestedProduct['id']) ??
+              _parseIntId(nestedProduct['product_id'])
+          : null);
+}
+
 /// Detail API uses slug path segments, not numeric product ids.
 String? resolveProductDetailUrlName(dynamic product) {
   bool validSlug(String? s) {
@@ -142,70 +229,263 @@ String? resolveProductDetailUrlName(dynamic product) {
   if (s != null && validSlug(s)) return s.trim();
 
   if (product is! Map) return null;
-  final cached = ProductCache.cachedProducts;
-  if (cached.isEmpty) return null;
 
   final name = product['name']?.toString().toLowerCase().trim();
-  Map<String, dynamic>? nestedProduct;
-  final np = product['product'];
-  if (np is Map<String, dynamic>) {
-    nestedProduct = np;
-  } else if (np is Map) {
-    nestedProduct = Map<String, dynamic>.from(np);
-  }
-  final id = _parseIntId(product['id']) ??
-      _parseIntId(product['product_id']) ??
-      (nestedProduct != null
-          ? _parseIntId(nestedProduct['id']) ??
-              _parseIntId(nestedProduct['product_id'])
-          : null);
+  final id = _productRowId(product);
+  final local = buildLocalCatalogLookupMaps();
+  final fromLocal = _lookupUrlNameInMaps(
+    id,
+    name,
+    local.urlByProductId,
+    local.urlByNameLower,
+  );
+  if (fromLocal != null) return fromLocal;
 
-  if (id != null) {
-    for (final p in cached) {
-      if (p.id == id && p.urlName.isNotEmpty) return p.urlName;
-    }
-  }
-  if (name != null && name.isNotEmpty) {
-    for (final p in cached) {
-      if (p.name.toLowerCase().trim() == name && p.urlName.isNotEmpty) {
-        return p.urlName;
-      }
-    }
-  }
   return null;
 }
 
-Widget _productDetailSlugMissingScaffold(
-    BuildContext context, String? productName) {
+Future<bool> mergeProductSlugsFromNetwork(
+  List<dynamic> products,
+  CategoryCatalogService catalogService, {
+  bool throwIfEmpty = false,
+}) async {
+  try {
+    final maps = await catalogService.buildCatalogLookupMaps(
+      timeout: const Duration(seconds: 15),
+    );
+    if (maps.urlByProductId.isEmpty && maps.urlByNameLower.isEmpty) {
+      if (throwIfEmpty) {
+        throw Exception('Catalog lookup returned no product links');
+      }
+      return false;
+    }
+    mergeUrlNameFromCatalogMaps(
+      products,
+      maps.urlByProductId,
+      maps.urlByNameLower,
+    );
+    return true;
+  } catch (e, st) {
+    AppErrorUtils.log('mergeProductSlugsFromNetwork', e, st);
+    if (throwIfEmpty) rethrow;
+    return false;
+  }
+}
+
+class _ProductOpenResult {
+  const _ProductOpenResult({
+    this.page,
+    required this.kind,
+    this.error,
+  });
+
+  final ItemPage? page;
+  final ProductDetailErrorKind kind;
+  final Object? error;
+}
+
+/// Resolves product slug then opens [ItemPage]; fetches catalog if needed.
+class _CategoryProductDetailRoute extends StatefulWidget {
+  const _CategoryProductDetailRoute({required this.product});
+
+  final dynamic product;
+
+  @override
+  State<_CategoryProductDetailRoute> createState() =>
+      _CategoryProductDetailRouteState();
+}
+
+class _CategoryProductDetailRouteState
+    extends State<_CategoryProductDetailRoute> {
+  final CategoryCatalogService _catalogService = CategoryCatalogService();
+  late final String? _productName;
+  late final bool _isPrescribed;
+  late Future<_ProductOpenResult> _openResultFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _productName =
+        widget.product is Map ? widget.product['name']?.toString() : null;
+    _isPrescribed = widget.product is Map &&
+        widget.product['otcpom']?.toString().toLowerCase() == 'pom';
+    _openResultFuture = _resolveProduct();
+  }
+
+  void _retry() {
+    setState(() {
+      _openResultFuture = _resolveProduct();
+    });
+  }
+
+  Future<_ProductOpenResult> _resolveProduct() async {
+    String? slug = resolveProductDetailUrlName(widget.product);
+    if (slug != null && slug.isNotEmpty) {
+      return _ProductOpenResult(
+        page: ItemPage(urlName: slug, isPrescribed: _isPrescribed),
+        kind: ProductDetailErrorKind.unknown,
+      );
+    }
+
+    if (!ProductCache.hasProductsInMemory) {
+      await ProductCache.loadFromStorage();
+      slug = resolveProductDetailUrlName(widget.product);
+      if (slug != null && slug.isNotEmpty) {
+        return _ProductOpenResult(
+          page: ItemPage(urlName: slug, isPrescribed: _isPrescribed),
+          kind: ProductDetailErrorKind.unknown,
+        );
+      }
+    }
+
+    if (widget.product is Map) {
+      try {
+        final list = [widget.product];
+        await mergeProductSlugsFromNetwork(
+          list,
+          _catalogService,
+          throwIfEmpty: true,
+        );
+        slug = resolveProductDetailUrlName(list.first);
+        if (slug != null && slug.isNotEmpty) {
+          return _ProductOpenResult(
+            page: ItemPage(urlName: slug, isPrescribed: _isPrescribed),
+            kind: ProductDetailErrorKind.unknown,
+          );
+        }
+      } catch (e, st) {
+        AppErrorUtils.log('CategoryProductDetailRoute.resolve', e, st);
+        return _ProductOpenResult(
+          kind: AppErrorUtils.classifyProductError(e),
+          error: e,
+        );
+      }
+    }
+
+    return const _ProductOpenResult(
+      kind: ProductDetailErrorKind.unavailable,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<_ProductOpenResult>(
+      future: _openResultFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(Colors.green.shade700),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Opening product…',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final result = snapshot.data;
+        if (result?.page != null) return result!.page!;
+
+        final kind = result?.kind ?? ProductDetailErrorKind.unknown;
+        return _productDetailOpenErrorScaffold(
+          context,
+          kind: kind,
+          productName: _productName,
+          error: result?.error,
+          onRetry: _retry,
+        );
+      },
+    );
+  }
+}
+
+Widget _productDetailOpenErrorScaffold(
+  BuildContext context, {
+  required ProductDetailErrorKind kind,
+  String? productName,
+  Object? error,
+  VoidCallback? onRetry,
+}) {
+  final message = error != null
+      ? AppErrorUtils.productDetailMessageFromError(
+          error,
+          productName: productName,
+        )
+      : AppErrorUtils.productDetailMessage(kind, productName: productName);
+
   return Scaffold(
     appBar: AppBar(
       leading: IconButton(
-        icon: const Icon(Icons.close),
+        icon: const Icon(Icons.arrow_back),
         onPressed: () => Navigator.of(context).maybePop(),
       ),
       title: const Text('Product'),
     ),
-    body: Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.link_off, size: 48, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            Text(
-              productName ?? 'This product',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+    body: ErrorDisplay(
+      title: AppErrorUtils.productDetailTitle(kind),
+      message: message,
+      icon: AppErrorUtils.productDetailIcon(kind),
+      showRetry: onRetry != null,
+      onRetry: onRetry,
+      actionText: 'Go back',
+      onAction: () => Navigator.of(context).maybePop(),
+    ),
+  );
+}
+
+Widget _buildCatalogErrorPanel({
+  required String errorMessage,
+  required VoidCallback onRetry,
+}) {
+  final kind = AppErrorUtils.classifyProductError(errorMessage);
+  return Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            AppErrorUtils.productDetailIcon(kind),
+            size: 64,
+            color: Colors.orange.shade400,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            AppErrorUtils.catalogLoadTitle(kind),
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey.shade700,
+              fontWeight: FontWeight.w600,
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Product link is unavailable. Open the home page once so the catalog can sync, then try again.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            AppErrorUtils.catalogLoadMessage(kind, detail: errorMessage),
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Try again'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.shade700,
+              foregroundColor: Colors.white,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     ),
   );
@@ -315,7 +595,6 @@ class CategoryPageState extends State<CategoryPage> {
   final Map<int, bool> _categoryHasSubcategories = {};
   Timer? _highlightTimer;
   List<dynamic> _allProducts = [];
-  final bool _isLoadingProducts = false;
   bool _showSearchDropdown = false;
   List<dynamic> _searchResults = [];
   final FocusNode _searchFocusNode = FocusNode();
@@ -323,6 +602,7 @@ class CategoryPageState extends State<CategoryPage> {
   final ScrollController _searchScrollController = ScrollController();
   final CategoryOptimizationService _categoryService =
       CategoryOptimizationService();
+  final CategoryCatalogService _catalogService = CategoryCatalogService();
   final GlobalKey _searchBarKey = GlobalKey();
   final List<Map<String, dynamic>> _searchIndex = [];
   Future<void>? _searchIndexWarmupFuture;
@@ -331,6 +611,9 @@ class CategoryPageState extends State<CategoryPage> {
   void initState() {
     super.initState();
     debugPrint('🔍 CategoryPage initState() called');
+    if (!ProductCache.hasProductsInMemory) {
+      unawaited(ProductCache.loadFromStorage());
+    }
     _initializeCategoryService();
     debugPrint('🔍 Calling _prefetchAllProducts()...');
     _searchIndexWarmupFuture =
@@ -417,7 +700,8 @@ class CategoryPageState extends State<CategoryPage> {
 
       if (mounted) {
         setState(() {
-          _errorMessage = 'Failed to load categories. Please try again.';
+          _errorMessage =
+              AppErrorUtils.catalogLoadMessage(ProductDetailErrorKind.unknown);
           _isLoading = false;
         });
       }
@@ -475,24 +759,6 @@ class CategoryPageState extends State<CategoryPage> {
         .toList();
 
     CategoryImagePreloader.preloadImages(imageUrls, context);
-  }
-
-  Future<List<dynamic>> _getAllProductsFromCategories({
-    bool forceRefresh = false,
-  }) async {
-    try {
-      debugPrint(
-          '🔍 _getAllProductsFromCategories() called with forceRefresh: $forceRefresh');
-      final products =
-          await _categoryService.getProducts(forceRefresh: forceRefresh);
-      _allProducts = products;
-      debugPrint(
-          '🔍 _getAllProductsFromCategories() returned ${products.length} products');
-      return products;
-    } catch (e) {
-      debugPrint('🔍 Error in _getAllProductsFromCategories: $e');
-      return [];
-    }
   }
 
   void _searchProduct(String query) async {
@@ -619,22 +885,7 @@ class CategoryPageState extends State<CategoryPage> {
   /// the in-memory catalog index is unavailable.
   Future<List<dynamic>> _searchViaServer(String query) async {
     try {
-      final response = await http
-          .get(Uri.parse(ApiConfig.getSearchUrl(query)))
-          .timeout(const Duration(seconds: 8));
-      if (response.statusCode != 200) return [];
-      final data = json.decode(response.body);
-      final List productsData = data['data'] ?? [];
-      return productsData.map<Map<String, dynamic>>((item) {
-        return {
-          'id': item['id'],
-          'name': item['name'] ?? 'Unknown Product',
-          'url_name': item['url_name'] ?? '',
-          'otcpom': item['otcpom'],
-          'thumbnail': item['thumbnail'] ?? item['image'] ?? '',
-          'price': item['price'] ?? item['selling_price'] ?? 0,
-        };
-      }).toList();
+      return await _catalogService.searchProducts(query);
     } catch (e) {
       debugPrint('🔍 Server search fallback error: $e');
       return [];
@@ -757,71 +1008,50 @@ class CategoryPageState extends State<CategoryPage> {
 
         if (hasSubcategories) {
           try {
-            final subcategoriesResponse = await http
-                .get(
-                  Uri.parse(ApiConfig.getCategoryProductsUrl(categoryId)),
-                )
-                .timeout(Duration(seconds: 3));
+            final subcategories = await _catalogService.getSubcategories(
+              categoryId,
+              timeout: const Duration(seconds: 3),
+            );
 
-            if (subcategoriesResponse.statusCode == 200) {
-              final subcategoriesData = json.decode(subcategoriesResponse.body);
-              if (subcategoriesData['success'] == true) {
-                final subcategories = subcategoriesData['data'] as List;
+            final subcategoryFutures = subcategories.map((subcategory) async {
+              final subcategoryId = subcategory['id'];
+              final subcategoryName = subcategory['name'];
 
-                final subcategoryFutures =
-                    subcategories.map((subcategory) async {
-                  final subcategoryId = subcategory['id'];
-                  final subcategoryName = subcategory['name'];
+              try {
+                final products = await _catalogService.getSubcategoryProducts(
+                  subcategoryId,
+                  timeout: const Duration(seconds: 3),
+                );
 
-                  try {
-                    final productsResponse = await http
-                        .get(
-                          Uri.parse(ApiConfig.getSubcategoryProductsUrl(
-                              subcategoryId)),
-                        )
-                        .timeout(Duration(
-                            seconds:
-                                3)); // Reasonable timeout for subcategory API
+                for (final product in products) {
+                  final productNameLower =
+                      product['name']?.toString().toLowerCase() ?? '';
+                  final searchQueryLower = productName.toLowerCase();
 
-                    if (productsResponse.statusCode == 200) {
-                      final productsData = json.decode(productsResponse.body);
-                      if (productsData['success'] == true) {
-                        final products = productsData['data'] as List;
+                  if (productNameLower == searchQueryLower ||
+                      productNameLower.contains(searchQueryLower) ||
+                      searchQueryLower.contains(productNameLower)) {
+                    debugPrint(
+                        '🔍🔍 FOUND: ${product['name']} in $categoryName > $subcategoryName');
 
-                        for (final product in products) {
-                          final productNameLower =
-                              product['name']?.toString().toLowerCase() ?? '';
-                          final searchQueryLower = productName.toLowerCase();
-
-                          if (productNameLower == searchQueryLower ||
-                              productNameLower.contains(searchQueryLower) ||
-                              searchQueryLower.contains(productNameLower)) {
-                            debugPrint(
-                                '🔍🔍 FOUND: ${product['name']} in $categoryName > $subcategoryName');
-
-                            return {
-                              'product': product,
-                              'category_id': categoryId,
-                              'category_name': categoryName,
-                              'subcategory_id': subcategoryId,
-                              'subcategory_name': subcategoryName,
-                              'found_in_category': true,
-                              'found_in_subcategory': true,
-                            };
-                          }
-                        }
-                      }
-                    }
-                  } catch (e) {
-                    // skip subcategories that failed
+                    return {
+                      'product': product,
+                      'category_id': categoryId,
+                      'category_name': categoryName,
+                      'subcategory_id': subcategoryId,
+                      'subcategory_name': subcategoryName,
+                      'found_in_category': true,
+                      'found_in_subcategory': true,
+                    };
                   }
-                  return null;
-                });
-
-                // add all subcategory futures to the main list
-                allFutures.addAll(subcategoryFutures);
+                }
+              } catch (e) {
+                // skip subcategories that failed
               }
-            }
+              return null;
+            });
+
+            allFutures.addAll(subcategoryFutures);
           } catch (e) {
             debugPrint('🔍🔍 Error in category $categoryId: $e');
           }
@@ -829,38 +1059,30 @@ class CategoryPageState extends State<CategoryPage> {
           // search directly in category super fast
           final categoryFuture = (() async {
             try {
-              final productsResponse = await http
-                  .get(
-                    Uri.parse(ApiConfig.getSubcategoryProductsUrl(categoryId)),
-                  )
-                  .timeout(Duration(
-                      seconds:
-                          3)); // Reasonable timeout for subcategory API // ULTRA-EXTREME SPEED timeout (50% faster!)
+              final products = await _catalogService.getSubcategoryProducts(
+                categoryId,
+                timeout: const Duration(seconds: 3),
+              );
 
-              if (productsResponse.statusCode == 200) {
-                final productsData = json.decode(productsResponse.body);
-                if (productsData['success'] == true) {
-                  final products = productsData['data'] as List;
+              if (products.isNotEmpty) {
+                for (final product in products) {
+                  final productNameLower =
+                      product['name']?.toString().toLowerCase() ?? '';
+                  final searchQueryLower = productName.toLowerCase();
 
-                  for (final product in products) {
-                    final productNameLower =
-                        product['name']?.toString().toLowerCase() ?? '';
-                    final searchQueryLower = productName.toLowerCase();
+                  if (productNameLower == searchQueryLower ||
+                      productNameLower.contains(searchQueryLower) ||
+                      searchQueryLower.contains(productNameLower)) {
+                    debugPrint(
+                        '🔍🔍 FOUND: ${product['name']} in $categoryName');
 
-                    if (productNameLower == searchQueryLower ||
-                        productNameLower.contains(searchQueryLower) ||
-                        searchQueryLower.contains(productNameLower)) {
-                      debugPrint(
-                          '🔍🔍 FOUND: ${product['name']} in $categoryName');
-
-                      return {
-                        'product': product,
-                        'category_id': categoryId,
-                        'category_name': categoryName,
-                        'found_in_category': true,
-                        'found_in_subcategory': false,
-                      };
-                    }
+                    return {
+                      'product': product,
+                      'category_id': categoryId,
+                      'category_name': categoryName,
+                      'found_in_category': true,
+                      'found_in_subcategory': false,
+                    };
                   }
                 }
               }
@@ -880,7 +1102,7 @@ class CategoryPageState extends State<CategoryPage> {
 
       // use Future.any to get the fastest result with a super short timeout
       try {
-        final result = await Future.any(allFutures.where((f) => f != null))
+        final result = await Future.any(allFutures)
             .timeout(
                 Duration(seconds: 5)); // Reasonable timeout for parallel search
         if (result != null) {
@@ -963,44 +1185,36 @@ class CategoryPageState extends State<CategoryPage> {
   Future<Map<String, dynamic>?> _tryBatchProductSearch(
       String productName) async {
     try {
-      // Try to get all products in one API call for maximum speed
-      final response = await http
-          .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
-          .timeout(Duration(seconds: 3)); // Reasonable timeout for batch API
+      final dataList = await _catalogService.getRawCatalogItems(
+        timeout: const Duration(seconds: 3),
+      );
+      final searchQuery = productName.toLowerCase();
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        final List<dynamic> dataList = responseData['data'];
-        final searchQuery = productName.toLowerCase();
+      for (final item in dataList) {
+        final productData = item['product'] as Map<String, dynamic>;
+        final productNameLower =
+            productData['name']?.toString().toLowerCase() ?? '';
 
-        // Search through all products with early exit
-        for (final item in dataList) {
-          final productData = item['product'] as Map<String, dynamic>;
-          final productNameLower =
-              productData['name']?.toString().toLowerCase() ?? '';
+        if (productNameLower == searchQuery ||
+            productNameLower.contains(searchQuery) ||
+            searchQuery.contains(productNameLower)) {
+          final categoryId = item['category_id'];
+          final categoryName = item['category_name'];
+          final subcategoryId = item['subcategory_id'];
+          final subcategoryName = item['subcategory_name'];
 
-          if (productNameLower == searchQuery ||
-              productNameLower.contains(searchQuery) ||
-              searchQuery.contains(productNameLower)) {
-            // Found product! Now get category info
-            final categoryId = item['category_id'];
-            final categoryName = item['category_name'];
-            final subcategoryId = item['subcategory_id'];
-            final subcategoryName = item['subcategory_name'];
-
-            if (categoryId != null && categoryName != null) {
-              debugPrint(
-                  '🔍🔍 EXTREME SPEED: Batch API found: ${productData['name']} in $categoryName');
-              return {
-                'product': productData,
-                'category_id': categoryId,
-                'category_name': categoryName,
-                'subcategory_id': subcategoryId,
-                'subcategory_name': subcategoryName,
-                'found_in_category': true,
-                'found_in_subcategory': subcategoryId != null,
-              };
-            }
+          if (categoryId != null && categoryName != null) {
+            debugPrint(
+                '🔍🔍 EXTREME SPEED: Batch API found: ${productData['name']} in $categoryName');
+            return {
+              'product': productData,
+              'category_id': categoryId,
+              'category_name': categoryName,
+              'subcategory_id': subcategoryId,
+              'subcategory_name': subcategoryName,
+              'found_in_category': true,
+              'found_in_subcategory': subcategoryId != null,
+            };
           }
         }
       }
@@ -1008,17 +1222,6 @@ class CategoryPageState extends State<CategoryPage> {
       debugPrint('🔍🔍 Batch API error: $e');
     }
     return null;
-  }
-
-  // Background search function for compute
-  static List<dynamic> _filterProducts(Map<String, dynamic> args) {
-    final products = args['products'] as List<dynamic>;
-    final query = args['query'] as String;
-    final searchQuery = query.toLowerCase();
-    return products.where((product) {
-      final productName = (product['name'] ?? '').toString().toLowerCase();
-      return productName.contains(searchQuery);
-    }).toList();
   }
 
   String _getCategoryImageUrl(String imagePath) {
@@ -1913,7 +2116,6 @@ class CategoryPageState extends State<CategoryPage> {
         final foundCategoryId = searchResult['category_id'];
         final foundCategoryName = searchResult['category_name'];
         final foundSubcategoryId = searchResult['subcategory_id'];
-        final foundSubcategoryName = searchResult['subcategory_name'];
         final foundInSubcategory =
             searchResult['found_in_subcategory'] ?? false;
 
@@ -1946,23 +2148,14 @@ class CategoryPageState extends State<CategoryPage> {
           );
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Product "$productName" not found.'),
-            backgroundColor: Colors.orange.shade600,
-            duration: Duration(seconds: 3),
-          ),
+        AppErrorUtils.showSnack(
+          context,
+          'We couldn\'t find "$productName". Try another search or browse categories.',
+          isError: true,
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error finding product. Please try again.'),
-          backgroundColor: Colors.red.shade600,
-          duration: Duration(seconds: 3),
-        ),
-      );
+      AppErrorUtils.showErrorSnack(context, e);
     }
   }
 
@@ -2048,51 +2241,15 @@ class CategoryPageState extends State<CategoryPage> {
   }
 
   Widget _buildErrorState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 64,
-            color: Colors.orange.shade400,
-          ),
-          SizedBox(height: 16),
-          Text(
-            'Something went wrong',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 8),
-          Text(
-            _errorMessage,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _isLoading = true;
-                _errorMessage = '';
-              });
-              _clearCacheAndReload();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.shade700,
-              foregroundColor: Colors.white,
-            ),
-            child: Text('Try Again'),
-          ),
-        ],
-      ),
+    return _buildCatalogErrorPanel(
+      errorMessage: _errorMessage,
+      onRetry: () {
+        setState(() {
+          _isLoading = true;
+          _errorMessage = '';
+        });
+        _clearCacheAndReload();
+      },
     );
   }
 
@@ -2175,51 +2332,26 @@ class CategoryPageState extends State<CategoryPage> {
       debugPrint(
           '🔍 Prefetching products for search index via get-all-products...');
 
-      final response = await http
-          .get(
-            Uri.parse(
-              ApiConfig.getEndpointUrl(ApiConfig.getAllProducts),
-            ),
-          )
-          .timeout(const Duration(seconds: 12));
+      final flattenedProducts = await _catalogService.getFlattenedCatalog(
+        timeout: const Duration(seconds: 12),
+      );
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        final List<dynamic> dataList = responseData['data'] ?? [];
+      if (flattenedProducts.isEmpty) {
+        debugPrint('🔍 Prefetch get-all-products returned no products');
+        return;
+      }
 
-        debugPrint(
-            '🔍 Prefetch: received ${dataList.length} items from get-all-products');
+      debugPrint(
+          '🔍 Prefetch: received ${flattenedProducts.length} items from get-all-products');
 
-        // Build flattened products with full category / subcategory context
-        final List<dynamic> flattenedProducts = dataList.map<dynamic>((item) {
-          final productData = item['product'] as Map<String, dynamic>? ?? {};
-          return {
-            'id': productData['id'],
-            'name': productData['name'] ?? 'Unknown Product',
-            'url_name': productData['url_name'] ?? '',
-            'otcpom': productData['otcpom'],
-            'thumbnail': productData['thumbnail'] ?? productData['image'] ?? '',
-            'price': item['price'] ?? 0,
-            'description': productData['description'] ?? '',
-            'category_id': item['category_id'],
-            'category_name': item['category_name'],
-            'subcategory_id': item['subcategory_id'],
-            'subcategory_name': item['subcategory_name'],
-          };
-        }).toList();
+      _allProducts = flattenedProducts;
+      CategoryCache.cacheAllProducts(flattenedProducts);
+      _buildSearchIndex(flattenedProducts);
+      debugPrint(
+          '🔍 Prefetch: cached ${flattenedProducts.length} flattened products for instant search');
 
-        _allProducts = flattenedProducts;
-        CategoryCache.cacheAllProducts(flattenedProducts);
-        _buildSearchIndex(flattenedProducts);
-        debugPrint(
-            '🔍 Prefetch: cached ${flattenedProducts.length} flattened products for instant search');
-
-        if (mounted) {
-          setState(() {});
-        }
-      } else {
-        debugPrint(
-            '🔍 Prefetch get-all-products failed with HTTP ${response.statusCode}');
+      if (mounted) {
+        setState(() {});
       }
     } catch (e) {
       debugPrint('🔍 Error in _prefetchAllProducts: $e');
@@ -2590,6 +2722,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   bool showScrollToTop = false;
   int? highlightedProductId;
   Timer? highlightTimer;
+  final CategoryCatalogService _catalogService = CategoryCatalogService();
   /// When false, subcategory list becomes a compact rail (more room for products).
   bool _subcategoryRailExpanded = true;
   static const double _kSubcategoryRailCollapsedWidth = 72;
@@ -2668,35 +2801,38 @@ class SubcategoryPageState extends State<SubcategoryPage> {
 
   Future<void> fetchSubcategories() async {
     try {
-      final response = await http
-          .get(
-            Uri.parse(
-              ApiConfig.getCategoryProductsUrl(widget.categoryId.toString()),
-            ),
-          )
-          .timeout(Duration(seconds: 8)); // Reduced timeout
+      final result = await _catalogService.categorySubcategoriesResult(
+        widget.categoryId,
+        timeout: const Duration(seconds: 8),
+      );
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-
-        if (data['success'] == true) {
-          final subcategoriesData = data['data'] as List;
-
-          // Cache the subcategories
-          _subcategoriesCache[widget.categoryId] = subcategoriesData;
-          _cacheTimestamps[widget.categoryId] = DateTime.now();
-
-          handleSubcategoriesSuccess(data);
-        } else {
-          handleSubcategoriesError('Failed to load subcategories');
-        }
-      } else {
+      if (!result.isHttpOk) {
         handleSubcategoriesError(
-          'Failed to load subcategories: ${response.statusCode}',
-        );
+            AppErrorUtils.catalogLoadMessage(ProductDetailErrorKind.unknown));
+        return;
       }
+
+      if (!result.isApiSuccess) {
+        handleSubcategoriesError(
+            AppErrorUtils.catalogLoadMessage(ProductDetailErrorKind.unknown));
+        return;
+      }
+
+      final subcategoriesData = result.data;
+
+      _subcategoriesCache[widget.categoryId] = subcategoriesData;
+      _cacheTimestamps[widget.categoryId] = DateTime.now();
+
+      handleSubcategoriesSuccess({'success': true, 'data': subcategoriesData});
     } catch (e) {
-      handleSubcategoriesError('Error: ${e.toString()}');
+      final s = e.toString();
+      final isConnectivity = s.contains('SocketException') ||
+          s.contains('ClientException') ||
+          s.contains('Connection') ||
+          s.contains('TimeoutException');
+      handleSubcategoriesError(isConnectivity
+          ? AppErrorUtils.catalogLoadMessage(ProductDetailErrorKind.offline)
+          : AppErrorUtils.catalogLoadMessage(ProductDetailErrorKind.unknown));
     }
   }
 
@@ -2709,6 +2845,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       selectedSubcategoryId = subcategoryId;
       isLoading = true;
       products = [];
+      errorMessage = '';
     });
 
     // Check if we have cached products for this subcategory
@@ -2734,56 +2871,58 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     }
 
     try {
-      // Use the correct endpoint for products in a subcategory
-      final apiUrl =
-          ApiConfig.getSubcategoryProductsUrl(subcategoryId.toString());
+      final result = await _catalogService.subcategoryProductsResult(
+        subcategoryId,
+        timeout: const Duration(seconds: 15),
+      );
 
-      final response =
-          await http.get(Uri.parse(apiUrl)).timeout(Duration(seconds: 15));
+      if (!result.isHttpOk) {
+        handleProductsError(
+            AppErrorUtils.catalogLoadMessage(ProductDetailErrorKind.unknown));
+        return;
+      }
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      if (!result.isApiSuccess) {
+        handleProductsEmpty();
+        return;
+      }
 
-        if (data['success'] == true) {
-          final allProducts = data['data'] as List;
+      final allProducts = result.data;
 
-          // Debug print to see the first product structure
-          if (allProducts.isNotEmpty) {
-            final firstProduct = allProducts[0];
-            debugPrint('🔍 CATEGORIES API RESPONSE STRUCTURE ===');
-            debugPrint('First Product Keys: ${firstProduct.keys.toList()}');
-            debugPrint('First Product OTCPOM: ${firstProduct['otcpom']}');
-            debugPrint('==========================================');
-          }
+      if (allProducts.isNotEmpty) {
+        final firstProduct = allProducts[0];
+        debugPrint('🔍 CATEGORIES API RESPONSE STRUCTURE ===');
+        debugPrint('First Product Keys: ${firstProduct.keys.toList()}');
+        debugPrint('First Product OTCPOM: ${firstProduct['otcpom']}');
+        debugPrint('==========================================');
+      }
 
-          if (allProducts.isEmpty) {
-            handleProductsError('There is no product available currently');
-          } else {
-            // Enhance products with otcpom data
-            debugPrint(
-                '🔍 Enhancing ${allProducts.length} products with otcpom data for subcategory $subcategoryId');
-            await _enhanceProductsWithOtcpom(allProducts);
-
-            // Cache the enhanced products
-            _productsCache[subcategoryId] = allProducts;
-            _cacheTimestamps[subcategoryId] = DateTime.now();
-
-            debugPrint(
-                '🔍 Cached ${allProducts.length} products for subcategory $subcategoryId');
-
-            handleProductsSuccess(data);
-
-            // Preload next subcategory if available
-            _preloadNextSubcategory(subcategoryId);
-          }
-        } else {
-          handleProductsError('There is no product available currently');
-        }
+      if (allProducts.isEmpty) {
+        handleProductsEmpty();
       } else {
-        handleProductsError('Failed to load products');
+        debugPrint(
+            '🔍 Enhancing ${allProducts.length} products with otcpom data for subcategory $subcategoryId');
+        await _enhanceProductsWithOtcpom(allProducts);
+
+        _productsCache[subcategoryId] = allProducts;
+        _cacheTimestamps[subcategoryId] = DateTime.now();
+
+        debugPrint(
+            '🔍 Cached ${allProducts.length} products for subcategory $subcategoryId');
+
+        handleProductsSuccess({'success': true, 'data': allProducts});
+
+        _preloadNextSubcategory(subcategoryId);
       }
     } catch (e) {
-      handleProductsError('Error: ${e.toString()}');
+      final s = e.toString();
+      final isConnectivity = s.contains('SocketException') ||
+          s.contains('ClientException') ||
+          s.contains('Connection') ||
+          s.contains('TimeoutException');
+      handleProductsError(isConnectivity
+          ? AppErrorUtils.catalogLoadMessage(ProductDetailErrorKind.offline)
+          : AppErrorUtils.catalogLoadMessage(ProductDetailErrorKind.unknown));
     }
   }
 
@@ -2834,6 +2973,7 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     setState(() {
       products = data['data'];
       isLoading = false;
+      errorMessage = '';
     });
 
     // Highlight searched product if available
@@ -2859,6 +2999,16 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     });
   }
 
+  void handleProductsEmpty() {
+    if (!mounted) return;
+
+    setState(() {
+      isLoading = false;
+      products = [];
+      errorMessage = '';
+    });
+  }
+
   // Clear subcategory cache to ensure fresh data
   void _clearSubcategoryCache() {
     debugPrint(
@@ -2868,106 +3018,40 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     _cacheTimestamps.remove(widget.categoryId);
   }
 
-  /// When [ProductCache] is partial, fill `url_name` from get-all-products (same source as full catalog).
-  Future<void> _mergeUrlNamesFromGetAllProductsApi(List<dynamic> products) async {
-    try {
-      final response = await http
-          .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
-          .timeout(const Duration(seconds: 15));
-      if (response.statusCode != 200) return;
-      final data = json.decode(response.body) as Map<String, dynamic>;
-      final dataList = data['data'] as List<dynamic>? ?? const [];
-      final Map<int, String> urlByProductId = {};
-      final Map<String, String> urlByNameLower = {};
-      for (final item in dataList) {
-        final pdRaw = item['product'];
-        if (pdRaw is! Map) continue;
-        final pd = Map<String, dynamic>.from(pdRaw);
-        final u = pd['url_name']?.toString().trim() ?? '';
-        if (u.isEmpty) continue;
-        final id = _parseIntId(pd['id']);
-        if (id != null) urlByProductId[id] = u;
-        final pn = pd['name']?.toString().toLowerCase();
-        if (pn != null && pn.isNotEmpty) urlByNameLower[pn] = u;
-      }
-      mergeUrlNameFromCatalogMaps(products, urlByProductId, urlByNameLower);
-    } catch (e) {
-      debugPrint('🔍 Url merge from get-all-products failed: $e');
-    }
-  }
-
   // Optimized enhancement with better caching and performance
   Future<void> _enhanceProductsWithOtcpom(List<dynamic> products) async {
     debugPrint(
         '🔍 Starting optimized otcpom enhancement for ${products.length} products');
 
     try {
-      // Get cached products from homepage (which have otcpom data)
-      final cachedProducts = ProductCache.cachedProducts;
-      debugPrint(
-          '🔍 Found ${cachedProducts.length} cached products from ProductCache');
+      final local = buildLocalCatalogLookupMaps();
 
-      if (cachedProducts.isEmpty) {
-        debugPrint('🔍 No cached products available, fetching in background...');
-        // No catalog yet — don't block product render on a full catalog
-        // download. Fetch in the background and refresh badges/slugs when done.
-        unawaited(_enhanceProductsWithAPI(products).then((_) {
-          if (mounted) setState(() {});
-        }));
-        return;
-      }
-
-      // Create a map of product names to otcpom data for quick lookup
-      final Map<String, String?> otcpomMap = {};
-      final Map<int, String> urlByProductId = {};
-      final Map<String, String> urlByNameLower = {};
-      for (final product in cachedProducts) {
-        final productName = product.name.toString().toLowerCase();
-        final otcpom = product.otcpom;
-        if (productName.isNotEmpty) {
-          otcpomMap[productName] = otcpom;
-        }
-        if (product.urlName.isNotEmpty) {
-          urlByProductId[product.id] = product.urlName;
-          urlByNameLower[productName] = product.urlName;
-        }
-      }
-
-      debugPrint(
-          '🔍 Created otcpom map with ${otcpomMap.length} products from cache');
-
-      // Optimized enhancement - batch process (synchronous, no network)
       int enhancedCount = 0;
       for (int i = 0; i < products.length; i++) {
-        final product = products[i];
-        final productName = product['name']?.toString().toLowerCase();
-
-        if (productName != null && otcpomMap.containsKey(productName)) {
-          final otcpom = otcpomMap[productName];
-          products[i]['otcpom'] = otcpom;
+        final productName = products[i]['name']?.toString().toLowerCase();
+        if (productName != null &&
+            local.otcpomByNameLower.containsKey(productName)) {
+          products[i]['otcpom'] = local.otcpomByNameLower[productName];
           enhancedCount++;
         }
       }
 
-      mergeUrlNameFromCatalogMaps(products, urlByProductId, urlByNameLower);
+      mergeUrlNameFromCatalogMaps(
+        products,
+        local.urlByProductId,
+        local.urlByNameLower,
+      );
 
-      // Only a handful of products may still lack a slug. Resolve those in the
-      // background instead of blocking the grid on a get-all-products download.
       if (products.any(
           (raw) => raw is Map && slugForProductDetailPage(raw) == null)) {
-        unawaited(_mergeUrlNamesFromGetAllProductsApi(products).then((_) {
-          if (mounted) setState(() {});
-        }));
+        await _enhanceProductsWithAPI(products);
       }
 
       debugPrint(
           '🔍 Enhanced $enhancedCount out of ${products.length} products');
     } catch (e) {
-      debugPrint('🔍 Error using ProductCache: $e');
-      // Fallback to API call in the background.
-      unawaited(_enhanceProductsWithAPI(products).then((_) {
-        if (mounted) setState(() {});
-      }));
+      debugPrint('🔍 Error using local catalog: $e');
+      await _enhanceProductsWithAPI(products);
     }
 
     debugPrint(
@@ -2979,55 +3063,30 @@ class SubcategoryPageState extends State<SubcategoryPage> {
     debugPrint('🔍 Fallback: Using optimized API call for otcpom enhancement');
 
     try {
-      final response = await http
-          .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
-          .timeout(const Duration(seconds: 15));
+      final maps = await _catalogService.buildCatalogLookupMaps(
+        timeout: const Duration(seconds: 15),
+      );
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        final List<dynamic> dataList = responseData['data'];
+      int enhancedCount = 0;
+      for (int i = 0; i < products.length; i++) {
+        final product = products[i];
+        final productName = product['name']?.toString().toLowerCase();
 
-        debugPrint(
-            '🔍 Fetched ${dataList.length} products from get-all-products API');
-
-        final Map<String, String?> otcpomMap = {};
-        final Map<int, String> urlByProductId = {};
-        final Map<String, String> urlByNameLower = {};
-        for (final item in dataList) {
-          final productData = item['product'] as Map<String, dynamic>;
-          final productName = productData['name']?.toString().toLowerCase();
-          final otcpom = productData['otcpom'];
-          if (productName != null && productName.isNotEmpty) {
-            otcpomMap[productName] = otcpom;
-          }
-          final u = productData['url_name']?.toString().trim() ?? '';
-          if (u.isNotEmpty) {
-            final id = _parseIntId(productData['id']);
-            if (id != null) urlByProductId[id] = u;
-            if (productName != null && productName.isNotEmpty) {
-              urlByNameLower[productName] = u;
-            }
-          }
+        if (productName != null &&
+            maps.otcpomByNameLower.containsKey(productName)) {
+          products[i]['otcpom'] = maps.otcpomByNameLower[productName];
+          enhancedCount++;
         }
-
-        // Optimized batch enhancement
-        int enhancedCount = 0;
-        for (int i = 0; i < products.length; i++) {
-          final product = products[i];
-          final productName = product['name']?.toString().toLowerCase();
-
-          if (productName != null && otcpomMap.containsKey(productName)) {
-            final otcpom = otcpomMap[productName];
-            products[i]['otcpom'] = otcpom;
-            enhancedCount++;
-          }
-        }
-
-        mergeUrlNameFromCatalogMaps(products, urlByProductId, urlByNameLower);
-
-        debugPrint(
-            '🔍 Enhanced $enhancedCount out of ${products.length} products via API');
       }
+
+      mergeUrlNameFromCatalogMaps(
+        products,
+        maps.urlByProductId,
+        maps.urlByNameLower,
+      );
+
+      debugPrint(
+          '🔍 Enhanced $enhancedCount out of ${products.length} products via API');
     } catch (e) {
       debugPrint('🔍 Error in fallback API call: $e');
     }
@@ -3105,23 +3164,16 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   // Background preloading of subcategory products
   Future<void> _preloadSubcategoryProducts(int subcategoryId) async {
     try {
-      final apiUrl =
-          ApiConfig.getSubcategoryProductsUrl(subcategoryId.toString());
-      final response =
-          await http.get(Uri.parse(apiUrl)).timeout(Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          final allProducts = data['data'] as List;
-          if (allProducts.isNotEmpty) {
-            await _enhanceProductsWithOtcpom(allProducts);
-            _productsCache[subcategoryId] = allProducts;
-            _cacheTimestamps[subcategoryId] = DateTime.now();
-            debugPrint(
-                '🔍 Preloaded ${allProducts.length} products for subcategory $subcategoryId');
-          }
-        }
+      final allProducts = await _catalogService.getSubcategoryProducts(
+        subcategoryId,
+        timeout: const Duration(seconds: 10),
+      );
+      if (allProducts.isNotEmpty) {
+        await _enhanceProductsWithOtcpom(allProducts);
+        _productsCache[subcategoryId] = allProducts;
+        _cacheTimestamps[subcategoryId] = DateTime.now();
+        debugPrint(
+            '🔍 Preloaded ${allProducts.length} products for subcategory $subcategoryId');
       }
     } catch (e) {
       debugPrint('🔍 Error preloading subcategory $subcategoryId: $e');
@@ -3713,8 +3765,17 @@ class SubcategoryPageState extends State<SubcategoryPage> {
 
   Widget _buildProductsContent() {
     Widget child;
+    final stateKey = isLoading
+        ? 'loading'
+        : errorMessage.isNotEmpty
+            ? 'error'
+            : products.isEmpty
+                ? 'empty'
+                : 'grid';
     if (isLoading) {
       child = buildProductsLoadingState();
+    } else if (errorMessage.isNotEmpty) {
+      child = buildProductsErrorState();
     } else if (products.isEmpty) {
       child = buildEmptyState();
     } else {
@@ -3726,10 +3787,22 @@ class SubcategoryPageState extends State<SubcategoryPage> {
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
       child: KeyedSubtree(
-        key: ValueKey(
-            'products_state_${isLoading ? 'loading' : products.isEmpty ? 'empty' : 'grid'}'),
+        key: ValueKey('products_state_$stateKey'),
         child: child,
       ),
+    );
+  }
+
+  Widget buildProductsErrorState() {
+    return _buildCatalogErrorPanel(
+      errorMessage: errorMessage,
+      onRetry: () {
+        setState(() {
+          isLoading = true;
+          errorMessage = '';
+        });
+        _refreshSelectedSubcategory();
+      },
     );
   }
 
@@ -3794,23 +3867,8 @@ class SubcategoryPageState extends State<SubcategoryPage> {
                 closedShape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
-                openBuilder: (context, _) {
-                  final slug = resolveProductDetailUrlName(product);
-                  final isPrescribed =
-                      product['otcpom']?.toString().toLowerCase() == 'pom';
-                  if (slug != null && slug.isNotEmpty) {
-                    debugPrint(
-                        '🔍 Subcategory → ItemPage slug: $slug (${product['name']})');
-                    return ItemPage(
-                      urlName: slug,
-                      isPrescribed: isPrescribed,
-                    );
-                  }
-                  return _productDetailSlugMissingScaffold(
-                    context,
-                    product['name']?.toString(),
-                  );
-                },
+                openBuilder: (context, _) =>
+                    _CategoryProductDetailRoute(product: product),
                 closedBuilder: (context, openContainer) => ProductCard(
                   product: product,
                   onTap: openContainer,
@@ -3871,51 +3929,15 @@ class SubcategoryPageState extends State<SubcategoryPage> {
   }
 
   Widget buildErrorState(String message) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 64,
-            color: Colors.orange.shade400,
-          ),
-          SizedBox(height: 16),
-          Text(
-            'Something went wrong',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 8),
-          Text(
-            message,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                isLoading = true;
-                errorMessage = '';
-              });
-              fetchSubcategories();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.shade700,
-              foregroundColor: Colors.white,
-            ),
-            child: Text('Try Again'),
-          ),
-        ],
-      ),
+    return _buildCatalogErrorPanel(
+      errorMessage: message,
+      onRetry: () {
+        setState(() {
+          isLoading = true;
+          errorMessage = '';
+        });
+        fetchSubcategories();
+      },
     );
   }
 
@@ -4223,6 +4245,7 @@ class ProductListPageState extends State<ProductListPage> {
   String sortOption = 'Latest';
   int? highlightedProductId;
   Timer? highlightTimer;
+  final CategoryCatalogService _catalogService = CategoryCatalogService();
 
   // Per-category product cache so repeat visits load instantly.
   static final Map<int, List<dynamic>> _listCache = {};
@@ -4278,68 +4301,78 @@ class ProductListPageState extends State<ProductListPage> {
         errorMessage = '';
       });
 
-      final response = await http.get(
-        Uri.parse(
-          ApiConfig.getSubcategoryProductsUrl(widget.categoryId.toString()),
-        ),
+      final result = await _catalogService.subcategoryProductsResult(
+        widget.categoryId,
       );
 
-      debugPrint('🔍 API Response Status: ${response.statusCode}');
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        debugPrint('🔍 API Response Success: ${data['success']}');
-        if (data['success'] == true) {
-          setState(() {
-            products = data['data'];
-            isLoading = false;
-          });
-          _listCache[widget.categoryId] = products;
-          _listCacheTime[widget.categoryId] = DateTime.now();
-
-          // Debug: Check if products have otcpom field
-          if (products.isNotEmpty) {
-            final firstProduct = products.first;
-            debugPrint('🔍 Category Products Debug:');
-            debugPrint('First Product: ${firstProduct['name']}');
-            debugPrint('First Product OTCPOM: ${firstProduct['otcpom']}');
-            debugPrint('First Product Keys: ${firstProduct.keys.toList()}');
-            debugPrint(
-                '🔍 WARNING: Category API does not include otcpom field!');
-          }
-
-          // Enhance products with otcpom data from cached products if missing
-          debugPrint('🔍 About to call _enhanceProductsWithOtcpom()');
-          try {
-            await _enhanceProductsWithOtcpom();
-            debugPrint(
-                '🔍 _enhanceProductsWithOtcpom() completed successfully');
-          } catch (e) {
-            debugPrint('🔍 ERROR in _enhanceProductsWithOtcpom(): $e');
-          }
-
-          // Highlight searched product if available
-          if (widget.searchedProductId != null) {
-            _highlightSearchedProduct();
-          }
-        } else {
-          debugPrint('🔍 API returned success=false');
-          setState(() {
-            isLoading = false;
-            errorMessage = 'There is no product available currently';
-          });
-        }
-      } else {
-        debugPrint('🔍 API returned status code: ${response.statusCode}');
+      debugPrint('🔍 API Response Status: ${result.statusCode}');
+      if (!result.isHttpOk) {
+        debugPrint('🔍 API returned status code: ${result.statusCode}');
         setState(() {
           isLoading = false;
-          errorMessage = 'Failed to load products: ${response.statusCode}';
+          errorMessage = result.statusCode == 404
+              ? AppErrorUtils.catalogLoadMessage(ProductDetailErrorKind.notFound)
+              : AppErrorUtils.catalogLoadMessage(
+                  ProductDetailErrorKind.server,
+                );
+        });
+        return;
+      }
+
+      debugPrint('🔍 API Response Success: ${result.isApiSuccess}');
+      if (result.isApiSuccess) {
+        final loaded = result.data;
+        _listCache[widget.categoryId] = loaded;
+        _listCacheTime[widget.categoryId] = DateTime.now();
+
+        if (loaded.isNotEmpty) {
+          final firstProduct = loaded.first;
+          debugPrint('🔍 Category Products Debug:');
+          debugPrint('First Product: ${firstProduct['name']}');
+          debugPrint('First Product OTCPOM: ${firstProduct['otcpom']}');
+          debugPrint('First Product Keys: ${firstProduct.keys.toList()}');
+          debugPrint(
+              '🔍 WARNING: Category API does not include otcpom field!');
+        }
+
+        products = loaded;
+        debugPrint('🔍 About to call _enhanceProductsWithOtcpom()');
+        try {
+          await _enhanceProductsWithOtcpom();
+          debugPrint(
+              '🔍 _enhanceProductsWithOtcpom() completed successfully');
+        } catch (e) {
+          debugPrint('🔍 ERROR in _enhanceProductsWithOtcpom(): $e');
+        }
+
+        if (!mounted) return;
+        setState(() {
+          isLoading = false;
+        });
+
+        if (widget.searchedProductId != null) {
+          _highlightSearchedProduct();
+        }
+      } else {
+        debugPrint('🔍 API returned success=false');
+        setState(() {
+          isLoading = false;
+          errorMessage =
+              AppErrorUtils.catalogLoadMessage(ProductDetailErrorKind.notFound);
         });
       }
     } catch (e) {
       debugPrint('🔍 ERROR in fetchProducts(): $e');
+      final s = e.toString();
+      final isConnectivity = s.contains('SocketException') ||
+          s.contains('ClientException') ||
+          s.contains('Connection') ||
+          s.contains('TimeoutException');
       setState(() {
         isLoading = false;
-        errorMessage = 'Error: ${e.toString()}';
+        errorMessage = isConnectivity
+            ? AppErrorUtils.catalogLoadMessage(ProductDetailErrorKind.offline)
+            : AppErrorUtils.catalogLoadMessage(ProductDetailErrorKind.unknown);
       });
     }
     debugPrint('🔍 fetchProducts() method completed');
@@ -4348,42 +4381,39 @@ class ProductListPageState extends State<ProductListPage> {
   Future<void> _enhanceProductsWithOtcpom() async {
     debugPrint('🔍 _enhanceProductsWithOtcpom() method started');
 
-    // First, fill otcpom from the already-cached full catalog (no network).
-    final cachedById = <String, String>{};
-    for (final p in ProductCache.cachedProducts) {
-      final otcpom = p.otcpom;
-      if (otcpom != null && otcpom.isNotEmpty) {
-        cachedById[p.id.toString()] = otcpom;
-      }
-    }
-    debugPrint(
-        '🔍 ProductCache status: ${ProductCache.cachedProducts.length} cached products');
+    final local = buildLocalCatalogLookupMaps();
+    mergeUrlNameFromCatalogMaps(
+      products,
+      local.urlByProductId,
+      local.urlByNameLower,
+    );
 
     final missingIndices = <int>[];
     for (var i = 0; i < products.length; i++) {
-      final id = products[i]['id']?.toString();
       if (products[i]['otcpom'] != null &&
           products[i]['otcpom'].toString().isNotEmpty) {
-        continue; // already has it from the category API
+        continue;
       }
-      final cached = id != null ? cachedById[id] : null;
-      if (cached != null) {
-        products[i]['otcpom'] = cached;
+      final name = products[i]['name']?.toString().toLowerCase();
+      final fromLocal = name != null ? local.otcpomByNameLower[name] : null;
+      if (fromLocal != null && fromLocal.isNotEmpty) {
+        products[i]['otcpom'] = fromLocal;
       } else {
         missingIndices.add(i);
       }
     }
 
-    if (mounted) setState(() {});
+    if (products.any((p) => slugForProductDetailPage(p) == null)) {
+      await mergeProductSlugsFromNetwork(products, _catalogService);
+    }
 
-    // Only hit the network for the few products we couldn't resolve from cache,
-    // and do those calls in parallel instead of one-by-one.
     if (missingIndices.isNotEmpty) {
       debugPrint(
           '🔍 Fetching otcpom from API for ${missingIndices.length} uncached products (parallel)');
       await _fetchOtcpomDataFromAPI(missingIndices);
     }
 
+    if (mounted) setState(() {});
     debugPrint('🔍 _enhanceProductsWithOtcpom() method completed');
   }
 
@@ -4393,18 +4423,17 @@ class ProductListPageState extends State<ProductListPage> {
       final productId = product['id'];
       if (productId == null) return;
       try {
-        final response = await http
-            .get(Uri.parse(ApiConfig.getProductByIdUrl(productId.toString())))
-            .timeout(const Duration(seconds: 8));
+        final id = productId is int
+            ? productId
+            : int.tryParse(productId.toString());
+        if (id == null) return;
 
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          if (data['success'] == true) {
-            final otcpom = data['data']?['otcpom'];
-            if (otcpom != null) {
-              products[i]['otcpom'] = otcpom;
-            }
-          }
+        final otcpom = await _catalogService.getProductOtcpom(
+          id,
+          timeout: const Duration(seconds: 8),
+        );
+        if (otcpom != null) {
+          products[i]['otcpom'] = otcpom;
         }
       } catch (e) {
         debugPrint(
@@ -4634,21 +4663,8 @@ class ProductListPageState extends State<ProductListPage> {
               closedShape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              openBuilder: (context, _) {
-                final slug = resolveProductDetailUrlName(product);
-                final isPrescribed =
-                    product['otcpom']?.toString().toLowerCase() == 'pom';
-                if (slug != null && slug.isNotEmpty) {
-                  return ItemPage(
-                    urlName: slug,
-                    isPrescribed: isPrescribed,
-                  );
-                }
-                return _productDetailSlugMissingScaffold(
-                  context,
-                  product['name']?.toString(),
-                );
-              },
+              openBuilder: (context, _) =>
+                  _CategoryProductDetailRoute(product: product),
               closedBuilder: (context, openContainer) => ProductCard(
                 product: product,
                 onTap: openContainer,
@@ -4706,51 +4722,15 @@ class ProductListPageState extends State<ProductListPage> {
   }
 
   Widget _buildErrorState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 64,
-            color: Colors.orange.shade400,
-          ),
-          SizedBox(height: 16),
-          Text(
-            'Something went wrong',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 8),
-          Text(
-            errorMessage,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                isLoading = true;
-                errorMessage = '';
-              });
-              fetchProducts();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.shade700,
-              foregroundColor: Colors.white,
-            ),
-            child: Text('Try Again'),
-          ),
-        ],
-      ),
+    return _buildCatalogErrorPanel(
+      errorMessage: errorMessage,
+      onRetry: () {
+        setState(() {
+          isLoading = true;
+          errorMessage = '';
+        });
+        fetchProducts();
+      },
     );
   }
 
@@ -4890,7 +4870,6 @@ class ProductSearchDelegate extends SearchDelegate<String> {
       itemCount: filteredProducts.length,
       itemBuilder: (context, index) {
         final product = filteredProducts[index];
-        final itemDetailURL = resolveProductDetailUrlName(product);
         final categoryId = product['category_id'];
         final subcategoryId = product['subcategory_id'];
         final categoryName = product['category_name'];
@@ -4946,29 +4925,14 @@ class ProductSearchDelegate extends SearchDelegate<String> {
           trailing: const Icon(Icons.chevron_right),
           onTap: () {
             close(context, '');
-            // Highlight the category first
             onCategorySelected(categoryId, subcategoryId);
-            // Then navigate to product detail
-            if (itemDetailURL != null && itemDetailURL.isNotEmpty) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ItemPage(
-                    urlName: itemDetailURL,
-                    isPrescribed:
-                        product['otcpom']?.toString().toLowerCase() == 'pom',
-                  ),
-                ),
-              );
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Open the home page once to sync products, then try again.',
-                  ),
-                ),
-              );
-            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    _CategoryProductDetailRoute(product: product),
+              ),
+            );
           },
         );
       },

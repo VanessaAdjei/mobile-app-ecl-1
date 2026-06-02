@@ -1,13 +1,8 @@
 // pages/forgot_password.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'dart:async';
-import 'dart:io';
 import 'app_back_button.dart';
 
-import '../config/api_config.dart';
+import '../services/auth_service.dart';
 import 'signinpage.dart';
 import '../widgets/cart_icon_button.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -26,190 +21,54 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   String? _feedback;
   Color? _feedbackColor;
 
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  void _navigateToSignIn() {
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const SignInScreen()),
+    );
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (!mounted) return;
 
     setState(() {
       _isLoading = true;
       _feedback = null;
     });
 
-    try {
-      final response = await http
-          .post(
-        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.resetPassword)),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({'email': _emailController.text.trim()}),
-      )
-          .timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw TimeoutException(
-              'Request timed out. Please check your internet connection and try again.');
-        },
-      );
+    final result =
+        await AuthService.requestPasswordReset(_emailController.text.trim());
 
-      debugPrint('Reset password response: ${response.statusCode}');
-      debugPrint('Response body: ${response.body}');
+    if (!mounted) return;
 
-      if (response.statusCode == 200) {
-        // try to parse the response
-        try {
-          final responseData = jsonDecode(response.body);
-          debugPrint('Response data: $responseData');
-          debugPrint('Status: ${responseData['status']}');
+    final success = result['success'] == true;
+    final message = result['message']?.toString() ??
+        (success
+            ? 'Password reset instructions sent! Check your email for further instructions.'
+            : 'Failed to send reset instructions. Please try again.');
 
-          if (responseData['status'] == 'success' ||
-              responseData['message']
-                      ?.toString()
-                      .toLowerCase()
-                      .contains('sent') ==
-                  true) {
-            setState(() {
-              _feedback = responseData['message'] ??
-                  'Password reset instructions sent! Check your email for further instructions.';
-              _feedbackColor = Colors.green;
-            });
-            // go back to sign in page after a short delay
-            debugPrint('Success! Navigating to sign in page in 2 seconds...');
-            Future.delayed(const Duration(seconds: 2), () {
-              debugPrint('Attempting navigation...');
-              if (mounted) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => SignInScreen()),
-                );
-                debugPrint('Navigation completed');
-              } else {
-                debugPrint('Widget not mounted, cannot navigate');
-              }
-            });
-          } else {
-            setState(() {
-              _feedback = responseData['message'] ??
-                  'Failed to send reset instructions. Please try again.';
-              _feedbackColor = Colors.orange;
-            });
-          }
-        } catch (parseError) {
-          // if json parsing fails, use the raw response
-          debugPrint(
-              'JSON parsing failed, but status code is 200. Raw response: ${response.body}');
-          setState(() {
-            _feedback =
-                'Password reset instructions sent! Check your email for further instructions.';
-            _feedbackColor = Colors.green;
-          });
-          // Navigate back to sign in page after a short delay
-          debugPrint(
-              'Success (fallback)! Navigating to sign in page in 2 seconds...');
-          Future.delayed(const Duration(seconds: 2), () {
-            debugPrint('Attempting navigation (fallback)...');
-            if (mounted) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => SignInScreen()),
-              );
-              debugPrint('Navigation completed (fallback)');
-            } else {
-              debugPrint('Widget not mounted, cannot navigate (fallback)');
-            }
-          });
-        }
-      } else if (response.statusCode == 404) {
-        setState(() {
-          _feedback =
-              'Email address not found. Please check your email or contact support.';
-          _feedbackColor = Colors.red;
-        });
-      } else if (response.statusCode == 422) {
-        try {
-          final responseData = jsonDecode(response.body);
-          final errors = responseData['errors'];
-          if (errors != null && errors['email'] != null) {
-            setState(() {
-              _feedback = errors['email'][0] ??
-                  'Invalid email format. Please check your email address.';
-              _feedbackColor = Colors.red;
-            });
-          } else {
-            setState(() {
-              _feedback = responseData['message'] ??
-                  'Invalid email format. Please check your email address.';
-              _feedbackColor = Colors.red;
-            });
-          }
-        } catch (parseError) {
-          setState(() {
-            _feedback =
-                'Invalid email format. Please check your email address.';
-            _feedbackColor = Colors.red;
-          });
-        }
-      } else if (response.statusCode == 429) {
-        setState(() {
-          _feedback =
-              'Too many requests. Please wait a few minutes before trying again.';
-          _feedbackColor = Colors.orange;
-        });
-      } else if (response.statusCode >= 500) {
-        setState(() {
-          _feedback =
-              'Server error. Please try again later or contact support if the problem persists.';
-          _feedbackColor = Colors.red;
-        });
-      } else {
-        try {
-          final responseData = jsonDecode(response.body);
-          setState(() {
-            _feedback = responseData['message'] ??
-                'Failed to send reset instructions. Please try again.';
-            _feedbackColor = Colors.red;
-          });
-        } catch (parseError) {
-          setState(() {
-            _feedback = 'Failed to send reset instructions. Please try again.';
-            _feedbackColor = Colors.red;
-          });
-        }
-      }
-    } on TimeoutException catch (e) {
-      setState(() {
-        _feedback = e.message ??
-            'Request timed out. Please check your internet connection and try again.';
+    setState(() {
+      _isLoading = false;
+      _feedback = message;
+      if (success) {
+        _feedbackColor = Colors.green;
+      } else if (result['warning'] == true) {
         _feedbackColor = Colors.orange;
-      });
-    } on FormatException catch (e) {
-      setState(() {
-        _feedback = 'Invalid response from server. Please try again.';
+      } else {
         _feedbackColor = Colors.red;
-      });
-      debugPrint('Format exception: $e');
-    } on SocketException catch (e) {
-      setState(() {
-        _feedback =
-            'No internet connection. Please check your network and try again.';
-        _feedbackColor = Colors.red;
-      });
-      debugPrint('Socket exception: $e');
-    } on HttpException catch (e) {
-      setState(() {
-        _feedback =
-            'Network error. Please check your connection and try again.';
-        _feedbackColor = Colors.red;
-      });
-      debugPrint('HTTP exception: $e');
-    } catch (e) {
-      setState(() {
-        _feedback = 'An unexpected error occurred. Please try again.';
-        _feedbackColor = Colors.red;
-      });
-      debugPrint('Unexpected error: $e');
-    } finally {
-      setState(() => _isLoading = false);
+      }
+    });
+
+    if (success) {
+      Future.delayed(const Duration(seconds: 2), _navigateToSignIn);
     }
   }
 
@@ -312,6 +171,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: const [AutofillHints.email],
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) {
+                      if (!_isLoading) _submit();
+                    },
                     decoration: InputDecoration(
                       labelText: 'Email address',
                       hintText: 'you@example.com',
@@ -325,6 +188,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Please enter your email address';
+                      }
+                      if (!value.contains('@') || !value.contains('.')) {
+                        return 'Please enter a valid email address';
                       }
                       return null;
                     },
@@ -365,19 +231,12 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           color: _feedbackColor, fontWeight: FontWeight.w600),
                       textAlign: TextAlign.center,
                     ),
-                    // add manual navigation button for success case
                     if (_feedbackColor == Colors.green) ...[
                       const SizedBox(height: 16),
                       SizedBox(
                         height: 40,
                         child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => SignInScreen()),
-                            );
-                          },
+                          onPressed: _navigateToSignIn,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green.shade600,
                             foregroundColor: Colors.white,

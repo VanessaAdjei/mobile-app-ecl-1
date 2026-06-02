@@ -1,12 +1,13 @@
 import 'dart:async';
 
 import 'package:eclapp/pages/homepage.dart';
+import 'package:eclapp/services/banner_cache_service.dart';
 import 'package:eclapp/services/category_optimization_service.dart';
 import 'package:eclapp/services/homepage_optimization_service.dart';
 import 'package:eclapp/services/product_image_preload_service.dart';
 import 'package:flutter/foundation.dart';
 
-/// Warms **get-all-products** + categories during onboarding; home opens only when ready.
+/// Warms catalog, images, categories, and banners while onboarding is visible.
 class HomePreloadService {
   HomePreloadService._();
 
@@ -14,17 +15,27 @@ class HomePreloadService {
       CategoryOptimizationService();
   static final HomepageOptimizationService _homepage =
       HomepageOptimizationService();
+  static final BannerCacheService _banners = BannerCacheService();
 
   static Future<void>? _preloadFuture;
+  static bool _preloadComplete = false;
 
   /// True only when [ProductCache] has the full get-all-products catalog.
   static bool get isCatalogReady => ProductCache.hasProductsInMemory;
 
-  /// Idempotent — starts as soon as first launch is known (terms or onboarding).
+  /// True when onboarding preload finished (catalog + home-grid images at minimum).
+  static bool get isPreloadComplete => _preloadComplete;
+
+  /// Home can render product rows with cached thumbnails immediately.
+  static bool get isFullyReadyForHome =>
+      isCatalogReady && ProductImagePreloadService.isHomeGridWarm;
+
+  /// Idempotent — starts as soon as terms or onboarding is shown.
   static void startOnboardingPreload() {
     if (_preloadFuture != null) return;
     debugPrint(
-        'HomePreloadService: preload started — get-all-products + categories');
+      'HomePreloadService: preload started — catalog, images, categories, banners',
+    );
     _preloadFuture = _runOnboardingPreload();
   }
 
@@ -40,27 +51,63 @@ class HomePreloadService {
         debugPrint('HomePreloadService: onboarding preload — catalog failed');
         return;
       }
+
       ProductCache.warmPopularFromCatalog();
       publishCatalogToHomeServices();
-      unawaited(
-        ProductImagePreloadService.warmHomeGridImages(
-          catalog: ProductCache.cachedProducts,
-          popular: ProductCache.cachedPopularProducts,
-          maxWait: const Duration(seconds: 40),
+
+      // Run in parallel while the user reads onboarding slides.
+      await Future.wait([
+        _safeStep('popular', ProductCache.ensurePopularReady()),
+        _safeStep(
+          'home-grid-images',
+          ProductImagePreloadService.ensureHomeGridImagesReady(
+            catalog: ProductCache.cachedProducts,
+            popular: ProductCache.cachedPopularProducts,
+            maxWait: const Duration(minutes: 2),
+          ),
         ),
-      );
-      unawaited(ensureCategoriesReady(maxWait: const Duration(minutes: 3)));
+        _safeStep(
+          'categories',
+          ensureCategoriesReady(maxWait: const Duration(minutes: 2)),
+        ),
+        _safeStep(
+          'banners',
+          _warmBanners(maxWait: const Duration(seconds: 60)),
+        ),
+      ]);
     } catch (e, st) {
       debugPrint('HomePreloadService: preload error: $e\n$st');
     } finally {
+      _preloadComplete = true;
       debugPrint(
         'HomePreloadService: preload finished — '
         'get-all-products=${ProductCache.cachedProducts.length}, '
         'popular=${ProductCache.cachedPopularProducts.length}, '
         'images=${ProductImagePreloadService.downloadedCount}, '
-        'categories=${_categories.cachedCategories.length}',
+        'categories=${_categories.cachedCategories.length}, '
+        'banners=${_banners.cachedBanners.length}',
       );
     }
+  }
+
+  static Future<void> _safeStep(String label, Future<dynamic> step) async {
+    try {
+      await step;
+    } catch (e, st) {
+      debugPrint('HomePreloadService: $label preload failed: $e\n$st');
+    }
+  }
+
+  static Future<void> _warmBanners({
+    Duration maxWait = const Duration(seconds: 60),
+  }) async {
+    await _banners.initialize();
+    try {
+      await _banners.getBanners().timeout(maxWait);
+    } on TimeoutException {
+      debugPrint('HomePreloadService: banner API timed out');
+    }
+    await _banners.warmBannerImagesToDisk(maxWait: maxWait);
   }
 
   /// Copies [ProductCache] into [HomepageOptimizationService] so home does not re-fetch.
@@ -72,7 +119,7 @@ class HomePreloadService {
     );
   }
 
-  /// **Hard gate:** home must not open until get-all-products catalog is in memory.
+  /// **Hard gate:** home must not open until catalog + grid images are ready.
   static Future<bool> ensureReadyForHome({
     Duration maxWait = const Duration(seconds: 60),
   }) async {
@@ -103,22 +150,40 @@ class HomePreloadService {
     ProductCache.warmPopularFromCatalog();
     publishCatalogToHomeServices();
 
-    unawaited(
-      ProductImagePreloadService.warmHomeGridImages(
-        catalog: ProductCache.cachedProducts,
-        popular: ProductCache.cachedPopularProducts,
-        maxWait: const Duration(seconds: 30),
+    final remaining = maxWait;
+    await Future.wait([
+      _safeStep(
+        'popular-final',
+        ProductCache.ensurePopularReady(),
       ),
-    );
+      _safeStep(
+        'home-grid-images-final',
+        ProductImagePreloadService.ensureHomeGridImagesReady(
+          catalog: ProductCache.cachedProducts,
+          popular: ProductCache.cachedPopularProducts,
+          maxWait: remaining,
+        ),
+      ),
+      _safeStep(
+        'categories-final',
+        ensureCategoriesReady(maxWait: remaining),
+      ),
+      _safeStep(
+        'banners-final',
+        _warmBanners(maxWait: remaining),
+      ),
+    ]);
 
-    unawaited(ensureCategoriesReady(maxWait: const Duration(seconds: 15)));
+    _preloadComplete = true;
 
     debugPrint(
       'HomePreloadService: ready=$catalogOk '
       '(get-all-products=${ProductCache.cachedProducts.length}, '
-      'categories=${_categories.cachedCategories.length})',
+      'images=${ProductImagePreloadService.downloadedCount}, '
+      'categories=${_categories.cachedCategories.length}, '
+      'banners=${_banners.cachedBanners.length})',
     );
-    return catalogOk;
+    return catalogOk && ProductImagePreloadService.isHomeGridWarm;
   }
 
   static Future<bool> ensureCategoriesReady({

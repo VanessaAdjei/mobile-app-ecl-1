@@ -4,11 +4,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'package:http/http.dart' as http;
 import 'package:google_fonts/google_fonts.dart';
-import '../config/api_config.dart';
+import '../services/prescription_service.dart';
 import '../services/auth_service.dart';
 import '../widgets/app_header_bar.dart';
+import '../utils/app_error_utils.dart';
 
 class PrescriptionUploadStandalone extends StatefulWidget {
   const PrescriptionUploadStandalone({super.key});
@@ -224,6 +224,7 @@ class _PrescriptionUploadStandaloneState
 
   File? _selectedImage;
   File? _brandImage;
+  final PrescriptionService _prescriptionService = PrescriptionService();
   final ImagePicker _picker = ImagePicker();
   bool _isSubmitting = false;
 
@@ -580,17 +581,6 @@ class _PrescriptionUploadStandaloneState
     if (option == 'camera') await _pickBrandImageFromCamera();
   }
 
-  /// Laravel-style `{ "errors": { "file": ["..."] } }` or `{ "status": "success" }`.
-  bool _prescriptionResponseSucceeded(dynamic body, int statusCode) {
-    if (statusCode != 200 && statusCode != 201) return false;
-    if (body is! Map) return true;
-    if (body['errors'] != null) return false;
-    final status = body['status']?.toString().toLowerCase();
-    if (status == 'success') return true;
-    if (status == 'error' || body['success'] == false) return false;
-    return true;
-  }
-
   String _prescriptionResponseErrorMessage(dynamic body, int statusCode) {
     if (body is Map) {
       final errors = body['errors'];
@@ -634,9 +624,7 @@ class _PrescriptionUploadStandaloneState
     if (_nameController.text.isEmpty ||
         _emailController.text.isEmpty ||
         _phoneController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all required fields')),
-      );
+      AppErrorUtils.showSnack(context, 'Please fill in all required fields');
       return;
     }
 
@@ -648,77 +636,56 @@ class _PrescriptionUploadStandaloneState
       final token = await AuthService.getToken();
       final authToken = token ?? 'guest-temp-token';
 
-      final endpoint = ApiConfig.getEndpointUrl(ApiConfig.createPrescription);
-      var request = http.MultipartRequest('POST', Uri.parse(endpoint));
-
-      request.headers['Authorization'] = 'Bearer $authToken';
-      request.headers['Accept'] = 'application/json';
-
-      request.fields['name'] = _nameController.text;
-      request.fields['email'] = _emailController.text;
-      request.fields['phone'] = '$_selectedCountryCode${_phoneController.text}';
+      final fields = <String, String>{
+        'name': _nameController.text,
+        'email': _emailController.text,
+        'phone': '$_selectedCountryCode${_phoneController.text}',
+      };
       if (_noteController.text.isNotEmpty) {
-        request.fields['note'] = _noteController.text;
-      }
-
-      request.files.add(
-        await http.MultipartFile.fromPath('file', _selectedImage!.path),
-      );
-      if (_brandImage != null) {
-        request.files.add(
-          await http.MultipartFile.fromPath(
-            'med_file',
-            _brandImage!.path,
-          ),
-        );
+        fields['note'] = _noteController.text;
       }
 
       _logPrescriptionApiToConsole(
         'POST /create-precription (request)',
         {
-          'url': endpoint,
           'method': 'POST',
           'headers': {
             'Authorization': 'Bearer ***',
             'Accept': 'application/json',
           },
-          'fields': request.fields,
-          'files': request.files
-              .map((f) => {'field': f.field, 'filename': f.filename})
-              .toList(),
+          'fields': fields,
+          'files': [
+            {'field': 'file', 'path': _selectedImage!.path},
+            if (_brandImage != null)
+              {'field': 'med_file', 'path': _brandImage!.path},
+          ],
         },
       );
 
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      dynamic responseBody;
-      try {
-        responseBody = json.decode(response.body);
-      } catch (_) {
-        responseBody = response.body;
-      }
-
-      final ok = _prescriptionResponseSucceeded(
-        responseBody,
-        response.statusCode,
+      final result = await _prescriptionService.uploadPrescription(
+        authToken: authToken,
+        filePath: _selectedImage!.path,
+        medFilePath: _brandImage?.path,
+        fields: fields,
       );
+
+      final responseBody = result.body ?? result.rawBody;
+      final ok = _prescriptionService.uploadSucceeded(result);
       _logPrescriptionApiToConsole(
-        'POST /create-precription (response ${response.statusCode})',
+        'POST /create-precription (response ${result.statusCode})',
         {
-          'status_code': response.statusCode,
-          'headers': response.headers,
+          'status_code': result.statusCode,
           'body': responseBody,
         },
       );
 
       if (ok) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✓ Prescription submitted successfully'),
-              duration: Duration(seconds: 2),
-            ),
+          AppErrorUtils.showSnack(
+            context,
+            '✓ Prescription submitted successfully',
+            isError: false,
+            duration: const Duration(seconds: 2),
           );
           _nameController.clear();
           _emailController.clear();
@@ -731,7 +698,7 @@ class _PrescriptionUploadStandaloneState
         }
       } else {
         throw Exception(
-          _prescriptionResponseErrorMessage(responseBody, response.statusCode),
+          _prescriptionResponseErrorMessage(responseBody, result.statusCode),
         );
       }
     } catch (e) {
@@ -740,8 +707,9 @@ class _PrescriptionUploadStandaloneState
         {'success': false, 'message': e.toString()},
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
+        AppErrorUtils.showSnack(
+          context,
+          AppErrorUtils.userMessage(e, fallback: 'Failed to submit prescription'),
         );
       }
     } finally {
@@ -1193,20 +1161,6 @@ class _PrescriptionUploadStandaloneState
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildCard(bool isDark, List<Widget> children) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? Colors.grey.shade800 : Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isDark ? Colors.grey.shade700 : Colors.grey.shade200,
-        ),
-      ),
-      padding: const EdgeInsets.all(14),
-      child: Column(children: children),
     );
   }
 

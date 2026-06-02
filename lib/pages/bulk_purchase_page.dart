@@ -2,12 +2,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import '../services/product_catalog_service.dart';
 import '../config/api_config.dart';
 import '../config/app_routes.dart';
 import '../providers/cart_provider.dart';
 import '../models/cart_item.dart';
+import '../utils/app_error_utils.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class BulkPurchasePage extends StatefulWidget {
@@ -18,6 +18,7 @@ class BulkPurchasePage extends StatefulWidget {
 }
 
 class _BulkPurchasePageState extends State<BulkPurchasePage> {
+  final ProductCatalogService _catalogService = ProductCatalogService();
   final TextEditingController _searchController = TextEditingController();
   List<dynamic> products = [];
   List<dynamic> filteredProducts = [];
@@ -80,29 +81,15 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
         });
       }
 
-      final response = await http
-          .get(
-            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)),
-          )
-          .timeout(const Duration(seconds: 15));
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        final List<dynamic> dataList = responseData['data'];
-        if (mounted) {
-          setState(() {
-            products = dataList;
-            filteredProducts = dataList;
-            _isLoading = false;
-          });
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            _error = 'Failed to load products';
-            _isLoading = false;
-          });
-        }
+      final dataList = await _catalogService.fetchCatalogRawItems(
+        timeout: const Duration(seconds: 15),
+      );
+      if (mounted) {
+        setState(() {
+          products = dataList;
+          filteredProducts = dataList;
+          _isLoading = false;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -190,12 +177,11 @@ class _BulkPurchasePageState extends State<BulkPurchasePage> {
 
       cartProvider.addToCart(cartItem);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error adding to cart: $e'),
-          duration: const Duration(seconds: 2),
-          backgroundColor: Colors.red,
-        ),
+      AppErrorUtils.showSnack(
+        context,
+        'Error adding to cart: $e',
+        isError: true,
+        duration: const Duration(seconds: 2),
       );
     }
   }

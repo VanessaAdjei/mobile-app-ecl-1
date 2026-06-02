@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/ernest_ai_service.dart';
+import '../../utils/app_error_utils.dart';
 
 class ErnestConfigurationDialog extends StatefulWidget {
   const ErnestConfigurationDialog({super.key});
@@ -187,12 +188,9 @@ class _ErnestConfigurationDialogState extends State<ErnestConfigurationDialog> {
       if (!mounted) return;
       if (success) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Ernest AI configured successfully! 🎉'),
-            backgroundColor: Colors.green[600],
-          ),
-        );
+        AppErrorUtils.showSnack(
+            context, 'Ernest AI configured successfully! 🎉',
+            isError: false);
       } else {
         setState(() {
           _errorMessage = 'Invalid API key. Please check and try again.';

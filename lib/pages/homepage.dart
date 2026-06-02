@@ -10,6 +10,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../config/api_config.dart';
 import '../config/app_routes.dart';
 import '../models/product_model.dart';
+import '../cache/product_catalog_memory.dart';
 import '../services/auth_service.dart';
 import 'bottomnav.dart';
 import 'itemdetail.dart';
@@ -19,7 +20,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'search_results_page.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/product_card.dart';
@@ -39,6 +39,8 @@ import '../services/native_notification_service.dart';
 
 import '../widgets/clearance_sale_banner.dart';
 import '../services/category_optimization_service.dart';
+import '../services/product_catalog_service.dart';
+import '../utils/app_error_utils.dart';
 import 'categories.dart';
 
 
@@ -51,47 +53,6 @@ class _BannerData {
 }
 
 const String prescribedShieldAsset = 'assets/images/prescribed_shield.png';
-
-/// Parse full catalog API body off the UI thread (large JSON).
-List<Product> _parseCatalogApiResponse(String body) {
-  final data = json.decode(body) as Map<String, dynamic>;
-  final list = data['data'] as List? ?? [];
-  return _productsFromApiDataList(list);
-}
-
-List<Product> _productsFromApiDataList(List<dynamic> items) {
-  final products = <Product>[];
-  for (final raw in items) {
-    try {
-      if (raw is! Map) continue;
-      final item = Map<String, dynamic>.from(raw);
-      final productRaw = item['product'];
-      if (productRaw is! Map) continue;
-      final productData = Map<String, dynamic>.from(productRaw);
-      products.add(Product(
-        id: productData['id'] ?? 0,
-        name: productData['name'] ?? 'No name',
-        description: productData['description'] ?? '',
-        urlName: productData['url_name'] ?? '',
-        status: productData['status'] ?? '',
-        batch_no: item['batch_no'] ?? '',
-        price: (item['price'] ?? 0).toString(),
-        thumbnail: productData['thumbnail'] ?? productData['image'] ?? '',
-        quantity: item['qty_in_stock']?.toString() ?? '',
-        category: productData['category'] ?? '',
-        route: productData['route'] ?? '',
-        otcpom: productData['otcpom'],
-        drug: productData['drug'],
-        wellness: productData['wellness'],
-        selfcare: productData['selfcare'],
-        accessories: productData['accessories'],
-      ));
-    } catch (_) {
-      // skip malformed row
-    }
-  }
-  return products;
-}
 
 List<Product> _decodeStoredProductsJson(String jsonStr) {
   final allList = json.decode(jsonStr) as List;
@@ -107,7 +68,11 @@ class ImagePreloader {
     if (imageUrl.isEmpty || _preloadedImages.containsKey(imageUrl)) return;
     _preloadedImages[imageUrl] = true;
     precacheImage(
-      CachedNetworkImageProvider(imageUrl),
+      CachedNetworkImageProvider(
+        imageUrl,
+        maxWidth: ProductImagePreloadService.homeThumbDiskSize,
+        maxHeight: ProductImagePreloadService.homeThumbDiskSize,
+      ),
       context,
       onError: (exception, stackTrace) {
         debugPrint(
@@ -145,6 +110,7 @@ class ProductCache {
   static Future<void>? _catalogLoadFuture;
   static Future<void>? _storageLoadFuture;
   static final List<VoidCallback> _catalogListeners = [];
+  static final ProductCatalogService _catalogService = ProductCatalogService();
 
   /// Notified when the in-memory catalog gains products (e.g. prefetch finished).
   static void addCatalogListener(VoidCallback listener) {
@@ -176,6 +142,7 @@ class ProductCache {
   static void cacheProducts(List<Product> products) {
     final hadProducts = _cachedProducts.isNotEmpty;
     _cachedProducts = products;
+    ProductCatalogMemory.setProducts(products);
     _lastCacheTime = DateTime.now();
     unawaited(_saveAllProductsToStorage());
     if (products.isNotEmpty && !hadProducts) {
@@ -187,9 +154,12 @@ class ProductCache {
     _cachedPopularProducts = products;
     _lastCacheTime = DateTime.now();
     unawaited(_saveToStorage());
-    if (products.isNotEmpty) {
-      _notifyCatalogListeners();
-    }
+    // NOTE: deliberately does NOT notify catalog listeners. The catalog
+    // listener triggers a full section re-bucket (in unshuffled order); firing
+    // it on a popular-products update would revert a just-applied refresh
+    // shuffle, making fresh products briefly appear and then "snap back" to the
+    // old arrangement. Popular updates are applied directly by their own
+    // setState in _fetchPopularProducts / _syncPopularFromCache.
   }
 
   static bool get hasProductsInMemory => _cachedProducts.isNotEmpty;
@@ -206,7 +176,7 @@ class ProductCache {
     Duration maxWait = const Duration(seconds: 60),
   }) async {
     if (hasProductsInMemory) {
-      debugPrint(
+    debugPrint(
           'ProductCache: catalog ready (${_cachedProducts.length} products)');
       return true;
     }
@@ -268,7 +238,7 @@ class ProductCache {
 
       if (lastCacheTimeString == null) return;
 
-      _lastCacheTime = DateTime.parse(lastCacheTimeString);
+        _lastCacheTime = DateTime.parse(lastCacheTimeString);
       if (!canUseStaleData) {
         await _clearPersistedStorageOnly();
         return;
@@ -277,15 +247,16 @@ class ProductCache {
       final allJson = prefs.getString(_allProductsKey);
       if (allJson != null && allJson.isNotEmpty) {
         _cachedProducts = await compute(_decodeStoredProductsJson, allJson);
+        ProductCatalogMemory.setProducts(_cachedProducts);
       }
 
       final popularJson = prefs.getString(_popularProductsKey);
       if (popularJson != null && popularJson.isNotEmpty) {
-        _cachedPopularProducts =
+            _cachedPopularProducts =
             await compute(_decodeStoredProductsJson, popularJson);
       }
 
-      debugPrint(
+            debugPrint(
           'ProductCache: loaded ${_cachedProducts.length} products, '
           '${_cachedPopularProducts.length} popular from disk');
     } catch (e) {
@@ -319,7 +290,7 @@ class ProductCache {
         debugPrint('ProductCache: get-all-products returned no products');
         return;
       }
-      debugPrint(
+              debugPrint(
           'ProductCache: get-all-products OK — ${_cachedProducts.length} products');
       if (_cachedPopularProducts.isEmpty) {
         await _fetchAndCachePopularProducts();
@@ -346,23 +317,19 @@ class ProductCache {
   }
 
   static Future<void> _fetchAndCacheAllProducts() async {
-    final response = await http
-        .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
-        .timeout(const Duration(seconds: 30));
-    if (response.statusCode != 200) return;
-    final products = await compute(_parseCatalogApiResponse, response.body);
+    final products = await _catalogService.fetchCatalogProducts(
+      timeout: const Duration(seconds: 30),
+    );
     if (products.isNotEmpty) cacheProducts(products);
   }
 
   static Future<void> _fetchAndCachePopularProducts() async {
-    final response = await http
-        .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.popularProducts)))
-        .timeout(const Duration(seconds: 8));
-    if (response.statusCode != 200) return;
-    final products = await compute(_parseCatalogApiResponse, response.body);
+    final products = await _catalogService.fetchPopularProducts(
+      timeout: const Duration(seconds: 8),
+    );
     if (products.isNotEmpty) {
       cachePopularProducts(products);
-    } else {
+        } else {
       _fillPopularFromCatalogIfNeeded();
     }
   }
@@ -388,11 +355,11 @@ class ProductCache {
       if (_cachedPopularProducts.isNotEmpty) {
         final productsJson = json.encode(
             _cachedPopularProducts.map((p) => p.toJson()).toList());
-        await prefs.setString(_popularProductsKey, productsJson);
+      await prefs.setString(_popularProductsKey, productsJson);
       }
       if (_lastCacheTime != null) {
-        await prefs.setString(
-            _lastCacheTimeKey, _lastCacheTime!.toIso8601String());
+      await prefs.setString(
+          _lastCacheTimeKey, _lastCacheTime!.toIso8601String());
       }
       if (_cachedProducts.isNotEmpty) {
         await prefs.setString(
@@ -422,6 +389,7 @@ class ProductCache {
     await _clearPersistedStorageOnly();
     _cachedProducts = [];
     _cachedPopularProducts = [];
+    ProductCatalogMemory.clear();
     _lastCacheTime = null;
   }
 
@@ -436,11 +404,13 @@ Map<String, List<Product>> categorizeProductsForHome(List<Product> allProducts) 
   final accessories = <Product>[];
 
   for (final p in allProducts) {
-    final isPom = p.otcpom?.trim().toLowerCase() == 'pom';
-    if (isPom) {
+    final otcpom = p.otcpom?.trim().toLowerCase();
+    if (otcpom == 'pom') {
       prescribed.add(p);
-    } else if (p.otcpom?.trim().toLowerCase() == 'otc' ||
-        p.drug?.trim().toLowerCase() == 'drug') {
+    } else if (otcpom == 'otc') {
+      // Medication is strictly over-the-counter. Anything not explicitly
+      // tagged 'otc' (including prescription items tagged only via `drug`)
+      // is intentionally excluded so prescription medicines never appear here.
       otcDrug.add(p);
     }
     if (p.wellness?.trim().isNotEmpty == true) wellness.add(p);
@@ -580,9 +550,9 @@ class ErrorDisplayWidget extends StatelessWidget {
           Icon(Icons.wifi_off_rounded, size: 50, color: Colors.grey[400]),
           const SizedBox(height: 16),
           Text('No Internet Connection',
-              style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[700],
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[700],
                   fontWeight: FontWeight.w500)),
           const SizedBox(height: 8),
           Text('Please check your connection and try again',
@@ -667,6 +637,7 @@ class HomePageState extends State<HomePage>
   final GlobalKey _tourCategoriesKey = GlobalKey();
   final GlobalKey _tourMenuKey = GlobalKey();
   final ScrollController _popularScrollController = ScrollController();
+  final ProductCatalogService _catalogService = ProductCatalogService();
 
   bool _isScrolled = false;
 
@@ -682,12 +653,9 @@ class HomePageState extends State<HomePage>
 
   Timer? _popularScrollTimer;
 
-  DateTime? _lastSectionShuffleTime;
-  static const Duration _sectionShuffleInterval = Duration(hours: 1);
-
-  /// Set by pull-to-refresh so the next [_processProducts] reshuffles the
-  /// sections immediately, bypassing the hourly gate (a manual refresh is an
-  /// explicit "mix it up" request). Consumed once, then reset.
+  /// Set by pull-to-refresh so [loadProducts] skips the intermediate section
+  /// seed and lets [_processProducts] produce the single (reshuffled) update.
+  /// Consumed once, then reset.
   bool _forceSectionShuffleOnce = false;
 
   // ─── Cache / load guard ───────────────────────────────────────────────────
@@ -695,6 +663,7 @@ class HomePageState extends State<HomePage>
   // pull-to-refresh or reloadHomePage().
   bool _hasBeenLoaded = false;
   bool _isLoadingContent = false;
+  bool _homeGridImagesReady = false;
   bool _spotlightTourScheduled = false;
   bool _isRoutePushInProgress = false;
 
@@ -709,7 +678,6 @@ class HomePageState extends State<HomePage>
       return await Navigator.push<T>(context, route);
     } finally {
       if (mounted) {
-        await Future.delayed(const Duration(milliseconds: 250));
         _isRoutePushInProgress = false;
       }
     }
@@ -727,7 +695,6 @@ class HomePageState extends State<HomePage>
       );
     } finally {
       if (mounted) {
-        await Future.delayed(const Duration(milliseconds: 250));
         _isRoutePushInProgress = false;
       }
     }
@@ -748,16 +715,23 @@ class HomePageState extends State<HomePage>
       _applyCacheToState();
     }
     ProductCache.addCatalogListener(_onProductCacheUpdated);
-    _loadSectionShuffleTimeSync();
     _seedOptimizationFromProductCache();
     unawaited(_bootHomeProducts());
 
-    if (_categories.isEmpty) {
+    if (ProductCache.hasProductsInMemory) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _scheduleSpotlightTour();
+      });
+    }
+
+    if (_categories.isEmpty && HomePreloadService.cachedCategories.isNotEmpty) {
+      _hydrateCategoriesSync();
+    } else if (_categories.isEmpty) {
       unawaited(_loadCategories());
     }
 
     _scrollController.addListener(() {
-      if (!mounted) return;
+    if (!mounted) return;
       if (_scrollController.offset > 100 && !_isScrolled) {
         setState(() => _isScrolled = true);
       } else if (_scrollController.offset <= 100 && _isScrolled) {
@@ -800,11 +774,15 @@ class HomePageState extends State<HomePage>
 
   void _applySectionBuckets(List<Product> allProducts) {
     final sections = categorizeProductsForHome(allProducts);
-    drugsSectionProducts = List<Product>.from(sections['drugs']!);
-    prescribedProducts = List<Product>.from(sections['prescribed']!);
-    wellnessProducts = List<Product>.from(sections['wellness']!);
-    selfcareProducts = List<Product>.from(sections['selfcare']!);
-    accessoriesProducts = List<Product>.from(sections['accessories']!);
+    // Shuffle each bucket so the first 8 shown on the home page vary on every
+    // visit, instead of always surfacing the same head-of-list products.
+    drugsSectionProducts = (List<Product>.from(sections['drugs']!)..shuffle());
+    prescribedProducts =
+        (List<Product>.from(sections['prescribed']!)..shuffle());
+    wellnessProducts = (List<Product>.from(sections['wellness']!)..shuffle());
+    selfcareProducts = (List<Product>.from(sections['selfcare']!)..shuffle());
+    accessoriesProducts =
+        (List<Product>.from(sections['accessories']!)..shuffle());
   }
 
   void _onProductCacheUpdated() {
@@ -887,8 +865,9 @@ class HomePageState extends State<HomePage>
   /// Network only when preloaded catalog was not applied.
   Future<void> _bootHomeProducts() async {
     if (_hasBeenLoaded && _products.isNotEmpty) {
-      _schedulePostInitHomeWork();
       _scheduleSpotlightTour();
+      unawaited(_ensureHomeGridImages());
+      _schedulePostInitHomeWork();
       unawaited(_syncPopularFromCache());
       return;
     }
@@ -904,10 +883,11 @@ class HomePageState extends State<HomePage>
       HomePreloadService.publishCatalogToHomeServices();
       _applyCacheToState();
       _hasBeenLoaded = true;
+      await _processProducts(_products);
+      _scheduleSpotlightTour();
+      unawaited(_ensureHomeGridImages());
       if (mounted) {
-        unawaited(_processProducts(_products));
         _schedulePostInitHomeWork();
-        _scheduleSpotlightTour();
       }
       if (!ProductCache.isCacheValid) {
         unawaited(_refreshCatalogInBackground());
@@ -927,9 +907,10 @@ class HomePageState extends State<HomePage>
       HomePreloadService.publishCatalogToHomeServices();
       _applyCacheToState();
       _hasBeenLoaded = true;
-      unawaited(_processProducts(_products));
-      _schedulePostInitHomeWork();
+      await _processProducts(_products);
       _scheduleSpotlightTour();
+      unawaited(_ensureHomeGridImages());
+      _schedulePostInitHomeWork();
       unawaited(_syncPopularFromCache());
       return;
     }
@@ -938,12 +919,29 @@ class HomePageState extends State<HomePage>
     await _loadAllContent();
   }
 
+  List<Product> _visibleHomeProductsForImageWarm() {
+    return [
+      ...drugsSectionProducts.take(6),
+      ...prescribedProducts.take(6),
+      ...wellnessProducts.take(6),
+      ...selfcareProducts.take(6),
+      ...accessoriesProducts.take(6),
+      ...popularProducts.take(12),
+    ];
+  }
+
+  Future<void> _ensureHomeGridImages() async {
+    if (_homeGridImagesReady || _products.isEmpty) return;
+
+    await _warmVisibleHomeImages();
+  }
+
   Future<void> _syncPopularFromCache() async {
     await ProductCache.ensurePopularReady();
     if (!mounted) return;
     final cached = ProductCache.cachedPopularProducts;
     if (cached.isEmpty) return;
-    setState(() {
+        setState(() {
       popularProducts = List<Product>.from(cached);
       _isLoadingPopular = false;
       _popularError = null;
@@ -981,7 +979,7 @@ class HomePageState extends State<HomePage>
   /// Context-dependent work (precacheImage, sheets) must run after [initState].
   void _schedulePostInitHomeWork() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+    if (!mounted) return;
       ProductImagePreloadService.warmRemainingInBackground(
         catalog: ProductCache.cachedProducts,
         popular: ProductCache.cachedPopularProducts,
@@ -995,14 +993,8 @@ class HomePageState extends State<HomePage>
 
   /// Brief layout settle after onboarding before coach marks.
   Future<void> _waitForFirstHomeUiReady() async {
-    for (var i = 0; i < 8; i++) {
-      if (!mounted) return;
-      if (_products.isNotEmpty && !_isLoading) {
-        await Future<void>.delayed(const Duration(milliseconds: 200));
-        return;
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 80));
-    }
+    if (!mounted) return;
+    await Future<void>.delayed(const Duration(milliseconds: 120));
   }
 
   Future<void> _runSpotlightTourWithRetry() async {
@@ -1016,14 +1008,19 @@ class HomePageState extends State<HomePage>
       if (!mounted) return;
     }
 
-    for (var attempt = 0; attempt < 8; attempt++) {
+    final maxAttempts = justFinished ? 12 : 8;
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
       if (!mounted) return;
-      if (_products.isEmpty || (_isLoading && _products.isEmpty)) {
-        await Future<void>.delayed(Duration(milliseconds: 350 * (attempt + 1)));
+      if (_products.isEmpty) {
+        await Future<void>.delayed(
+          Duration(milliseconds: justFinished ? 80 : 350 * (attempt + 1)),
+        );
         continue;
       }
       if (attempt > 0) {
-        await Future<void>.delayed(Duration(milliseconds: 400 * attempt));
+        await Future<void>.delayed(
+          Duration(milliseconds: justFinished ? 120 : 400 * attempt),
+        );
       }
       final shown = await HomePageTour.maybeStart(
         context: context,
@@ -1061,14 +1058,15 @@ class HomePageState extends State<HomePage>
       if (ProductCache.hasProductsInMemory) {
         _applyCacheToState();
         _hasBeenLoaded = true;
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
+        await _processProducts(_products);
+        _scheduleSpotlightTour();
+        unawaited(_ensureHomeGridImages());
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
             _isLoadingPopular = popularProducts.isEmpty;
           });
-          unawaited(_processProducts(_products));
           _schedulePostInitHomeWork();
-          _scheduleSpotlightTour();
         }
         if (!ProductCache.isCacheValid) {
           unawaited(_refreshCatalogInBackground());
@@ -1081,6 +1079,9 @@ class HomePageState extends State<HomePage>
         _fetchPopularProducts(),
       ]);
 
+      await _processProducts(_products);
+      _scheduleSpotlightTour();
+      unawaited(_ensureHomeGridImages());
       _hasBeenLoaded = true;
     } catch (e) {
       debugPrint('HomePage: Exception in _loadAllContent: $e');
@@ -1103,14 +1104,14 @@ class HomePageState extends State<HomePage>
         ProductCache.hasProductsInMemory &&
         ProductCache.isCacheValid) {
       final cached = ProductCache.cachedProducts;
-      if (mounted) {
-        setState(() {
+        if (mounted) {
+          setState(() {
           _products = cached;
           filteredProducts = cached;
           _seedSectionsFromProducts(cached);
-          _isLoading = false;
-          _error = null;
-        });
+            _isLoading = false;
+            _error = null;
+          });
         _persistSnapshot();
       }
       unawaited(_processProducts(cached));
@@ -1120,41 +1121,38 @@ class HomePageState extends State<HomePage>
     try {
       if (mounted) setState(() => _error = null);
 
-      final response = await http
-          .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
-          .timeout(const Duration(seconds: 10));
+      final allProducts = await _catalogService.fetchCatalogProducts(
+        timeout: Duration(seconds: forceRefresh ? 6 : 10),
+      );
 
-      if (response.statusCode == 200) {
-        final allProducts =
-            await compute(_parseCatalogApiResponse, response.body);
-
+      if (allProducts.isNotEmpty) {
         ProductCache.cacheProducts(allProducts);
 
-        // Preload first 8 images immediately
         _preloadImages(allProducts.take(8).toList());
 
-        // Show products right away, then process sections in background
+        final reshufflePending = _forceSectionShuffleOnce;
         if (mounted) {
           setState(() {
             _products = allProducts;
             filteredProducts = allProducts;
-            _seedSectionsFromProducts(allProducts);
+            if (!reshufflePending) {
+              _seedSectionsFromProducts(allProducts);
+            }
             _isLoading = false;
           });
           _persistSnapshot();
         }
 
-        await _processProducts(allProducts);
+        unawaited(_processProducts(allProducts));
       } else {
         _fallbackToCache();
       }
     } on TimeoutException {
       _fallbackToCache(error: 'Connection timed out');
-    } on http.ClientException {
-      _fallbackToCache(error: 'No internet connection');
     } catch (e) {
       final s = e.toString();
       final isConnectivity = s.contains('SocketException') ||
+          s.contains('ClientException') ||
           s.contains('Connection failed') ||
           s.contains('No internet') ||
           s.contains('TimeoutException');
@@ -1166,24 +1164,26 @@ class HomePageState extends State<HomePage>
     final cached = ProductCache.cachedProducts;
     if (cached.isNotEmpty) {
       _preloadImages(cached.take(8).toList());
-      if (mounted) {
-        setState(() {
+        if (mounted) {
+          setState(() {
           _products = cached;
           filteredProducts = cached;
           _seedSectionsFromProducts(cached);
-          _isLoading = false;
-          _error = null;
-        });
+            _isLoading = false;
+            _error = null;
+          });
         _persistSnapshot();
       }
       unawaited(_processProducts(cached));
-    } else if (error != null && mounted) {
-      setState(() {
-        _error = error;
-        _isLoading = false;
-      });
-    }
-  }
+    } else if (mounted) {
+      // No cache to fall back to: always surface an error+retry view so a cold
+      // offline start can't hang on an infinite spinner.
+          setState(() {
+        _error = error ?? 'No internet connection';
+            _isLoading = false;
+          });
+        }
+      }
 
   /// Runs product categorisation in a background isolate to avoid UI jank.
   Future<void> _processProducts(List<Product> allProducts) async {
@@ -1192,34 +1192,38 @@ class HomePageState extends State<HomePage>
     final sections = await compute(_processProductsIsolate, allProducts);
     if (!mounted) return;
 
-    final forced = _forceSectionShuffleOnce;
     _forceSectionShuffleOnce = false;
-    final shouldShuffle = forced || _shouldShuffleSections();
 
-    final drugs = sections['drugs']!;
-    final prescribed = sections['prescribed']!;
-    final wellness = sections['wellness']!;
-    final selfcare = sections['selfcare']!;
-    final accessories = sections['accessories']!;
+    // Always reshuffle so each load/refresh surfaces a different set of
+    // products instead of repeatedly showing the head of the list.
+    final drugs = sections['drugs']!..shuffle();
+    final prescribed = sections['prescribed']!..shuffle();
+    final wellness = sections['wellness']!..shuffle();
+    final selfcare = sections['selfcare']!..shuffle();
+    final accessories = sections['accessories']!..shuffle();
 
-    if (shouldShuffle) {
-      drugs.shuffle();
-      prescribed.shuffle();
-      wellness.shuffle();
-      selfcare.shuffle();
-      accessories.shuffle();
-      _lastSectionShuffleTime = DateTime.now();
-      unawaited(_saveSectionShuffleTime());
-    }
-
-    if (mounted) {
-      setState(() {
+        if (mounted) {
+          setState(() {
         drugsSectionProducts = drugs;
         prescribedProducts = prescribed;
         wellnessProducts = wellness;
         selfcareProducts = selfcare;
         accessoriesProducts = accessories;
       });
+      unawaited(_warmVisibleHomeImages());
+    }
+  }
+
+  Future<void> _warmVisibleHomeImages() async {
+    if (_products.isEmpty) return;
+    await ProductImagePreloadService.warmHomeGridImages(
+      catalog: _products,
+      popular: popularProducts,
+      visibleProducts: _visibleHomeProductsForImageWarm(),
+      maxWait: const Duration(seconds: 45),
+    );
+    if (mounted && !_homeGridImagesReady) {
+      setState(() => _homeGridImagesReady = true);
     }
   }
 
@@ -1243,42 +1247,43 @@ class HomePageState extends State<HomePage>
     if (mounted) setState(() => _popularError = null);
 
     try {
-      final response = await http
-          .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.popularProducts)))
-          .timeout(const Duration(seconds: 8));
+      List<Product> list = await _catalogService.fetchPopularProducts(
+        timeout: const Duration(seconds: 8),
+      );
 
-      if (response.statusCode == 200) {
-        if (!mounted) return;
+      if (!mounted) return;
 
-        List<Product> list =
-            await compute(_parseCatalogApiResponse, response.body);
-        if (list.isEmpty && ProductCache.cachedProducts.isNotEmpty) {
-          final shuffled = List<Product>.from(ProductCache.cachedProducts)
-            ..shuffle();
-          list = shuffled.take(20).toList();
-        }
+      if (list.isEmpty && ProductCache.cachedProducts.isNotEmpty) {
+        final shuffled = List<Product>.from(ProductCache.cachedProducts)
+          ..shuffle();
+        list = shuffled.take(20).toList();
+      }
 
+      if (list.isNotEmpty) {
         ProductCache.cachePopularProducts(list);
 
-        if (mounted) {
-          setState(() {
-            popularProducts = list;
-            _isLoadingPopular = false;
-          });
-          _persistSnapshot();
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _startPopularProductsAutoScroll();
-          });
-        }
+        setState(() {
+          popularProducts = list;
+          _isLoadingPopular = false;
+        });
+        _persistSnapshot();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _startPopularProductsAutoScroll();
+        });
       } else {
-        _fallbackToPopularCache(error: 'Server error');
+        _fallbackToPopularCache(error: AppErrorUtils.oopsTitle);
       }
     } on TimeoutException {
       _fallbackToPopularCache(error: 'Connection timed out');
-    } on http.ClientException {
-      _fallbackToPopularCache(error: 'No internet connection');
     } catch (e) {
-      _fallbackToPopularCache(error: 'Something went wrong');
+      final s = e.toString();
+      final isConnectivity = s.contains('SocketException') ||
+          s.contains('ClientException') ||
+          s.contains('Connection failed') ||
+          s.contains('No internet');
+      _fallbackToPopularCache(
+        error: isConnectivity ? 'No internet connection' : 'Something went wrong',
+      );
     }
   }
 
@@ -1314,10 +1319,10 @@ class HomePageState extends State<HomePage>
     // A manual refresh reshuffles the sections regardless of the hourly gate.
     _forceSectionShuffleOnce = true;
     try {
-      await Future.wait([
-        loadProducts(forceRefresh: true),
-        _fetchPopularProducts(forceRefresh: true),
-      ]);
+      // Refresh the popular strip in the background so the spinner only waits
+      // for the main product list, not the slower of the two network calls.
+      unawaited(_fetchPopularProducts(forceRefresh: true));
+      await loadProducts(forceRefresh: true);
       _hasBeenLoaded = true;
     } catch (e) {
       debugPrint('HomePage: refresh error: $e');
@@ -1335,37 +1340,16 @@ class HomePageState extends State<HomePage>
   /// Called externally (e.g. from another page) to force a reload.
   Future<void> reloadHomePage() => _handleRefresh();
 
-  // ─── Shuffle helpers ───────────────────────────────────────────────────────
-  bool _shouldShuffleSections() {
-    if (_lastSectionShuffleTime == null) return true;
-    return DateTime.now().difference(_lastSectionShuffleTime!) >=
-        _sectionShuffleInterval;
-  }
-
-  Future<void> _saveSectionShuffleTime() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      if (_lastSectionShuffleTime != null) {
-        await prefs.setString(
-            'section_shuffle_time', _lastSectionShuffleTime!.toIso8601String());
-      }
-    } catch (_) {}
-  }
-
-  void _loadSectionShuffleTimeSync() {
-    SharedPreferences.getInstance().then((prefs) {
-      final s = prefs.getString('section_shuffle_time');
-      if (s != null) _lastSectionShuffleTime = DateTime.parse(s);
-    }).catchError((_) {});
-  }
-
   // ─── Image preload ─────────────────────────────────────────────────────────
   void _preloadImages(List<Product> products) {
     final urls = products
-        .map((p) => getProductImageUrl(p.thumbnail))
+        .map((p) => ApiConfig.getImageOrStorageUrl(p.thumbnail))
         .where((u) => u.isNotEmpty)
         .toList();
-    ImagePreloader.preloadImages(urls, context);
+    for (final url in urls) {
+      if (url.isEmpty || ImagePreloader.isPreloaded(url)) continue;
+      ImagePreloader.preloadImage(url, context);
+    }
   }
 
   // ─── Auto-scroll popular ───────────────────────────────────────────────────
@@ -1586,15 +1570,11 @@ class HomePageState extends State<HomePage>
   // ─── Snackbar ──────────────────────────────────────────────────────────────
   void showTopSnackBar(BuildContext context, String message,
       {Duration? duration}) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text('$message • Swipe down to dismiss'),
-        duration: duration ?? const Duration(seconds: 2),
-        dismissDirection: DismissDirection.down,
-        showCloseIcon: true,
-      ),
+    AppErrorUtils.showSnack(
+      context,
+      message,
+      isError: true,
+      duration: duration ?? const Duration(seconds: 2),
     );
   }
 
@@ -1605,106 +1585,106 @@ class HomePageState extends State<HomePage>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        decoration: BoxDecoration(
+          decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             boxShadow: [
               BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 20,
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 20,
                   offset: const Offset(0, -5))
             ]),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
                     color: Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 16),
-            Container(
+                const SizedBox(height: 16),
+                Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                  gradient: LinearGradient(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [Colors.green.shade50, Colors.blue.shade50]),
                   borderRadius: BorderRadius.circular(10)),
               child:
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Container(
+                      Container(
                   padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.green.shade200,
-                            blurRadius: 6,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.green.shade200,
+                              blurRadius: 6,
                             offset: const Offset(0, 1))
                       ]),
                   child: Image.asset('assets/images/png.png',
                       width: 20, height: 20, fit: BoxFit.contain),
-                ),
-                const SizedBox(width: 8),
+                      ),
+                      const SizedBox(width: 8),
                 Column(children: [
                   Text("We're Here to Help!",
-                      style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
                           color: Colors.grey.shade800)),
                   Text('Choose your preferred way to get in touch',
-                      style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          color: Colors.grey.shade600,
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: Colors.grey.shade600,
                           height: 1.1)),
                 ]),
               ]),
-            ),
-            const SizedBox(height: 16),
-            _buildModernContactOption(
-              icon: Icons.phone_rounded,
-              title: 'Call Us',
-              subtitle: 'Speak directly with our team',
-              phone: '0302908674',
-              color: Colors.green.shade600,
-              onTap: () {
-                Navigator.pop(context);
-                _launchPhoneDialer(phoneNumber);
-                makePhoneCall(phoneNumber);
-              },
-            ),
-            const SizedBox(height: 8),
-            _buildModernContactOption(
-              icon: Icons.message_rounded,
-              title: 'WhatsApp',
-              subtitle: 'Chat with us instantly',
-              phone: 'Chat Now',
-              color: const Color(0xFF25D366),
-              onTap: () {
-                Navigator.pop(context);
-                _launchWhatsApp(phoneNumber,
-                    "Hello! I need help with the ECL app. Can you assist me?");
-              },
-            ),
-            const SizedBox(height: 8),
-            _buildModernContactOption(
-              icon: Icons.email_rounded,
-              title: 'Email Us',
-              subtitle: 'Send us a detailed message',
-              phone: 'support@ernestchemists.com',
-              color: Colors.blue.shade600,
-              onTap: () {
-                Navigator.pop(context);
+                ),
+                const SizedBox(height: 16),
+                _buildModernContactOption(
+                  icon: Icons.phone_rounded,
+                  title: 'Call Us',
+                  subtitle: 'Speak directly with our team',
+                  phone: '0302908674',
+                  color: Colors.green.shade600,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _launchPhoneDialer(phoneNumber);
+                    makePhoneCall(phoneNumber);
+                  },
+                ),
+                const SizedBox(height: 8),
+                _buildModernContactOption(
+                  icon: Icons.message_rounded,
+                  title: 'WhatsApp',
+                  subtitle: 'Chat with us instantly',
+                  phone: 'Chat Now',
+                  color: const Color(0xFF25D366),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _launchWhatsApp(phoneNumber,
+                        "Hello! I need help with the ECL app. Can you assist me?");
+                  },
+                ),
+                const SizedBox(height: 8),
+                _buildModernContactOption(
+                  icon: Icons.email_rounded,
+                  title: 'Email Us',
+                  subtitle: 'Send us a detailed message',
+                  phone: 'support@ernestchemists.com',
+                  color: Colors.blue.shade600,
+                  onTap: () {
+                    Navigator.pop(context);
                 _launchEmail(
                     'support@ernestchemists.com', 'ECL App Support & Inquiry');
-              },
-            ),
+                  },
+                ),
           ]),
-        ),
-      ),
+            ),
+          ),
     );
   }
 
@@ -1721,59 +1701,59 @@ class HomePageState extends State<HomePage>
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: color.withValues(alpha: 0.2)),
-            boxShadow: [
-              BoxShadow(
-                  color: color.withValues(alpha: 0.08),
-                  blurRadius: 8,
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.08),
+              blurRadius: 8,
                   offset: const Offset(0, 2))
             ]),
         child: Row(children: [
-          Container(
+            Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      color.withValues(alpha: 0.1),
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    color.withValues(alpha: 0.1),
                       color.withValues(alpha: 0.05)
                     ]),
                 borderRadius: BorderRadius.circular(8)),
             child: Icon(icon, color: color, size: 20),
           ),
           const SizedBox(width: 12),
-          Expanded(
+            Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title,
-                  style: GoogleFonts.poppins(
+                    style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: Colors.grey.shade800)),
               const SizedBox(height: 2),
               Text(subtitle,
-                  style: GoogleFonts.poppins(
+                    style: GoogleFonts.poppins(
                       fontSize: 12, color: Colors.grey.shade600, height: 1.2)),
               const SizedBox(height: 4),
-              Container(
+                  Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6)),
                 child: Text(phone,
-                    style: GoogleFonts.poppins(
+                      style: GoogleFonts.poppins(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                         color: color)),
-              ),
+                      ),
             ]),
-          ),
-          Container(
+            ),
+            Container(
             padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
+              decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
             child:
                 Icon(Icons.arrow_forward_ios_rounded, color: color, size: 12),
@@ -1790,75 +1770,69 @@ class HomePageState extends State<HomePage>
       builder: (BuildContext context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(children: [
-          Icon(Icons.email_outlined, color: Colors.green.shade600),
-          const SizedBox(width: 8),
+              Icon(Icons.email_outlined, color: Colors.green.shade600),
+              const SizedBox(width: 8),
           Text('Email Not Available',
-              style: GoogleFonts.poppins(
+                style: GoogleFonts.poppins(
                   fontSize: 18, fontWeight: FontWeight.w600)),
         ]),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(
-              'No email app found on your device. Here are alternative ways to contact us:',
-              style: GoogleFonts.poppins(
+              Text(
+                'No email app found on your device. Here are alternative ways to contact us:',
+                style: GoogleFonts.poppins(
                   fontSize: 14, color: Colors.grey.shade700)),
-          const SizedBox(height: 16),
+              const SizedBox(height: 16),
           Text('Email Address:',
-              style: GoogleFonts.poppins(
+                style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: Colors.grey.shade800)),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(8),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.grey.shade200)),
             child: Row(children: [
-              Expanded(
+                    Expanded(
                   child: Text(email,
-                      style: GoogleFonts.poppins(
+                        style: GoogleFonts.poppins(
                           fontSize: 14,
                           color: Colors.green.shade700,
                           fontWeight: FontWeight.w500))),
-              GestureDetector(
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: email));
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Row(children: [
-                      const Icon(Icons.check_circle,
-                          color: Colors.white, size: 20),
-                      const SizedBox(width: 8),
-                      const Text('Email copied to clipboard'),
-                    ]),
-                    backgroundColor: Colors.green.shade600,
-                    duration: const Duration(seconds: 2),
-                    behavior: SnackBarBehavior.floating,
-                    margin: const EdgeInsets.only(top: 16, left: 16, right: 16),
-                  ));
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                      color: Colors.green.shade600,
+                    GestureDetector(
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: email));
+                        Navigator.pop(context);
+                  AppErrorUtils.showSnack(
+                    context,
+                    'Email copied to clipboard',
+                    isError: false,
+                            duration: const Duration(seconds: 2),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade600,
                       borderRadius: BorderRadius.circular(6)),
                   child: const Icon(Icons.copy, color: Colors.white, size: 16),
-                ),
-              ),
+                        ),
+                        ),
             ]),
-          ),
-          const SizedBox(height: 12),
-          Text(
-              'You can copy the email address and use it in your preferred email app.',
-              style: GoogleFonts.poppins(
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'You can copy the email address and use it in your preferred email app.',
+                style: GoogleFonts.poppins(
                   fontSize: 12,
                   color: Colors.grey.shade600,
                   fontStyle: FontStyle.italic)),
         ]),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
             child: Text('OK',
                 style: GoogleFonts.poppins(
                     color: Colors.green.shade600, fontWeight: FontWeight.w600)),
@@ -1877,7 +1851,7 @@ class HomePageState extends State<HomePage>
       await _categoryService.initialize();
       final categories = await _categoryService.getCategories();
       if (mounted)
-        setState(() {
+          setState(() {
           _categories = categories;
           _isLoadingCategories = false;
         });
@@ -1890,12 +1864,15 @@ class HomePageState extends State<HomePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    // Catalog preloaded during onboarding — never full-page skeleton if cache has data.
+    // Only block on catalog — product cards show placeholders while images warm.
     final shouldShowSkeleton =
         _products.isEmpty && !ProductCache.hasProductsInMemory;
     return Scaffold(
       body: shouldShowSkeleton
-          ? _buildSkeletonWithLoading()
+          ? _buildSkeletonWithLoading(
+              loadingImages:
+                  _products.isNotEmpty && !_homeGridImagesReady,
+            )
           : _buildMainContent(),
       bottomNavigationBar: CustomBottomNav(
         initialIndex: 0,
@@ -1904,7 +1881,10 @@ class HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildSkeletonWithLoading() {
+  Widget _buildSkeletonWithLoading({bool loadingImages = false}) {
+    final message = loadingImages
+        ? 'Loading product images...'
+        : 'Loading your products...';
     return Stack(children: [
       const HomePageSkeletonBody(),
       Positioned(
@@ -1926,7 +1906,7 @@ class HomePageState extends State<HomePage>
                     valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
               ),
               const SizedBox(width: 12),
-              const Text('Loading your products...',
+              Text(message,
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 14,
@@ -1942,7 +1922,7 @@ class HomePageState extends State<HomePage>
     if (_error != null) {
       return ErrorDisplayWidget(
         onRetry: () {
-          if (mounted) {
+    if (mounted) {
             setState(() => _error = null);
             _hasBeenLoaded = false;
             _loadAllContent();
@@ -2038,18 +2018,18 @@ class HomePageState extends State<HomePage>
                 child: Padding(
                   padding:
                       const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                  child: Container(
+          child: Container(
                     width: double.infinity,
                     padding:
                         const EdgeInsets.symmetric(vertical: 4, horizontal: 10),
-                    decoration: BoxDecoration(
+            decoration: BoxDecoration(
                       gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [Colors.green[600]!, Colors.green[700]!]),
                       borderRadius: BorderRadius.circular(6),
-                      boxShadow: [
-                        BoxShadow(
+              boxShadow: [
+                BoxShadow(
                             color: Colors.green.withValues(alpha: 0.3),
                             blurRadius: 4,
                             offset: const Offset(0, 1))
@@ -2068,15 +2048,15 @@ class HomePageState extends State<HomePage>
                       Expanded(
                         child: Text('Popular right now',
                             style: GoogleFonts.poppins(
-                                color: Colors.white,
+                color: Colors.white,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 letterSpacing: 0.1)),
-                      ),
-                    ]),
-                  ),
-                ),
               ),
+                    ]),
+            ),
+          ),
+        ),
               SliverToBoxAdapter(
                   child: _buildPopularProducts(isTablet: isTablet)),
               SliverToBoxAdapter(
@@ -2129,50 +2109,32 @@ class HomePageState extends State<HomePage>
           isTablet ? 24 : 16, isTablet ? 12 : 8),
       child: KeyedSubtree(
         key: _tourSearchKey,
-        child: SizedBox(
+      child: SizedBox(
         height: isTablet ? 56 : 48,
         child: Builder(builder: (context) {
           if (!mounted) return const SizedBox.shrink();
-          try {
-            return SafeTypeAheadField(
-              controller: _searchController,
-              onSubmitted: (value) {
-                if (value.trim().isNotEmpty) {
+            try {
+              return SafeTypeAheadField(
+                controller: _searchController,
+                onSubmitted: (value) {
+                  if (value.trim().isNotEmpty) {
                   _pushOnce(
-                    MaterialPageRoute(
+                      MaterialPageRoute(
                         builder: (context) => SearchResultsPage(
                             query: value.trim(), products: _products)),
-                  ).then((_) => _clearSearch());
-                }
-              },
-              suggestionsCallback: (pattern) async {
+                    ).then((_) => _clearSearch());
+                  }
+                },
+                suggestionsCallback: (pattern) async {
                 if (pattern.isEmpty || !mounted) return [];
                 try {
-                  final response = await http
-                      .get(Uri.parse(ApiConfig.getSearchUrl(pattern)))
-                      .timeout(const Duration(seconds: 10));
-                  if (response.statusCode == 200) {
-                    final data = json.decode(response.body);
-                    final List productsData = data['data'] ?? [];
-                    final products = productsData.map<Product>((item) {
-                      return Product(
-                        id: item['id'] ?? 0,
-                        name: item['name'] ?? 'No name',
-                        description: item['tag_description'] ?? '',
-                        urlName: item['url_name'] ?? '',
-                        status: item['status'] ?? '',
-                        batch_no: item['batch_no'] ?? '',
-                        price: (item['price'] ?? item['selling_price'] ?? 0)
-                            .toString(),
-                        thumbnail: item['thumbnail'] ?? item['image'] ?? '',
-                        quantity: item['quantity']?.toString() ?? '',
-                        category: item['category'] ?? '',
-                        route: item['route'] ?? '',
-                      );
-                    }).toList();
-                    if (products.length > 1) {
-                      return [
-                        Product(
+                  final products = await _catalogService.searchForTypeahead(
+                    pattern,
+                    timeout: const Duration(seconds: 10),
+                  );
+                      if (products.length > 1) {
+                        return [
+                          Product(
                             id: -1,
                             name: '__VIEW_MORE__',
                             description: '',
@@ -2183,180 +2145,176 @@ class HomePageState extends State<HomePage>
                             quantity: '',
                             batch_no: '',
                             category: '',
-                            route: ''),
-                        ...products.take(6),
-                      ];
-                    }
-                    return products;
-                  }
-                  return [];
-                } on TimeoutException {
-                  return [];
-                } on http.ClientException {
-                  return [];
+                          route: ''),
+                          ...products.take(6),
+                        ];
+                      }
+                      return products;
+                  } on TimeoutException {
+                    return [];
                 } catch (_) {
-                  return [];
-                }
-              },
-              itemBuilder: (context, Product suggestion) {
+                    return [];
+                  }
+                },
+                itemBuilder: (context, Product suggestion) {
                 if (!mounted) return const SizedBox.shrink();
-                if (suggestion.name == '__VIEW_MORE__') {
-                  return Container(
-                    decoration: BoxDecoration(
+                  if (suggestion.name == '__VIEW_MORE__') {
+                    return Container(
+                      decoration: BoxDecoration(
                         color: Colors.green.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(12)),
                     margin:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    child: ListTile(
-                      leading: Icon(Icons.list, color: Colors.green[700]),
+                      child: ListTile(
+                        leading: Icon(Icons.list, color: Colors.green[700]),
                       title: Text('View All Results',
                           style: GoogleFonts.poppins(
-                              color: Colors.green[700],
+                            color: Colors.green[700],
                               fontWeight: FontWeight.bold)),
-                    ),
-                  );
-                }
+                      ),
+                    );
+                  }
                 final matching = _products.firstWhere(
                     (p) => p.id == suggestion.id || p.name == suggestion.name,
                     orElse: () => suggestion);
-                final imageUrl = getProductImageUrl(
+                  final imageUrl = getProductImageUrl(
                     matching.thumbnail.isNotEmpty
                         ? matching.thumbnail
-                        : suggestion.thumbnail);
-                return Container(
-                  margin:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-                  decoration: BoxDecoration(
+                          : suggestion.thumbnail);
+                  return Container(
+                    margin:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+                    decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(9),
                       boxShadow: [
                         BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.03),
-                            blurRadius: 4,
+                          color: Colors.black.withValues(alpha: 0.03),
+                          blurRadius: 4,
                             offset: const Offset(0, 1))
                       ],
                       border: Border.all(
                           color: Colors.grey.withValues(alpha: 0.06))),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(9),
-                    onTap: () {
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(9),
+                      onTap: () {
                       final m = _products.firstWhere(
                           (p) =>
                               p.id == suggestion.id ||
                               p.name == suggestion.name,
                           orElse: () => suggestion);
-                      if (suggestion.name == '__VIEW_MORE__') {
+                        if (suggestion.name == '__VIEW_MORE__') {
                         _pushOnce(
-                          MaterialPageRoute(
+                            MaterialPageRoute(
                               builder: (context) => SearchResultsPage(
-                                  query: _searchController.text,
+                                query: _searchController.text,
                                   products: _products)),
-                        ).then((_) => _clearSearch());
-                      } else {
+                          ).then((_) => _clearSearch());
+                        } else {
                         _pushOnce(
-                          MaterialPageRoute(
+                            MaterialPageRoute(
                               builder: (context) => ItemPage(
                                   urlName: m.urlName.isNotEmpty
                                       ? m.urlName
                                       : suggestion.urlName,
-                                  isPrescribed:
+                                isPrescribed:
                                       m.otcpom?.toLowerCase() == 'pom')),
-                        ).then((_) => _clearSearch());
-                      }
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 6),
+                          ).then((_) => _clearSearch());
+                        }
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 6),
                       child: Row(children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(7),
-                          child: CachedNetworkImage(
-                            imageUrl: imageUrl,
-                            width: 36,
-                            height: 36,
-                            fit: BoxFit.cover,
-                            memCacheWidth: 200,
-                            memCacheHeight: 200,
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(7),
+                              child: CachedNetworkImage(
+                                imageUrl: imageUrl,
+                                width: 36,
+                                height: 36,
+                                fit: BoxFit.cover,
+                                memCacheWidth: 200,
+                                memCacheHeight: 200,
                             fadeInDuration: const Duration(milliseconds: 100),
                             placeholder: (_, __) => const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child:
+                                  width: 24,
+                                  height: 24,
+                                  child:
                                     CircularProgressIndicator(strokeWidth: 2)),
                             errorWidget: (_, __, ___) => Icon(
-                                Icons.broken_image,
-                                size: 20,
-                                color: Colors.grey[400]),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
+                                    Icons.broken_image,
+                                    size: 20,
+                                    color: Colors.grey[400]),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
                                 Text(suggestion.name,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: GoogleFonts.poppins(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
                                         color: Colors.black87)),
-                                if (suggestion.price.isNotEmpty &&
-                                    suggestion.price != '0')
-                                  Padding(
+                                  if (suggestion.price.isNotEmpty &&
+                                      suggestion.price != '0')
+                                    Padding(
                                     padding: const EdgeInsets.only(top: 2),
                                     child: Text('GH₵ ${suggestion.price}',
                                         style: GoogleFonts.poppins(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w500,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500,
                                             color: Colors.green[700])),
                                   ),
                               ]),
                         ),
                       ]),
+                      ),
                     ),
-                  ),
-                );
-              },
-              onSuggestionSelected: (Product suggestion) {
+                  );
+                },
+                onSuggestionSelected: (Product suggestion) {
                 final m = _products.firstWhere(
                     (p) => p.id == suggestion.id || p.name == suggestion.name,
                     orElse: () => suggestion);
-                if (suggestion.name == '__VIEW_MORE__') {
+                  if (suggestion.name == '__VIEW_MORE__') {
                   _pushOnce(
-                    MaterialPageRoute(
+                      MaterialPageRoute(
                         builder: (context) => SearchResultsPage(
-                            query: _searchController.text,
+                          query: _searchController.text,
                             products: _products)),
-                  ).then((_) => _clearSearch());
-                } else {
+                    ).then((_) => _clearSearch());
+                  } else {
                   _pushOnce(
-                    MaterialPageRoute(
+                      MaterialPageRoute(
                         builder: (context) => ItemPage(
                             urlName: m.urlName.isNotEmpty
                                 ? m.urlName
                                 : suggestion.urlName,
                             isPrescribed: m.otcpom?.toLowerCase() == 'pom')),
-                  ).then((_) => _clearSearch());
-                }
-              },
-              noItemsFoundBuilder: (context) => Padding(
+                    ).then((_) => _clearSearch());
+                  }
+                },
+                noItemsFoundBuilder: (context) => Padding(
                 padding: const EdgeInsets.all(12),
-                child: Text('No products found',
-                    style: TextStyle(color: Colors.grey)),
-              ),
-              hideOnEmpty: true,
-              hideOnLoading: false,
+                  child: Text('No products found',
+                      style: TextStyle(color: Colors.grey)),
+                ),
+                hideOnEmpty: true,
+                hideOnLoading: false,
               debounceDuration: const Duration(milliseconds: 350),
-              suggestionsBoxDecoration: SuggestionsBoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(isTablet ? 24 : 18),
-                elevation: isTablet ? 15 : 10,
-              ),
-            );
+                suggestionsBoxDecoration: SuggestionsBoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(isTablet ? 24 : 18),
+                  elevation: isTablet ? 15 : 10,
+                ),
+              );
           } catch (_) {
-            return const SizedBox.shrink();
-          }
+              return const SizedBox.shrink();
+            }
         }),
         ),
       ),
@@ -2378,52 +2336,52 @@ class HomePageState extends State<HomePage>
     }
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Padding(
+        Padding(
         padding:
             EdgeInsets.symmetric(horizontal: isTablet ? 24 : 18, vertical: 16),
         child: Container(
-          width: double.infinity,
+                width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 10),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                 colors: [Colors.green[600]!, Colors.green[700]!]),
-            borderRadius: BorderRadius.circular(6),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.green.withValues(alpha: 0.3),
-                  blurRadius: 4,
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green.withValues(alpha: 0.3),
+                      blurRadius: 4,
                   offset: const Offset(0, 1))
-            ],
-          ),
+                  ],
+                ),
           child: Row(children: [
-            const SizedBox(width: 8),
+                    const SizedBox(width: 8),
             const Icon(Icons.grid_view_rounded, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
+                    const SizedBox(width: 8),
+                    Expanded(
               child: Text('Shop',
-                  style: GoogleFonts.poppins(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
                       letterSpacing: 0.1)),
-            ),
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
+                        ),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
                 onTap: () => _pushNamedOnce(AppRoutes.categoryPage),
-                borderRadius: BorderRadius.circular(4),
-                child: Padding(
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Text('See all',
-                        style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontSize: 12,
+                                style: GoogleFonts.poppins(
+                                  color: Colors.white,
+                                  fontSize: 12,
                             fontWeight: FontWeight.w600)),
-                    const SizedBox(width: 4),
+                              const SizedBox(width: 4),
                     const Icon(Icons.arrow_forward_ios_rounded,
                         size: 10, color: Colors.white),
                   ]),
@@ -2433,30 +2391,30 @@ class HomePageState extends State<HomePage>
           ]),
         ),
       ),
-      if (_isLoadingCategories)
-        Padding(
+        if (_isLoadingCategories)
+          Padding(
           padding: EdgeInsets.symmetric(horizontal: isTablet ? 24 : 18),
-          child: SizedBox(
-            height: 38,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: 5,
+            child: SizedBox(
+              height: 38,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: 5,
               itemBuilder: (_, __) => Container(
-                margin: const EdgeInsets.only(right: 8),
-                child: Shimmer.fromColors(
-                  baseColor: Colors.grey[300]!,
-                  highlightColor: Colors.grey[100]!,
-                  child: Container(
-                      width: 90,
-                      height: 38,
-                      decoration: BoxDecoration(
+                    margin: const EdgeInsets.only(right: 8),
+                    child: Shimmer.fromColors(
+                      baseColor: Colors.grey[300]!,
+                      highlightColor: Colors.grey[100]!,
+                      child: Container(
+                        width: 90,
+                        height: 38,
+                        decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(19))),
-                ),
+                        ),
+                      ),
               ),
             ),
-          ),
-        )
+          )
       else if (_categories.isNotEmpty)
         KeyedSubtree(
           key: tourChipsKey,
@@ -2468,60 +2426,60 @@ class HomePageState extends State<HomePage>
               physics: const BouncingScrollPhysics(),
               itemCount: _categories.length,
               itemBuilder: (context, index) {
-              final category = _categories[index];
-              final categoryName = category['name'] ?? '';
-              final hasSubcategories = category['has_subcategories'] ?? false;
-              return Container(
-                margin: const EdgeInsets.only(right: 8),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      if (hasSubcategories) {
+                final category = _categories[index];
+                final categoryName = category['name'] ?? '';
+                final hasSubcategories = category['has_subcategories'] ?? false;
+                return Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        if (hasSubcategories) {
                         _pushOnce(
-                          MaterialPageRoute(
+                            MaterialPageRoute(
                               builder: (context) => SubcategoryPage(
-                                  categoryName: categoryName,
+                                categoryName: categoryName,
                                   categoryId: category['id'])),
-                        );
-                      } else {
+                          );
+                        } else {
                         _pushOnce(
-                          MaterialPageRoute(
+                            MaterialPageRoute(
                               builder: (context) => ProductListPage(
-                                  categoryName: categoryName,
+                                categoryName: categoryName,
                                   categoryId: category['id'])),
-                        );
-                      }
-                    },
-                    borderRadius: BorderRadius.circular(19),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
+                          );
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(19),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(19),
-                        border: Border.all(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(19),
+                          border: Border.all(
                             color: Colors.green.shade700, width: 1.5),
-                        boxShadow: [
-                          BoxShadow(
+                          boxShadow: [
+                            BoxShadow(
                               color: Colors.black.withOpacity(0.05),
                               blurRadius: 6,
                               offset: const Offset(0, 2))
-                        ],
-                      ),
+                          ],
+                        ),
                       child: Text(categoryName,
-                          style: GoogleFonts.poppins(
+                            style: GoogleFonts.poppins(
                               fontSize: isTablet ? 12 : 11,
                               fontWeight: FontWeight.w600,
                               color: Colors.green.shade800,
                               letterSpacing: 0.1)),
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
-        ),
         ),
     ]);
   }
@@ -2530,45 +2488,45 @@ class HomePageState extends State<HomePage>
   Widget _buildSpecialOffers() {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const SizedBox(height: 12),
-      Container(
+        Container(
         margin: const EdgeInsets.symmetric(horizontal: 16),
         decoration:
             BoxDecoration(borderRadius: BorderRadius.circular(12), boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 8,
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 8,
               offset: const Offset(0, 4))
         ]),
         child: Column(children: [
-          ClipRRect(
+              ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
             child: Image.asset('assets/images/specialoffer.PNG',
                 fit: BoxFit.cover, width: double.infinity, height: 120),
           ),
-          Container(
-            width: double.infinity,
+              Container(
+                width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius:
+                  color: Colors.white,
+                  borderRadius:
                     BorderRadius.vertical(bottom: Radius.circular(12))),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('GET DEAL 10% OFF ON FIRST PURCHASE',
-                  style: GoogleFonts.poppins(
-                      color: Colors.green[700],
-                      fontWeight: FontWeight.bold,
+                      style: GoogleFonts.poppins(
+                        color: Colors.green[700],
+                        fontWeight: FontWeight.bold,
                       fontSize: 14)),
               const SizedBox(height: 4),
               Text('Orders above GH₵100.',
-                  style: TextStyle(
-                      color: Colors.grey[800],
-                      fontSize: 12,
+                      style: TextStyle(
+                        color: Colors.grey[800],
+                        fontSize: 12,
                       fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
-              Text(
-                  'Make purchase through the Ernest Chemists e-commerce platform and get a 10% discount of your first purchase.',
-                  style: TextStyle(
+                    Text(
+                      'Make purchase through the Ernest Chemists e-commerce platform and get a 10% discount of your first purchase.',
+                      style: TextStyle(
                       color: Colors.grey[600], fontSize: 11, height: 1.3)),
             ]),
           ),
@@ -2610,46 +2568,46 @@ class HomePageState extends State<HomePage>
       margin: EdgeInsets.symmetric(horizontal: isTablet ? 24 : 16),
       decoration: BoxDecoration(
           color: Colors.white, borderRadius: BorderRadius.circular(12)),
-      child: ListView.builder(
-        controller: _popularScrollController,
-        scrollDirection: Axis.horizontal,
-        itemCount: infiniteProducts.length,
-        padding: const EdgeInsets.only(right: 2),
-        physics: const BouncingScrollPhysics(),
-        itemBuilder: (context, index) {
-          final product = infiniteProducts[index];
+            child: ListView.builder(
+              controller: _popularScrollController,
+              scrollDirection: Axis.horizontal,
+              itemCount: infiniteProducts.length,
+              padding: const EdgeInsets.only(right: 2),
+              physics: const BouncingScrollPhysics(),
+              itemBuilder: (context, index) {
+                final product = infiniteProducts[index];
           final currentOffset = _popularScrollController.hasClients
-              ? _popularScrollController.offset
-              : 0.0;
+                    ? _popularScrollController.offset
+                    : 0.0;
           final isInCenter = ((index * 82.0) - currentOffset).abs() < 48.0;
 
-          return AnimatedScale(
-            scale: isInCenter ? 1.15 : 1.0,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-              margin: EdgeInsets.only(top: isInCenter ? 8.0 : 0.0),
-              child: Padding(
-                padding: const EdgeInsets.only(right: 2),
-                child: SizedBox(
-                  width: isTablet ? 100 : 80,
-                  child: HomeProductCard(
-                    product: product,
-                    fontSize: isTablet ? 16 : 15,
-                    padding: 0,
-                    imageHeight: isTablet ? 80 : 100,
-                    showWishlistButton: false,
-                    showPrice: false,
-                    showName: false,
+                return AnimatedScale(
+                  scale: isInCenter ? 1.15 : 1.0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    margin: EdgeInsets.only(top: isInCenter ? 8.0 : 0.0),
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 2),
+                      child: SizedBox(
+                        width: isTablet ? 100 : 80,
+                        child: HomeProductCard(
+                          product: product,
+                          fontSize: isTablet ? 16 : 15,
+                          padding: 0,
+                          imageHeight: isTablet ? 80 : 100,
+                          showWishlistButton: false,
+                          showPrice: false,
+                          showName: false,
                     showHero: false,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
-          );
-        },
+                );
+              },
       ),
     );
   }
@@ -2665,12 +2623,12 @@ class HomePageState extends State<HomePage>
       required double imageHeight,
       bool isTablet = false}) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Padding(
+        Padding(
         padding:
             EdgeInsets.symmetric(horizontal: isTablet ? 24 : 16, vertical: 0),
         child:
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Expanded(
+              Expanded(
             child: (title.toUpperCase() == 'PRESCRIPTION ONLY MEDICINE')
                 ? Row(mainAxisSize: MainAxisSize.min, children: [
                     Image.asset(prescribedShieldAsset,
@@ -2681,9 +2639,9 @@ class HomePageState extends State<HomePage>
                             buildSectionHeading(title, color, hideIcon: true)),
                   ])
                 : buildSectionHeading(title, color),
-          ),
-          TextButton(
-            onPressed: () {
+              ),
+              TextButton(
+                onPressed: () {
               // The section cards are capped on homepage; "See More" should open
               // the full backing list for that section.
               final filtered = switch (category.toLowerCase()) {
@@ -2695,38 +2653,38 @@ class HomePageState extends State<HomePage>
                 _ => List<Product>.from(products),
               };
               _pushOnce(
-                MaterialPageRoute(
-                    builder: (context) => SectionProductsPage(
+                    MaterialPageRoute(
+                      builder: (context) => SectionProductsPage(
                         sectionTitle: title, products: filtered)),
-              );
-            },
+                  );
+                },
             child: Text('See More',
-                style: TextStyle(
+                  style: TextStyle(
                     color: color, fontWeight: FontWeight.w600, fontSize: 13)),
-          ),
+                  ),
         ]),
-      ),
-      GridView.builder(
-        shrinkWrap: true,
+        ),
+        GridView.builder(
+          shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         padding: EdgeInsets.zero,
-        itemCount: products.length > 6 ? 6 : products.length,
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: isTablet ? 3 : 2,
+          itemCount: products.length > 6 ? 6 : products.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: isTablet ? 3 : 2,
           childAspectRatio: isTablet ? 1.2 : 1.0,
           mainAxisSpacing: isTablet ? 8 : 0,
           crossAxisSpacing: isTablet ? 8 : 0,
         ),
         itemBuilder: (context, index) => AnimatedVisibilityProductCard(
-          key: ValueKey(products[index].id),
-          product: products[index],
-          fontSize: fontSize * 1.1,
-          padding: padding * 0.8,
-          imageHeight: imageHeight * 0.85,
+              key: ValueKey(products[index].id),
+              product: products[index],
+              fontSize: fontSize * 1.1,
+              padding: padding * 0.8,
+              imageHeight: imageHeight * 0.85,
         ),
       ),
-      if (products.isEmpty)
-        EmptyStateWidget(
+        if (products.isEmpty)
+          EmptyStateWidget(
             message: 'No products found in this section.',
             icon: Icons.shopping_bag_outlined),
     ]);
@@ -2745,7 +2703,7 @@ class HomePageSkeletonBody extends StatelessWidget {
       baseColor: Colors.grey[300]!,
       highlightColor: Colors.grey[100]!,
       child: CustomScrollView(slivers: [
-        SliverAppBar(
+          SliverAppBar(
           automaticallyImplyLeading: false,
           backgroundColor: const Color(0xFF4CAF50),
           toolbarHeight: isTablet ? 80 : 60,
@@ -2762,62 +2720,62 @@ class HomePageSkeletonBody extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8))),
                   Container(
                       width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
+                height: 40,
+                decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.3),
                           shape: BoxShape.circle)),
                 ]),
-          ),
-        ),
+                ),
+              ),
         SliverPersistentHeader(
           pinned: true,
           delegate: _SearchBarSkeletonDelegate(isTablet: isTablet),
-        ),
-        SliverToBoxAdapter(
-          child: Container(
+            ),
+          SliverToBoxAdapter(
+              child: Container(
               height: isTablet ? 220 : 140,
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
+                decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12))),
         ),
-        SliverToBoxAdapter(
-          child: Padding(
+          SliverToBoxAdapter(
+            child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: List.generate(
-                3,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(
+                  3,
                 (i) => Expanded(
-                  child: Container(
+            child: Container(
                       height: isTablet ? 110 : 90,
                       margin: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                          color: Colors.white,
+              decoration: BoxDecoration(
+                color: Colors.white,
                           borderRadius: BorderRadius.circular(12))),
-                ),
               ),
             ),
           ),
-        ),
+            ),
+            ),
         SliverToBoxAdapter(child: const SizedBox(height: 8)),
-        SliverToBoxAdapter(
-          child: Padding(
+          SliverToBoxAdapter(
+            child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Container(
+              child: Container(
                 width: 120,
                 height: 20,
                 decoration: BoxDecoration(
-                    color: Colors.white,
+                color: Colors.white,
                     borderRadius: BorderRadius.circular(4))),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Container(
+              ),
+            ),
+          SliverToBoxAdapter(
+            child: Container(
             height: 100,
             margin: const EdgeInsets.only(left: 16, bottom: 16),
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
               itemCount: 8,
               itemBuilder: (_, __) => Padding(
                 padding: const EdgeInsets.only(right: 12),
@@ -2825,20 +2783,20 @@ class HomePageSkeletonBody extends StatelessWidget {
                   Container(
                       width: 60,
                       height: 60,
-                      decoration: const BoxDecoration(
+                    decoration: const BoxDecoration(
                           color: Colors.white, shape: BoxShape.circle)),
                   const SizedBox(height: 6),
                   Container(
                       width: 60,
                       height: 12,
                       decoration: BoxDecoration(
-                          color: Colors.white,
+                      color: Colors.white,
                           borderRadius: BorderRadius.circular(4))),
                 ]),
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
-        ),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -2874,7 +2832,7 @@ class HomePageSkeletonBody extends StatelessWidget {
               mainAxisSpacing: 12,
             ),
           ),
-        ),
+      ),
         SliverToBoxAdapter(child: const SizedBox(height: 20)),
       ]),
     );
@@ -2886,11 +2844,11 @@ class HomePageSkeletonBody extends StatelessWidget {
       decoration: BoxDecoration(
           color: Colors.white, borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(
+          Expanded(
           flex: 3,
-          child: Container(
+                  child: Container(
               decoration: BoxDecoration(
-                  color: Colors.grey[200],
+                    color: Colors.grey[200],
                   borderRadius:
                       const BorderRadius.vertical(top: Radius.circular(12)))),
         ),
@@ -2901,7 +2859,7 @@ class HomePageSkeletonBody extends StatelessWidget {
             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
+              children: [
                   Container(
                       width: double.infinity,
                       height: 12,
@@ -2909,20 +2867,20 @@ class HomePageSkeletonBody extends StatelessWidget {
                           color: Colors.grey[200],
                           borderRadius: BorderRadius.circular(4))),
                   const SizedBox(height: 4),
-                  Container(
-                      width: 80,
-                      height: 12,
-                      decoration: BoxDecoration(
-                          color: Colors.grey[200],
+                Container(
+                  width: 80,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
                           borderRadius: BorderRadius.circular(4))),
                   const Spacer(),
                   Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Container(
-                            width: 60,
+                Container(
+                  width: 60,
                             height: 16,
-                            decoration: BoxDecoration(
+                  decoration: BoxDecoration(
                                 color: Colors.grey[200],
                                 borderRadius: BorderRadius.circular(4))),
                         Container(
@@ -2997,8 +2955,8 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
   Widget build(BuildContext context) {
     if (_isLoadingBanners) {
       return Container(
-          height: 140,
-          alignment: Alignment.center,
+        height: 140,
+        alignment: Alignment.center,
           child: const CircularProgressIndicator());
     }
 
@@ -3035,13 +2993,13 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
     WidgetsBinding.instance.addPostFrameCallback((_) => startAutoScroll());
 
     return Column(mainAxisSize: MainAxisSize.min, children: [
-      SizedBox(
-        height: bannerHeight,
+        SizedBox(
+          height: bannerHeight,
         child: PageView.builder(
           controller: pageController,
           onPageChanged: (i) =>
               setState(() => activeBanner = i % bannerData.length),
-          itemBuilder: (context, index) {
+            itemBuilder: (context, index) {
             final data = bannerData[index % bannerData.length];
             return AnimatedBuilder(
               animation: pageController,
@@ -3061,25 +3019,25 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
                     ..scale(scale, scale)
                     ..setEntry(3, 2, 0.001)
                     ..rotateY(angle),
-                  child: Container(
+                child: Container(
                     margin: EdgeInsets.symmetric(
                         horizontal: isTablet ? 2 : 1, vertical: 2),
-                    decoration: BoxDecoration(
+                  decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(isTablet ? 18 : 12),
-                        boxShadow: [
-                          BoxShadow(
+                    boxShadow: [
+                      BoxShadow(
                               color: Colors.black.withOpacity(0.13),
                               blurRadius: isTablet ? 10 : 7,
                               offset: Offset(0, isTablet ? 4 : 2))
                         ]),
-                    child: ClipRRect(
+                  child: ClipRRect(
                       borderRadius: BorderRadius.circular(isTablet ? 18 : 12),
                       child: Stack(fit: StackFit.expand, children: [
                         Image.asset(data.image,
-                            fit: BoxFit.cover,
+                      fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Container(
-                                color: Colors.grey[200],
-                                child: Center(
+                        color: Colors.grey[200],
+                        child: Center(
                                     child: Icon(Icons.broken_image,
                                         size: 40, color: Colors.grey[400])))),
                         Positioned(
@@ -3096,16 +3054,16 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
                                     Colors.black.withOpacity(0.7),
                                     Colors.transparent
                                   ]),
-                            ),
                           ),
                         ),
+                      ),
                         Positioned(
                           left: 20,
                           bottom: 22,
                           right: 20,
-                          child: Column(
+                        child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
+                          children: [
                                 Text(data.headline,
                                     style: GoogleFonts.poppins(
                                         color: Colors.white,
@@ -3139,20 +3097,20 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
                   ),
                 );
               },
-            );
-          },
+              );
+            },
+          ),
         ),
-      ),
       const SizedBox(height: 8),
       Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.center,
         children: List.generate(bannerData.length, (i) {
           return AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             margin: const EdgeInsets.symmetric(horizontal: 4),
             width: activeBanner == i ? 18 : 7,
             height: 7,
-            decoration: BoxDecoration(
+                  decoration: BoxDecoration(
                 color: activeBanner == i
                     ? Colors.white.withOpacity(0.95)
                     : Colors.white.withOpacity(0.45),
@@ -3189,8 +3147,7 @@ class _OrderMedicineCardState extends State<_OrderMedicineCard> {
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 String getProductImageUrl(String? url) {
   if (url == null || url.isEmpty) return '';
-  if (url.startsWith('http')) return url;
-  return ApiConfig.getProductImageUrl(url);
+  return ApiConfig.getImageOrStorageUrl(url);
 }
 
 Widget buildSectionHeading(String title, Color color, {bool hideIcon = false}) {
@@ -3210,23 +3167,23 @@ Widget buildSectionHeading(String title, Color color, {bool hideIcon = false}) {
       assetPath = null;
   }
   return Row(mainAxisSize: MainAxisSize.min, children: [
-    Container(
-      width: 3,
-      height: 20,
-      decoration: BoxDecoration(
+      Container(
+        width: 3,
+        height: 20,
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
               colors: [color, color.withOpacity(0.7)]),
           borderRadius: BorderRadius.circular(2),
           boxShadow: [
             BoxShadow(
                 color: color.withOpacity(0.2),
-                blurRadius: 2,
+              blurRadius: 2,
                 offset: const Offset(0, 1))
           ]),
-    ),
-    const SizedBox(width: 8),
+      ),
+      const SizedBox(width: 8),
     if (!hideIcon) ...[
       Container(
         padding: const EdgeInsets.all(5),
@@ -3242,17 +3199,17 @@ Widget buildSectionHeading(String title, Color color, {bool hideIcon = false}) {
     Flexible(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(title,
-            style: GoogleFonts.poppins(
+              style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: Colors.black87,
                 letterSpacing: 0.2),
             overflow: TextOverflow.ellipsis,
             maxLines: 1),
-        Container(
-          width: 30,
-          height: 1,
-          decoration: BoxDecoration(
+            Container(
+              width: 30,
+              height: 1,
+              decoration: BoxDecoration(
               gradient:
                   LinearGradient(colors: [color, color.withOpacity(0.2)])),
         ),
@@ -3288,29 +3245,29 @@ Widget buildCapsuleHeading(String title, Color color) {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
         decoration: BoxDecoration(
-            gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  color.withValues(alpha: 0.12),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              color.withValues(alpha: 0.12),
                   color.withValues(alpha: 0.06)
                 ]),
-            borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(16),
             border: Border.all(color: color.withValues(alpha: 0.15), width: 1),
-            boxShadow: [
-              BoxShadow(
-                  color: color.withValues(alpha: 0.08),
-                  blurRadius: 4,
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.08),
+              blurRadius: 4,
                   offset: const Offset(0, 2))
             ]),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(_getIconForSection(title), color: color, size: 16),
-          const SizedBox(width: 8),
+            const SizedBox(width: 8),
           Text(title,
               style: GoogleFonts.poppins(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: color,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: color,
                   letterSpacing: 0.3)),
         ]),
       ),

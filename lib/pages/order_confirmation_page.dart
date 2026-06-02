@@ -7,8 +7,8 @@ import 'dart:io' show SocketException;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import '../services/checkout_payment_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_config.dart';
@@ -20,6 +20,7 @@ import '../services/order_notification_service.dart';
 import '../utils/payment_redirect_url.dart';
 import 'app_back_button.dart';
 import 'order_tracking_page.dart';
+import '../widgets/checkout_progress_stepper.dart';
 
 class OrderConfirmationPage extends StatefulWidget {
   final Map<String, dynamic> paymentParams;
@@ -50,6 +51,8 @@ class OrderConfirmationPage extends StatefulWidget {
 }
 
 class OrderConfirmationPageState extends State<OrderConfirmationPage> {
+  final CheckoutPaymentService _checkoutPaymentService =
+      CheckoutPaymentService();
   String? _status;
   String? _statusMessage;
   String? _transactionId;
@@ -380,25 +383,25 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.15),
-                        blurRadius: 12,
-                        offset: Offset(0, 4),
+                        color: Colors.black.withValues(alpha: 0.12),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
                       ),
                     ],
                   ),
                   child: Column(
                     children: [
-                      // Header with back button and title
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
                         child: Row(
                           children: [
                             AppBackButton(
                               backgroundColor:
                                   Colors.white.withValues(alpha: 0.2),
                               onPressed: () {
-                                // Navigate back to home page using a more direct approach
                                 Navigator.pushNamedAndRemoveUntil(
                                   context,
                                   AppRoutes.home,
@@ -412,40 +415,29 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                   'Order Confirmation',
                                   style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.5,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.2,
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(
-                                width: 48), // Balance the back button
+                            const SizedBox(width: 40),
                           ],
                         ),
                       ),
-                      // Enhanced progress indicator
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 10, horizontal: 6),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildProgressStep("Cart",
-                                  isActive: false, isCompleted: true, step: 1),
-                              _buildProgressLine(isActive: false),
-                              _buildProgressStep("Delivery",
-                                  isActive: false, isCompleted: true, step: 2),
-                              _buildProgressLine(isActive: false),
-                              _buildProgressStep("Payment",
-                                  isActive: true, isCompleted: false, step: 3),
-                              _buildProgressLine(isActive: false),
-                              _buildProgressStep("Confirmation",
-                                  isActive: false, isCompleted: false, step: 4),
-                            ],
-                          ),
+                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+                        child: const CheckoutProgressStepper(
+                          compact: true,
+                          steps: [
+                            'Cart',
+                            'Delivery',
+                            'Payment',
+                            'Confirmation',
+                          ],
+                          activeStep: 4,
+                          completedSteps: {1, 2, 3},
                         ),
                       ),
                     ],
@@ -1005,201 +997,66 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
   Future<Map<String, dynamic>> _fetchPaymentStatus() async {
     try {
       debugPrint('[DEBUG] _fetchPaymentStatus started');
-      // Check if user is logged in
-      final isLoggedIn = await AuthService.isLoggedIn();
-      final tokenRaw = await AuthService.getToken();
-      String? userId = await AuthService.getCurrentUserID();
-      String? authHeader;
-      Map<String, dynamic> requestBody = {};
 
-      debugPrint(
-          '[DEBUG] Auth check - isLoggedIn: $isLoggedIn, tokenRaw: ${tokenRaw?.substring(0, 10)}..., userId: $userId');
+      debugPrint('[DEBUG] Making check-payment request via service...');
+      final response = await _checkoutPaymentService.checkPaymentStatus();
+      debugPrint('[DEBUG] Payment Status Check - Response: $response');
 
-      if (isLoggedIn && tokenRaw != null && tokenRaw.isNotEmpty) {
-        // Logged-in user: ONLY use Bearer token, never guest_id
-        authHeader = 'Bearer $tokenRaw';
-        if (userId == null) {
-          debugPrint('[DEBUG] Early return: userId is null');
-          return {'status': 'error', 'message': ''};
-        }
-        requestBody = {'user_id': userId};
-        debugPrint('[DEBUG] Using logged-in user flow');
-      } else if (!isLoggedIn && tokenRaw != null && tokenRaw.isNotEmpty) {
-        // Guest user: token is guest_id from getToken()
-        final guestId = tokenRaw;
-        authHeader = 'Guest $guestId';
-        requestBody = {'guest_id': guestId};
-        debugPrint('[DEBUG] Guest payment status check: guest_id = $guestId');
-      } else {
-        debugPrint('[DEBUG] Early return: no valid auth found');
-        return {'status': 'error', 'message': ''};
+      if (response['status'] == 'error') {
+        return response;
       }
 
-      // Make the request with timeout
-      final headers = {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      };
-      headers['Authorization'] = authHeader;
-      if (!isLoggedIn) {
-        headers['X-Guest-ID'] = tokenRaw;
-      }
-      debugPrint('[DEBUG] Payment Status Check - Request Headers: $headers');
-      debugPrint(
-          '[DEBUG] Payment Status Check - Request Body: ${jsonEncode(requestBody)}');
-
-      debugPrint('[DEBUG] Making HTTP request to check-payment endpoint...');
-      final response = await http
-          .post(
-        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.checkPayment)),
-        headers: headers,
-        body: jsonEncode(requestBody),
-      )
-          .timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          debugPrint('[DEBUG] Payment status check timed out');
-          throw TimeoutException(
-              'Payment status check timed out. Please try again.');
-        },
-      );
-      debugPrint('[DEBUG] HTTP request completed successfully');
-      debugPrint(
-          '[DEBUG] Payment Status Check - Raw Response: ${response.body}');
-
-      // Log full API response for payment status
-      debugPrint('✅ [CHECK PAYMENT API] RESPONSE RECEIVED:');
-      debugPrint('📊 Status Code: ${response.statusCode}');
-      debugPrint('📋 Full Response Body: ${response.body}');
-      debugPrint('📋 Response Headers: ${response.headers}');
-      debugPrint('🔍 Request Headers: ${headers}');
-      debugPrint('🔍 Request Body: ${jsonEncode(requestBody)}');
-      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-      if (response.statusCode == 200) {
-        // Handle empty response
-        if (response.body.isEmpty) {
-          // Track empty response time
-          if (_firstEmptyResponseTime == null) {
-            _firstEmptyResponseTime = DateTime.now();
-            _emptyResponseCount = 1;
-          } else {
-            _emptyResponseCount++;
-          }
-
-          // Check if we've been receiving empty responses for 3 minutes
-          if (_firstEmptyResponseTime != null) {
-            final timeSinceFirstEmpty =
-                DateTime.now().difference(_firstEmptyResponseTime!);
-            final minutesSinceFirstEmpty = timeSinceFirstEmpty.inMinutes;
-
-            if (minutesSinceFirstEmpty >= _maxEmptyResponseTimeMinutes ||
-                _emptyResponseCount >= _maxEmptyResponseCount) {
-              _statusCheckTimer?.cancel();
-              _buttonShowTimer?.cancel();
-              _emptyResponseTimer?.cancel();
-
-              return {
-                'status': 'failed',
-                'message':
-                    'Payment verification failed due to server timeout. Please try again or contact support.',
-              };
-            }
-          }
-
-          // Try to make another request after a short delay
-          await Future.delayed(Duration(seconds: 2));
-          final retryResponse = await http
-              .post(
-            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.checkPayment)),
-            headers: headers,
-            body: jsonEncode(requestBody),
-          )
-              .timeout(
-            const Duration(seconds: 15),
-            onTimeout: () {
-              throw TimeoutException(
-                  'Payment status check timed out on retry. Please try again.');
-            },
-          );
-
-          if (retryResponse.body.isNotEmpty) {
-            // Reset empty response tracking if we get a valid response
-            _firstEmptyResponseTime = null;
-            _emptyResponseCount = 0;
-
-            try {
-              // Handle malformed JSON responses that might have extra text before JSON
-              String responseBody = retryResponse.body.trim();
-
-              // Try to find JSON object in the response
-              int jsonStartIndex = responseBody.indexOf('{');
-              if (jsonStartIndex != -1) {
-                // Extract only the JSON part
-                responseBody = responseBody.substring(jsonStartIndex);
-              }
-
-              final data = json.decode(responseBody);
-              return _processPaymentStatus(data);
-            } catch (e) {
-              throw Exception(
-                  'Invalid response format from server. Please try again.');
-            }
-          } else {
-            // Retry also returned empty response, increment count
-            _emptyResponseCount++;
-          }
-
-          return {
-            'status': 'pending',
-            'message': 'Waiting for payment confirmation...',
-          };
+      if (response.isEmpty ||
+          (response['status'] == 'pending' &&
+              (response['message']?.toString().isEmpty ?? true))) {
+        if (_firstEmptyResponseTime == null) {
+          _firstEmptyResponseTime = DateTime.now();
+          _emptyResponseCount = 1;
         } else {
-          // Reset empty response tracking if we get a valid response
+          _emptyResponseCount++;
+        }
+
+        if (_firstEmptyResponseTime != null) {
+          final timeSinceFirstEmpty =
+              DateTime.now().difference(_firstEmptyResponseTime!);
+          final minutesSinceFirstEmpty = timeSinceFirstEmpty.inMinutes;
+
+          if (minutesSinceFirstEmpty >= _maxEmptyResponseTimeMinutes ||
+              _emptyResponseCount >= _maxEmptyResponseCount) {
+            _statusCheckTimer?.cancel();
+            _buttonShowTimer?.cancel();
+            _emptyResponseTimer?.cancel();
+
+            return {
+              'status': 'failed',
+              'message':
+                  'Payment verification failed due to server timeout. Please try again or contact support.',
+            };
+          }
+        }
+
+        await Future.delayed(const Duration(seconds: 2));
+        final retryResponse =
+            await _checkoutPaymentService.checkPaymentStatus();
+
+        if (retryResponse.isNotEmpty &&
+            !(retryResponse['status'] == 'pending' &&
+                (retryResponse['message']?.toString().isEmpty ?? true))) {
           _firstEmptyResponseTime = null;
           _emptyResponseCount = 0;
+          return _processPaymentStatus(retryResponse);
         }
 
-        try {
-          // Handle malformed JSON responses that might have extra text before JSON
-          String responseBody = response.body.trim();
-
-          // Try to find JSON object in the response
-          int jsonStartIndex = responseBody.indexOf('{');
-          if (jsonStartIndex != -1) {
-            // Extract only the JSON part
-            responseBody = responseBody.substring(jsonStartIndex);
-          }
-
-          final data = json.decode(responseBody);
-
-          // Log full API response
-          debugPrint('✅ [PAYMENT API] SUCCESS RESPONSE:');
-          debugPrint('📊 Status Code: ${response.statusCode}');
-          debugPrint('📋 Full Response Body: ${response.body}');
-          debugPrint('📦 Parsed JSON: ${jsonEncode(data)}');
-          debugPrint('🔑 Response Keys: ${data.keys.toList()}');
-          debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-          return _processPaymentStatus(data);
-        } catch (e) {
-          debugPrint('❌ [PAYMENT API] ERROR PARSING RESPONSE:');
-          debugPrint('   Error: $e');
-          debugPrint('   Raw Body: ${response.body}');
-          throw Exception(
-              'Invalid response format from server. Please try again.');
-        }
-      } else if (response.statusCode == 401) {
-        throw Exception('Session expired. Please log in again.');
-      } else if (response.statusCode == 403) {
-        throw Exception('You do not have permission to check payment status.');
-      } else if (response.statusCode == 404) {
-        throw Exception('Payment record not found. Please contact support.');
-      } else if (response.statusCode >= 500) {
-        throw Exception('Server error. Please try again later.');
-      } else {
-        throw Exception('Failed to verify payment: ${response.statusCode}');
+        _emptyResponseCount++;
+        return {
+          'status': 'pending',
+          'message': 'Waiting for payment confirmation...',
+        };
       }
+
+      _firstEmptyResponseTime = null;
+      _emptyResponseCount = 0;
+      return _processPaymentStatus(response);
     } on TimeoutException {
       throw Exception(
           'Payment status check timed out. Please check your internet connection and try again.');
@@ -1238,64 +1095,5 @@ class OrderConfirmationPageState extends State<OrderConfirmationPage> {
         'message': 'Payment status is being processed',
       };
     }
-  }
-
-  Widget _buildProgressLine({required bool isActive}) {
-    return Container(
-      width: 50,
-      height: 1,
-      color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.3),
-    );
-  }
-
-  Widget _buildProgressStep(String text,
-      {required bool isActive, required bool isCompleted, required int step}) {
-    final color = isCompleted
-        ? Colors.white
-        : isActive
-            ? Colors.white
-            : Colors.white.withValues(alpha: 0.6);
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 20,
-          height: 20,
-          decoration: BoxDecoration(
-            color: isCompleted || isActive
-                ? Colors.white.withValues(alpha: 0.2)
-                : Colors.transparent,
-            border: Border.all(
-              color: color,
-              width: 1.5,
-            ),
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: isCompleted
-                ? Icon(Icons.check, size: 12, color: Colors.white)
-                : Text(
-                    step.toString(),
-                    style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 10,
-                    ),
-                  ),
-          ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          text,
-          style: TextStyle(
-            color: color,
-            fontSize: 10,
-            fontWeight:
-                isActive || isCompleted ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ],
-    );
   }
 }

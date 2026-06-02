@@ -1,17 +1,17 @@
 // services/background_cart_sync_service.dart
 import 'dart:async';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:eclapp/config/api_config.dart';
-import 'package:eclapp/services/auth_service.dart';
+import 'cart_service.dart';
 
 class BackgroundCartSyncService {
   static Timer? _syncTimer;
   static bool _isRunning = false;
   static const Duration _syncInterval = Duration(minutes: 5);
   static const Duration _initialDelay = Duration(seconds: 30);
+
+  static final CartService _cartService = CartService();
 
   static Map<String, dynamic>? _lastCartData;
   static DateTime? _lastSyncTime;
@@ -23,18 +23,15 @@ class BackgroundCartSyncService {
     debugPrint('🛒 BackgroundCartSyncService: Starting background cart sync');
     _isRunning = true;
 
-    // Initial sync after delay
     Timer(_initialDelay, () {
       _syncCartInBackground();
     });
 
-    // Set up periodic sync
     _syncTimer = Timer.periodic(_syncInterval, (timer) {
       _syncCartInBackground();
     });
   }
 
-  // Stop background synchronization
   static void stopBackgroundSync() {
     debugPrint('🛒 BackgroundCartSyncService: Stopping background cart sync');
     _isRunning = false;
@@ -42,25 +39,21 @@ class BackgroundCartSyncService {
     _syncTimer = null;
   }
 
-  // Sync cart data in background
   static Future<void> _syncCartInBackground() async {
     try {
       debugPrint('🛒 BackgroundCartSyncService: Starting background cart sync');
 
-      // Get current cart data
       final cartData = await _getCurrentCartData();
       if (cartData == null) {
         debugPrint('🛒 BackgroundCartSyncService: No cart data to sync');
         return;
       }
 
-      // Check if data has changed
       if (_hasCartDataChanged(cartData)) {
         debugPrint(
             '🛒 BackgroundCartSyncService: Cart data changed, syncing...');
 
-        // Sync with server
-        final success = await _syncWithServer(cartData);
+        final success = await _cartService.syncCartPayload(cartData: cartData);
         if (success) {
           _lastCartData = cartData;
           _lastSyncTime = DateTime.now();
@@ -74,7 +67,6 @@ class BackgroundCartSyncService {
     }
   }
 
-  // Get current cart data from local storage
   static Future<Map<String, dynamic>?> _getCurrentCartData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -93,7 +85,6 @@ class BackgroundCartSyncService {
     return null;
   }
 
-  // Check if cart data has changed
   static bool _hasCartDataChanged(Map<String, dynamic> newData) {
     if (_lastCartData == null) return true;
 
@@ -103,7 +94,6 @@ class BackgroundCartSyncService {
 
       if (oldItems.length != newItems.length) return true;
 
-      // Compare items
       for (int i = 0; i < oldItems.length; i++) {
         final oldItem = oldItems[i] as Map<String, dynamic>;
         final newItem = newItems[i] as Map<String, dynamic>;
@@ -121,98 +111,6 @@ class BackgroundCartSyncService {
     }
   }
 
-  // Sync cart data with server
-  static Future<bool> _syncWithServer(Map<String, dynamic> cartData) async {
-    try {
-      final isLoggedIn = await AuthService.isLoggedIn();
-      final token = await AuthService.getToken();
-      if (token == null || token.isEmpty) {
-        debugPrint('🛒 BackgroundCartSyncService: No auth token or guest_id for sync');
-        return false;
-      }
-
-      final headers = <String, String>{
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      };
-      if (isLoggedIn) {
-        headers['Authorization'] = 'Bearer $token';
-      } else {
-        headers['Authorization'] = 'Guest $token';
-        headers['X-Guest-ID'] = token;
-      }
-
-      final response = await http
-          .post(
-            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.syncCart)),
-            headers: headers,
-            body: json.encode(cartData),
-          )
-          .timeout(Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        return responseData['success'] == true;
-      }
-    } catch (e) {
-      debugPrint('🛒 BackgroundCartSyncService: Server sync error: $e');
-    }
-    return false;
-  }
-
-
-  // Check inventory for cart items
-  static Future<void> _checkInventory() async {
-    try {
-      final cartData = await _getCurrentCartData();
-      if (cartData == null) return;
-
-      final items = cartData['items'] as List? ?? [];
-      final outOfStockItems = <String>[];
-
-      for (final item in items) {
-        final productId = item['productId'];
-        final isAvailable = await _checkProductAvailability(productId);
-
-        if (!isAvailable) {
-          outOfStockItems.add(item['name'] ?? 'Unknown Product');
-        }
-      }
-
-      if (outOfStockItems.isNotEmpty) {
-        debugPrint(
-            '🛒 BackgroundCartSyncService: Out of stock items detected: $outOfStockItems');
-        // Could trigger notification here
-      }
-    } catch (e) {
-      debugPrint('🛒 BackgroundCartSyncService: Inventory check error: $e');
-    }
-  }
-
-  static Future<bool> _checkProductAvailability(String productId) async {
-    try {
-      final response = await http
-          .get(
-            Uri.parse(ApiConfig.getProductByIdUrl(productId)),
-          )
-          .timeout(Duration(seconds: 8));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-
-        if (data.containsKey('data') && data['data'] != null) {
-          final productData = data['data'];
-          final qtyInStock = productData['qty_in_stock'] ?? 0;
-          return qtyInStock > 0;
-        }
-      }
-    } catch (e) {
-      debugPrint('🛒 BackgroundCartSyncService: Availability check error: $e');
-    }
-    return true; // Assume available if check fails
-  }
-
-  // Get sync status
   static bool get isRunning => _isRunning;
   static DateTime? get lastSyncTime => _lastSyncTime;
   static bool get isCacheValid {

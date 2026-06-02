@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:eclapp/services/auth_service.dart';
+import 'package:eclapp/utils/app_error_utils.dart';
 import '../config/api_config.dart';
 
 // class to store cached data with a timestamp
@@ -457,14 +458,12 @@ class ApiService {
         throw ApiException(
             'Too Many Requests', 'Please wait a moment before trying again.');
       case 500:
-        throw ApiException('Server Error',
-            'Something went wrong on our end. Please try again later.');
       case 502:
-        throw ApiException('Bad Gateway',
-            'The server is temporarily unavailable. Please try again later.');
       case 503:
-        throw ApiException('Service Unavailable',
-            'The service is temporarily unavailable. Please try again later.');
+        throw ApiException(
+          AppErrorUtils.oopsTitle,
+          AppErrorUtils.oopsTryAgainBody,
+        );
       default:
         throw ApiException('Request Failed',
             'An unexpected error occurred. Please try again.');

@@ -3,11 +3,15 @@ import 'package:flutter/gestures.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:eclapp/services/home_preload_service.dart';
 import 'terms_and_conditions_page.dart';
 import 'privacypolicy.dart';
+import '../utils/app_error_utils.dart';
 
 class TermsAcceptancePage extends StatefulWidget {
-  const TermsAcceptancePage({super.key});
+  final VoidCallback? onAccepted;
+
+  const TermsAcceptancePage({super.key, this.onAccepted});
 
   @override
   State<TermsAcceptancePage> createState() => _TermsAcceptancePageState();
@@ -21,23 +25,20 @@ class _TermsAcceptancePageState extends State<TermsAcceptancePage> {
     final url = Uri.parse('https://dataprotection.org.gh/');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not open the website'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppErrorUtils.showSnack(context, 'Could not open the website');
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    HomePreloadService.startOnboardingPreload();
   }
 
   Future<void> _acceptAndContinue() async {
     if (!_termsAccepted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please accept the Terms & Conditions to continue'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppErrorUtils.showSnack(
+          context, 'Please accept the Terms & Conditions to continue');
       return;
     }
 
@@ -52,17 +53,11 @@ class _TermsAcceptancePageState extends State<TermsAcceptancePage> {
           'terms_accepted_date', DateTime.now().toIso8601String());
 
       if (!mounted) return;
-      // Don't pop - let the parent widget detect the change and rebuild
-      // This page is shown as home, not pushed on a route stack
-      debugPrint('✅ Terms accepted, waiting for parent widget to rebuild');
+      debugPrint('✅ Terms accepted');
+      widget.onAccepted?.call();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppErrorUtils.showSnack(context, 'Error: $e');
       setState(() {
         _isLoading = false;
       });

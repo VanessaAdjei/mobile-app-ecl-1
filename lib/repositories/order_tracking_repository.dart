@@ -5,6 +5,8 @@ import '../models/order_tracking_model.dart';
 abstract class OrderTrackingRepository {
   Future<PaymentStatusResult> checkPaymentStatus();
 
+  Future<String?> fetchOrderStatus(String orderId);
+
   Future<Map<String, dynamic>?> fetchLatestOrderSnapshot({
     required String orderId,
     required String orderNumber,
@@ -33,6 +35,11 @@ class OrderTrackingRepositoryImpl implements OrderTrackingRepository {
   @override
   Future<PaymentStatusResult> checkPaymentStatus() {
     return _remoteDataSource.checkPaymentStatus();
+  }
+
+  @override
+  Future<String?> fetchOrderStatus(String orderId) {
+    return _remoteDataSource.fetchOrderStatus(orderId);
   }
 
   @override

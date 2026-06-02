@@ -1,17 +1,21 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import '../config/api_config.dart';
+import '../models/category_fetch_result.dart';
 import '../models/store_location_model.dart';
+import '../repositories/delivery_repository.dart';
+import '../utils/delivery_api_parser.dart';
 import 'package:eclapp/services/auth_service.dart';
 import '../utils/app_error_utils.dart';
 
 class DeliveryService {
   static const String baseUrl = ApiConfig.baseUrl;
+
+  static final DeliveryRepository _repository = DeliveryRepositoryImpl();
 
   /// Timeout for delivery API calls. Shorter = fail fast and use local fallback.
   static const Duration _apiTimeout = Duration(seconds: 5);
@@ -31,60 +35,20 @@ class DeliveryService {
   static const double baseDeliveryDistanceKm = 3.0;
   static const double defaultRatePerKm = 3.0; // X: change this if needed
 
-  /// Extract list payload from common API response shapes.
-  static List<dynamic> _extractListPayload(dynamic decodedBody) {
-    if (decodedBody is List) return decodedBody;
-    if (decodedBody is! Map<String, dynamic>) return [];
-
-    final data = decodedBody['data'];
-    if (data is List) return data;
-
-    // Handle nested wrappers: { data: { data: [...] } }
-    if (data is Map<String, dynamic>) {
-      final nested = data['data'];
-      if (nested is List) return nested;
+  static dynamic _decodedPayload(CategoryFetchResult result) {
+    if (result.body != null) return result.body;
+    final raw = result.rawBody;
+    if (raw == null || raw.trim().isEmpty) return null;
+    try {
+      return json.decode(raw);
+    } catch (_) {
+      return null;
     }
-
-    // Fallback keys used by some backends.
-    for (final key in const ['regions', 'cities', 'stores', 'results', 'items']) {
-      final value = decodedBody[key];
-      if (value is List) return value;
-    }
-
-    return [];
-  }
-
-  /// Normalizes store API rows (`id`, `city_id`, `description`, `lat`, `lng`, …).
-  static List<Map<String, dynamic>> _normalizeStoreRecords(List<dynamic> items) {
-    return items
-        .whereType<Map>()
-        .map((raw) => normalizeStoreMap(Map<String, dynamic>.from(raw)))
-        .toList();
   }
 
   /// Single store map with parsed coords, address, and formatted hours.
   static Map<String, dynamic> normalizeStoreMap(Map<String, dynamic> raw) {
-    return StoreLocationModel.fromApiJson(raw).toMap();
-  }
-
-  /// Ensure UI-facing records always have a `description` field.
-  static List<Map<String, dynamic>> _normalizeDescriptionField(List<dynamic> items) {
-    return items
-        .whereType<Map>()
-        .map((raw) => Map<String, dynamic>.from(raw))
-        .map((item) {
-          final label = (item['description'] ??
-                  item['name'] ??
-                  item['title'] ??
-                  item['label'] ??
-                  '')
-              .toString();
-          if (item['description'] == null && label.isNotEmpty) {
-            item['description'] = label;
-          }
-          return item;
-        })
-        .toList();
+    return normalizeDeliveryStoreMap(raw);
   }
 
   /// Call /add-xpress-fee API to add express/urgent delivery fee
@@ -107,7 +71,6 @@ class DeliveryService {
         debugPrint('add-xpress-fee: Auth required');
         return null;
       }
-      final url = ApiConfig.getEndpointUrl('/add-xpress-fee');
       final headers = <String, String>{
         'Accept': 'application/json',
         'Content-Type': 'application/json',
@@ -117,14 +80,13 @@ class DeliveryService {
           'X-Guest-ID': guestId,
         },
       };
-      final response = await http
-          .get(Uri.parse(url), headers: headers)
-          .timeout(const Duration(seconds: 5));
-      debugPrint('[add-xpress-fee] Response status: \\${response.statusCode}');
-      debugPrint('[add-xpress-fee] Response body: \\${response.body}');
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = json.decode(response.body);
-        return data;
+      final result = await _repository.addXpressFee(headers: headers);
+      debugPrint('[add-xpress-fee] Response status: ${result.statusCode}');
+      debugPrint('[add-xpress-fee] Response body: ${result.rawBody}');
+      if (result.statusCode == 200 || result.statusCode == 201) {
+        final data = _decodedPayload(result);
+        if (data is Map<String, dynamic>) return data;
+        if (data is Map) return Map<String, dynamic>.from(data);
       }
       return null;
     } catch (e) {
@@ -331,34 +293,42 @@ class DeliveryService {
 
       final saveAddressUrl =
           ApiConfig.getEndpointUrl(ApiConfig.saveBillingAddress);
-      final response = await http
-          .post(
-            Uri.parse(saveAddressUrl),
-            headers: headers,
-            body: json.encode(requestBody),
-          )
-          .timeout(_apiTimeout);
+      final result = await _repository.saveBillingAddress(
+        headers: headers,
+        body: json.encode(requestBody),
+        timeout: _apiTimeout,
+      );
 
       debugPrint('===== SAVE ADDRESS API RESPONSE =====');
       debugPrint('URL: $saveAddressUrl');
-      debugPrint('STATUS: ${response.statusCode}');
-      debugPrint('HEADERS: ${response.headers}');
-      debugPrint('RAW BODY: ${response.body}');
+      debugPrint('STATUS: ${result.statusCode}');
+      debugPrint('RAW BODY: ${result.rawBody}');
       debugPrint('====================================');
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = json.decode(response.body);
+      if (result.statusCode == 200 || result.statusCode == 201) {
+        final data = _decodedPayload(result);
+        if (data is! Map) {
+          return {
+            'success': false,
+            'message': 'Failed to save delivery information',
+          };
+        }
+        final responseMap = data is Map<String, dynamic>
+            ? data
+            : Map<String, dynamic>.from(data);
         debugPrint('=== API SAVE SUCCESS ===');
-        debugPrint('Parsed response data: ${json.encode(data)}');
-        debugPrint('Response message: ${data['message']}');
-        debugPrint('Response status: ${data['status']}');
+        debugPrint('Parsed response data: ${json.encode(responseMap)}');
+        debugPrint('Response message: ${responseMap['message']}');
+        debugPrint('Response status: ${responseMap['status']}');
 
         // get the store info from the response
-        final closestStore = data['closest_store'];
-        final selectedStoreDescription = data['selected_store_description'];
+        final closestStore = responseMap['closest_store'];
+        final selectedStoreDescription =
+            responseMap['selected_store_description'];
 
         // Also check nested data.data (some APIs wrap response)
-        final resolvedStore = closestStore ?? data['data']?['closest_store'];
+        final resolvedStore =
+            closestStore ?? responseMap['data']?['closest_store'];
         if (resolvedStore != null) {
           debugPrint('Closest store found:');
           debugPrint('  - ID: ${resolvedStore['id']}');
@@ -376,25 +346,25 @@ class DeliveryService {
 
         return {
           'success': true,
-          'message':
-              data['message'] ?? 'Delivery information saved successfully',
-          'status': data['status'] ?? 'success',
+          'message': responseMap['message'] ??
+              'Delivery information saved successfully',
+          'status': responseMap['status'] ?? 'success',
           'closest_store': resolvedStore,
           'selected_store_description': selectedStoreDescription,
-          'data': data, // keep the original data just in case we need it later
+          'data': responseMap,
         };
       } else {
-        final errorData = AppErrorUtils.tryDecodeJsonMap(response.body);
+        final errorData = AppErrorUtils.tryDecodeJsonMap(result.rawBody ?? '');
         debugPrint('=== API SAVE ERROR ===');
-        debugPrint('Error status code: ${response.statusCode}');
-        debugPrint('Error response body: ${response.body}');
+        debugPrint('Error status code: ${result.statusCode}');
+        debugPrint('Error response body: ${result.rawBody}');
         debugPrint('=====================');
         return {
           'success': false,
           'message': AppErrorUtils.messageFromMap(
             errorData,
             fallback: AppErrorUtils.messageFromApiBody(
-              response.body,
+              result.rawBody ?? '',
               fallback: 'Failed to save delivery information',
             ),
           ),
@@ -446,34 +416,38 @@ class DeliveryService {
       debugPrint(
           'API URL: ${ApiConfig.getEndpointUrl(ApiConfig.getBillingAddress)}');
 
-      // call the api to get their saved address
-      final response = await http
-          .get(
-            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getBillingAddress)),
-            headers: headers,
-          )
-          .timeout(_apiTimeout);
+      final result = await _repository.getBillingAddress(
+        headers: headers,
+        timeout: _apiTimeout,
+      );
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      if (result.statusCode == 200) {
+        final data = _decodedPayload(result);
+        if (data is! Map) {
+          return {
+            'success': false,
+            'message': 'Failed to retrieve delivery information',
+          };
+        }
+        final responseMap = data is Map<String, dynamic>
+            ? data
+            : Map<String, dynamic>.from(data);
         debugPrint('\n${'=' * 50}');
         debugPrint('✅ API GET SUCCESS');
         debugPrint('=' * 50);
-        debugPrint('Raw response data: ${json.encode(data)}');
-        debugPrint('Response message: ${data['message']}');
-        debugPrint('Response data: ${data['data']}');
+        debugPrint('Raw response data: ${json.encode(responseMap)}');
+        debugPrint('Response message: ${responseMap['message']}');
+        debugPrint('Response data: ${responseMap['data']}');
         debugPrint('=' * 50);
 
-        // Pretty print the API response
-
-        if (data['data'] != null && data['data']['billingAddr'] != null) {
+        if (responseMap['data'] != null &&
+            responseMap['data']['billingAddr'] != null) {
           // keep for structured logging / future use
         } else {
           debugPrint('  └── billingAddr: null');
         }
 
-        // Check if data exists and has content
-        if (data['data'] == null) {
+        if (responseMap['data'] == null) {
           debugPrint('\n❌ NO DATA IN RESPONSE');
           return {
             'success': true,
@@ -482,8 +456,7 @@ class DeliveryService {
           };
         }
 
-        // Get the billingAddr object from the response
-        final billingAddr = data['data']['billingAddr'];
+        final billingAddr = responseMap['data']['billingAddr'];
         if (billingAddr == null) {
           debugPrint('\n❌ NO BILLING ADDR IN RESPONSE');
           return {
@@ -493,9 +466,6 @@ class DeliveryService {
           };
         }
 
-        // Debug specific fields
-
-        // Map the API response fields to our expected format
         final deliveryData = {
           'name': billingAddr['fname'] ?? '',
           'email': billingAddr['email'] ?? '',
@@ -526,11 +496,10 @@ class DeliveryService {
         return {
           'success': true,
           'data': deliveryData,
-          'message':
-              data['message'] ?? 'Delivery information retrieved successfully',
+          'message': responseMap['message'] ??
+              'Delivery information retrieved successfully',
         };
-      } else if (response.statusCode == 404) {
-        // No previous delivery info found
+      } else if (result.statusCode == 404) {
         debugPrint('=== API GET - NO DATA FOUND ===');
         debugPrint('Status: 404 - No previous delivery information found');
         debugPrint('================================');
@@ -539,8 +508,7 @@ class DeliveryService {
           'data': null,
           'message': 'No previous delivery information found',
         };
-      } else if (response.statusCode == 401) {
-        // Unauthorized (expired token or invalid guest_id) - treat as no saved address
+      } else if (result.statusCode == 401) {
         debugPrint(
             '=== API GET - UNAUTHORIZED (treating as no saved address) ===');
         return {
@@ -549,16 +517,16 @@ class DeliveryService {
           'message': 'No previous delivery information found',
         };
       } else {
-        final errorData = json.decode(response.body);
+        final errorData = AppErrorUtils.tryDecodeJsonMap(result.rawBody ?? '');
         debugPrint('=== API GET ERROR ===');
-        debugPrint('Error status code: ${response.statusCode}');
+        debugPrint('Error status code: ${result.statusCode}');
         debugPrint('Error response: ${json.encode(errorData)}');
-        debugPrint('Error message: ${errorData['message']}');
+        debugPrint('Error message: ${errorData?['message']}');
         debugPrint('====================');
         return {
           'success': false,
-          'message':
-              errorData['message'] ?? 'Failed to retrieve delivery information',
+          'message': errorData?['message'] ??
+              'Failed to retrieve delivery information',
         };
       }
     } catch (e) {
@@ -754,33 +722,31 @@ class DeliveryService {
       debugPrint('📤 [CALCULATE-DELIVERY-FEE] Calling API: $url');
       debugPrint('📤 [CALCULATE-DELIVERY-FEE] distance_text: "$key"');
 
-      var response = await http
-          .post(Uri.parse(url), headers: headers, body: jsonBody)
-          .timeout(_apiTimeout);
+      var result = await _repository.calculateDeliveryFee(
+        headers: headers,
+        body: jsonBody,
+        formEncoded: false,
+        timeout: _apiTimeout,
+      );
 
-      if (response.statusCode != 200 && response.statusCode != 201) {
-        final formHeaders = <String, String>{
-          ...headers,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        };
-        response = await http
-            .post(
-              Uri.parse(url),
-              headers: formHeaders,
-              body: 'distance_text=${Uri.encodeComponent(key)}',
-            )
-            .timeout(_apiTimeout);
+      if (result.statusCode != 200 && result.statusCode != 201) {
+        result = await _repository.calculateDeliveryFee(
+          headers: headers,
+          body: 'distance_text=${Uri.encodeComponent(key)}',
+          formEncoded: true,
+          timeout: _apiTimeout,
+        );
       }
 
       debugPrint(
-          '📥 [CALCULATE-DELIVERY-FEE] status=${response.statusCode} body=${response.body}');
+          '📥 [CALCULATE-DELIVERY-FEE] status=${result.statusCode} body=${result.rawBody}');
 
-      if (response.statusCode != 200 && response.statusCode != 201) {
+      if (result.statusCode != 200 && result.statusCode != 201) {
         debugPrint('❌ [CALCULATE-DELIVERY-FEE] Non-success status');
         return fallbackToLocalEstimate ? _localEstimateResult(key) : null;
       }
 
-      final decoded = AppErrorUtils.tryDecodeJsonMap(response.body);
+      final decoded = AppErrorUtils.tryDecodeJsonMap(result.rawBody ?? '');
       if (decoded == null) {
         debugPrint('❌ [CALCULATE-DELIVERY-FEE] Unexpected response shape');
         return fallbackToLocalEstimate ? _localEstimateResult(key) : null;
@@ -892,18 +858,35 @@ class DeliveryService {
   /// Fetch all regions from API
   static Future<Map<String, dynamic>> getRegions() async {
     try {
-      final response = await http.get(
-        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.regions)),
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 8));
+      final result = await _repository.fetchRegions();
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final normalized =
-            _normalizeDescriptionField(_extractListPayload(data));
+      if (result.statusCode == 0) {
+        final err = result.error;
+        if (err is TimeoutException) {
+          return {
+            'success': false,
+            'message': 'Request timed out. Please try again.',
+          };
+        }
+        if (err is SocketException) {
+          return {
+            'success': false,
+            'message':
+                'Unable to connect. Please check your internet connection.',
+          };
+        }
+        return {
+          'success': false,
+          'message':
+              'Network error. Please check your connection and try again.',
+        };
+      }
+
+      if (result.statusCode == 200) {
+        final data = _decodedPayload(result);
+        final normalized = normalizeDeliveryDescriptionField(
+          extractDeliveryListPayload(data),
+        );
 
         return {
           'success': true,
@@ -911,37 +894,14 @@ class DeliveryService {
           'message': 'Regions fetched successfully',
         };
       } else {
-        final errorData = json.decode(response.body);
+        final errorData = AppErrorUtils.tryDecodeJsonMap(result.rawBody ?? '');
 
         return {
           'success': false,
-          'message': errorData['message'] ?? 'Failed to fetch regions',
+          'message': errorData?['message'] ?? 'Failed to fetch regions',
         };
       }
-    } on TimeoutException catch (e) {
-      // Timeout error - catch this first
-      debugPrint('🔍 DeliveryService: Timeout getting regions: $e');
-      return {
-        'success': false,
-        'message': 'Request timed out. Please try again.',
-      };
-    } on SocketException catch (e) {
-      // DNS/Network error - handle gracefully
-      debugPrint(
-          '🔍 DeliveryService: Network error getting regions (DNS/hostname issue): ${e.message}');
-      return {
-        'success': false,
-        'message': 'Unable to connect. Please check your internet connection.',
-      };
-    } on http.ClientException catch (e) {
-      // Client/network error (this often wraps SocketException)
-      debugPrint('🔍 DeliveryService: Client error getting regions: $e');
-      return {
-        'success': false,
-        'message': 'Network error. Please check your connection and try again.',
-      };
     } catch (e) {
-      // Other errors
       debugPrint('🔍 DeliveryService: Error getting regions: $e');
       return {
         'success': false,
@@ -957,20 +917,16 @@ class DeliveryService {
       debugPrint(
           'API URL: ${ApiConfig.getRegionCitiesUrl(regionId.toString())}');
 
-      final response = await http.get(
-        Uri.parse(ApiConfig.getRegionCitiesUrl(regionId.toString())),
-        headers: {
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 8));
+      final result = await _repository.fetchCitiesByRegion(regionId);
 
-      debugPrint('Get cities response status: ${response.statusCode}');
-      debugPrint('Get cities response body: ${response.body}');
+      debugPrint('Get cities response status: ${result.statusCode}');
+      debugPrint('Get cities response body: ${result.rawBody}');
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final normalized =
-            _normalizeDescriptionField(_extractListPayload(data));
+      if (result.statusCode == 200) {
+        final data = _decodedPayload(result);
+        final normalized = normalizeDeliveryDescriptionField(
+          extractDeliveryListPayload(data),
+        );
         debugPrint('=== API GET CITIES SUCCESS ===');
         debugPrint('Cities data: ${json.encode(data)}');
         debugPrint('==============================');
@@ -981,14 +937,14 @@ class DeliveryService {
           'message': 'Cities fetched successfully',
         };
       } else {
-        final errorData = json.decode(response.body);
+        final errorData = AppErrorUtils.tryDecodeJsonMap(result.rawBody ?? '');
         debugPrint('=== API GET CITIES ERROR ===');
-        debugPrint('Error status code: ${response.statusCode}');
+        debugPrint('Error status code: ${result.statusCode}');
         debugPrint('Error response: ${json.encode(errorData)}');
         debugPrint('============================');
         return {
           'success': false,
-          'message': errorData['message'] ?? 'Failed to fetch cities',
+          'message': errorData?['message'] ?? 'Failed to fetch cities',
         };
       }
     } catch (e) {
@@ -1006,19 +962,16 @@ class DeliveryService {
       debugPrint('Fetching stores for city $cityId from API...');
       debugPrint('API URL: ${ApiConfig.getCityStoresUrl(cityId.toString())}');
 
-      final response = await http.get(
-        Uri.parse(ApiConfig.getCityStoresUrl(cityId.toString())),
-        headers: {
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 8));
+      final result = await _repository.fetchStoresByCity(cityId);
 
-      debugPrint('Get stores response status: ${response.statusCode}');
-      debugPrint('Get stores response body: ${response.body}');
+      debugPrint('Get stores response status: ${result.statusCode}');
+      debugPrint('Get stores response body: ${result.rawBody}');
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final normalized = _normalizeStoreRecords(_extractListPayload(data));
+      if (result.statusCode == 200) {
+        final data = _decodedPayload(result);
+        final normalized = normalizeDeliveryStoreRecords(
+          extractDeliveryListPayload(data),
+        );
         debugPrint('=== API GET STORES SUCCESS ===');
         debugPrint('Stores data: ${json.encode(data)}');
         debugPrint('==============================');
@@ -1029,14 +982,14 @@ class DeliveryService {
           'message': 'Stores fetched successfully',
         };
       } else {
-        final errorData = json.decode(response.body);
+        final errorData = AppErrorUtils.tryDecodeJsonMap(result.rawBody ?? '');
         debugPrint('=== API GET STORES ERROR ===');
-        debugPrint('Error status code: ${response.statusCode}');
+        debugPrint('Error status code: ${result.statusCode}');
         debugPrint('Error response: ${json.encode(errorData)}');
         debugPrint('============================');
         return {
           'success': false,
-          'message': errorData['message'] ?? 'Failed to fetch stores',
+          'message': errorData?['message'] ?? 'Failed to fetch stores',
         };
       }
     } catch (e) {

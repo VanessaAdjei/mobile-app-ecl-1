@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../utils/app_error_utils.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_routes.dart';
@@ -190,36 +191,10 @@ class _WishlistPageState extends State<WishlistPage> {
   }
 
   void _showSnackBar(String message, Color accent) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              accent == _kWishlistAccent
-                  ? Icons.check_circle_outline_rounded
-                  : Icons.error_outline_rounded,
-              color: Colors.white,
-              size: 18,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: accent,
-        duration: const Duration(seconds: 3),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        margin: const EdgeInsets.all(12),
-      ),
+    AppErrorUtils.showSnack(
+      context,
+      message,
+      isError: accent != _kWishlistAccent,
     );
   }
 

@@ -91,8 +91,7 @@ class AuthService {
     bool keychainFailed = false;
     try {
       await _secureStorage.write(key: key, value: value);
-      debugPrint(
-          '[_safeWrite] Wrote to secure storage: key=$key, value=$value');
+      debugPrint('[_safeWrite] Wrote to secure storage: key=$key');
     } on PlatformException catch (e) {
       // handle keychain errors
       if (e.code == '-34018' || e.message?.contains('34018') == true) {
@@ -113,7 +112,7 @@ class AuthService {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('secure_$key', value);
         debugPrint(
-            '[_safeWrite] Wrote to SharedPreferences fallback: key=secure_$key, value=$value');
+            '[_safeWrite] Wrote to SharedPreferences fallback: key=secure_$key');
       } catch (e) {
         debugPrint('SharedPreferences fallback failed for $key: $e');
       }
@@ -690,7 +689,7 @@ class AuthService {
     _lastTokenVerification = DateTime.now();
 
     try {
-      debugPrint('[saveToken] Saving token: $token');
+      debugPrint('[saveToken] Saving token');
       await _safeWrite(authTokenKey, token);
       _startTokenRefreshTimer();
     } catch (e) {
@@ -708,8 +707,7 @@ class AuthService {
         _authToken = token;
         _isLoggedIn = true;
         _lastTokenVerification = DateTime.now();
-        debugPrint(
-            '[forceUpdateAuthState] Token found and state updated: $token');
+        debugPrint('[forceUpdateAuthState] Token found and state updated');
       } else {
         _isLoggedIn = false;
         _authToken = null;
@@ -876,6 +874,123 @@ class AuthService {
         'success': false,
         'message': 'An unexpected error occurred. Please try again.',
       };
+    }
+  }
+
+  /// Sends password-reset instructions to [email] via `/reset-pwd`.
+  static Future<Map<String, dynamic>> requestPasswordReset(String email) async {
+    try {
+      final trimmedEmail = email.trim();
+      if (trimmedEmail.isEmpty) {
+        return {
+          'success': false,
+          'message': 'Please enter your email address',
+        };
+      }
+
+      final response = await HttpClientService.post(
+        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.resetPassword)),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({'email': trimmedEmail}),
+      ).timeout(const Duration(seconds: 30));
+
+      debugPrint('[requestPasswordReset] status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final responseData = AppErrorUtils.tryDecodeJsonMap(response.body);
+        if (responseData == null) {
+          return {
+            'success': true,
+            'message':
+                'Password reset instructions sent! Check your email for further instructions.',
+          };
+        }
+
+        final status = responseData['status']?.toString().toLowerCase();
+        final message = AppErrorUtils.messageFromMap(
+          responseData,
+          fallback:
+              'Password reset instructions sent! Check your email for further instructions.',
+        );
+        final sent = status == 'success' ||
+            message.toLowerCase().contains('sent');
+
+        return sent
+            ? {'success': true, 'message': message}
+            : {'success': false, 'message': message};
+      }
+
+      if (response.statusCode == 404) {
+        return {
+          'success': false,
+          'message':
+              'Email address not found. Please check your email or contact support.',
+        };
+      }
+
+      final responseData = AppErrorUtils.tryDecodeJsonMap(response.body);
+
+      if (response.statusCode == 422) {
+        return {
+          'success': false,
+          'message': AppErrorUtils.messageFromMap(
+            responseData,
+            fallback: 'Invalid email format. Please check your email address.',
+          ),
+        };
+      }
+
+      if (response.statusCode == 429) {
+        return {
+          'success': false,
+          'message': AppErrorUtils.messageFromMap(
+            responseData,
+            fallback:
+                'Too many requests. Please wait a few minutes before trying again.',
+          ),
+          'warning': true,
+        };
+      }
+
+      if (response.statusCode >= 500) {
+        return {
+          'success': false,
+          'message': AppErrorUtils.messageFromMap(
+            responseData,
+            fallback: AppErrorUtils.oopsTryAgainMessage,
+          ),
+        };
+      }
+
+      return {
+        'success': false,
+        'message': AppErrorUtils.messageFromMap(
+          responseData,
+          fallback: 'Failed to send reset instructions. Please try again.',
+        ),
+      };
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message':
+            'Request timed out. Please check your internet connection and try again.',
+        'warning': true,
+      };
+    } on SocketException {
+      return {
+        'success': false,
+        'message':
+            'No internet connection. Please check your network and try again.',
+      };
+    } catch (e) {
+      AppErrorUtils.log('AuthService.requestPasswordReset', e);
+      return AppErrorUtils.failure(
+        e,
+        fallback: 'An unexpected error occurred. Please try again.',
+      );
     }
   }
 
@@ -2188,7 +2303,7 @@ class CODPaymentService {
       } else if (response.statusCode >= 500) {
         return {
           'success': false,
-          'message': 'Server error. Please try again later.',
+          'message': AppErrorUtils.oopsTryAgainMessage,
           'error_code': 'SERVER_ERROR',
           'status_code': response.statusCode,
           'body': response.body,

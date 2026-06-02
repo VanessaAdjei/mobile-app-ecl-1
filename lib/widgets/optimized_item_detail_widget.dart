@@ -13,6 +13,7 @@ import '../services/performance_service.dart';
 import '../viewmodels/item_detail_view_model.dart';
 import 'error_display.dart';
 import 'full_screen_image_viewer.dart';
+import '../utils/app_error_utils.dart';
 
 class OptimizedItemDetailWidget extends StatefulWidget {
   final String urlName;
@@ -131,21 +132,7 @@ class _OptimizedItemDetailWidgetState extends State<OptimizedItemDetailWidget>
   }
 
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.error_outline, color: Colors.white, size: 20),
-            SizedBox(width: 8),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: Colors.red.shade600,
-        duration: Duration(seconds: 3),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
+    AppErrorUtils.showSnack(context, message);
   }
 
   void _incrementQuantity() {

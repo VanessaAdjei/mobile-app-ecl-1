@@ -3,16 +3,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
-import '../config/api_config.dart';
 import '../models/product_model.dart';
-import '../utils/related_products_parser.dart';
 import 'item_detail_service_interface.dart';
 import 'performance_service.dart';
+import 'product_detail_service.dart';
 
 class ItemDetailOptimizationService implements ItemDetailServiceInterface {
   static final ItemDetailOptimizationService _instance =
@@ -28,14 +25,9 @@ class ItemDetailOptimizationService implements ItemDetailServiceInterface {
   static const Duration _relatedProductsCacheDuration = Duration(minutes: 15);
   static const Duration _imagesCacheDuration = Duration(hours: 2);
 
-  // API endpoints
-  static const String _baseUrl =
-      ApiConfig.baseUrl;
-  static const String _productDetailsEndpoint = '/product-details';
-  static const String _relatedProductsEndpoint = '/related-products';
-
   // Performance tracking
   final PerformanceService _performanceService = PerformanceService();
+  final ProductDetailService _detailService = ProductDetailService();
   final Map<String, Timer> _debounceTimers = {};
   final Map<String, bool> _isLoading = {};
 
@@ -236,149 +228,12 @@ class ItemDetailOptimizationService implements ItemDetailServiceInterface {
   }
 
   // Fetch product details from API
-  Future<Product> _fetchProductDetails(String urlName) async {
-    try {
-      final response = await http
-          .get(
-        Uri.parse('$_baseUrl$_productDetailsEndpoint/$urlName'),
-      )
-          .timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw TimeoutException('The request timed out. Please try again.');
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-
-        if (data.containsKey('data')) {
-          final productData = data['data']['product'] ?? {};
-          final inventoryData = data['data']['inventory'] ?? {};
-
-          if (productData.isEmpty || inventoryData.isEmpty) {
-            throw Exception('Product data is incomplete or missing');
-          }
-
-          // Get the product ID from the correct location
-          final productId = productData['product_id'] ??
-              productData['id'] ??
-              inventoryData['product_id'] ??
-              inventoryData['id'] ??
-              inventoryData['inventory_id'] ??
-              0;
-
-          if (productId == 0) {
-            throw Exception('Invalid product ID');
-          }
-
-          // Check all possible locations for otcpom
-          final otcpom = productData['otcpom'] ??
-              inventoryData['otcpom'] ??
-              productData['route'] ??
-              inventoryData['route'] ??
-              '';
-
-          // Extract UOM (Unit of Measure) from possible locations
-          final uom = productData['uom'] ??
-              inventoryData['uom'] ??
-              productData['unit_of_measure'] ??
-              inventoryData['unit_of_measure'] ??
-              '';
-
-          List<String> tags = [];
-          if (productData['tags'] != null && productData['tags'] is List) {
-            tags = List<String>.from(
-                productData['tags'].map((tag) => tag.toString()));
-          }
-
-          final product = Product.fromJson({
-            'id': productId,
-            'name': inventoryData['url_name']
-                    ?.toString()
-                    .replaceAll('-', ' ')
-                    .split(' ')
-                    .map((word) => word.isNotEmpty
-                        ? word[0].toUpperCase() + word.substring(1)
-                        : '')
-                    .join(' ') ??
-                'Unknown Product',
-            'description': productData['description'] ?? '',
-            'url_name': inventoryData['url_name'] ?? '',
-            'status': inventoryData['status'] ?? '',
-            'price': inventoryData['price']?.toString() ?? '0.00',
-            'thumbnail': (productData['images'] != null &&
-                    productData['images'].isNotEmpty)
-                ? productData['images'][0]['url'] ?? ''
-                : '',
-            'tags': tags,
-            'quantity': inventoryData['quantity']?.toString() ?? '',
-            'category': (productData['categories'] != null &&
-                    productData['categories'].isNotEmpty)
-                ? productData['categories'][0]['description'] ?? ''
-                : '',
-            'otcpom': otcpom,
-            'route': productData['route'] ?? '',
-            'batch_no': inventoryData['batch_no'] ?? '',
-            'uom': uom,
-          });
-
-          return product;
-        } else {
-          throw Exception('Invalid response format: missing data field');
-        }
-      } else if (response.statusCode == 404) {
-        throw Exception('Product not found');
-      } else if (response.statusCode >= 500) {
-        throw Exception('Server error occurred. Please try again later.');
-      } else {
-        throw Exception(
-            'Failed to load product details: ${response.statusCode}');
-      }
-    } on TimeoutException {
-      throw Exception(
-          'Request timed out. Please check your internet connection and try again.');
-    } on SocketException {
-      throw Exception(
-          'No internet connection. Please check your network settings.');
-    } catch (e) {
-      throw Exception('Could not load product: $e');
-    }
-  }
+  Future<Product> _fetchProductDetails(String urlName) =>
+      _detailService.fetchProductDetails(urlName);
 
   // Fetch related products from API
-  Future<List<Product>> _fetchRelatedProducts(String urlName) async {
-    try {
-      final response = await http
-          .get(
-        Uri.parse('$_baseUrl$_relatedProductsEndpoint/$urlName'),
-      )
-          .timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException('The request timed out. Please try again.');
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        return RelatedProductsParser.fromResponseBody(
-          data,
-          excludeUrlName: urlName,
-        );
-      } else if (response.statusCode == 404) {
-        return [];
-      } else {
-        return [];
-      }
-    } on TimeoutException {
-      return [];
-    } on SocketException {
-      return [];
-    } catch (e) {
-      return [];
-    }
-  }
+  Future<List<Product>> _fetchRelatedProducts(String urlName) =>
+      _detailService.fetchRelatedProducts(urlName);
 
   // Cache product details
   Future<void> _cacheProduct(String urlName, Product product) async {

@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 
 import 'app_back_button.dart';
 import '../widgets/cart_icon_button.dart';
+import '../utils/app_error_utils.dart';
 
 class AddPaymentPage extends StatefulWidget {
   const AddPaymentPage({super.key});
@@ -77,11 +78,8 @@ class AddPaymentPageState extends State<AddPaymentPage> {
         setState(() {
           _isLoading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Failed to load payment methods: $e'),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
-        ));
+        AppErrorUtils.showSnack(
+            context, 'Failed to load payment methods: $e');
       }
     }
   }
@@ -127,12 +125,9 @@ class AddPaymentPageState extends State<AddPaymentPage> {
       await _savePaymentMethods();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text("Payment method saved successfully"),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
-        ));
+        AppErrorUtils.showSnack(
+            context, "Payment method saved successfully",
+            isError: false);
         setState(() {
           _clearForm();
           _isLoading = false;
@@ -143,12 +138,8 @@ class AddPaymentPageState extends State<AddPaymentPage> {
         setState(() {
           _isLoading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Failed to save payment method: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
-        ));
+        AppErrorUtils.showSnack(
+            context, 'Failed to save payment method: $e');
       }
     }
   }
@@ -183,10 +174,7 @@ class AddPaymentPageState extends State<AddPaymentPage> {
               });
               _savePaymentMethods();
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text("Payment method deleted"),
-                backgroundColor: Colors.red,
-              ));
+              AppErrorUtils.showSnack(context, "Payment method deleted");
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),

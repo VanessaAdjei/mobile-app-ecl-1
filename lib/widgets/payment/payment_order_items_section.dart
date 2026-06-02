@@ -2,7 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../config/api_config.dart';
+import '../../config/app_colors.dart';
 import '../../models/cart_item.dart';
+import 'payment_section_style.dart';
 
 /// Order line items on the payment information screen.
 class PaymentOrderItemsSection extends StatefulWidget {
@@ -31,163 +33,146 @@ class _PaymentOrderItemsSectionState extends State<PaymentOrderItemsSection> {
     final selectedItems = widget.selectedItems;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 6,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Icon(
-                    Icons.shopping_bag,
-                    color: Colors.green[700],
-                    size: 16,
-                  ),
+      margin: PaymentSectionStyle.margin,
+      padding: PaymentSectionStyle.padding,
+      decoration: PaymentSectionStyle.cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 3,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  'ORDER SUMMARY',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: Colors.grey[800],
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (selectedItems.isNotEmpty) ...[
+              ),
+              const SizedBox(width: 8),
               Text(
-                'Items in your order (${selectedItems.length})',
+                'Order summary',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 12,
-                  color: Colors.grey[700],
+                  color: AppColors.primaryDark,
                 ),
               ),
-              const SizedBox(height: 8),
-              ...selectedItems
-                  .take(_showAllItems ? selectedItems.length : 3)
-                  .map(
-                    (item) => Container(
-                      margin: const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.grey[200]!),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[200],
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: CachedNetworkImage(
-                                imageUrl: _imageUrl(item.image),
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
-                                  color: Colors.grey[200],
-                                  child: Center(
-                                    child: SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                          Colors.grey[400]!,
-                                        ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (selectedItems.isNotEmpty) ...[
+            Text(
+              'Items in your order (${selectedItems.length})',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 11,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 6),
+            ...selectedItems.take(_showAllItems ? selectedItems.length : 3).map(
+                  (item) => Container(
+                    margin: const EdgeInsets.only(bottom: 5),
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF4FAF7),
+                      borderRadius: BorderRadius.circular(
+                          PaymentSectionStyle.innerRadius),
+                      border:
+                          Border.all(color: PaymentSectionStyle.borderColor),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEEF9F3),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: CachedNetworkImage(
+                              imageUrl: _imageUrl(item.image),
+                              fit: BoxFit.contain,
+                              placeholder: (context, url) => Container(
+                                color: const Color(0xFFEEF9F3),
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        AppColors.primary
+                                            .withValues(alpha: 0.5),
                                       ),
                                     ),
                                   ),
                                 ),
-                                errorWidget: (context, url, error) => Icon(
-                                  Icons.image_not_supported,
-                                  color: Colors.grey[400],
-                                  size: 16,
-                                ),
+                              ),
+                              errorWidget: (context, url, error) => Icon(
+                                Icons.medical_services_outlined,
+                                color: AppColors.primary.withValues(alpha: 0.4),
+                                size: 14,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item.name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11,
+                                  height: 1.3,
                                 ),
-                                const SizedBox(height: 1),
-                                Text(
-                                  '${item.quantity}x GHS ${item.price.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 10,
-                                  ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                '${item.quantity}x GHS ${item.price.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 9,
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                          Text(
-                            'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                              color: Colors.green[700],
-                            ),
+                        ),
+                        Text(
+                          'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                            color: AppColors.primary,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-              if (selectedItems.length > 3 && !_showAllItems)
-                _ExpandToggle(
-                  label: 'Show ${selectedItems.length - 3} more items',
-                  icon: Icons.expand_more,
-                  color: Colors.blue,
-                  onTap: () => setState(() => _showAllItems = true),
                 ),
-              if (selectedItems.length > 3 && _showAllItems)
-                _ExpandToggle(
-                  label: 'Show less',
-                  icon: Icons.expand_less,
-                  color: Colors.grey,
-                  onTap: () => setState(() => _showAllItems = false),
-                ),
-            ],
+            if (selectedItems.length > 3 && !_showAllItems)
+              _ExpandToggle(
+                label: 'Show ${selectedItems.length - 3} more item(s)',
+                icon: Icons.expand_more,
+                color: Colors.blue,
+                onTap: () => setState(() => _showAllItems = true),
+              ),
+            if (selectedItems.length > 3 && _showAllItems)
+              _ExpandToggle(
+                label: 'Show less',
+                icon: Icons.expand_less,
+                color: Colors.grey,
+                onTap: () => setState(() => _showAllItems = false),
+              ),
           ],
-        ),
+        ],
       ),
     );
   }

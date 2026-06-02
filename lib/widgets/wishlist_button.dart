@@ -5,6 +5,7 @@ import '../services/wishlist_service.dart';
 import '../models/product.dart';
 import '../services/auth_service.dart';
 import '../pages/signinpage.dart';
+import '../utils/app_error_utils.dart';
 
 class WishlistButton extends StatefulWidget {
   final Product product;
@@ -168,12 +169,11 @@ class _WishlistButtonState extends State<WishlistButton> {
   }
 
   void _showSnackBar(String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: color,
-        duration: const Duration(seconds: 2),
-      ),
+    AppErrorUtils.showSnack(
+      context,
+      message,
+      isError: color != Colors.green,
+      duration: const Duration(seconds: 2),
     );
   }
 

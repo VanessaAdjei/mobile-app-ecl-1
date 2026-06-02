@@ -1,7 +1,10 @@
 import '../models/cart_item.dart';
 import '../models/order_status_step.dart';
 import '../models/order_tracking_model.dart';
+import '../models/order_tracking_page_details.dart';
 import '../repositories/order_tracking_repository.dart';
+import '../services/delivery_service.dart';
+import '../utils/order_tracking_page_resolver.dart';
 
 class OrderTrackingService {
   OrderTrackingService([OrderTrackingRepository? repository])
@@ -65,6 +68,24 @@ class OrderTrackingService {
 
   Future<PaymentStatusResult> checkPaymentStatus() {
     return _repository.checkPaymentStatus();
+  }
+
+  Future<String?> fetchOrderStatus(String orderId) {
+    return _repository.fetchOrderStatus(orderId);
+  }
+
+  Future<OrderTrackingPageDetails> fetchPageDetails(
+    Map<String, dynamic> orderDetails,
+  ) {
+    return resolveOrderTrackingPageDetails(orderDetails, _repository);
+  }
+
+  Future<Map<String, dynamic>?> fetchSavedDeliveryInfo() async {
+    final result = await DeliveryService.getLastDeliveryInfo();
+    if (result['success'] == true && result['data'] is Map) {
+      return Map<String, dynamic>.from(result['data'] as Map);
+    }
+    return null;
   }
 
   Future<void> handleOrderConfirmed({

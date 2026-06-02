@@ -4,12 +4,13 @@ import 'package:eclapp/config/app_routes.dart';
 import 'package:eclapp/models/cart_item.dart';
 import 'package:eclapp/models/order_status_step.dart';
 import 'package:eclapp/models/order_tracking_model.dart';
-import 'package:eclapp/widgets/app_header_bar.dart';
+import 'package:eclapp/widgets/checkout_progress_stepper.dart';
 import 'package:eclapp/providers/cart_provider.dart';
 import 'package:eclapp/providers/order_tracking_provider.dart';
 import 'package:eclapp/services/order_tracking_service.dart';
 import 'package:eclapp/services/pending_payment_polling_service.dart';
 import 'package:eclapp/utils/non_ui_error_reporter.dart';
+import 'package:eclapp/utils/app_error_utils.dart';
 import 'package:eclapp/widgets/live_tracking_placeholder_card.dart';
 import 'package:eclapp/widgets/order_confirmed_on_screen_banner.dart';
 import 'package:eclapp/widgets/order_courier_card.dart';
@@ -17,6 +18,7 @@ import 'package:eclapp/widgets/order_status_hero_card.dart';
 import 'package:eclapp/widgets/order_status_timeline.dart';
 import 'package:eclapp/widgets/order_tracking_eta_tiles.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -175,11 +177,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
     }
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Unable to open maps right now.'),
-      ),
-    );
+    AppErrorUtils.showSnack(context, 'Unable to open maps right now.');
   }
 
   bool get _isEmergencyOrder {
@@ -298,30 +296,13 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
       final orderRef = order.orderNumber.isNotEmpty
           ? order.orderNumber
           : order.transactionId;
-      final messenger = ScaffoldMessenger.maybeOf(context);
-      messenger?.hideCurrentSnackBar();
-      messenger?.showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.verified_rounded, color: Colors.white, size: 22),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  orderRef.isEmpty
-                      ? 'Your order has been confirmed'
-                      : 'Order #$orderRef confirmed',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: const Color(0xFF0D7A4C),
-          behavior: SnackBarBehavior.floating,
-          dismissDirection: DismissDirection.down,
-          showCloseIcon: true,
-          duration: const Duration(seconds: 5),
-        ),
+      AppErrorUtils.showSnack(
+        context,
+        orderRef.isEmpty
+            ? 'Your order has been confirmed'
+            : 'Order #$orderRef confirmed',
+        isError: false,
+        duration: const Duration(seconds: 5),
       );
     });
   }
@@ -363,16 +344,11 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
       final messenger = ScaffoldMessenger.maybeOf(context);
       if (messenger == null) return;
 
-      messenger.hideCurrentSnackBar();
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Order #$orderRef placed successfully'),
-          backgroundColor: const Color(0xFF0D7A4C),
-          behavior: SnackBarBehavior.floating,
-          dismissDirection: DismissDirection.down,
-          showCloseIcon: true,
-          duration: const Duration(seconds: 4),
-        ),
+      AppErrorUtils.showSnack(
+        context,
+        'Order #$orderRef placed successfully',
+        isError: false,
+        duration: const Duration(seconds: 4),
       );
       _hasShownOrderPlacedBanner = true;
     });
@@ -385,9 +361,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
       return;
     }
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Unable to open the dialer right now.')),
-    );
+    AppErrorUtils.showSnack(context, 'Unable to open the dialer right now.');
   }
 
   void _goHome() {
@@ -410,217 +384,551 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
     );
   }
 
+  Widget _buildConfirmationHeader() {
+    final topPadding = MediaQuery.paddingOf(context).top;
+
+    return _DelayedFadeInUp(
+      delay: Duration.zero,
+      duration: const Duration(milliseconds: 360),
+      child: Container(
+        padding: EdgeInsets.only(top: topPadding),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.green.shade600,
+              Colors.green.shade700,
+              Colors.green.shade800,
+            ],
+            stops: const [0.0, 0.5, 1.0],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 36,
+                      minHeight: 36,
+                    ),
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    onPressed: _goHome,
+                  ),
+                  Expanded(
+                    child: Text(
+                      'Confirmation',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 36),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+              child: const CheckoutProgressStepper(
+                compact: true,
+                steps: [
+                  'Cart',
+                  'Delivery',
+                  'Payment',
+                  'Confirmation',
+                ],
+                activeStep: 4,
+                completedSteps: {1, 2, 3},
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPendingBody(
     OrderTrackingModel order,
     OrderTrackingProvider provider,
     Color accent,
   ) {
+    const cardRadius = 14.0;
+    const innerRadius = 10.0;
+    const borderColor = Color(0xFFE5E7EB);
+    final orderRef =
+        order.orderNumber.isNotEmpty ? order.orderNumber : order.transactionId;
+
     return RefreshIndicator(
       onRefresh: provider.retry,
       color: accent,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 24),
-            _PulsingIcon(
-              accent: accent,
-              isRefreshing: provider.isRefreshing,
-            ),
-            const SizedBox(height: 28),
-            Text(
-              'Almost there!',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF1A1A1A),
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Hang tight — we\'re confirming your payment.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey.shade600,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            _AnimatedDots(accent: accent),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    accent.withValues(alpha: 0.06),
-                    accent.withValues(alpha: 0.03),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: accent.withValues(alpha: 0.15)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.bolt_rounded, size: 20, color: accent),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Usually ready in seconds',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: accent,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 36),
-            _FadeInUp(
-              duration: const Duration(milliseconds: 500),
-              child: Container(
-                padding: const EdgeInsets.all(24),
+            _staggerReveal(
+              0,
+              Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(cardRadius),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.primaryDark,
+                      AppColors.primary,
+                      const Color(0xFF157A4C),
+                    ],
+                    stops: const [0.0, 0.55, 1.0],
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 16,
+                      color: AppColors.primary.withValues(alpha: 0.22),
+                      blurRadius: 14,
                       offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _BounceInIcon(
+                                continuousPulse:
+                                    provider.isLoading || provider.isRefreshing,
+                                child: _BreathingGlow(
+                                  glowColor: Colors.white,
+                                  child: Container(
+                                    width: 52,
+                                    height: 52,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color:
+                                            Colors.white.withValues(alpha: 0.5),
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(8),
+                                      child: Image.asset(
+                                        'assets/images/png.png',
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (_, __, ___) => Icon(
+                                          Icons.local_pharmacy_rounded,
+                                          color: AppColors.primary,
+                                          size: 24,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Confirming payment',
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        height: 1.2,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      provider.isLoading ||
+                                              provider.isRefreshing
+                                          ? 'Checking with your payment provider…'
+                                          : 'Waiting for payment verification',
+                                      style: GoogleFonts.poppins(
+                                        color:
+                                            Colors.white.withValues(alpha: 0.9),
+                                        fontSize: 11,
+                                        height: 1.35,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    ),
+                                    if (provider.isLoading ||
+                                        provider.isRefreshing) ...[
+                                      const SizedBox(height: 8),
+                                      _AnimatedWaitingDots(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.85),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                          child: _PendingStatusTrack(
+                            isChecking:
+                                provider.isLoading || provider.isRefreshing,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const _HeroShimmerSweep(),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            _staggerReveal(
+              1,
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(cardRadius),
+                  border: Border.all(color: borderColor),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x0A000000),
+                      blurRadius: 6,
+                      offset: Offset(0, 1),
                     ),
                   ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Order #${order.orderNumber}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1A1A1A),
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 3,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Order summary',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
+                        if (order.items.isNotEmpty) ...[
+                          const Spacer(),
+                          Text(
+                            '${order.totalQuantity} item${order.totalQuantity == 1 ? '' : 's'}',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey.shade600,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${order.totalQuantity} item${order.totalQuantity == 1 ? '' : 's'} • GHS ${order.totalAmount.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade600,
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            Color(0xFFF4FAF7),
+                            Color(0xFFEEF9F3),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(innerRadius),
+                        border: Border.all(color: const Color(0xFFBBEAD3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: borderColor),
+                            ),
+                            child: Icon(
+                              Icons.receipt_long_outlined,
+                              size: 14,
+                              color: AppColors.primaryDark,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  orderRef.isNotEmpty
+                                      ? 'Order #$orderRef'
+                                      : 'Order reference pending',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF1A1F1C),
+                                  ),
+                                ),
+                                Text(
+                                  'GHS ${order.totalAmount.toStringAsFixed(2)} total',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     if (order.items.isNotEmpty) ...[
-                      const SizedBox(height: 20),
-                      Divider(height: 1, color: Colors.grey.shade200),
-                      const SizedBox(height: 16),
-                      ...order.items.map((item) => _OrderItemRow(item: item)),
+                      const SizedBox(height: 8),
+                      _PendingOrderItemsList(items: order.items),
                     ],
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 28),
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: IgnorePointer(
-                    ignoring: provider.isRefreshing,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: provider.retry,
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          decoration: BoxDecoration(
-                            color: provider.isRefreshing
-                                ? accent.withValues(alpha: 0.6)
-                                : accent,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              if (provider.isRefreshing)
-                                const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white),
-                                  ),
-                                )
-                              else
-                                const Icon(
-                                  Icons.refresh_rounded,
-                                  size: 20,
-                                  color: Colors.white,
-                                ),
-                              const SizedBox(width: 8),
-                              Text(
-                                provider.isRefreshing
-                                    ? 'Checking…'
-                                    : 'Check status',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 15,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+            const SizedBox(height: 10),
+            _staggerReveal(
+              2,
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF9F3),
+                  borderRadius: BorderRadius.circular(innerRadius),
+                  border: Border.all(color: const Color(0xFFBBEAD3)),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _goHome,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 15,
+                      color: AppColors.primaryDark,
+                    ).animate().shake(
+                        hz: 1.2, duration: 520.ms, curve: Curves.easeOut),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: RichText(
+                        text: TextSpan(
+                          style: TextStyle(
+                            fontSize: 11,
+                            height: 1.4,
+                            color: Colors.grey.shade700,
+                          ),
                           children: [
-                            Icon(
-                              Icons.home_rounded,
-                              size: 20,
-                              color: Colors.grey.shade700,
+                            const TextSpan(
+                              text:
+                                  'This will just take a few seconds. You can stay here or go ',
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Home',
-                              style: TextStyle(
-                                color: Colors.grey.shade800,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 15,
+                            WidgetSpan(
+                              alignment: PlaceholderAlignment.middle,
+                              child: GestureDetector(
+                                onTap: _goHome,
+                                behavior: HitTestBehavior.opaque,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      width: 52,
+                                      height: 26,
+                                      child: Image.asset(
+                                        'assets/images/png.png',
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (_, __, ___) => Icon(
+                                          Icons.home_rounded,
+                                          size: 22,
+                                          color: AppColors.primaryDark,
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      ' Home',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 11,
+                                        height: 1.4,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.primaryDark,
+                                        decoration: TextDecoration.underline,
+                                        decorationColor: AppColors.primary
+                                            .withValues(alpha: 0.45),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
+                            ),
+                            const TextSpan(
+                              text:
+                                  ' — we will keep checking in the background.',
                             ),
                           ],
                         ),
                       ),
                     ),
+                  ],
+                ),
+              ),
+            ),
+            if (provider.errorMessage != null &&
+                provider.errorMessage!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _staggerReveal(
+                3,
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(innerRadius),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.wifi_tethering_error_rounded,
+                        size: 16,
+                        color: Colors.orange.shade800,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          provider.errorMessage!,
+                          style: TextStyle(
+                            fontSize: 11,
+                            height: 1.35,
+                            color: Colors.orange.shade900,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
+            ],
+            const SizedBox(height: 16),
+            _staggerReveal(
+              provider.errorMessage != null && provider.errorMessage!.isNotEmpty
+                  ? 4
+                  : 3,
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: SizedBox(
+                      height: 44,
+                      child: FilledButton.icon(
+                        onPressed:
+                            provider.isRefreshing ? null : provider.retry,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          disabledBackgroundColor:
+                              AppColors.primary.withValues(alpha: 0.55),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: provider.isRefreshing
+                            ? SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                ),
+                              )
+                            : const Icon(Icons.refresh_rounded, size: 18),
+                        label: Text(
+                          provider.isRefreshing ? 'Checking…' : 'Check status',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(
+                            begin: const Offset(1, 1),
+                            end: const Offset(1.02, 1.02),
+                            duration: 1400.ms,
+                            curve: Curves.easeInOut,
+                          ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SizedBox(
+                      height: 44,
+                      child: OutlinedButton.icon(
+                        onPressed: _goHome,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey.shade800,
+                          side: BorderSide(color: Colors.grey.shade300),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: Icon(Icons.home_rounded,
+                            size: 18, color: Colors.grey.shade700),
+                        label: const Text(
+                          'Home',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -629,226 +937,371 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
   }
 
   Widget _buildFailedBody(OrderTrackingModel order, Color accent) {
+    const cardRadius = 14.0;
+    const innerRadius = 10.0;
+    const borderColor = Color(0xFFE5E7EB);
+    const failRed = Color(0xFFDC2626);
+    const failRedDark = Color(0xFFB91C1C);
+    final orderRef =
+        order.orderNumber.isNotEmpty ? order.orderNumber : order.transactionId;
+    final failureMessage = order.stageMessage.trim().isNotEmpty
+        ? order.stageMessage
+        : 'Your payment could not be completed. No charge was made.';
+
     return RefreshIndicator(
       onRefresh: _provider.retry,
-      color: accent,
+      color: failRed,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _FadeInUp(
-              child: Container(
-                padding: const EdgeInsets.all(28),
+            _staggerReveal(
+              0,
+              Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(cardRadius),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      failRedDark,
+                      failRed,
+                      Color(0xFFEF4444),
+                    ],
+                    stops: [0.0, 0.55, 1.0],
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 20,
+                      color: failRed.withValues(alpha: 0.22),
+                      blurRadius: 14,
                       offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-                child: Column(
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
                   children: [
-                    _BounceInIcon(
-                      continuousPulse: true,
-                      child: Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          shape: BoxShape.circle,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _ShakeInIcon(
+                                child: _BounceInIcon(
+                                  continuousPulse: true,
+                                  child: _BreathingGlow(
+                                    glowColor: Colors.white,
+                                    child: Container(
+                                      width: 52,
+                                      height: 52,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.white
+                                              .withValues(alpha: 0.5),
+                                          width: 2,
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        Icons.credit_card_off_rounded,
+                                        color: failRed,
+                                        size: 26,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Payment unsuccessful',
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        height: 1.2,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      failureMessage,
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.92),
+                                        fontSize: 11,
+                                        height: 1.35,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        child: Icon(
-                          Icons.error_outline_rounded,
-                          size: 36,
-                          color: Colors.red.shade600,
+                        Container(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                          child: const _FailedStatusTrack(),
                         ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Payment unsuccessful',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF1A1A1A),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'No worries — you can try again or use a different payment method. We\'re here if you need help.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade600,
-                        height: 1.5,
-                      ),
-                    ),
+                    const _HeroShimmerSweep(),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 24),
-            _DelayedFadeInUp(
-              delay: const Duration(milliseconds: 150),
-              duration: const Duration(milliseconds: 450),
-              child: Container(
-                padding: const EdgeInsets.all(20),
+            const SizedBox(height: 10),
+            _staggerReveal(
+              1,
+              Container(
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
+                  borderRadius: BorderRadius.circular(cardRadius),
+                  border: Border.all(color: borderColor),
+                  boxShadow: const [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
+                      color: Color(0x0A000000),
+                      blurRadius: 6,
+                      offset: Offset(0, 1),
                     ),
                   ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Order #${order.orderNumber}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1A1A1A),
+                    Row(
+                      children: [
+                        Container(
+                          width: 3,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: failRed,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Order summary',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            color: failRedDark,
+                          ),
+                        ),
+                        if (order.items.isNotEmpty) ...[
+                          const Spacer(),
+                          Text(
+                            '${order.totalQuantity} item${order.totalQuantity == 1 ? '' : 's'}',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey.shade600,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            Color(0xFFFFF6F5),
+                            Color(0xFFFFF1F2),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(innerRadius),
+                        border: Border.all(color: const Color(0xFFFECACA)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFFFECACA)),
+                            ),
+                            child: Icon(
+                              Icons.receipt_long_outlined,
+                              size: 14,
+                              color: failRedDark,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  orderRef.isNotEmpty
+                                      ? 'Order #$orderRef'
+                                      : 'Order reference unavailable',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF1A1F1C),
+                                  ),
+                                ),
+                                Text(
+                                  'GHS ${order.totalAmount.toStringAsFixed(2)} total',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${order.totalQuantity} item${order.totalQuantity == 1 ? '' : 's'} • GHS ${order.totalAmount.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade600,
+                    if (order.items.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      _PendingOrderItemsList(
+                        items: order.items,
+                        failedStyle: true,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            _staggerReveal(
+              2,
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1F2),
+                  borderRadius: BorderRadius.circular(innerRadius),
+                  border: Border.all(color: const Color(0xFFFECDD3)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 15,
+                      color: failRedDark,
+                    ).animate().shake(
+                        hz: 1.2, duration: 520.ms, curve: Curves.easeOut),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'No charge was made. Your items are still in your cart — retry payment or choose a different method.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.4,
+                          color: Colors.grey.shade700,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-            if (order.items.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              _DelayedFadeInUp(
-                delay: const Duration(milliseconds: 280),
-                duration: const Duration(milliseconds: 450),
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Items in this order',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      ...order.items.map((item) => _OrderItemRow(item: item)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(height: 28),
-            _DelayedFadeInUp(
-              delay: const Duration(milliseconds: 400),
-              duration: const Duration(milliseconds: 450),
-              child: Row(
+            const SizedBox(height: 16),
+            _staggerReveal(
+              3,
+              Row(
                 children: [
                   Expanded(
                     flex: 2,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: _goToCart,
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.red.shade600,
+                    child: SizedBox(
+                      height: 44,
+                      child: FilledButton.icon(
+                        onPressed: _goToCart,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: failRed,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.refresh_rounded,
-                                size: 20,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Retry payment',
-                                style: GoogleFonts.poppins(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 15,
-                                ),
-                              ),
-                            ],
                           ),
                         ),
-                      ),
+                        icon: const Icon(Icons.refresh_rounded, size: 18),
+                        label: const Text(
+                          'Retry payment',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(
+                            begin: const Offset(1, 1),
+                            end: const Offset(1.02, 1.02),
+                            duration: 1400.ms,
+                            curve: Curves.easeInOut,
+                          ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: _goHome,
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
+                    child: SizedBox(
+                      height: 44,
+                      child: OutlinedButton.icon(
+                        onPressed: _goHome,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey.shade800,
+                          side: BorderSide(color: Colors.grey.shade300),
+                          shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.home_rounded,
-                                size: 20,
-                                color: Colors.grey.shade700,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Home',
-                                style: GoogleFonts.poppins(
-                                  color: Colors.grey.shade800,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 15,
-                                ),
-                              ),
-                            ],
+                        ),
+                        icon: Icon(Icons.home_rounded,
+                            size: 18, color: Colors.grey.shade700),
+                        label: const Text(
+                          'Home',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
                           ),
                         ),
                       ),
                     ),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            _staggerReveal(
+              4,
+              Center(
+                child: TextButton.icon(
+                  onPressed: _callSupport,
+                  icon: Icon(Icons.phone_in_talk_rounded,
+                      size: 16, color: failRedDark),
+                  label: Text(
+                    'Call support',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: failRedDark,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -2049,31 +2502,21 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
           final isTerminalSuccess = order.stage == OrderTrackingStage.delivered;
           final showPickedUp = isPickup && isTerminalSuccess;
           final showDelivered = !isPickup && isTerminalSuccess;
-          final showPickupReady =
-              isPickup && !showPickedUp && _isPickupReadyForCollection(order);
+
+          final isFailed = order.stage == OrderTrackingStage.failed;
 
           return Scaffold(
-            backgroundColor: (showPickedUp || showDelivered)
-                ? const Color(0xFFF0F4F2)
-                : const Color(0xFFEEF1F3),
-            appBar: AppHeaderBar.forScaffold(
-              context,
-              title: showPickedUp
-                  ? 'Picked up'
-                  : showDelivered
-                      ? 'Order delivered'
-                      : showPickupReady
-                          ? 'Ready for pickup'
-                          : 'Confirmation',
-              showCart: false,
-              onBack: _goHome,
-              background: (showPickedUp || showDelivered)
-                  ? AppHeaderBackground.accent
-                  : AppHeaderBackground.standard,
-            ),
+            backgroundColor: isFailed
+                ? const Color(0xFFFFF6F5)
+                : provider.isAwaitingPaymentConfirmation
+                    ? const Color(0xFFF4FAF7)
+                    : (showPickedUp || showDelivered)
+                        ? const Color(0xFFF0F4F2)
+                        : const Color(0xFFEEF1F3),
             body: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                _buildConfirmationHeader(),
                 if (_isEmergencyOrder)
                   Container(
                     width: double.infinity,
@@ -2105,600 +2548,553 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                     ),
                   ),
                 Expanded(
-                  child: provider.isLoading &&
-                          provider.isAwaitingPaymentConfirmation
-                      ? const Center(child: CircularProgressIndicator())
-                      : order.stage == OrderTrackingStage.failed
-                          ? _buildFailedBody(order, accent)
-                          : provider.isAwaitingPaymentConfirmation
-                              ? _buildPendingBody(order, provider, accent)
-                              : _isPickupOrderFor(order)
-                                  ? (order.stage == OrderTrackingStage.delivered
-                                      ? _buildPickedUpBody(order)
-                                      : _buildPickupTrackingBody(
-                                          order,
-                                          provider,
-                                          accent,
-                                        ))
-                                  : order.stage == OrderTrackingStage.delivered
-                                      ? _buildDeliveredBody(order, accent)
-                                      : Stack(
-                                          children: [
-                                            Positioned.fill(
-                                              child: TrackingMap(
-                                                order: order,
-                                                accent: accent,
-                                                showShopLocation: false,
-                                              ),
-                                            ),
-                                            Positioned(
-                                              bottom: 16,
-                                              right: 16,
-                                              child: Material(
-                                                elevation: 6,
-                                                shadowColor: Colors.black
-                                                    .withValues(alpha: 0.2),
-                                                shape: const CircleBorder(),
-                                                color: accent,
-                                                child: InkWell(
-                                                  onTap: _callSupport,
-                                                  customBorder:
-                                                      const CircleBorder(),
-                                                  child: const Padding(
-                                                    padding: EdgeInsets.all(12),
-                                                    child: Icon(
-                                                      Icons.phone_rounded,
-                                                      color: Colors.white,
-                                                      size: 22,
-                                                    ),
-                                                  ),
+                  child: order.stage == OrderTrackingStage.failed
+                      ? _buildFailedBody(order, accent)
+                      : provider.isAwaitingPaymentConfirmation
+                          ? _buildPendingBody(order, provider, accent)
+                          : _isPickupOrderFor(order)
+                              ? (order.stage == OrderTrackingStage.delivered
+                                  ? _buildPickedUpBody(order)
+                                  : _buildPickupTrackingBody(
+                                      order,
+                                      provider,
+                                      accent,
+                                    ))
+                              : order.stage == OrderTrackingStage.delivered
+                                  ? _buildDeliveredBody(order, accent)
+                                  : Stack(
+                                      children: [
+                                        Positioned.fill(
+                                          child: TrackingMap(
+                                            order: order,
+                                            accent: accent,
+                                            showShopLocation: false,
+                                          ),
+                                        ),
+                                        Positioned(
+                                          bottom: 16,
+                                          right: 16,
+                                          child: Material(
+                                            elevation: 6,
+                                            shadowColor: Colors.black
+                                                .withValues(alpha: 0.2),
+                                            shape: const CircleBorder(),
+                                            color: accent,
+                                            child: InkWell(
+                                              onTap: _callSupport,
+                                              customBorder:
+                                                  const CircleBorder(),
+                                              child: const Padding(
+                                                padding: EdgeInsets.all(12),
+                                                child: Icon(
+                                                  Icons.phone_rounded,
+                                                  color: Colors.white,
+                                                  size: 22,
                                                 ),
                                               ),
                                             ),
-                                            DraggableScrollableSheet(
-                                              initialChildSize: 0.4,
-                                              minChildSize: 0.3,
-                                              maxChildSize: 0.88,
-                                              builder:
-                                                  (context, scrollController) {
-                                                return Container(
-                                                  decoration: BoxDecoration(
-                                                    color:
-                                                        const Color(0xFFF8FAF9),
-                                                    borderRadius:
-                                                        const BorderRadius
-                                                            .vertical(
-                                                      top: Radius.circular(20),
+                                          ),
+                                        ),
+                                        DraggableScrollableSheet(
+                                          initialChildSize: 0.4,
+                                          minChildSize: 0.3,
+                                          maxChildSize: 0.88,
+                                          builder: (context, scrollController) {
+                                            return Container(
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFF8FAF9),
+                                                borderRadius:
+                                                    const BorderRadius.vertical(
+                                                  top: Radius.circular(20),
+                                                ),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: Colors.black
+                                                        .withValues(
+                                                            alpha: 0.06),
+                                                    blurRadius: 24,
+                                                    offset: const Offset(0, -4),
+                                                  ),
+                                                ],
+                                              ),
+                                              child: RefreshIndicator(
+                                                onRefresh: provider
+                                                        .isAwaitingPaymentConfirmation
+                                                    ? provider.retry
+                                                    : provider.refreshTracking,
+                                                color: accent,
+                                                child: ListView(
+                                                  controller: scrollController,
+                                                  padding:
+                                                      const EdgeInsets.fromLTRB(
+                                                          16, 8, 16, 16),
+                                                  children: [
+                                                    Center(
+                                                      child: Container(
+                                                        width: 32,
+                                                        height: 3,
+                                                        margin: const EdgeInsets
+                                                            .only(bottom: 8),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: Colors
+                                                              .grey.shade400,
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(2),
+                                                        ),
+                                                      ),
                                                     ),
-                                                    boxShadow: [
-                                                      BoxShadow(
-                                                        color: Colors.black
-                                                            .withValues(
-                                                                alpha: 0.06),
-                                                        blurRadius: 24,
-                                                        offset:
-                                                            const Offset(0, -4),
+                                                    ..._orderConfirmedBannerWidgets(
+                                                        order),
+                                                    _FadeInUp(
+                                                      duration: const Duration(
+                                                        milliseconds: 380,
+                                                      ),
+                                                      child:
+                                                          OrderStatusHeroCard(
+                                                        order: order,
+                                                        compact: true,
+                                                        accentOverride: accent,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    OrderTrackingEtaTiles(
+                                                      order: order,
+                                                      accent: accent,
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    OrderCourierCard(
+                                                      order: order,
+                                                      accent: accent,
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    if (order.stage ==
+                                                            OrderTrackingStage
+                                                                .outForDelivery &&
+                                                        order.deliveryOtp !=
+                                                            null &&
+                                                        order.deliveryOtp!
+                                                            .isNotEmpty) ...[
+                                                      const SizedBox(height: 8),
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                          horizontal: 16,
+                                                          vertical: 14,
+                                                        ),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: Colors.white,
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(12),
+                                                          border: Border.all(
+                                                            color: Colors
+                                                                .grey.shade200,
+                                                            width: 1,
+                                                          ),
+                                                          boxShadow: [
+                                                            BoxShadow(
+                                                              color: Colors
+                                                                  .black
+                                                                  .withValues(
+                                                                      alpha:
+                                                                          0.03),
+                                                              blurRadius: 8,
+                                                              offset:
+                                                                  const Offset(
+                                                                      0, 2),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .center,
+                                                          children: [
+                                                            Text(
+                                                              'DELIVERY CODE',
+                                                              style: GoogleFonts
+                                                                  .poppins(
+                                                                fontSize: 10,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                letterSpacing:
+                                                                    1.2,
+                                                                color: Colors
+                                                                    .grey
+                                                                    .shade500,
+                                                              ),
+                                                            ),
+                                                            const SizedBox(
+                                                                height: 10),
+                                                            Text(
+                                                              order
+                                                                  .deliveryOtp!,
+                                                              style: GoogleFonts
+                                                                  .poppins(
+                                                                fontSize: 22,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w700,
+                                                                letterSpacing:
+                                                                    6,
+                                                                color: accent,
+                                                                height: 1.2,
+                                                              ),
+                                                            ),
+                                                            const SizedBox(
+                                                                height: 8),
+                                                            Text(
+                                                              'Show to rider on delivery',
+                                                              style: TextStyle(
+                                                                fontSize: 11,
+                                                                color: Colors
+                                                                    .grey
+                                                                    .shade500,
+                                                                letterSpacing:
+                                                                    0.2,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
                                                       ),
                                                     ],
-                                                  ),
-                                                  child: RefreshIndicator(
-                                                    onRefresh: provider
-                                                            .isAwaitingPaymentConfirmation
-                                                        ? provider.retry
-                                                        : provider
-                                                            .refreshTracking,
-                                                    color: accent,
-                                                    child: ListView(
-                                                      controller:
-                                                          scrollController,
-                                                      padding: const EdgeInsets
-                                                          .fromLTRB(
-                                                          16, 8, 16, 16),
-                                                      children: [
-                                                        Center(
-                                                          child: Container(
-                                                            width: 32,
-                                                            height: 3,
-                                                            margin:
-                                                                const EdgeInsets
-                                                                    .only(
-                                                                    bottom: 8),
-                                                            decoration:
-                                                                BoxDecoration(
-                                                              color: Colors.grey
-                                                                  .shade400,
-                                                              borderRadius:
-                                                                  BorderRadius
-                                                                      .circular(
-                                                                          2),
-                                                            ),
-                                                          ),
-                                                        ),
-                                                        ..._orderConfirmedBannerWidgets(
-                                                            order),
-                                                        _FadeInUp(
-                                                          duration:
-                                                              const Duration(
-                                                            milliseconds: 380,
-                                                          ),
-                                                          child:
-                                                              OrderStatusHeroCard(
-                                                            order: order,
-                                                            compact: true,
-                                                            accentOverride:
+                                                    if (order.stage ==
+                                                        OrderTrackingStage
+                                                            .failed) ...[
+                                                      const SizedBox(
+                                                          height: 12),
+                                                      _SheetBanner(
+                                                        icon: Icons
+                                                            .warning_amber_rounded,
+                                                        message:
+                                                            'Your payment could not be completed.',
+                                                        actionLabel: 'Retry',
+                                                        onAction: _goToCart,
+                                                        accent:
+                                                            Colors.red.shade700,
+                                                      ),
+                                                    ] else if (provider
+                                                                .errorMessage !=
+                                                            null &&
+                                                        provider.errorMessage!
+                                                            .isNotEmpty) ...[
+                                                      const SizedBox(
+                                                          height: 12),
+                                                      _SheetBanner(
+                                                        icon: Icons
+                                                            .wifi_tethering_error_rounded,
+                                                        message: provider
+                                                            .errorMessage!,
+                                                        actionLabel: provider
+                                                                .isAwaitingPaymentConfirmation
+                                                            ? 'Check status'
+                                                            : 'Refresh',
+                                                        onAction: provider
+                                                                .isAwaitingPaymentConfirmation
+                                                            ? provider.retry
+                                                            : provider
+                                                                .refreshTracking,
+                                                        accent: Colors
+                                                            .orange.shade700,
+                                                      ),
+                                                    ] else if (provider
+                                                        .isAwaitingPaymentConfirmation) ...[
+                                                      const SizedBox(
+                                                          height: 12),
+                                                      SizedBox(
+                                                        width: double.infinity,
+                                                        child:
+                                                            ElevatedButton.icon(
+                                                          onPressed: provider
+                                                                  .isRefreshing
+                                                              ? null
+                                                              : provider.retry,
+                                                          style: ElevatedButton
+                                                              .styleFrom(
+                                                            backgroundColor:
                                                                 accent,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                            height: 8),
-                                                        OrderTrackingEtaTiles(
-                                                          order: order,
-                                                          accent: accent,
-                                                        ),
-                                                        const SizedBox(
-                                                            height: 8),
-                                                        OrderCourierCard(
-                                                          order: order,
-                                                          accent: accent,
-                                                        ),
-                                                        const SizedBox(
-                                                            height: 8),
-                                                        if (order.stage ==
-                                                                OrderTrackingStage
-                                                                    .outForDelivery &&
-                                                            order.deliveryOtp !=
-                                                                null &&
-                                                            order.deliveryOtp!
-                                                                .isNotEmpty) ...[
-                                                          const SizedBox(
-                                                              height: 8),
-                                                          Container(
+                                                            foregroundColor:
+                                                                Colors.white,
+                                                            elevation: 0,
                                                             padding:
                                                                 const EdgeInsets
                                                                     .symmetric(
-                                                              horizontal: 16,
-                                                              vertical: 14,
+                                                              vertical: 12,
                                                             ),
-                                                            decoration:
-                                                                BoxDecoration(
-                                                              color:
-                                                                  Colors.white,
+                                                            shape:
+                                                                RoundedRectangleBorder(
                                                               borderRadius:
                                                                   BorderRadius
                                                                       .circular(
                                                                           12),
-                                                              border:
-                                                                  Border.all(
-                                                                color: Colors
-                                                                    .grey
-                                                                    .shade200,
-                                                                width: 1,
-                                                              ),
-                                                              boxShadow: [
-                                                                BoxShadow(
-                                                                  color: Colors
-                                                                      .black
-                                                                      .withValues(
-                                                                          alpha:
-                                                                              0.03),
-                                                                  blurRadius: 8,
-                                                                  offset:
-                                                                      const Offset(
-                                                                          0, 2),
-                                                                ),
-                                                              ],
                                                             ),
-                                                            child: Column(
+                                                          ),
+                                                          icon: Icon(
+                                                            provider.isRefreshing
+                                                                ? Icons
+                                                                    .sync_rounded
+                                                                : Icons
+                                                                    .refresh_rounded,
+                                                            size: 20,
+                                                          ),
+                                                          label: Text(
+                                                            provider.isRefreshing
+                                                                ? 'Checking'
+                                                                : 'Check status',
+                                                            style:
+                                                                const TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              letterSpacing:
+                                                                  0.3,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                    const SizedBox(height: 4),
+                                                    Container(
+                                                      padding: const EdgeInsets
+                                                          .fromLTRB(9, 7, 9, 7),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.white,
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(10),
+                                                        boxShadow: [
+                                                          BoxShadow(
+                                                            color: Colors.black
+                                                                .withValues(
+                                                                    alpha:
+                                                                        0.04),
+                                                            blurRadius: 12,
+                                                            offset:
+                                                                const Offset(
+                                                                    0, 4),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(
+                                                            'Order progress',
+                                                            style: GoogleFonts
+                                                                .poppins(
+                                                              fontSize: 11.5,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              color: Colors.grey
+                                                                  .shade700,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                              height: 2),
+                                                          OrderStatusTimeline(
+                                                            steps: order
+                                                                .timelineSteps,
+                                                            accent: accent,
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    if (order
+                                                        .items.isNotEmpty) ...[
+                                                      const SizedBox(height: 6),
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .fromLTRB(
+                                                                12, 10, 12, 10),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: Colors.white,
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(10),
+                                                          border: Border.all(
+                                                            color: Colors
+                                                                .grey.shade100,
+                                                            width: 1,
+                                                          ),
+                                                          boxShadow: [
+                                                            BoxShadow(
+                                                              color: Colors
+                                                                  .black
+                                                                  .withValues(
+                                                                      alpha:
+                                                                          0.02),
+                                                              blurRadius: 6,
+                                                              offset:
+                                                                  const Offset(
+                                                                      0, 1),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            Row(
+                                                              mainAxisAlignment:
+                                                                  MainAxisAlignment
+                                                                      .spaceBetween,
                                                               crossAxisAlignment:
                                                                   CrossAxisAlignment
                                                                       .center,
                                                               children: [
                                                                 Text(
-                                                                  'DELIVERY CODE',
+                                                                  'Order items',
                                                                   style: GoogleFonts
                                                                       .poppins(
                                                                     fontSize:
-                                                                        10,
+                                                                        11,
                                                                     fontWeight:
                                                                         FontWeight
                                                                             .w600,
                                                                     letterSpacing:
-                                                                        1.2,
+                                                                        0.3,
                                                                     color: Colors
                                                                         .grey
-                                                                        .shade500,
+                                                                        .shade600,
                                                                   ),
                                                                 ),
-                                                                const SizedBox(
-                                                                    height: 10),
-                                                                Text(
-                                                                  order
-                                                                      .deliveryOtp!,
-                                                                  style: GoogleFonts
-                                                                      .poppins(
-                                                                    fontSize:
-                                                                        22,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .w700,
-                                                                    letterSpacing:
-                                                                        6,
-                                                                    color:
-                                                                        accent,
-                                                                    height: 1.2,
-                                                                  ),
-                                                                ),
-                                                                const SizedBox(
-                                                                    height: 8),
-                                                                Text(
-                                                                  'Show to rider on delivery',
-                                                                  style:
-                                                                      TextStyle(
-                                                                    fontSize:
-                                                                        11,
-                                                                    color: Colors
-                                                                        .grey
-                                                                        .shade500,
-                                                                    letterSpacing:
-                                                                        0.2,
-                                                                  ),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                        ],
-                                                        if (order.stage ==
-                                                            OrderTrackingStage
-                                                                .failed) ...[
-                                                          const SizedBox(
-                                                              height: 12),
-                                                          _SheetBanner(
-                                                            icon: Icons
-                                                                .warning_amber_rounded,
-                                                            message:
-                                                                'Your payment could not be completed.',
-                                                            actionLabel:
-                                                                'Retry',
-                                                            onAction: _goToCart,
-                                                            accent: Colors
-                                                                .red.shade700,
-                                                          ),
-                                                        ] else if (provider
-                                                                    .errorMessage !=
-                                                                null &&
-                                                            provider
-                                                                .errorMessage!
-                                                                .isNotEmpty) ...[
-                                                          const SizedBox(
-                                                              height: 12),
-                                                          _SheetBanner(
-                                                            icon: Icons
-                                                                .wifi_tethering_error_rounded,
-                                                            message: provider
-                                                                .errorMessage!,
-                                                            actionLabel: provider
-                                                                    .isAwaitingPaymentConfirmation
-                                                                ? 'Check status'
-                                                                : 'Refresh',
-                                                            onAction: provider
-                                                                    .isAwaitingPaymentConfirmation
-                                                                ? provider.retry
-                                                                : provider
-                                                                    .refreshTracking,
-                                                            accent: Colors
-                                                                .orange
-                                                                .shade700,
-                                                          ),
-                                                        ] else if (provider
-                                                            .isAwaitingPaymentConfirmation) ...[
-                                                          const SizedBox(
-                                                              height: 12),
-                                                          SizedBox(
-                                                            width:
-                                                                double.infinity,
-                                                            child:
-                                                                ElevatedButton
-                                                                    .icon(
-                                                              onPressed: provider
-                                                                      .isRefreshing
-                                                                  ? null
-                                                                  : provider
-                                                                      .retry,
-                                                              style:
-                                                                  ElevatedButton
-                                                                      .styleFrom(
-                                                                backgroundColor:
-                                                                    accent,
-                                                                foregroundColor:
-                                                                    Colors
-                                                                        .white,
-                                                                elevation: 0,
-                                                                padding:
-                                                                    const EdgeInsets
-                                                                        .symmetric(
-                                                                  vertical: 12,
-                                                                ),
-                                                                shape:
-                                                                    RoundedRectangleBorder(
-                                                                  borderRadius:
-                                                                      BorderRadius
-                                                                          .circular(
-                                                                              12),
-                                                                ),
-                                                              ),
-                                                              icon: Icon(
-                                                                provider.isRefreshing
-                                                                    ? Icons
-                                                                        .sync_rounded
-                                                                    : Icons
-                                                                        .refresh_rounded,
-                                                                size: 20,
-                                                              ),
-                                                              label: Text(
-                                                                provider.isRefreshing
-                                                                    ? 'Checking'
-                                                                    : 'Check status',
-                                                                style:
-                                                                    const TextStyle(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600,
-                                                                  letterSpacing:
-                                                                      0.3,
-                                                                ),
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        ],
-                                                        const SizedBox(
-                                                            height: 4),
-                                                        Container(
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .fromLTRB(
-                                                                  9, 7, 9, 7),
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            color: Colors.white,
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        10),
-                                                            boxShadow: [
-                                                              BoxShadow(
-                                                                color: Colors
-                                                                    .black
-                                                                    .withValues(
-                                                                        alpha:
-                                                                            0.04),
-                                                                blurRadius: 12,
-                                                                offset:
-                                                                    const Offset(
-                                                                        0, 4),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                          child: Column(
-                                                            crossAxisAlignment:
-                                                                CrossAxisAlignment
-                                                                    .start,
-                                                            children: [
-                                                              Text(
-                                                                'Order progress',
-                                                                style:
-                                                                    GoogleFonts
-                                                                        .poppins(
-                                                                  fontSize:
-                                                                      11.5,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600,
+                                                                Material(
                                                                   color: Colors
-                                                                      .grey
-                                                                      .shade700,
-                                                                ),
-                                                              ),
-                                                              const SizedBox(
-                                                                  height: 2),
-                                                              OrderStatusTimeline(
-                                                                steps: order
-                                                                    .timelineSteps,
-                                                                accent: accent,
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                        if (order.items
-                                                            .isNotEmpty) ...[
-                                                          const SizedBox(
-                                                              height: 6),
-                                                          Container(
-                                                            padding:
-                                                                const EdgeInsets
-                                                                    .fromLTRB(
-                                                                    12,
-                                                                    10,
-                                                                    12,
-                                                                    10),
-                                                            decoration:
-                                                                BoxDecoration(
-                                                              color:
-                                                                  Colors.white,
-                                                              borderRadius:
-                                                                  BorderRadius
-                                                                      .circular(
-                                                                          10),
-                                                              border:
-                                                                  Border.all(
-                                                                color: Colors
-                                                                    .grey
-                                                                    .shade100,
-                                                                width: 1,
-                                                              ),
-                                                              boxShadow: [
-                                                                BoxShadow(
-                                                                  color: Colors
-                                                                      .black
-                                                                      .withValues(
-                                                                          alpha:
-                                                                              0.02),
-                                                                  blurRadius: 6,
-                                                                  offset:
-                                                                      const Offset(
-                                                                          0, 1),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                            child: Column(
-                                                              crossAxisAlignment:
-                                                                  CrossAxisAlignment
-                                                                      .start,
-                                                              children: [
-                                                                Row(
-                                                                  mainAxisAlignment:
-                                                                      MainAxisAlignment
-                                                                          .spaceBetween,
-                                                                  crossAxisAlignment:
-                                                                      CrossAxisAlignment
-                                                                          .center,
-                                                                  children: [
-                                                                    Text(
-                                                                      'Order items',
-                                                                      style: GoogleFonts
-                                                                          .poppins(
-                                                                        fontSize:
-                                                                            11,
-                                                                        fontWeight:
-                                                                            FontWeight.w600,
-                                                                        letterSpacing:
-                                                                            0.3,
-                                                                        color: Colors
-                                                                            .grey
-                                                                            .shade600,
+                                                                      .transparent,
+                                                                  child:
+                                                                      InkWell(
+                                                                    onTap: () =>
+                                                                        _showItemsSheet(
+                                                                            order),
+                                                                    borderRadius:
+                                                                        BorderRadius
+                                                                            .circular(4),
+                                                                    child:
+                                                                        Padding(
+                                                                      padding:
+                                                                          const EdgeInsets
+                                                                              .symmetric(
+                                                                        horizontal:
+                                                                            4,
+                                                                        vertical:
+                                                                            2,
                                                                       ),
-                                                                    ),
-                                                                    Material(
-                                                                      color: Colors
-                                                                          .transparent,
                                                                       child:
-                                                                          InkWell(
-                                                                        onTap: () =>
-                                                                            _showItemsSheet(order),
-                                                                        borderRadius:
-                                                                            BorderRadius.circular(4),
-                                                                        child:
-                                                                            Padding(
-                                                                          padding:
-                                                                              const EdgeInsets.symmetric(
-                                                                            horizontal:
-                                                                                4,
-                                                                            vertical:
-                                                                                2,
-                                                                          ),
-                                                                          child:
-                                                                              Text(
-                                                                            'View details',
-                                                                            style:
-                                                                                TextStyle(
-                                                                              fontSize: 11,
-                                                                              fontWeight: FontWeight.w500,
-                                                                              color: accent,
-                                                                            ),
-                                                                          ),
+                                                                          Text(
+                                                                        'View details',
+                                                                        style:
+                                                                            TextStyle(
+                                                                          fontSize:
+                                                                              11,
+                                                                          fontWeight:
+                                                                              FontWeight.w500,
+                                                                          color:
+                                                                              accent,
                                                                         ),
                                                                       ),
                                                                     ),
-                                                                  ],
+                                                                  ),
                                                                 ),
-                                                                const SizedBox(
-                                                                    height: 8),
-                                                                ...order.items
-                                                                    .asMap()
-                                                                    .entries
-                                                                    .map(
-                                                                      (e) =>
-                                                                          _OrderItemRow(
-                                                                        item: e
-                                                                            .value,
-                                                                        isLast: e.key ==
-                                                                            order.items.length -
-                                                                                1,
-                                                                      ),
-                                                                    ),
                                                               ],
                                                             ),
+                                                            const SizedBox(
+                                                                height: 8),
+                                                            ...order.items
+                                                                .asMap()
+                                                                .entries
+                                                                .map(
+                                                                  (e) =>
+                                                                      _OrderItemRow(
+                                                                    item:
+                                                                        e.value,
+                                                                    isLast: e
+                                                                            .key ==
+                                                                        order.items.length -
+                                                                            1,
+                                                                  ),
+                                                                ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ],
+                                                    const SizedBox(height: 10),
+                                                    Material(
+                                                      color: Colors.transparent,
+                                                      child: InkWell(
+                                                        onTap: _goHome,
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(10),
+                                                        child: Container(
+                                                          width:
+                                                              double.infinity,
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .symmetric(
+                                                            vertical: 12,
                                                           ),
-                                                        ],
-                                                        const SizedBox(
-                                                            height: 10),
-                                                        Material(
-                                                          color: Colors
-                                                              .transparent,
-                                                          child: InkWell(
-                                                            onTap: _goHome,
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: accent,
                                                             borderRadius:
                                                                 BorderRadius
                                                                     .circular(
                                                                         10),
-                                                            child: Container(
-                                                              width: double
-                                                                  .infinity,
-                                                              padding:
-                                                                  const EdgeInsets
-                                                                      .symmetric(
-                                                                vertical: 12,
+                                                          ),
+                                                          child: Row(
+                                                            mainAxisAlignment:
+                                                                MainAxisAlignment
+                                                                    .center,
+                                                            children: [
+                                                              Icon(
+                                                                Icons
+                                                                    .home_rounded,
+                                                                size: 18,
+                                                                color: Colors
+                                                                    .white,
                                                               ),
-                                                              decoration:
-                                                                  BoxDecoration(
-                                                                color: accent,
-                                                                borderRadius:
-                                                                    BorderRadius
-                                                                        .circular(
-                                                                            10),
-                                                              ),
-                                                              child: Row(
-                                                                mainAxisAlignment:
-                                                                    MainAxisAlignment
-                                                                        .center,
-                                                                children: [
-                                                                  Icon(
-                                                                    Icons
-                                                                        .home_rounded,
-                                                                    size: 18,
-                                                                    color: Colors
-                                                                        .white,
-                                                                  ),
-                                                                  const SizedBox(
-                                                                      width: 8),
-                                                                  Text(
-                                                                    'Back to Home',
-                                                                    style: GoogleFonts
+                                                              const SizedBox(
+                                                                  width: 8),
+                                                              Text(
+                                                                'Back to Home',
+                                                                style:
+                                                                    GoogleFonts
                                                                         .poppins(
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .w600,
-                                                                      fontSize:
-                                                                          14,
-                                                                      color: Colors
-                                                                          .white,
-                                                                    ),
-                                                                    overflow:
-                                                                        TextOverflow
-                                                                            .ellipsis,
-                                                                  ),
-                                                                ],
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                  fontSize: 14,
+                                                                  color: Colors
+                                                                      .white,
+                                                                ),
+                                                                overflow:
+                                                                    TextOverflow
+                                                                        .ellipsis,
                                                               ),
-                                                            ),
+                                                            ],
                                                           ),
                                                         ),
-                                                      ],
+                                                      ),
                                                     ),
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                          ],
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          },
                                         ),
+                                      ],
+                                    ),
                 ),
               ],
             ),
@@ -2879,6 +3275,7 @@ class _BounceInIconState extends State<_BounceInIcon>
   late AnimationController _bounceController;
   late AnimationController _pulseController;
   late Animation<double> _scale;
+  late Animation<double> _pulseScale;
 
   @override
   void initState() {
@@ -2893,6 +3290,9 @@ class _BounceInIconState extends State<_BounceInIcon>
     )..repeat(reverse: true);
     _scale = Tween<double>(begin: 0.3, end: 1.0).animate(
       CurvedAnimation(parent: _bounceController, curve: Curves.elasticOut),
+    );
+    _pulseScale = Tween<double>(begin: 0.9, end: 1.1).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
     _bounceController.forward();
   }
@@ -2911,10 +3311,7 @@ class _BounceInIconState extends State<_BounceInIcon>
       builder: (context, child) {
         double scale = _scale.value;
         if (widget.continuousPulse && _bounceController.isCompleted) {
-          final pulse = Tween<double>(begin: 0.9, end: 1.1).animate(
-              CurvedAnimation(
-                  parent: _pulseController, curve: Curves.easeInOut));
-          scale *= pulse.value;
+          scale *= _pulseScale.value;
         }
         return Transform.scale(
           scale: scale,
@@ -2926,19 +3323,119 @@ class _BounceInIconState extends State<_BounceInIcon>
   }
 }
 
-class _AnimatedDots extends StatefulWidget {
-  const _AnimatedDots({required this.accent});
-
-  final Color accent;
+class _FailedStatusTrack extends StatelessWidget {
+  const _FailedStatusTrack();
 
   @override
-  State<_AnimatedDots> createState() => _AnimatedDotsState();
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _FailedStepDot(
+          icon: Icons.shopping_cart_checkout_outlined,
+          label: 'Attempted',
+          isComplete: true,
+          isActive: false,
+        ),
+        Expanded(
+          child: _AnimatedStatusLine(isActive: true),
+        ),
+        _FailedStepDot(
+          icon: Icons.close_rounded,
+          label: 'Failed',
+          isComplete: false,
+          isActive: true,
+          pulse: true,
+        ),
+        Expanded(
+          child: _AnimatedStatusLine(isActive: true),
+        ),
+        _FailedStepDot(
+          icon: Icons.refresh_rounded,
+          label: 'Retry',
+          isComplete: false,
+          isActive: false,
+          pulse: true,
+        ),
+      ],
+    );
+  }
 }
 
-class _AnimatedDotsState extends State<_AnimatedDots>
+class _FailedStepDot extends StatelessWidget {
+  const _FailedStepDot({
+    required this.icon,
+    required this.label,
+    required this.isComplete,
+    required this.isActive,
+    this.pulse = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool isComplete;
+  final bool isActive;
+  final bool pulse;
+
+  @override
+  Widget build(BuildContext context) {
+    const failRedDark = Color(0xFFB91C1C);
+    final bg = isComplete || isActive
+        ? Colors.white
+        : Colors.white.withValues(alpha: 0.18);
+    final iconColor = isComplete || isActive
+        ? failRedDark
+        : Colors.white.withValues(alpha: 0.75);
+
+    Widget dot = Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        color: bg,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withValues(alpha: isActive ? 0.9 : 0.35),
+        ),
+      ),
+      child: Icon(icon, size: 14, color: iconColor),
+    );
+
+    if (pulse) {
+      dot = _PulseScale(
+        minScale: isActive ? 0.92 : 0.94,
+        maxScale: isActive ? 1.08 : 1.06,
+        child: dot,
+      );
+    }
+
+    return Column(
+      children: [
+        dot,
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 9,
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+            color: Colors.white.withValues(alpha: isActive ? 1 : 0.78),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AnimatedWaitingDots extends StatefulWidget {
+  const _AnimatedWaitingDots({required this.color});
+
+  final Color color;
+
+  @override
+  State<_AnimatedWaitingDots> createState() => _AnimatedWaitingDotsState();
+}
+
+class _AnimatedWaitingDotsState extends State<_AnimatedWaitingDots>
     with TickerProviderStateMixin {
   late List<AnimationController> _controllers;
-  late List<Animation<double>> _animations;
 
   @override
   void initState() {
@@ -2946,13 +3443,9 @@ class _AnimatedDotsState extends State<_AnimatedDots>
     _controllers = List.generate(3, (i) {
       return AnimationController(
         vsync: this,
-        duration: Duration(milliseconds: 400 + (i * 150)),
+        duration: Duration(milliseconds: 420 + (i * 120)),
       )..repeat(reverse: true);
     });
-    _animations = _controllers
-        .map((c) => Tween<double>(begin: 0.4, end: 1.0)
-            .animate(CurvedAnimation(parent: c, curve: Curves.easeInOut)))
-        .toList();
   }
 
   @override
@@ -2965,61 +3458,58 @@ class _AnimatedDotsState extends State<_AnimatedDots>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge(_controllers),
-      builder: (context, _) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(3, (i) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Transform.scale(
-                scale: _animations[i].value,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: widget.accent
-                        .withValues(alpha: 0.3 + (_animations[i].value * 0.5)),
-                    shape: BoxShape.circle,
-                  ),
-                ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(3, (i) {
+        return AnimatedBuilder(
+          animation: _controllers[i],
+          builder: (context, _) {
+            return Container(
+              margin: EdgeInsets.only(right: i == 2 ? 0 : 5),
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: widget.color
+                    .withValues(alpha: 0.35 + (_controllers[i].value * 0.65)),
+                shape: BoxShape.circle,
               ),
             );
-          }),
+          },
         );
-      },
+      }),
     );
   }
 }
 
-class _PulsingIcon extends StatefulWidget {
-  const _PulsingIcon({
-    required this.accent,
-    required this.isRefreshing,
+class _PulseScale extends StatefulWidget {
+  const _PulseScale({
+    required this.child,
+    this.minScale = 0.92,
+    this.maxScale = 1.08,
   });
 
-  final Color accent;
-  final bool isRefreshing;
+  final Widget child;
+  final double minScale;
+  final double maxScale;
 
   @override
-  State<_PulsingIcon> createState() => _PulsingIconState();
+  State<_PulseScale> createState() => _PulseScaleState();
 }
 
-class _PulsingIconState extends State<_PulsingIcon>
+class _PulseScaleState extends State<_PulseScale>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
+  late Animation<double> _scale;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 1100),
     )..repeat(reverse: true);
-    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
+    _scale =
+        Tween<double>(begin: widget.minScale, end: widget.maxScale).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
   }
@@ -3032,73 +3522,616 @@ class _PulsingIconState extends State<_PulsingIcon>
 
   @override
   Widget build(BuildContext context) {
-    if (widget.isRefreshing) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: widget.accent.withValues(alpha: 0.12),
-          shape: BoxShape.circle,
-        ),
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: CircularProgressIndicator(
-            strokeWidth: 3,
-            valueColor: AlwaysStoppedAnimation<Color>(widget.accent),
-          ),
-        ),
-      );
-    }
+    return ScaleTransition(scale: _scale, child: widget.child);
+  }
+}
+
+class _ShakeInIcon extends StatefulWidget {
+  const _ShakeInIcon({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_ShakeInIcon> createState() => _ShakeInIconState();
+}
+
+class _ShakeInIconState extends State<_ShakeInIcon>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _offset;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    );
+    _offset = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: -6.0), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: -6.0, end: 6.0), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 6.0, end: -4.0), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: -4.0, end: 0.0), weight: 1),
+    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _scaleAnimation,
+      animation: _offset,
       builder: (context, child) {
-        return Transform.scale(
-          scale: _scaleAnimation.value,
+        return Transform.translate(
+          offset: Offset(_offset.value, 0),
           child: child,
         );
       },
-      child: Container(
-        width: 96,
-        height: 96,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: widget.accent.withValues(alpha: 0.3),
-              blurRadius: 20,
-              spreadRadius: 2,
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: ClipOval(
-            child: ColoredBox(
+      child: widget.child,
+    );
+  }
+}
+
+class _PendingOrderItemsList extends StatefulWidget {
+  const _PendingOrderItemsList({
+    required this.items,
+    this.failedStyle = false,
+  });
+
+  final List<OrderTrackingItem> items;
+  final bool failedStyle;
+
+  @override
+  State<_PendingOrderItemsList> createState() => _PendingOrderItemsListState();
+}
+
+class _PendingOrderItemsListState extends State<_PendingOrderItemsList> {
+  bool _showAllItems = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = widget.items;
+    final hiddenCount = items.length > 3 ? items.length - 3 : 0;
+    final displayed =
+        _showAllItems || hiddenCount == 0 ? items : items.take(3).toList();
+    final accent = widget.failedStyle
+        ? const Color(0xFFDC2626)
+        : AppColors.primary;
+    final accentDark = widget.failedStyle
+        ? const Color(0xFFB91C1C)
+        : AppColors.primaryDark;
+    const borderColor = Color(0xFFE5E7EB);
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 380),
+      curve: Curves.easeInOutCubic,
+      alignment: Alignment.topCenter,
+      clipBehavior: Clip.hardEdge,
+      child: Column(
+        key: ValueKey('pending-items-${items.length}-$_showAllItems'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            decoration: BoxDecoration(
               color: Colors.white,
-              child: Center(
-                child: Image.asset(
-                  'assets/images/png.png',
-                  width: 72,
-                  height: 72,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.high,
-                  errorBuilder: (_, __, ___) => Icon(
-                    Icons.local_pharmacy_rounded,
-                    size: 44,
-                    color: widget.accent,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: widget.failedStyle
+                    ? const Color(0xFFFECACA)
+                    : const Color(0xFFBBEAD3),
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                ...displayed.asMap().entries.map((entry) {
+                  final isLast = entry.key == displayed.length - 1;
+                  return _DelayedFadeInUp(
+                    delay: Duration(milliseconds: 60 * entry.key),
+                    duration: const Duration(milliseconds: 320),
+                    child: Column(
+                      children: [
+                        _CompactPendingItemRow(
+                          item: entry.value,
+                          accent: accent,
+                          accentDark: accentDark,
+                        ),
+                        if (!isLast)
+                          Divider(
+                            height: 1,
+                            thickness: 1,
+                            color: borderColor.withValues(alpha: 0.7),
+                            indent: 58,
+                            endIndent: 10,
+                          ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+          if (hiddenCount > 0 && !_showAllItems)
+            _PendingItemsExpandToggle(
+              label:
+                  'Show $hiddenCount more item${hiddenCount == 1 ? '' : 's'}',
+              expanded: false,
+              failedStyle: widget.failedStyle,
+              onTap: () => setState(() => _showAllItems = true),
+            ),
+          if (hiddenCount > 0 && _showAllItems)
+            _PendingItemsExpandToggle(
+              label: 'Show less',
+              expanded: true,
+              failedStyle: widget.failedStyle,
+              onTap: () => setState(() => _showAllItems = false),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PendingItemsExpandToggle extends StatefulWidget {
+  const _PendingItemsExpandToggle({
+    required this.label,
+    required this.expanded,
+    required this.onTap,
+    this.failedStyle = false,
+  });
+
+  final String label;
+  final bool expanded;
+  final VoidCallback onTap;
+  final bool failedStyle;
+
+  @override
+  State<_PendingItemsExpandToggle> createState() =>
+      _PendingItemsExpandToggleState();
+}
+
+class _PendingItemsExpandToggleState extends State<_PendingItemsExpandToggle>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pressController;
+  late Animation<double> _pressScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _pressController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+    );
+    _pressScale = Tween<double>(begin: 1, end: 0.96).animate(
+      CurvedAnimation(parent: _pressController, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pressController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = widget.failedStyle
+        ? const Color(0xFFB91C1C)
+        : AppColors.primaryDark;
+    final bg = widget.expanded
+        ? (widget.failedStyle
+            ? const Color(0xFFFEE2E2)
+            : const Color(0xFFE3F5EC))
+        : (widget.failedStyle
+            ? const Color(0xFFFFF1F2)
+            : const Color(0xFFEEF9F3));
+    final border = widget.failedStyle
+        ? const Color(0xFFFECACA)
+        : const Color(0xFFBBEAD3);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: GestureDetector(
+        onTapDown: (_) => _pressController.forward(),
+        onTapUp: (_) {
+          _pressController.reverse();
+          widget.onTap();
+        },
+        onTapCancel: () => _pressController.reverse(),
+        child: ScaleTransition(
+          scale: _pressScale,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: border),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedRotation(
+                  turns: widget.expanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutBack,
+                  child: Icon(
+                    Icons.expand_more,
+                    color: accent,
+                    size: 16,
                   ),
                 ),
-              ),
+                const SizedBox(width: 4),
+                Text(
+                  widget.label,
+                  style: GoogleFonts.poppins(
+                    color: accent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _HeroShimmerSweep extends StatelessWidget {
+  const _HeroShimmerSweep();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: 0.45,
+              heightFactor: 1,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      Colors.white.withValues(alpha: 0),
+                      Colors.white.withValues(alpha: 0.14),
+                      Colors.white.withValues(alpha: 0),
+                    ],
+                    stops: const [0.0, 0.5, 1.0],
+                  ),
+                ),
+              ).animate(onPlay: (controller) => controller.repeat()).slideX(
+                    begin: -2.2,
+                    end: 2.2,
+                    duration: 2600.ms,
+                    curve: Curves.easeInOut,
+                  ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PendingStatusTrack extends StatefulWidget {
+  const _PendingStatusTrack({required this.isChecking});
+
+  final bool isChecking;
+
+  @override
+  State<_PendingStatusTrack> createState() => _PendingStatusTrackState();
+}
+
+class _PendingStatusTrackState extends State<_PendingStatusTrack>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _spinController;
+
+  @override
+  void initState() {
+    super.initState();
+    _spinController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    _updateSpin();
+  }
+
+  @override
+  void didUpdateWidget(_PendingStatusTrack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isChecking != widget.isChecking) {
+      _updateSpin();
+    }
+  }
+
+  void _updateSpin() {
+    if (widget.isChecking) {
+      _spinController.repeat();
+    } else {
+      _spinController
+        ..stop()
+        ..reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _spinController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _PendingStepDot(
+          icon: Icons.check_rounded,
+          label: 'Paid',
+          isComplete: true,
+          isActive: false,
+        ),
+        Expanded(
+          child: _AnimatedStatusLine(isActive: true),
+        ),
+        _PendingStepDot(
+          icon: Icons.sync_rounded,
+          label: 'Confirming',
+          isComplete: false,
+          isActive: true,
+          pulse: widget.isChecking,
+          spinning: widget.isChecking,
+          spinController: _spinController,
+        ),
+        Expanded(
+          child: _AnimatedStatusLine(isActive: widget.isChecking),
+        ),
+        _PendingStepDot(
+          icon: Icons.shopping_bag_outlined,
+          label: 'Placed',
+          isComplete: false,
+          isActive: false,
+        ),
+      ],
+    );
+  }
+}
+
+class _AnimatedStatusLine extends StatelessWidget {
+  const _AnimatedStatusLine({required this.isActive});
+
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    final line = Container(
+      height: 2,
+      margin: const EdgeInsets.only(bottom: 18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(2),
+        color: isActive
+            ? Colors.white.withValues(alpha: 0.45)
+            : Colors.white.withValues(alpha: 0.2),
+      ),
+    );
+
+    if (!isActive) return line;
+
+    return line
+        .animate(onPlay: (c) => c.repeat(reverse: true))
+        .fade(begin: 0.45, end: 1, duration: 900.ms);
+  }
+}
+
+class _PendingStepDot extends StatelessWidget {
+  const _PendingStepDot({
+    required this.icon,
+    required this.label,
+    required this.isComplete,
+    required this.isActive,
+    this.pulse = false,
+    this.spinning = false,
+    this.spinController,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool isComplete;
+  final bool isActive;
+  final bool pulse;
+  final bool spinning;
+  final AnimationController? spinController;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isComplete || isActive
+        ? Colors.white
+        : Colors.white.withValues(alpha: 0.18);
+    final iconColor = isComplete || isActive
+        ? AppColors.primaryDark
+        : Colors.white.withValues(alpha: 0.75);
+
+    Widget iconWidget = Icon(
+      isComplete ? Icons.check_rounded : icon,
+      size: 14,
+      color: iconColor,
+    );
+
+    if (spinning && spinController != null) {
+      iconWidget = RotationTransition(
+        turns: spinController!,
+        child: iconWidget,
+      );
+    }
+
+    Widget dot = Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        color: bg,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withValues(alpha: isActive ? 0.9 : 0.35),
+        ),
+      ),
+      child: iconWidget,
+    );
+
+    if (pulse && isActive) {
+      dot = _PulseScale(child: dot);
+    }
+
+    return Column(
+      children: [
+        dot,
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 9,
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+            color: Colors.white.withValues(alpha: isActive ? 1 : 0.78),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CompactPendingItemRow extends StatelessWidget {
+  const _CompactPendingItemRow({
+    required this.item,
+    required this.accent,
+    required this.accentDark,
+  });
+
+  final OrderTrackingItem item;
+  final Color accent;
+  final Color accentDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = item.imageUrl.isEmpty
+        ? ''
+        : item.imageUrl.startsWith('http')
+            ? item.imageUrl
+            : ApiConfig.getProductImageUrl(item.imageUrl);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  color: const Color(0xFFF4FAF7),
+                  child: imageUrl.isEmpty
+                      ? Icon(
+                          Icons.medical_services_outlined,
+                          size: 16,
+                          color: accent.withValues(alpha: 0.45),
+                        )
+                      : Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Icon(
+                            Icons.medical_services_outlined,
+                            size: 16,
+                            color: accent.withValues(alpha: 0.45),
+                          ),
+                        ),
+                ),
+              ),
+              Positioned(
+                right: -5,
+                bottom: -4,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 18),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.white, width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.25),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    '${item.quantity}',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      height: 1,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.name,
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1A1F1C),
+                    height: 1.25,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'GHS ${item.price.toStringAsFixed(2)} each',
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: Colors.grey.shade600,
+                    height: 1.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'GHS ${item.lineTotal.toStringAsFixed(2)}',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: accentDark,
+              height: 1,
+            ),
+          ),
+        ],
       ),
     );
   }

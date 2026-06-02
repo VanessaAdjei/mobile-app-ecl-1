@@ -2,11 +2,9 @@
 // pages/optimized_profile.dart
 // pages/optimized_profile.dart
 import 'package:flutter/material.dart';
-
-import 'dart:convert';
 import 'dart:developer' as developer;
-import 'package:http/http.dart' as http;
-import '../config/api_config.dart';
+
+import '../services/profile_service.dart';
 import '../services/auth_service.dart';
 import 'signinpage.dart';
 import 'settings.dart';
@@ -25,6 +23,7 @@ class OptimizedProfile extends StatefulWidget {
 class OptimizedProfileState extends State<OptimizedProfile> {
   final UniversalPageOptimizationService _optimizationService =
       UniversalPageOptimizationService();
+  final ProfileService _profileService = ProfileService();
 
   bool _isLoading = true;
   String? _error;
@@ -105,22 +104,7 @@ class OptimizedProfileState extends State<OptimizedProfile> {
 
   Future<Map<String, dynamic>> _fetchUserProfile() async {
     try {
-      final token = await AuthService.getToken();
-      if (token == null) throw Exception('No auth token');
-
-      final response = await http.get(
-        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.userProfile)),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      } else {
-        throw Exception('Failed to load profile');
-      }
+      return await _profileService.fetchUserProfile();
     } catch (e) {
       throw Exception('Failed to load profile: $e');
     }
@@ -128,23 +112,7 @@ class OptimizedProfileState extends State<OptimizedProfile> {
 
   Future<List<dynamic>> _fetchOrderHistory() async {
     try {
-      final token = await AuthService.getToken();
-      if (token == null) throw Exception('No auth token');
-
-      final response = await http.get(
-        Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.orders)),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return data['orders'] ?? [];
-      } else {
-        throw Exception('Failed to load orders');
-      }
+      return await _profileService.fetchOrderHistory();
     } catch (e) {
       throw Exception('Failed to load orders: $e');
     }

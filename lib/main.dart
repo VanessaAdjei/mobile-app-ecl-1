@@ -217,25 +217,7 @@ Future<void> _initializeApp() async {
   unawaited(_initBackground());
 
   debugPrint('Prefetch...');
-  final prefetchStartTime = DateTime.now();
-
-  try {
-    await Future.wait([
-      BannerCacheService().getBanners(),
-      // dont fetch popular products here, do it later in background
-    ]).timeout(
-        const Duration(milliseconds: 300)); // Very fast timeout for onboarding
-  } catch (e) {
-    if (e is TimeoutException) {
-      debugPrint('⚠️ Main: took too long, just continue anyway');
-    } else {
-      debugPrint('❌ Main: Error in essential data prefetching: $e');
-    }
-  }
-
-  final prefetchTime = DateTime.now().difference(prefetchStartTime);
-  debugPrint(
-      '🚀 Main: Essential data prefetched in ${prefetchTime.inMilliseconds}ms');
+  unawaited(BannerCacheService().getBanners());
 
   debugPrint('🚀 Main: Cold start completed');
 }
@@ -745,7 +727,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                             if (!mounted) return;
                             final ready =
                                 await HomePreloadService.ensureReadyForHome(
-                              maxWait: const Duration(seconds: 15),
+                              maxWait: const Duration(seconds: 5),
                             );
                             if (!mounted) return;
                             if (!ready) return;
@@ -907,37 +889,14 @@ class _TermsWrapper extends StatefulWidget {
 
 class _TermsWrapperState extends State<_TermsWrapper> {
   @override
-  Widget build(BuildContext context) {
-    return TermsAcceptancePage();
+  void initState() {
+    super.initState();
+    HomePreloadService.startOnboardingPreload();
   }
 
   @override
-  void initState() {
-    super.initState();
-    // Begin catalog load while user reads terms (before onboarding pages).
-    HomePreloadService.startOnboardingPreload();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkForAcceptance();
-    });
-  }
-
-  void _checkForAcceptance() async {
-    // Wait a bit and check if terms were accepted
-    await Future.delayed(const Duration(milliseconds: 300));
-    if (!mounted) return;
-
-    final prefs = await SharedPreferences.getInstance();
-    final accepted = prefs.getBool('terms_accepted') ?? false;
-
-    if (accepted && mounted) {
-      debugPrint('✅ Main: Terms acceptance detected, triggering callback');
-      widget.onAccepted();
-    } else {
-      // Check again after a shorter delay
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) _checkForAcceptance();
-      });
-    }
+  Widget build(BuildContext context) {
+    return TermsAcceptancePage(onAccepted: widget.onAccepted);
   }
 }
 

@@ -6,6 +6,7 @@ import '../config/app_routes.dart';
 import '../models/product_model.dart';
 import '../models/product.dart' as models;
 import '../services/homepage_optimization_service.dart';
+import '../services/product_image_preload_service.dart';
 import '../services/stock_utility_service.dart';
 import 'wishlist_button.dart';
 
@@ -65,6 +66,12 @@ class HomeProductCard extends StatelessWidget {
     final defaultFontSize =
         fontSize ?? (screenWidth < 400 ? 11 : (screenWidth < 600 ? 13 : 15));
 
+    final imageUrl =
+        HomepageOptimizationService().getProductImageUrl(product.thumbnail);
+    final imageCacheKey = imageUrl.isEmpty
+        ? null
+        : ProductImagePreloadService.diskCacheKeyFor(imageUrl);
+
     return Container(
       margin: EdgeInsets.zero,
       child: AspectRatio(
@@ -104,8 +111,8 @@ class HomeProductCard extends StatelessWidget {
                                 child: Container(
                                   color: Colors.grey[100],
                                   child: CachedNetworkImage(
-                                    imageUrl: HomepageOptimizationService()
-                                        .getProductImageUrl(product.thumbnail),
+                                    imageUrl: imageUrl,
+                                    cacheKey: imageCacheKey,
                                     fit: BoxFit.cover,
                                     memCacheWidth: 300,
                                     memCacheHeight: 300,
@@ -128,8 +135,8 @@ class HomeProductCard extends StatelessWidget {
                             : Container(
                                 color: Colors.grey[100],
                                 child: CachedNetworkImage(
-                                  imageUrl: HomepageOptimizationService()
-                                      .getProductImageUrl(product.thumbnail),
+                                  imageUrl: imageUrl,
+                                  cacheKey: imageCacheKey,
                                   fit: BoxFit.cover,
                                   memCacheWidth: 300,
                                   memCacheHeight: 300,

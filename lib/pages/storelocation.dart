@@ -11,6 +11,7 @@ import '../services/location_service.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/store_location_model.dart';
 import 'store_map_page.dart';
+import '../utils/app_error_utils.dart';
 
 class StoreSelectionPage extends StatefulWidget {
   const StoreSelectionPage({super.key});
@@ -2063,16 +2064,12 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
         await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not open the map')),
-          );
+          AppErrorUtils.showSnack(context, 'Could not open the map');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
-        );
+        AppErrorUtils.showSnack(context, 'Error: ${e.toString()}');
       }
     }
   }

@@ -3,10 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:eclapp/widgets/error_display.dart';
-import '../config/api_config.dart';
+import '../services/prescription_service.dart';
 
 class PrescriptionUploadPage extends StatefulWidget {
   final Map<String, dynamic>? item;
@@ -23,6 +21,7 @@ class PrescriptionUploadPage extends StatefulWidget {
 }
 
 class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
+  final PrescriptionService _prescriptionService = PrescriptionService();
   File? _selectedImage;
   bool _isLoading = false;
   bool _isSubmitting = false;
@@ -401,76 +400,43 @@ class _PrescriptionUploadPageState extends State<PrescriptionUploadPage> {
           throw Exception('Unable to process prescription upload');
         }
 
-        // create the multipart request
-        var request = http.MultipartRequest(
-          'POST',
-          Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.createPrescription)),
-        );
-
-        // add auth headers
-        request.headers['Authorization'] = 'Bearer $token';
-        request.headers['Accept'] = 'application/json';
-
-        // add the image file
-        request.files.add(
-          await http.MultipartFile.fromPath(
-            'file',
-            _selectedImage!.path,
-          ),
-        );
-
-        // add batch number if we have it
+        final fields = <String, String>{};
         if (widget.item != null && widget.item!['batch_no'] != null) {
-          request.fields['batch_no'] = widget.item!['batch_no'];
+          fields['batch_no'] = widget.item!['batch_no'].toString();
         }
-
-        // add product id if we have it
         if (widget.item != null &&
             widget.item!['product'] != null &&
             widget.item!['product']['id'] != null) {
-          request.fields['product_id'] =
-              widget.item!['product']['id'].toString();
+          fields['product_id'] = widget.item!['product']['id'].toString();
         }
 
-        // send it with a timeout
         debugPrint('🔍 Uploading prescription ...');
-        final streamedResponse = await request.send().timeout(
-          const Duration(seconds: 30),
-          onTimeout: () {
-            throw Exception('Request timed out. Please try again.');
-          },
+        final result = await _prescriptionService.uploadPrescription(
+          authToken: token,
+          filePath: _selectedImage!.path,
+          fields: fields,
         );
 
-        final response = await http.Response.fromStream(streamedResponse);
-
-        // Log full API response to terminal
         debugPrint('═══════════════════════════════════════════════════════');
         debugPrint('📤 PRESCRIPTION API RESPONSE');
-        debugPrint('═══════════════════════════════════════════════════════');
-        debugPrint('Status code: ${response.statusCode}');
-        debugPrint('Response body:\n${response.body}');
+        debugPrint('Status code: ${result.statusCode}');
+        debugPrint('Body: ${result.body}');
         debugPrint('═══════════════════════════════════════════════════════');
 
-        if (response.statusCode == 200 || response.statusCode == 201) {
-          final data = json.decode(response.body);
-          debugPrint('🔍 Upload response: ${data['status']}');
-          if (data['status'] == 'success') {
-            debugPrint('🔍 Prescription uploaded successfully');
-            if (mounted) {
-              SnackBarUtils.showSuccess(
-                  context, 'Prescription uploaded successfully');
-              Navigator.pop(context);
-            }
-          } else {
-            throw Exception(data['message'] ?? 'Failed to upload prescription');
+        if (_prescriptionService.uploadSucceeded(result)) {
+          debugPrint('🔍 Prescription uploaded successfully');
+          if (mounted) {
+            SnackBarUtils.showSuccess(
+                context, 'Prescription uploaded successfully');
+            Navigator.pop(context);
           }
-        } else if (response.statusCode == 401) {
+        } else if (result.statusCode == 401) {
           throw Exception('Your session has expired. Please log in again.');
-        } else if (response.statusCode == 413) {
+        } else if (result.statusCode == 413) {
           throw Exception('File size too large. Maximum size is 10MB.');
         } else {
-          throw Exception(
-              'Failed to upload prescription: ${response.statusCode}');
+          final message = result.body?['message']?.toString();
+          throw Exception(message ?? 'Failed to upload prescription');
         }
       } catch (e) {
         if (mounted) {

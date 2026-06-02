@@ -9,6 +9,7 @@ import '../widgets/ernest_friday_banner.dart';
 import '../widgets/promotional_code_input.dart';
 import '../pages/bottomnav.dart';
 import '../providers/theme_provider.dart';
+import '../utils/app_error_utils.dart';
 
 class ErnestFridayPage extends StatefulWidget {
   const ErnestFridayPage({Key? key}) : super(key: key);
@@ -182,11 +183,10 @@ class _ErnestFridayPageState extends State<ErnestFridayPage>
             icon: const Icon(Icons.share, color: Colors.white),
             onPressed: () {
               // Share Ernest Friday event
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Share Ernest Friday with friends!'),
-                  backgroundColor: Colors.orange.shade600,
-                ),
+              AppErrorUtils.showSnack(
+                context,
+                'Share Ernest Friday with friends!',
+                isError: false,
               );
             },
           ),
@@ -285,11 +285,10 @@ class _ErnestFridayPageState extends State<ErnestFridayPage>
               event: event,
               onTap: () {
                 // Navigate to products or categories
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Browse Ernest Friday deals!'),
-                    backgroundColor: Colors.orange.shade600,
-                  ),
+                AppErrorUtils.showSnack(
+                  context,
+                  'Browse Ernest Friday deals!',
+                  isError: false,
                 );
               },
             ),
@@ -529,19 +528,17 @@ class _ErnestFridayPageState extends State<ErnestFridayPage>
       cartCategories: [], // This should come from cart provider
       cartProductIds: [], // This should come from cart provider
       onCodeApplied: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Promotional code applied successfully!'),
-            backgroundColor: Colors.green.shade600,
-          ),
+        AppErrorUtils.showSnack(
+          context,
+          'Promotional code applied successfully!',
+          isError: false,
         );
       },
       onCodeRemoved: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Promotional code removed'),
-            backgroundColor: Colors.orange.shade600,
-          ),
+        AppErrorUtils.showSnack(
+          context,
+          'Promotional code removed',
+          isError: false,
         );
       },
     );
@@ -609,11 +606,10 @@ class _ErnestFridayPageState extends State<ErnestFridayPage>
     return GestureDetector(
       onTap: () {
         // Navigate to category
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Browse ${category['name']} deals!'),
-            backgroundColor: Colors.orange.shade600,
-          ),
+        AppErrorUtils.showSnack(
+          context,
+          'Browse ${category['name']} deals!',
+          isError: false,
         );
       },
       child: Container(

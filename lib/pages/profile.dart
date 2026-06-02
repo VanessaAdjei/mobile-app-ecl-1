@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../utils/app_error_utils.dart';
 import 'bottomnav.dart';
 import '../config/app_routes.dart';
 import '../widgets/cart_icon_button.dart';
@@ -80,12 +81,9 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error loading profile: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppErrorUtils.showSnack(
+          context, 'Error loading profile: ${e.toString()}',
+          isError: true);
     }
   }
 
@@ -266,12 +264,7 @@ class ProfileState extends State<Profile> with TickerProviderStateMixin {
                     debugPrint('🔍 Profile: Widget not mounted before delay');
                   }
                 } else if (errorMsg != null && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(errorMsg),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  AppErrorUtils.showSnack(context, errorMsg, isError: true);
                 }
               },
               child: Text(

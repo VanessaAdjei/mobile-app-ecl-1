@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
+import '../utils/app_error_utils.dart';
 import '../utils/product_image_url.dart';
 import '../services/auth_service.dart';
 import '../services/order_history_transformer.dart';
@@ -726,27 +727,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     });
     _saveNotifications();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Notification removed',
-          style: GoogleFonts.poppins(
-            color: Colors.white,
-            fontWeight: FontWeight.w500,
-            fontSize: 13,
-          ),
-        ),
-        behavior: SnackBarBehavior.floating,
-        dismissDirection: DismissDirection.down,
-        showCloseIcon: true,
-        backgroundColor: const Color(0xFF334155),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        margin: const EdgeInsets.all(12),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    AppErrorUtils.showSnack(context, 'Notification removed', isError: false);
   }
 
   Future<void> _handleNotificationAction(
@@ -765,27 +746,9 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     if (orderId.isEmpty && orderNumber.isEmpty) {
       debugPrint('📱 No order ID or order number found in notification');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'No order information in this notification',
-              style: GoogleFonts.poppins(
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
-                fontSize: 13,
-              ),
-            ),
-            backgroundColor: const Color(0xFFEA580C),
-            dismissDirection: DismissDirection.down,
-            showCloseIcon: true,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            margin: const EdgeInsets.all(12),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        AppErrorUtils.showSnack(
+            context, 'No order information in this notification',
+            isError: true);
       }
       return;
     }
@@ -942,16 +905,9 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     } catch (e) {
       debugPrint('📱 Navigation error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Error navigating to tracking page: $e • Swipe down to dismiss'),
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-            dismissDirection: DismissDirection.down,
-            showCloseIcon: true,
-          ),
-        );
+        AppErrorUtils.showSnack(
+            context, 'Error navigating to tracking page: $e',
+            isError: true);
       }
     }
   }
