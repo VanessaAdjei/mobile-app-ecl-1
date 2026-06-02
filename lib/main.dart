@@ -14,6 +14,7 @@ import 'providers/theme_provider.dart';
 import 'services/banner_cache_service.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'pages/brand_launch_splash_page.dart';
 import 'pages/onboarding_splash_page.dart';
 import 'pages/prescription.dart';
 import 'pages/prescription_upload_standalone.dart';
@@ -236,6 +237,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool? _isFirstLaunch;
   bool? _termsAccepted;
+  bool? _hasSeenBrandSplash;
   bool _isLoggedIn = false;
   String? _pendingNotificationPayload;
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
@@ -257,6 +259,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // do the important checks first (wait for them)
     await _checkFirstLaunch();
     await _checkTermsAcceptance();
+    await _checkBrandSplash();
 
     // do the less important checks at the same time (dont wait)
     unawaited(_checkAuthStatus());
@@ -319,6 +322,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         HomePreloadService.startOnboardingPreload();
       }
     }
+  }
+
+  Future<void> _checkBrandSplash() async {
+    final prefs = await SharedPreferences.getInstance();
+    final seen = prefs.getBool('has_seen_brand_launch_splash') ?? false;
+    if (!mounted) return;
+    setState(() => _hasSeenBrandSplash = seen);
   }
 
   Future<void> _checkTermsAcceptance() async {
@@ -473,7 +483,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     // if we're still loading, show loading screen or go to onboarding
-    if (_isFirstLaunch == null || _termsAccepted == null) {
+    if (_isFirstLaunch == null ||
+        _termsAccepted == null ||
+        _hasSeenBrandSplash == null) {
       // show a simple loading screen or just go straight to onboarding
       return MaterialApp(
         home: Scaffold(
@@ -714,13 +726,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               navigatorKey: NativeNotificationService.globalNavigatorKey,
               scaffoldMessengerKey: NotificationService.messengerKey,
               home: _termsAccepted == false
-                  ? _TermsWrapper(
-                      onAccepted: () {
-                        setState(() {
-                          _termsAccepted = true;
-                        });
-                      },
-                    )
+                  ? (_hasSeenBrandSplash == false
+                      ? BrandLaunchSplashPage(
+                          onComplete: () {
+                            if (!mounted) return;
+                            setState(() => _hasSeenBrandSplash = true);
+                          },
+                        )
+                      : _TermsWrapper(
+                          onAccepted: () {
+                            setState(() => _termsAccepted = true);
+                          },
+                        ))
                   : _isFirstLaunch == true
                       ? OnboardingSplashPage(
                           onFinish: () async {

@@ -1,6 +1,4 @@
 // pages/storelocation.dart
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'app_back_button.dart';
 import 'HomePage.dart';
@@ -11,6 +9,7 @@ import '../services/location_service.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/store_location_model.dart';
 import 'store_map_page.dart';
+import '../config/app_colors.dart';
 import '../utils/app_error_utils.dart';
 
 class StoreSelectionPage extends StatefulWidget {
@@ -64,9 +63,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
   final ScrollController _scrollController = ScrollController();
   bool _showFilters = true;
   double _lastScrollOffset = 0.0;
-
-  /// Recent API responses for on-page debug viewer (newest first).
-  final List<Map<String, dynamic>> _apiResponseLogs = [];
 
   @override
   void initState() {
@@ -550,140 +546,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     return sortedStores;
   }
 
-  void _recordStoreApiResponse(String endpoint, dynamic result) {
-    String body;
-    try {
-      body = const JsonEncoder.withIndent('  ').convert(result);
-    } catch (_) {
-      body = result.toString();
-    }
-    final success = result is Map && result['success'] == true;
-    debugPrint('════════════════════════════════════════');
-    debugPrint('📡 STORE LOCATOR API: $endpoint');
-    debugPrint(body);
-    debugPrint('════════════════════════════════════════');
-    if (!mounted) return;
-    setState(() {
-      _apiResponseLogs.insert(0, {
-        'endpoint': endpoint,
-        'body': body,
-        'time': DateTime.now(),
-        'success': success,
-      });
-      if (_apiResponseLogs.length > 25) {
-        _apiResponseLogs.removeRange(25, _apiResponseLogs.length);
-      }
-    });
-  }
-
-  void _showApiResponsesSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        final maxH = MediaQuery.of(ctx).size.height * 0.75;
-        return SafeArea(
-          child: SizedBox(
-            height: maxH,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'API responses',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: _apiResponseLogs.isEmpty
-                      ? Center(
-                          child: Text(
-                            'No API calls yet.\nPull to refresh or change filters.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey.shade600),
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(12),
-                          itemCount: _apiResponseLogs.length,
-                          itemBuilder: (context, index) {
-                            final log = _apiResponseLogs[index];
-                            final time = log['time'] as DateTime;
-                            final ok = log['success'] == true;
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 10),
-                              child: ExpansionTile(
-                                initiallyExpanded: index == 0,
-                                leading: Icon(
-                                  ok ? Icons.check_circle : Icons.error,
-                                  color: ok
-                                      ? const Color(0xFF2E7D32)
-                                      : Colors.red,
-                                  size: 22,
-                                ),
-                                title: Text(
-                                  log['endpoint'] as String,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  '${time.hour.toString().padLeft(2, '0')}:'
-                                  '${time.minute.toString().padLeft(2, '0')}:'
-                                  '${time.second.toString().padLeft(2, '0')}',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                                children: [
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(12),
-                                    color: Colors.grey.shade100,
-                                    child: SelectableText(
-                                      log['body'] as String,
-                                      style: const TextStyle(
-                                        fontFamily: 'monospace',
-                                        fontSize: 11,
-                                        height: 1.35,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   // Load regions from API
   Future<void> _loadRegions() async {
     debugPrint('=== STORE LOCATION: Loading regions ===');
@@ -695,7 +557,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     try {
       debugPrint('Calling DeliveryService.getRegions()...');
       final result = await DeliveryService.getRegions();
-      _recordStoreApiResponse('GET /regions', result);
 
       if (result['success']) {
         final regionsData = result['data'] ?? [];
@@ -747,10 +608,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       }
     } catch (e) {
       debugPrint('Error loading regions: $e');
-      _recordStoreApiResponse('GET /regions', {
-        'success': false,
-        'message': e.toString(),
-      });
       setState(() {
         regionsError = 'Network error: ${e.toString()}';
         isLoadingRegions = false;
@@ -777,8 +634,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     try {
       final regionId = int.tryParse(region['id'].toString()) ?? 0;
       final result = await DeliveryService.getCitiesByRegion(regionId);
-      _recordStoreApiResponse('GET /regions/$regionId/cities', result);
-
       if (result['success']) {
         setState(() {
           cities = result['data'] ?? [];
@@ -791,10 +646,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
         });
       }
     } catch (e) {
-      _recordStoreApiResponse('GET /regions/{id}/cities', {
-        'success': false,
-        'message': e.toString(),
-      });
       setState(() {
         citiesError = 'Network error: ${e.toString()}';
         isLoadingCities = false;
@@ -819,8 +670,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     try {
       final cityId = int.tryParse(city['id'].toString()) ?? 0;
       final result = await DeliveryService.getStoresByCity(cityId);
-      _recordStoreApiResponse('GET /cities/$cityId/stores', result);
-
       if (result['success']) {
         final rawList = result['data'] as List? ?? [];
         final normalized = rawList
@@ -840,10 +689,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
         });
       }
     } catch (e) {
-      _recordStoreApiResponse('GET /cities/{id}/stores', {
-        'success': false,
-        'message': e.toString(),
-      });
       setState(() {
         storesError = 'Network error: ${e.toString()}';
         isLoadingStores = false;
@@ -862,7 +707,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     try {
       // Get all regions
       final regionsResult = await DeliveryService.getRegions();
-      _recordStoreApiResponse('GET /regions (all stores)', regionsResult);
       if (!regionsResult['success']) {
         setState(() {
           allStoresError = regionsResult['message'] ?? 'Failed to load regions';
@@ -941,24 +785,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           totalStoresFetched += (r['data'] as List).length;
         }
       }
-      _recordStoreApiResponse(
-        'GET /cities/{id}/stores (batch ×${storeResults.length})',
-        {
-          'success': storeResults.every((r) => r['success'] == true),
-          'requests': storeResults.length,
-          'total_stores': totalStoresFetched,
-          'results': storeResults.map((r) {
-            final data = r['data'];
-            return {
-              'success': r['success'],
-              'data_count': data is List ? data.length : 0,
-              'message': r['message'],
-              if (data is List && data.isNotEmpty) 'sample': data.first,
-            };
-          }).toList(),
-        },
-      );
-
       // Process all store results
       for (var storeResult in storeResults) {
         if (storeResult['success']) {
@@ -992,10 +818,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       });
     } catch (e) {
       debugPrint('Error loading all stores: $e');
-      _recordStoreApiResponse('load all stores', {
-        'success': false,
-        'message': e.toString(),
-      });
       setState(() {
         allStoresError = 'Network error: ${e.toString()}';
         isLoadingAllStores = false;
@@ -1006,8 +828,19 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F6),
-      body: Stack(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFE3F2E6),
+              Color(0xFFF4F7F6),
+            ],
+            stops: [0.0, 0.42],
+          ),
+        ),
+        child: Stack(
         children: [
           Column(
             children: [
@@ -1015,7 +848,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
               // Search and filter section below header - conditionally shown
               if (_showFilters) ...[
                 Container(
-                  margin: EdgeInsets.fromLTRB(16, 10, 16, 6),
+                  margin: const EdgeInsets.fromLTRB(16, 10, 16, 8),
                   child: _buildSearchAndFilterCard(),
                 ),
               ],
@@ -1027,346 +860,593 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
           // Floating action button to show filters when hidden
           if (!_showFilters)
             Positioned(
-              bottom: 80, // Increased from 20 to avoid bottom navigation bar
-              right: 20,
-              child: FloatingActionButton(
+              bottom: 76,
+              right: 16,
+              child: FloatingActionButton.small(
                 onPressed: () {
-                  setState(() {
-                    _showFilters = true;
-                  });
-                  // Scroll to top to show filters
+                  setState(() => _showFilters = true);
                   _scrollController.animateTo(
                     0,
-                    duration: Duration(milliseconds: 300),
+                    duration: const Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
                   );
                 },
                 backgroundColor: const Color(0xFF2E7D32),
-                child: Icon(Icons.filter_list, color: Colors.white),
-                mini: true,
+                child: const Icon(Icons.filter_list, color: Colors.white, size: 20),
               ),
             ),
         ],
+        ),
       ),
     );
   }
 
   Widget _buildHeaderSection() {
-    final topPadding = MediaQuery.of(context).padding.top;
-
     return Container(
-      padding: EdgeInsets.only(top: topPadding * 0.4),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF1B5E20),
-            const Color(0xFF2E7D32),
-            const Color(0xFF43A047),
+            Color(0xFF1B5E20),
+            Color(0xFF2E7D32),
+            Color(0xFF43A047),
           ],
-          stops: [0.0, 0.5, 1.0],
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: SafeArea(
+        bottom: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+          child: Row(
             children: [
-              Row(
-                children: [
-                  AppBackButton(
-                    backgroundColor: Colors.white.withValues(alpha: 0.2),
-                    onPressed: () => Navigator.pushAndRemoveUntil(
+              AppBackButton(
+                backgroundColor: Colors.white.withValues(alpha: 0.2),
+                onPressed: () => Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => HomePage()),
+                  (route) => false,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Shop Locator',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        height: 1.2,
+                      ),
+                    ),
+                    Text(
+                      'Find Ernest Chemists Limited outlets',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.9),
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Material(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () {
+                    final storesToShow = allStores.isNotEmpty
+                        ? allStores
+                        : _getFilteredAllStores();
+                    Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => HomePage()),
-                      (route) => false,
+                      MaterialPageRoute(
+                        builder: (context) => StoreMapPage(
+                          stores: storesToShow,
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Icon(
+                      Icons.map_outlined,
+                      color: Colors.white,
+                      size: 20,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _clearLocationFilters() {
+    setState(() {
+      selectedRegion = null;
+      selectedCity = null;
+      cities = [];
+      citiesError = null;
+    });
+  }
+
+  void _selectRegion(Map<String, dynamic>? region) {
+    if (region == null) {
+      setState(() {
+        selectedRegion = null;
+        selectedCity = null;
+        cities = [];
+        citiesError = null;
+      });
+      return;
+    }
+    final isSame = selectedRegion != null &&
+        selectedRegion['id']?.toString() == region['id']?.toString();
+    if (isSame) {
+      _selectRegion(null);
+      return;
+    }
+    setState(() {
+      selectedRegion = region;
+      selectedCity = null;
+      cities = [];
+      citiesError = null;
+    });
+    _loadCitiesForFiltering(region);
+  }
+
+  void _selectCity(Map<String, dynamic>? city) {
+    setState(() {
+      if (city == null) {
+        selectedCity = null;
+        return;
+      }
+      final isSame = selectedCity != null &&
+          selectedCity['id']?.toString() == city['id']?.toString();
+      selectedCity = isSame ? null : city;
+    });
+  }
+
+  Widget _buildSearchAndFilterCard() {
+    final hasActiveFilter =
+        selectedRegion != null || selectedCity != null;
+    final regionOptions = regions
+        .map((r) => Map<String, dynamic>.from(r as Map))
+        .toList();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.22)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Color(0xFFDFF0E4),
+                  Color(0xFFF0FAF3),
+                ],
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.storefront_outlined,
+                    size: 18, color: AppColors.primaryDark),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Find a store',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                ),
+                if (hasActiveFilter)
+                  TextButton(
+                    onPressed: _clearLocationFilters,
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primaryDark,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'Clear',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _buildFilterGroupLabel('Region'),
+                    const Spacer(),
+                    Icon(
+                      Icons.swipe_rounded,
+                      size: 13,
+                      color: AppColors.primaryDark.withValues(alpha: 0.75),
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      'Swipe for more',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.primaryDark.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                if (isLoadingRegions)
+                  _buildFilterChipLoading()
+                else if (regionsError != null)
+                  _buildFilterChipError(regionsError!, _loadRegions)
+                else
+                  _buildHorizontalChipRow(
+                    showScrollAffordance: true,
+                    children: [
+                      _buildLocationChip(
+                        label: 'All regions',
+                        selected: selectedRegion == null,
+                        onTap: () => _selectRegion(null),
+                      ),
+                      ...regionOptions.map((region) {
+                        final label =
+                            region['description']?.toString() ?? '';
+                        final selected = selectedRegion != null &&
+                            selectedRegion['id']?.toString() ==
+                                region['id']?.toString();
+                        return _buildLocationChip(
+                          label: label,
+                          selected: selected,
+                          onTap: () => _selectRegion(region),
+                        );
+                      }),
+                    ],
+                  ),
+                if (selectedRegion != null) ...[
+                  const SizedBox(height: 12),
+                  _buildFilterGroupLabel('City'),
+                  const SizedBox(height: 6),
+                  if (isLoadingCities)
+                    _buildFilterChipLoading()
+                  else if (citiesError != null)
+                    _buildFilterChipError(
+                      citiesError!,
+                      () => _loadCitiesForFiltering(selectedRegion),
+                    )
+                  else if (cities.isEmpty)
+                    Text(
+                      'No cities for this region',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade600,
+                      ),
+                    )
+                  else
+                    _buildHorizontalChipRow(
                       children: [
-                        Text(
-                          'Shop Locator',
-                          style: TextStyle(
-                            fontSize: 21,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
+                        _buildLocationChip(
+                          label: 'All cities',
+                          selected: selectedCity == null,
+                          onTap: () => _selectCity(null),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Locate the nearest Ernest Chemists store',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white.withValues(alpha: 0.92),
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
+                        ...cities.map((city) {
+                          final map =
+                              Map<String, dynamic>.from(city as Map);
+                          final label =
+                              map['description']?.toString() ?? '';
+                          final selected = selectedCity != null &&
+                              selectedCity['id']?.toString() ==
+                                  map['id']?.toString();
+                          return _buildLocationChip(
+                            label: label,
+                            selected: selected,
+                            onTap: () => _selectCity(map),
+                          );
+                        }),
                       ],
                     ),
-                  ),
-                  // API responses (debug)
-                  Container(
-                    margin: const EdgeInsets.only(left: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.22),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: IconButton(
-                      tooltip: 'API responses',
-                      icon: Badge(
-                        isLabelVisible: _apiResponseLogs.isNotEmpty,
-                        label: Text(
-                          '${_apiResponseLogs.length}',
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                        child: const Icon(
-                          Icons.data_object,
-                          color: Colors.white,
-                          size: 22,
-                        ),
+                ],
+                const SizedBox(height: 12),
+                _buildFilterGroupLabel('Sort by'),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildSortOption(
+                        label: 'Nearest',
+                        icon: Icons.near_me_rounded,
+                        selected: sortBy == 'distance',
+                        onTap: () => setState(() => sortBy = 'distance'),
                       ),
-                      onPressed: _showApiResponsesSheet,
                     ),
-                  ),
-                  // Map view button
-                  Container(
-                    margin: EdgeInsets.only(left: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.22),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.map,
-                        color: Colors.white,
-                        size: 24,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildSortOption(
+                        label: 'Name A–Z',
+                        icon: Icons.sort_by_alpha_rounded,
+                        selected: sortBy == 'name',
+                        onTap: () => setState(() => sortBy = 'name'),
                       ),
-                      onPressed: () {
-                        // Use allStores if available, otherwise use filtered stores
-                        final storesToShow = allStores.isNotEmpty
-                            ? allStores
-                            : _getFilteredAllStores();
-                        print(
-                            '🗺️ Opening map with ${storesToShow.length} stores');
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => StoreMapPage(
-                              stores: storesToShow,
-                            ),
+                    ),
+                  ],
+                ),
+                if (sortBy == 'distance') ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        isLocationAvailable
+                            ? Icons.my_location_rounded
+                            : Icons.location_off_outlined,
+                        size: 13,
+                        color: isLocationAvailable
+                            ? AppColors.primary
+                            : Colors.grey.shade500,
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          isLocationAvailable
+                              ? 'Sorted from your location'
+                              : 'Enable location for nearest results',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey.shade600,
+                            height: 1.3,
                           ),
-                        );
-                      },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterGroupLabel(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: const TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.6,
+        color: AppColors.primaryDark,
+      ),
+    );
+  }
+
+  Widget _buildHorizontalChipRow({
+    required List<Widget> children,
+    bool showScrollAffordance = false,
+  }) {
+    final listView = ListView.separated(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      padding: showScrollAffordance
+          ? const EdgeInsets.only(right: 4)
+          : EdgeInsets.zero,
+      itemCount: children.length,
+      separatorBuilder: (_, __) => const SizedBox(width: 6),
+      itemBuilder: (_, i) => children[i],
+    );
+
+    if (!showScrollAffordance) {
+      return SizedBox(height: 34, child: listView);
+    }
+
+    return SizedBox(
+      height: 34,
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 26),
+            child: listView,
+          ),
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: IgnorePointer(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 20,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          Colors.white.withValues(alpha: 0),
+                          Colors.white,
+                        ],
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 22,
+                    alignment: Alignment.center,
+                    color: Colors.white,
+                    child: Icon(
+                      Icons.chevron_right_rounded,
+                      size: 20,
+                      color: Colors.grey.shade600,
                     ),
                   ),
                 ],
               ),
-            ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: selected ? const Color(0xFFE8F5E9) : const Color(0xFFF3F4F6),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected ? AppColors.accent : const Color(0xFFE5E7EB),
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              color: selected
+                  ? AppColors.primaryDark
+                  : const Color(0xFF4B5563),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildSearchAndFilterCard() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
+  Widget _buildSortOption({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: selected ? AppColors.primary : const Color(0xFFF3F4F6),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selected ? AppColors.primaryDark : const Color(0xFFE5E7EB),
+            ),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.tune_rounded, size: 16, color: Color(0xFF2E7D32)),
-              SizedBox(width: 6),
+              Icon(
+                icon,
+                size: 15,
+                color: selected ? Colors.white : const Color(0xFF6B7280),
+              ),
+              const SizedBox(width: 5),
               Text(
-                'Filter Outlets',
+                label,
                 style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1F2937),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: selected ? Colors.white : const Color(0xFF4B5563),
                 ),
               ),
             ],
           ),
-          SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildLocationEntityDropdown(
-                    label: 'Region',
-                    value: selectedRegion,
-                    options: regions
-                        .map((r) => Map<String, dynamic>.from(r as Map))
-                        .toList(),
-                    isLoading: isLoadingRegions,
-                    error: regionsError,
-                    onChanged: (Map<String, dynamic>? picked) {
-                      setState(() {
-                        selectedRegion = picked;
-                        selectedCity = null;
-                        cities = [];
-                      });
-                      if (picked != null) {
-                        _loadCitiesForFiltering(picked);
-                      }
-                    },
-                    onRetry: _loadRegions,
-                  ),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: _buildLocationEntityDropdown(
-                    label: 'City',
-                    value: selectedCity,
-                    options: cities
-                        .map((c) => Map<String, dynamic>.from(c as Map))
-                        .toList(),
-                    isLoading: isLoadingCities,
-                    error: citiesError,
-                    enabled: selectedRegion != null,
-                                       onChanged: (Map<String, dynamic>? picked) {
-                      setState(() {
-                        selectedCity = picked;
-                      });
-                    },
-                    onRetry: () => _loadCitiesForFiltering(selectedRegion),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 8),
-        ],
+        ),
       ),
     );
   }
 
-  /// Region/city picker using stable [Map] values (avoids duplicate-label crashes).
-  Widget _buildLocationEntityDropdown({
-    required String label,
-    required Map<String, dynamic>? value,
-    required List<Map<String, dynamic>> options,
-    required ValueChanged<Map<String, dynamic>?> onChanged,
-    bool isLoading = false,
-    String? error,
-    VoidCallback? onRetry,
-    bool enabled = true,
-    String emptyHint = 'No options available',
-  }) {
-    Map<String, dynamic>? effectiveValue;
-    if (value != null) {
-      final id = value['id']?.toString();
-      final match = options.where((o) => o['id']?.toString() == id);
-      if (match.isNotEmpty) {
-        effectiveValue = match.first;
-      }
-    }
+  Widget _buildFilterChipLoading() {
+    return const SizedBox(
+      height: 34,
+      child: Center(
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
+    );
+  }
 
-    final items = options
-        .map(
-          (o) => DropdownMenuItem<Map<String, dynamic>>(
-            value: o,
-            child: Text(
-              o['description']?.toString() ?? '',
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-              style: const TextStyle(fontSize: 13),
-            ),
+  Widget _buildFilterChipError(String message, VoidCallback onRetry) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            message,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 11, color: Colors.red.shade700),
           ),
-        )
-        .toList();
-
-    final canTap = enabled && !isLoading && items.isNotEmpty;
-
-    return DropdownButtonFormField<Map<String, dynamic>>(
-      value: canTap ? effectiveValue : null,
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(
-          color: Colors.grey.shade700,
-          fontSize: 13,
-          fontWeight: FontWeight.w400,
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+        TextButton(
+          onPressed: onRetry,
+          style: TextButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: const Text(
+            'Retry',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+          ),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade600, width: 2),
-        ),
-        filled: true,
-        fillColor: enabled ? Colors.white : Colors.grey.shade100,
-        contentPadding:
-            const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-        suffixIcon: isLoading
-            ? const Padding(
-                padding: EdgeInsets.all(8),
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            : error != null
-                ? IconButton(
-                    icon: Icon(Icons.refresh,
-                        color: Colors.red.shade400, size: 20),
-                    onPressed: onRetry,
-                  )
-                : Icon(Icons.keyboard_arrow_down,
-                    color: Colors.grey.shade600, size: 20),
-      ),
-      hint: Text(
-        isLoading
-            ? 'Loading...'
-            : (!enabled || items.isEmpty ? emptyHint : label),
-        overflow: TextOverflow.ellipsis,
-        maxLines: 1,
-        style: TextStyle(
-          fontSize: (!isLoading && (items.isEmpty || !enabled)) ? 11 : 13,
-          color: Colors.grey.shade600,
-        ),
-      ),
-      isExpanded: true,
-      items: items,
-      onChanged: canTap ? onChanged : null,
+      ],
     );
   }
 
@@ -1395,7 +1475,7 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
         Expanded(
           child: ListView.builder(
             controller: _scrollController, // Add scroll controller
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
             itemCount: filteredStores.length,
             itemBuilder: (context, index) {
               final store = filteredStores[index];
@@ -1412,10 +1492,10 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       baseColor: Colors.grey[300]!,
       highlightColor: Colors.grey[100]!,
       child: ListView.builder(
-        padding: EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
         itemCount: 5,
         itemBuilder: (context, index) => Container(
-          margin: EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(bottom: 8),
           padding: EdgeInsets.fromLTRB(10, 9, 10, 9),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -1622,14 +1702,16 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     final storeHours = _storeHoursLabel(store);
 
     return Container(
-      margin: EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         color: Colors.white,
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.12),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.035),
+            color: AppColors.primary.withValues(alpha: 0.05),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -1637,47 +1719,35 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
       ),
       child: InkWell(
         onTap: () => _launchMaps(storeName, storeAddress),
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: EdgeInsets.fromLTRB(10, 9, 10, 9),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: Colors.white,
-          ),
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Store Header
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: EdgeInsets.all(6),
+                    padding: const EdgeInsets.all(5),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          const Color(0xFF43A047),
-                          const Color(0xFF2E7D32),
-                        ],
+                      gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFFC8E6C9),
+                          Color(0xFFE8F5E9),
+                        ],
                       ),
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.green.shade200,
-                          blurRadius: 4,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
+                      borderRadius: BorderRadius.circular(7),
                     ),
                     child: Icon(
-                      Icons.store,
-                      color: Colors.white,
-                      size: 19,
+                      Icons.storefront_outlined,
+                      color: AppColors.primaryDark,
+                      size: 16,
                     ),
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 7),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1686,14 +1756,14 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                           storeName,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 14,
+                          style: const TextStyle(
+                            fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: const Color(0xFF1F2937),
+                            color: Color(0xFF1F2937),
                             height: 1.2,
                           ),
                         ),
-                        SizedBox(height: 1),
+                        const SizedBox(height: 1),
                         Row(
                           children: [
                             Icon(Icons.location_on_rounded,
@@ -1768,57 +1838,43 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
                 ],
               ),
 
-              SizedBox(height: 5),
-
-              // Store Hours
+              const SizedBox(height: 4),
               Row(
                 children: [
                   Icon(Icons.access_time_rounded,
-                      size: 12, color: Colors.grey.shade600),
-                  SizedBox(width: 4),
-                  Text(
-                    storeHours,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.grey.shade600,
-                      fontWeight: FontWeight.w400,
+                      size: 11, color: Colors.grey.shade600),
+                  const SizedBox(width: 3),
+                  Expanded(
+                    child: Text(
+                      storeHours,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _launchMaps(storeName, storeAddress),
+                    icon: Icon(Icons.directions_rounded,
+                        size: 14, color: Colors.green.shade700),
+                    label: Text(
+                      'Directions',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.green.shade700,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ),
                 ],
-              ),
-
-              SizedBox(height: 6),
-
-              // Action Button
-              SizedBox(
-                width: double.infinity,
-                height: 36,
-                child: ElevatedButton.icon(
-                  onPressed: () => _launchMaps(storeName, storeAddress),
-                  icon: Icon(Icons.directions_rounded,
-                      size: 14, color: Colors.green.shade600),
-                  label: Text(
-                    'Get Directions',
-                    style: TextStyle(
-                      color: Colors.green.shade600,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 12,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE8F5E9),
-                    foregroundColor: const Color(0xFF2E7D32),
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side:
-                          BorderSide(color: const Color(0xFF2E7D32), width: 1),
-                    ),
-                    elevation: 0,
-                  ),
-                ),
               ),
             ],
           ),
@@ -1954,10 +2010,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
     try {
       final regionId = int.tryParse(region['id'].toString()) ?? 0;
       final result = await DeliveryService.getCitiesByRegion(regionId);
-      _recordStoreApiResponse(
-        'GET /regions/$regionId/cities (filter)',
-        result,
-      );
 
       if (result['success']) {
         setState(() {
@@ -1974,10 +2026,6 @@ class StoreSelectionPageState extends State<StoreSelectionPage>
         });
       }
     } catch (e) {
-      _recordStoreApiResponse('GET /regions/{id}/cities (filter)', {
-        'success': false,
-        'message': e.toString(),
-      });
       setState(() {
         cities = [];
         citiesError = 'Network error: ${e.toString()}';

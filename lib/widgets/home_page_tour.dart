@@ -12,13 +12,19 @@ class HomePageTourTargets {
     required this.searchKey,
     required this.cartKey,
     required this.categoriesKey,
+    this.shopKey,
     this.menuKey,
+    this.medicationKey,
+    this.popularKey,
   });
 
   final GlobalKey searchKey;
   final GlobalKey cartKey;
   final GlobalKey categoriesKey;
+  final GlobalKey? shopKey;
   final GlobalKey? menuKey;
+  final GlobalKey? medicationKey;
+  final GlobalKey? popularKey;
 }
 
 class HomePageTour {
@@ -101,13 +107,49 @@ class HomePageTour {
           targetKey: targets.categoriesKey,
           title: 'Browse categories',
           body:
-              'Swipe the chips to explore departments. Tap Shop → See all for the full catalog.',
+              'Swipe the chips to explore departments on your home feed.',
           align: SpotlightTooltipAlign.below,
           padding: 6,
-          beforeShow: () => _scrollCategoriesIntoView(
+          beforeShow: () => _scrollTargetIntoView(
             scrollController,
             targets.categoriesKey,
           ),
+        ),
+      if (targets.medicationKey != null && _targetReady(targets.medicationKey!))
+        SpotlightStep(
+          targetKey: targets.medicationKey!,
+          title: 'Shop medications',
+          body:
+              'Browse medicines by section. Tap See More to open the full catalog.',
+          align: SpotlightTooltipAlign.below,
+          padding: 6,
+          beforeShow: () => _scrollTargetIntoView(
+            scrollController,
+            targets.medicationKey!,
+          ),
+        ),
+      if (targets.popularKey != null && _targetReady(targets.popularKey!))
+        SpotlightStep(
+          targetKey: targets.popularKey!,
+          title: 'Popular right now',
+          body:
+              'See trending products—swipe sideways to browse more picks.',
+          align: SpotlightTooltipAlign.below,
+          padding: 6,
+          beforeShow: () => _scrollTargetIntoView(
+            scrollController,
+            targets.popularKey!,
+          ),
+        ),
+      if (targets.shopKey != null && _targetReady(targets.shopKey!))
+        SpotlightStep(
+          targetKey: targets.shopKey!,
+          title: 'Shop',
+          body:
+              'Open the full catalog and browse every category in one place.',
+          align: SpotlightTooltipAlign.above,
+          padding: 6,
+          beforeShow: () => _scrollToTop(scrollController),
         ),
       if (targets.menuKey != null && _targetReady(targets.menuKey!))
         SpotlightStep(
@@ -142,14 +184,15 @@ class HomePageTour {
     );
   }
 
-  /// Scroll so category chips sit in the upper third; tooltip goes below them.
-  static Future<void> _scrollCategoriesIntoView(
+  /// Scroll so the target sits in the upper third; tooltip goes below it.
+  static Future<void> _scrollTargetIntoView(
     ScrollController? controller,
-    GlobalKey categoriesKey,
-  ) async {
+    GlobalKey targetKey, {
+    double viewportFraction = 0.22,
+  }) async {
     if (controller == null || !controller.hasClients) return;
 
-    final rect = SpotlightTour.targetRect(categoriesKey);
+    final rect = SpotlightTour.targetRect(targetKey);
     if (rect == null) {
       final fallback = controller.position.maxScrollExtent > 320
           ? 280.0
@@ -163,7 +206,7 @@ class HomePageTour {
     }
 
     final viewportHeight = controller.position.viewportDimension;
-    final targetTop = viewportHeight * 0.22;
+    final targetTop = viewportHeight * viewportFraction;
     final delta = rect.top - targetTop;
     if (delta.abs() < 8) return;
 

@@ -635,6 +635,9 @@ class HomePageState extends State<HomePage>
   final GlobalKey _tourSearchKey = GlobalKey();
   final GlobalKey _tourCartKey = GlobalKey();
   final GlobalKey _tourCategoriesKey = GlobalKey();
+  final GlobalKey _tourMedicationKey = GlobalKey();
+  final GlobalKey _tourPopularKey = GlobalKey();
+  final GlobalKey _tourShopKey = GlobalKey();
   final GlobalKey _tourMenuKey = GlobalKey();
   final ScrollController _popularScrollController = ScrollController();
   final ProductCatalogService _catalogService = ProductCatalogService();
@@ -1029,6 +1032,9 @@ class HomePageState extends State<HomePage>
           cartKey: _tourCartKey,
           categoriesKey: _tourCategoriesKey,
           menuKey: _tourMenuKey,
+          shopKey: _tourShopKey,
+          medicationKey: _tourMedicationKey,
+          popularKey: _tourPopularKey,
         ),
         scrollController: _scrollController,
         force: forceTour && attempt == 0,
@@ -1877,6 +1883,7 @@ class HomePageState extends State<HomePage>
       bottomNavigationBar: CustomBottomNav(
         initialIndex: 0,
         tourMenuKey: _tourMenuKey,
+        tourShopKey: _tourShopKey,
       ),
     );
   }
@@ -1988,15 +1995,18 @@ class HomePageState extends State<HomePage>
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 16),
-                  child: _buildProductSection(
-                    'Medication',
-                    Colors.green[700]!,
-                    _getLimitedProducts(drugsSectionProducts),
-                    'drugs',
-                    fontSize: cardFontSize,
-                    padding: cardPadding,
-                    imageHeight: cardImageHeight,
-                    isTablet: isTablet,
+                  child: KeyedSubtree(
+                    key: _tourMedicationKey,
+                    child: _buildProductSection(
+                      'Medication',
+                      Colors.green[700]!,
+                      _getLimitedProducts(drugsSectionProducts),
+                      'drugs',
+                      fontSize: cardFontSize,
+                      padding: cardPadding,
+                      imageHeight: cardImageHeight,
+                      isTablet: isTablet,
+                    ),
                   ),
                 ),
               ),
@@ -2015,10 +2025,12 @@ class HomePageState extends State<HomePage>
               ),
               // Popular right now header
               SliverToBoxAdapter(
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-          child: Container(
+                child: KeyedSubtree(
+                  key: _tourPopularKey,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 16, horizontal: 16),
+                    child: Container(
                     width: double.infinity,
                     padding:
                         const EdgeInsets.symmetric(vertical: 4, horizontal: 10),
@@ -2056,7 +2068,8 @@ class HomePageState extends State<HomePage>
                     ]),
             ),
           ),
-        ),
+                ),
+              ),
               SliverToBoxAdapter(
                   child: _buildPopularProducts(isTablet: isTablet)),
               SliverToBoxAdapter(
@@ -2525,7 +2538,7 @@ class HomePageState extends State<HomePage>
                       fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
                     Text(
-                      'Make purchase through the Ernest Chemists e-commerce platform and get a 10% discount of your first purchase.',
+                      'Make purchase through the Ernest Chemists Limited e-commerce platform and get a 10% discount of your first purchase.',
                       style: TextStyle(
                       color: Colors.grey[600], fontSize: 11, height: 1.3)),
             ]),

@@ -1622,7 +1622,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
     final brandGreen = AppColors.primary;
     final pickupLocation = _pickupLocationText(order);
     final thankYou =
-        'Thanks for collecting your order from Ernest Chemists. We appreciate your business and are here whenever you need us.';
+        'Thanks for collecting your order from Ernest Chemists Limited. We appreciate your business and are here whenever you need us.';
 
     Widget detailRow({
       required IconData icon,

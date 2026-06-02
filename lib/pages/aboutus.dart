@@ -59,7 +59,7 @@ class AboutUsScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 1),
                       Text(
-                        'Learn about Ernest Chemists',
+                        'Learn about Ernest Chemists Limited',
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           color: Colors.white.withValues(alpha: 0.9),

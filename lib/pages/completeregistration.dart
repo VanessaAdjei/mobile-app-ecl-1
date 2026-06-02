@@ -27,7 +27,7 @@ class GetStartedScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               const Text(
-                'Get started with Enerst Chemists!',
+                'Get started with Ernest Chemists Limited!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,

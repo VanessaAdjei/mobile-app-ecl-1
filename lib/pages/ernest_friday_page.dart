@@ -671,7 +671,7 @@ class _ErnestFridayPageState extends State<ErnestFridayPage>
             '• Minimum order amounts apply to certain offers\n'
             '• Cashback will be credited to your wallet\n'
             '• Offers cannot be combined with other promotions\n'
-            '• Ernest Chemists reserves the right to modify terms',
+            '• Ernest Chemists Limited reserves the right to modify terms',
             style: GoogleFonts.poppins(
               fontSize: 12,
               color: Colors.grey.shade600,

@@ -21,11 +21,13 @@ import '../utils/app_error_utils.dart';
 class CustomBottomNav extends StatefulWidget {
   final int initialIndex;
   final GlobalKey? tourMenuKey;
+  final GlobalKey? tourShopKey;
 
   const CustomBottomNav({
     super.key,
     this.initialIndex = 0,
     this.tourMenuKey,
+    this.tourShopKey,
   });
 
   @override
@@ -996,11 +998,20 @@ class _CustomBottomNavState extends State<CustomBottomNav>
                       label: '',
                     ),
                     BottomNavigationBarItem(
-                      icon: _buildIconWithGlow(
-                        icon: Icons.grid_view_rounded,
-                        isSelected: _selectedIndex == 3,
-                        itemIndex: 3,
-                      ),
+                      icon: widget.tourShopKey != null
+                          ? KeyedSubtree(
+                              key: widget.tourShopKey,
+                              child: _buildIconWithGlow(
+                                icon: Icons.grid_view_rounded,
+                                isSelected: _selectedIndex == 3,
+                                itemIndex: 3,
+                              ),
+                            )
+                          : _buildIconWithGlow(
+                              icon: Icons.grid_view_rounded,
+                              isSelected: _selectedIndex == 3,
+                              itemIndex: 3,
+                            ),
                       label: 'Shop',
                     ),
                     BottomNavigationBarItem(

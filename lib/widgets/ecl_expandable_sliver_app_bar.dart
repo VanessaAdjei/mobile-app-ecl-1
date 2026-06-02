@@ -22,6 +22,11 @@ class EclExpandableSliverAppBar extends StatelessWidget {
     this.centerTitle = true,
     this.onBack,
     this.leadingWidth = 56,
+    this.toolbarTitleStyle,
+    this.heroTitleStyle,
+    this.heroSubtitleStyle,
+    this.expandedTitleWidget,
+    this.expandedTitleAlignment = Alignment.bottomLeft,
   });
 
   /// Shown in the collapsed toolbar (center or start per [centerTitle]).
@@ -42,6 +47,11 @@ class EclExpandableSliverAppBar extends StatelessWidget {
   final bool centerTitle;
   final VoidCallback? onBack;
   final double leadingWidth;
+  final TextStyle? toolbarTitleStyle;
+  final TextStyle? heroTitleStyle;
+  final TextStyle? heroSubtitleStyle;
+  final Widget? expandedTitleWidget;
+  final Alignment expandedTitleAlignment;
 
   bool _hideHeroBecauseSameAsToolbar() {
     final h = heroTitle.trim();
@@ -78,6 +88,9 @@ class EclExpandableSliverAppBar extends StatelessWidget {
 
   double _effectiveExpandedHeight() {
     if (expandedHeight != null) return expandedHeight!;
+    if (expandedTitleWidget != null) {
+      return kToolbarHeight + 92;
+    }
     return kToolbarHeight + _flexRegionHeight();
   }
 
@@ -109,11 +122,12 @@ class EclExpandableSliverAppBar extends StatelessWidget {
         toolbarTitle,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: GoogleFonts.poppins(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.15,
-        ),
+        style: toolbarTitleStyle ??
+            GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.15,
+            ),
       ),
       centerTitle: centerTitle,
       actions: actions,
@@ -157,52 +171,63 @@ class EclExpandableSliverAppBar extends StatelessWidget {
               ),
             ),
             SafeArea(
-              child: Align(
-                alignment: Alignment.bottomLeft,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 64, 8),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (!hideHero && heroTitle.trim().isNotEmpty) ...[
-                        Text(
-                          heroTitle,
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            height: 1.05,
-                          ),
+              child: expandedTitleWidget != null
+                  ? Align(
+                      alignment: expandedTitleAlignment,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                        child: expandedTitleWidget,
+                      ),
+                    )
+                  : Align(
+                      alignment: Alignment.bottomLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 64, 8),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (!hideHero && heroTitle.trim().isNotEmpty) ...[
+                              Text(
+                                heroTitle,
+                                style: heroTitleStyle ??
+                                    GoogleFonts.poppins(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                      height: 1.05,
+                                    ),
+                              ),
+                            ],
+                            if (hideHero && hasSub) ...[
+                              Text(
+                                sub,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: heroTitleStyle ??
+                                    GoogleFonts.poppins(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                      height: 1.2,
+                                    ),
+                              ),
+                            ],
+                            if (!hideHero && hasSub) ...[
+                              Text(
+                                sub,
+                                style: heroSubtitleStyle ??
+                                    GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: Colors.white.withValues(alpha: 0.88),
+                                      height: 1.15,
+                                    ),
+                              ),
+                            ],
+                          ],
                         ),
-                      ],
-                      if (hideHero && hasSub) ...[
-                        Text(
-                          sub,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.poppins(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            height: 1.2,
-                          ),
-                        ),
-                      ],
-                      if (!hideHero && hasSub) ...[
-                        Text(
-                          sub,
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: Colors.white.withValues(alpha: 0.88),
-                            height: 1.15,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
+                      ),
+                    ),
             ),
           ],
         ),

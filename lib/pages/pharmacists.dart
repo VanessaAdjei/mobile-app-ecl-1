@@ -2320,21 +2320,16 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
       child: DecoratedBox(
       decoration: BoxDecoration(
-          color: shellBg,
-          borderRadius: BorderRadius.circular(16),
+          color: isDark ? shellBg : const Color(0xFFF0FAF4),
+          borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color: isDark ? Colors.grey.shade800 : const Color(0xFFD4EBDC),
+            color: isDark
+                ? Colors.grey.shade800
+                : AppColors.primary.withValues(alpha: 0.22),
         ),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
-              blurRadius: 6,
-              offset: const Offset(0, 1),
-          ),
-        ],
       ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
@@ -2429,81 +2424,143 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F1),
-      appBar: AppBar(
-        backgroundColor: AppColors.accent,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        centerTitle: true,
-        leading: BackButtonUtils.simple(
-          backgroundColor: Colors.white.withOpacity(0.2),
-        ),
-        title: Text(
-          'Pharmacist care',
-                  style: GoogleFonts.poppins(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-            letterSpacing: 0.15,
+  Widget _buildPharmacistPageHeader() {
+    final top = MediaQuery.paddingOf(context).top;
+    return ClipPath(
+      clipper: _PharmacistWaveClipper(),
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.fromLTRB(10, top + 6, 14, 24),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF062A12),
+              Color(0xFF0D3D18),
+              AppColors.accent,
+              Color(0xFF2E7D32),
+            ],
+            stops: [0.0, 0.3, 0.65, 1.0],
           ),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: Material(
-              color: Colors.white.withOpacity(0.18),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            BackButtonUtils.simple(
+              backgroundColor: Colors.white.withValues(alpha: 0.18),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pharmacist care',
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Licensed guidance, private consultations',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.white.withValues(alpha: 0.9),
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Material(
+              color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(10),
               child: CartIconButton(
                 iconColor: Colors.white,
-                iconSize: 22,
+                iconSize: 20,
                 backgroundColor: Colors.transparent,
               ),
-                  ),
-                ),
-              ],
             ),
-      body: CustomScrollView(
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openBookingsSheet() {
+    final visible = _pharmacistPageBookings;
+    if (visible.isEmpty) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => BookingsListSheet(
+        bookings: visible,
+        onClear: _clearBookings,
+        onCancelBooking: _cancelBooking,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasBookings = _pharmacistPageBookings.isNotEmpty;
+
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFE3F2E6),
+              Color(0xFFF5F7F6),
+            ],
+            stops: [0.0, 0.38],
+          ),
+        ),
+        child: CustomScrollView(
         physics: const BouncingScrollPhysics(
           parent: AlwaysScrollableScrollPhysics(),
         ),
         slivers: [
-          if (_pharmacistPageBookings.isNotEmpty)
+          SliverToBoxAdapter(child: _buildPharmacistPageHeader()),
+          if (hasBookings)
             SliverToBoxAdapter(child: _buildTopBookingsStrip()),
           SliverPadding(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              _pharmacistPageBookings.isNotEmpty ? 12 : 14,
-              16,
-              32,
-            ),
+            padding: EdgeInsets.fromLTRB(20, hasBookings ? 12 : 18, 20, 32),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 _buildHeroSection(),
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
                 _buildRedesignedHealthTipsSection(),
               ]),
             ),
           ),
         ],
+        ),
       ),
     );
   }
 
   Widget _buildHeroSection() {
+    final hasBookings = _pharmacistPageBookings.isNotEmpty;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE3EDE6)),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.2),
+        ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.accent.withOpacity(0.05),
-            blurRadius: 14,
+            color: AppColors.primary.withValues(alpha: 0.1),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -2511,79 +2568,114 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
         children: [
           AspectRatio(
-            aspectRatio: 2.35,
-            child: Image.asset(
-              'assets/images/banner2.jpg',
-              fit: BoxFit.cover,
-              alignment: Alignment.center,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-          Container(
-                      width: 42,
-                      height: 42,
-            decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppColors.primary, AppColors.primaryDark],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                            color: AppColors.primary.withOpacity(0.28),
-                  blurRadius: 8,
-                            offset: const Offset(0, 3),
+            aspectRatio: 2.25,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.asset(
+                  'assets/images/banner2.jpg',
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                ),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        AppColors.primaryDark.withValues(alpha: 0.08),
+                        Colors.black.withValues(alpha: 0.28),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  bottom: 10,
+                  child: Text(
+                    'Expert medication guidance',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black.withValues(alpha: 0.35),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
-                      child: const Icon(
-                        Icons.local_pharmacy_rounded,
-                        color: Colors.white,
-                        size: 22,
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _PharmacistActionTile(
+                        icon: Icons.calendar_month_rounded,
+                        label: 'Book appointment',
+                        subtitle: 'Video, audio, or chat',
+                        filled: true,
+                        onTap: _showBookingForm,
                       ),
                     ),
                     const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                            'Expert guidance',
-                style: GoogleFonts.poppins(
-                  fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                              color: AppColors.accent,
-                              letterSpacing: 0.35,
+                    Expanded(
+                      child: _PharmacistActionTile(
+                        icon: Icons.event_note_rounded,
+                        label: 'My bookings',
+                        subtitle: hasBookings
+                            ? '${_pharmacistPageBookings.length} upcoming'
+                            : 'None yet',
+                        filled: false,
+                        onTap: hasBookings
+                            ? _openBookingsSheet
+                            : () {
+                                AppErrorUtils.showSnack(
+                                  context,
+                                  'Book a session to see it here.',
+                                );
+                              },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFE8F5E9), Color(0xFFF4FBF6)],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.2),
                     ),
                   ),
-                          const SizedBox(height: 3),
-                  Text(
-                            'Medication help & consultations',
-                    style: GoogleFonts.poppins(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF111827),
-                              height: 1.2,
-                            ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.verified_user_rounded,
+                          size: 18, color: AppColors.primaryDark),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Licensed pharmacists · Confidential · Flexible times',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: const Color(0xFF4B5563),
+                            height: 1.35,
                           ),
-                          const SizedBox(height: 5),
-                      Text(
-                            'Book a pharmacist session when it works for you.',
-                        style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              color: const Color(0xFF6B7280),
-                              height: 1.4,
                         ),
                       ),
                     ],
@@ -2591,70 +2683,11 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
                 ),
               ],
             ),
-                const SizedBox(height: 10),
-                              Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                                decoration: BoxDecoration(
-                    color: const Color(0xFFF3FAF5),
-                                  borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFDCEEE2)),
-            ),
-            child: Row(
-              children: [
-                      Icon(Icons.verified_outlined,
-                          size: 16, color: AppColors.accent),
-                      const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                          'Licensed pharmacists · Private · Available anytime',
-                          style: GoogleFonts.poppins(
-                            fontSize: 11,
-                            color: const Color(0xFF4B5563),
-                            height: 1.3,
-                          ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-                const SizedBox(height: 12),
-                SizedBox(
-      width: double.infinity,
-                  height: 44,
-                  child: ElevatedButton(
-                    onPressed: _showBookingForm,
-                    style: ElevatedButton.styleFrom(
-                      elevation: 0,
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-      ),
-      child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-                        const Icon(Icons.calendar_month_rounded, size: 18),
-                        const SizedBox(width: 6),
-              Text(
-                          'Book appointment',
-                style: GoogleFonts.poppins(
-                            fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-                    ),
-                  ],
-                ),
           ),
         ],
-        ),
-      );
-    }
+      ),
+    );
+  }
 
   ({IconData icon, Color primary, Color accent}) _categoryVisualsForTip(
       HealthTip tip) {
@@ -3135,99 +3168,191 @@ class _PharmacistsPageState extends State<PharmacistsPage> {
 
   Widget _buildRedesignedHealthTipsSection() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFE8F5E9),
-            Color(0xFFF5FBF7),
-            Colors.white,
-          ],
-          stops: [0.0, 0.45, 1.0],
-        ),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFC8E6D0)),
-          boxShadow: [
-            BoxShadow(
-            color: AppColors.accent.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-            ),
-          ],
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.18),
         ),
-        child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-                padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                      color: AppColors.primary.withOpacity(0.12),
-                      blurRadius: 6,
-                    offset: const Offset(0, 1),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.07),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFFDFF0E4), Color(0xFFF0FAF3)],
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    shape: BoxShape.circle,
                   ),
-                ],
+                  child: Icon(Icons.lightbulb_outline_rounded,
+                      size: 18, color: AppColors.primaryDark),
                 ),
-                child: Icon(
-                  Icons.auto_awesome_rounded,
-                  color: AppColors.primary,
-                  size: 16,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Daily wellness picks',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF0F172A),
-                        height: 1.15,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Wellness insights',
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF111827),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      'Tap a row for a short read from trusted guidance.',
-                      style: GoogleFonts.poppins(
-                        fontSize: 10,
-                        color: const Color(0xFF64748B),
-                        height: 1.35,
+                      Text(
+                        'Short reads from trusted health guidance.',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: AppColors.primaryDark.withValues(alpha: 0.8),
+                          height: 1.35,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              IconButton.filledTonal(
-                onPressed: _refreshHealthTips,
-                tooltip: 'New tips',
-                style: IconButton.styleFrom(
-        backgroundColor: Colors.white,
-                  foregroundColor: AppColors.accent,
-        elevation: 0,
+                IconButton(
+                  onPressed: _refreshHealthTips,
+                  tooltip: 'Refresh tips',
                   visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.all(4),
-                  minimumSize: const Size(32, 32),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                icon: const Icon(Icons.refresh_rounded, size: 18),
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 32, minHeight: 32),
+                  icon: Icon(Icons.refresh_rounded,
+                      size: 20, color: AppColors.primaryDark),
                 ),
               ],
             ),
-          const SizedBox(height: 8),
-          _buildCompactHealthTipsList(),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+            child: _buildCompactHealthTipsList(),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _PharmacistWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    path.lineTo(0, size.height - 14);
+    path.quadraticBezierTo(
+      size.width * 0.5,
+      size.height + 4,
+      size.width,
+      size.height - 14,
+    );
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+}
+
+class _PharmacistActionTile extends StatelessWidget {
+  const _PharmacistActionTile({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.filled,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final bool filled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = filled ? Colors.white : AppColors.primaryDark;
+    final subColor =
+        filled ? Colors.white.withValues(alpha: 0.88) : const Color(0xFF6B7280);
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            gradient: filled
+                ? const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [AppColors.primary, AppColors.primaryDark],
+                  )
+                : const LinearGradient(
+                    colors: [Color(0xFFE8F5E9), Color(0xFFF8FCF9)],
+                  ),
+            border: filled
+                ? null
+                : Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.25),
+                  ),
+            boxShadow: filled
+                ? [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: fg, size: 22),
+              const SizedBox(height: 10),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: fg,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: GoogleFonts.poppins(
+                  fontSize: 10,
+                  color: subColor,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

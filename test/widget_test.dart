@@ -10,7 +10,7 @@ void main() {
     await tester.pumpWidget(const MyApp());
     await tester.pumpAndSettle(const Duration(seconds: 5));
     expect(
-      find.text('Welcome to Enerst Chemists E-Pharmacy!'),
+      find.text('Welcome to Ernest Chemists Limited'),
       findsOneWidget,
     );
   });
