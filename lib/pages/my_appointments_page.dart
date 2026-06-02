@@ -11,6 +11,7 @@ import '../services/booking_service.dart';
 import '../widgets/booking_appointment_card.dart';
 import '../utils/app_error_utils.dart';
 import '../widgets/error_display.dart';
+import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import 'pharmacists/pharmacists_booking_helpers.dart';
 
 const Color _kPageBg = Color(0xFFF6F8FA);
@@ -166,56 +167,36 @@ class _MyAppointmentsPageState extends State<MyAppointmentsPage>
       backgroundColor: _kPageBg,
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          SliverAppBar(
-            pinned: true,
-            elevation: 0,
-            backgroundColor: AppColors.primary,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                  color: Colors.white, size: 20),
-              onPressed: () => Navigator.maybePop(context),
-            ),
-            title: Text(
-              'My Appointments',
-              style: GoogleFonts.poppins(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                fontSize: 18,
-              ),
-            ),
+          EclExpandableSliverAppBar(
+            toolbarTitle: 'My Appointments',
+            heroTitle: 'My Appointments',
+            onBack: () => Navigator.maybePop(context),
             actions: [
-              IconButton(
-                tooltip: 'Book consultation',
-                icon: const Icon(Icons.add_circle_outline,
-                    color: Colors.white),
-                onPressed: _openBookConsultation,
-              ),
-            ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(48),
-              child: Container(
-                color: AppColors.primary,
-                child: TabBar(
-                  controller: _tabController,
-                  indicatorColor: Colors.white,
-                  indicatorWeight: 3,
-                  labelColor: Colors.white,
-                  unselectedLabelColor: Colors.white.withValues(alpha: 0.72),
-                  labelStyle: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  unselectedLabelStyle: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                  child: IconButton(
+                    tooltip: 'Book consultation',
+                    icon: const Icon(Icons.add_circle_outline,
+                        color: Colors.white),
+                    onPressed: _openBookConsultation,
                   ),
-                  tabs: [
-                    Tab(text: 'Upcoming (${upcoming.length})'),
-                    Tab(text: 'Overdue(${pastDue.length})'),
-                    Tab(text: 'Completed (${completed.length})'),
-                  ],
                 ),
               ),
+            ],
+          ),
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _AppointmentsTabBarDelegate(
+              tabController: _tabController,
+              upcomingCount: upcoming.length,
+              pastDueCount: pastDue.length,
+              completedCount: completed.length,
             ),
           ),
         ],
@@ -261,6 +242,90 @@ class _MyAppointmentsPageState extends State<MyAppointmentsPage>
                   ),
       ),
     );
+  }
+}
+
+class _AppointmentsTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabController tabController;
+  final int upcomingCount;
+  final int pastDueCount;
+  final int completedCount;
+
+  const _AppointmentsTabBarDelegate({
+    required this.tabController,
+    required this.upcomingCount,
+    required this.pastDueCount,
+    required this.completedCount,
+  });
+
+  @override
+  double get minExtent => 48;
+
+  @override
+  double get maxExtent => 48;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF0D3D18),
+            AppColors.primary,
+            AppColors.accent,
+          ],
+          stops: [0.0, 0.5, 1.0],
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: TabBar(
+        controller: tabController,
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicatorPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        indicator: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        dividerColor: Colors.transparent,
+        labelColor: AppColors.primaryDark,
+        unselectedLabelColor: Colors.white.withValues(alpha: 0.78),
+        labelStyle: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          height: 1.0,
+        ),
+        unselectedLabelStyle: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          height: 1.0,
+        ),
+        tabs: [
+          Tab(text: 'Upcoming ($upcomingCount)'),
+          Tab(text: 'Overdue ($pastDueCount)'),
+          Tab(text: 'Completed ($completedCount)'),
+        ],
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _AppointmentsTabBarDelegate oldDelegate) {
+    return upcomingCount != oldDelegate.upcomingCount ||
+        pastDueCount != oldDelegate.pastDueCount ||
+        completedCount != oldDelegate.completedCount;
   }
 }
 

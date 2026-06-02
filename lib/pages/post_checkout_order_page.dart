@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:eclapp/config/api_config.dart';
 import 'package:eclapp/config/app_colors.dart';
 import 'package:eclapp/config/app_routes.dart';
@@ -7,6 +9,9 @@ import 'package:eclapp/models/order_tracking_model.dart';
 import 'package:eclapp/widgets/checkout_progress_stepper.dart';
 import 'package:eclapp/providers/cart_provider.dart';
 import 'package:eclapp/providers/order_tracking_provider.dart';
+import 'package:eclapp/pages/delivery_page.dart';
+import 'package:eclapp/services/auth_service.dart';
+import 'package:eclapp/services/guest_checkout_draft_service.dart';
 import 'package:eclapp/services/order_tracking_service.dart';
 import 'package:eclapp/services/pending_payment_polling_service.dart';
 import 'package:eclapp/utils/non_ui_error_reporter.dart';
@@ -377,6 +382,31 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
   void _goToCart() {
     if (_hasNavigatedAway || !mounted) return;
     _hasNavigatedAway = true;
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      AppRoutes.cart,
+      (route) => false,
+    );
+  }
+
+  Future<void> _resumeGuestCheckoutAfterFailure() async {
+    if (_hasNavigatedAway || !mounted) return;
+    _hasNavigatedAway = true;
+
+    final isLoggedIn = await AuthService.isLoggedIn();
+    final hasDraft = !isLoggedIn && await GuestCheckoutDraftService.hasDraft();
+
+    if (!mounted) return;
+
+    if (hasDraft) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const DeliveryPage()),
+        (route) => route.isFirst,
+      );
+      return;
+    }
+
     Navigator.pushNamedAndRemoveUntil(
       context,
       AppRoutes.cart,
@@ -1232,7 +1262,7 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                     child: SizedBox(
                       height: 44,
                       child: FilledButton.icon(
-                        onPressed: _goToCart,
+                        onPressed: _resumeGuestCheckoutAfterFailure,
                         style: FilledButton.styleFrom(
                           backgroundColor: failRed,
                           foregroundColor: Colors.white,
@@ -2774,7 +2804,11 @@ class _PostCheckoutOrderPageState extends State<PostCheckoutOrderPage> {
                                                         message:
                                                             'Your payment could not be completed.',
                                                         actionLabel: 'Retry',
-                                                        onAction: _goToCart,
+                                                        onAction: () {
+                                                          unawaited(
+                                                            _resumeGuestCheckoutAfterFailure(),
+                                                          );
+                                                        },
                                                         accent:
                                                             Colors.red.shade700,
                                                       ),

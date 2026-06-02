@@ -2,8 +2,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:eclapp/pages/payment_page.dart';
+import 'package:eclapp/models/guest_checkout_draft.dart';
 import 'package:eclapp/services/auth_service.dart';
 import 'package:eclapp/services/delivery_service.dart';
+import 'package:eclapp/services/guest_checkout_draft_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'bottomnav.dart';
@@ -11,6 +13,7 @@ import '../providers/cart_provider.dart';
 import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -29,6 +32,8 @@ class DeliveryPage extends StatefulWidget {
 
 class DeliveryPageState extends State<DeliveryPage> {
   bool _isNavigatingToNextPage = false;
+  Future<void>? _initialDeliveryDataLoad;
+  bool _isInitialDeliveryDataLoading = true;
 
   Future<T?> _pushPageOnce<T>(Route<T> route) async {
     if (!mounted || _isNavigatingToNextPage) return null;
@@ -81,7 +86,6 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   /// True when [deliveryFee] came from save-billing or calculate-delivery-fee API.
   bool _deliveryFeeFromApi = false;
-  double? _apiSubtotalOverride;
   double? _apiDiscountOverride;
   bool? _apiShippingFree;
 
@@ -134,6 +138,7 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   @override
   void dispose() {
+    unawaited(_persistGuestCheckoutDraft());
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _nameController.dispose();
@@ -153,11 +158,29 @@ class DeliveryPageState extends State<DeliveryPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _loadUserData();
+    _initialDeliveryDataLoad = _loadUserData().whenComplete(() {
+      if (!mounted) return;
+      setState(() => _isInitialDeliveryDataLoading = false);
+    });
     _loadRegions(); // load regions when the page starts
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _updateScrollHint();
     });
+  }
+
+  Future<void> _ensureInitialDeliveryDataLoaded() async {
+    final pending = _initialDeliveryDataLoad;
+    if (pending == null) {
+      if (_isInitialDeliveryDataLoading) {
+        setState(() => _isInitialDeliveryDataLoading = false);
+      }
+      return;
+    }
+    await pending;
+    _initialDeliveryDataLoad = null;
+    if (mounted && _isInitialDeliveryDataLoading) {
+      setState(() => _isInitialDeliveryDataLoading = false);
+    }
   }
 
   void _runWithSuppressedAddressFeeRefresh(void Function() action) {
@@ -394,6 +417,24 @@ class DeliveryPageState extends State<DeliveryPage> {
     return null;
   }
 
+  void _applyPromoOverridesFromSaveResult(Map<String, dynamic> result) {
+    final promo = _promoDetailsFromSaveResult(result);
+    final promoDiscount = _toDouble(promo?['discount_amount']) ??
+        _toDouble(promo?['totalDiscount']) ??
+        _toDouble(promo?['total_discount']);
+    final promoShippingFree = promo?['shipping_free'] == true;
+
+    setState(() {
+      _apiDiscountOverride =
+          promoDiscount != null && promoDiscount > 0 ? promoDiscount : null;
+      _apiShippingFree = promoShippingFree;
+    });
+  }
+
+  double _cartSubtotal(BuildContext context) {
+    return Provider.of<CartProvider>(context, listen: false).calculateSubtotal();
+  }
+
   double? _toDouble(dynamic value) {
     if (value is num) return value.toDouble();
     return double.tryParse('${value ?? ''}');
@@ -416,20 +457,12 @@ class DeliveryPageState extends State<DeliveryPage> {
       });
     }
 
+    _applyPromoOverridesFromSaveResult(result);
+
     if (deliveryOption != 'delivery') return;
 
     final distanceText = _distanceTextFromSaveResult(result);
     final feeFromSave = _deliveryFeeFromSaveResult(result);
-    final promo = _promoDetailsFromSaveResult(result);
-    final promoSubtotal = _toDouble(promo?['subtotal']);
-    final promoDiscount = _toDouble(promo?['discount_amount']);
-    final promoShippingFree = promo?['shipping_free'] == true;
-
-    setState(() {
-      _apiSubtotalOverride = promoSubtotal;
-      _apiDiscountOverride = promoDiscount;
-      _apiShippingFree = promoShippingFree;
-    });
 
     if (distanceText != null) {
       if (distanceText == _lastFeeDistanceText &&
@@ -732,69 +765,237 @@ class DeliveryPageState extends State<DeliveryPage> {
 
   Future<void> _loadUserData() async {
     try {
-      // load basic user data first so the ui shows up fast
-      await _loadBasicUserData();
+      final isLoggedIn = await AuthService.isLoggedIn();
+      GuestCheckoutDraft? localDraft;
 
-      // Get saved address from API (works for both logged-in and guest users)
+      if (!isLoggedIn) {
+        localDraft = await GuestCheckoutDraftService.load();
+        if (localDraft != null && mounted) {
+          await _applyGuestCheckoutDraft(localDraft);
+        }
+      } else {
+        await _loadBasicUserData();
+      }
+
+      // API billing address (guest + logged-in). For guests, only overwrite when
+      // the server returns usable fields so a failed payment does not wipe draft.
       try {
         final deliveryResult = await DeliveryService.getLastDeliveryInfo()
-            .timeout(const Duration(
-                seconds: 8)); // 8 second timeout for faster failure
+            .timeout(const Duration(seconds: 8));
 
         if (deliveryResult['success'] &&
             deliveryResult['data'] != null &&
             mounted) {
-          final deliveryData = deliveryResult['data'];
-          setState(() {
-            // fill in the form with their saved address
-            _nameController.text = deliveryData['name'] ?? '';
-            _emailController.text = deliveryData['email'] ?? '';
-            _phoneController.text = deliveryData['phone'] ?? '';
-
-            // set delivery or pickup - use shipping_type if we have it
-            deliveryOption = (deliveryData['delivery_option'] ??
-                    deliveryData['shipping_type'] ??
-                    'delivery')
-                .toLowerCase();
-
-            // fill in the delivery address fields
-            if (deliveryOption == 'delivery') {
-              _regionController.text = deliveryData['region'] ?? '';
-              _cityController.text = deliveryData['city'] ?? '';
-              _addressController.text = deliveryData['address'] ?? '';
-              _updateDeliveryFee();
-
-              // get map coordinates for the address we just filled in
-              if (deliveryData['address'] != null &&
-                  deliveryData['address'].toString().isNotEmpty) {
-                print(
-                    '🔄 [PRE-FILL] Address pre-filled, getting coordinates...');
-                // wait a tiny bit to make sure all fields are filled
-                Future.delayed(const Duration(milliseconds: 500), () {
-                  if (mounted) {
-                    _getCoordinatesFromAddress(deliveryData['address']);
-                  }
-                });
-              }
-            } else if (deliveryOption == 'pickup') {
-              selectedRegion = deliveryData['pickup_region'];
-              selectedCity = deliveryData['pickup_city'];
-              // Use pickup_location as fallback for pickup_site
-              selectedPickupSite = deliveryData['pickup_site'] ??
-                  deliveryData['pickup_location'];
-            }
-
-            // fill in the notes field
-            _notesController.text = deliveryData['notes'] ?? '';
-          });
-        } else {
-          if (deliveryResult['message'] != null) {}
+          _applyDeliveryApiData(
+            Map<String, dynamic>.from(deliveryResult['data'] as Map),
+            mergeOnly: !isLoggedIn && localDraft != null,
+          );
         }
       } catch (apiError) {
-        // api failed but we already got the basic user data, so its ok
+        // Local guest draft (if any) remains on screen.
       }
     } catch (e) {
       // if loading failed, just start with empty fields
+    }
+  }
+
+  void _applyDeliveryApiData(
+    Map<String, dynamic> deliveryData, {
+    bool mergeOnly = false,
+  }) {
+    void applyText(
+      TextEditingController controller,
+      dynamic value,
+    ) {
+      final text = value?.toString().trim() ?? '';
+      if (mergeOnly && text.isEmpty) return;
+      if (text.isNotEmpty || !mergeOnly) {
+        controller.text = text;
+      }
+    }
+
+    setState(() {
+      applyText(_nameController, deliveryData['name']);
+      applyText(_emailController, deliveryData['email']);
+      applyText(_phoneController, deliveryData['phone']);
+
+      final option = (deliveryData['delivery_option'] ??
+              deliveryData['shipping_type'] ??
+              deliveryOption)
+          .toString()
+          .toLowerCase();
+      if (!mergeOnly || option.isNotEmpty) {
+        deliveryOption = option;
+      }
+
+      if (deliveryOption == 'delivery') {
+        applyText(_regionController, deliveryData['region']);
+        applyText(_cityController, deliveryData['city']);
+        applyText(_addressController, deliveryData['address']);
+        _updateDeliveryFee();
+
+        final address = deliveryData['address']?.toString().trim() ?? '';
+        if (address.isNotEmpty) {
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) _getCoordinatesFromAddress(address);
+          });
+        }
+      } else if (deliveryOption == 'pickup') {
+        final regionLabel =
+            deliveryData['pickup_region']?.toString().trim() ?? '';
+        final cityLabel = deliveryData['pickup_city']?.toString().trim() ?? '';
+        final siteLabel = (deliveryData['pickup_site'] ??
+                deliveryData['pickup_location'])
+            ?.toString()
+            .trim() ??
+            '';
+        if (!mergeOnly ||
+            regionLabel.isNotEmpty ||
+            cityLabel.isNotEmpty ||
+            siteLabel.isNotEmpty) {
+          unawaited(_restorePickupSelection(
+            regionLabel: regionLabel,
+            cityLabel: cityLabel,
+            siteLabel: siteLabel,
+          ));
+        }
+      }
+
+      applyText(_notesController, deliveryData['notes']);
+    });
+  }
+
+  Future<void> _applyGuestCheckoutDraft(GuestCheckoutDraft draft) async {
+    if (!mounted) return;
+
+    _runWithSuppressedAddressFeeRefresh(() {
+      setState(() {
+        _nameController.text = draft.name;
+        _emailController.text = draft.email;
+        _phoneController.text = draft.phone;
+        deliveryOption = draft.deliveryOption;
+        _regionController.text = draft.region;
+        _cityController.text = draft.city;
+        _addressController.text = draft.address;
+        _notesController.text = draft.notes;
+        _latitude = draft.lat;
+        _longitude = draft.lng;
+        deliveryFee = draft.deliveryFee;
+        _deliveryFeeFromApi = draft.deliveryFee > 0;
+        _isOrderUrgent = draft.isOrderUrgent;
+        _emergencyOrderFee = draft.emergencyOrderFee;
+        _apiDeliveryTime = draft.estimatedDeliveryTime;
+        _distanceKm = draft.distanceKm;
+        _apiDiscountOverride = draft.apiDiscountAmount;
+        _apiShippingFree = draft.apiShippingFree;
+      });
+    });
+
+    if (draft.deliveryOption == 'pickup') {
+      await _restorePickupSelection(
+        regionLabel: draft.pickupRegionLabel,
+        cityLabel: draft.pickupCityLabel,
+        siteLabel: draft.pickupSiteLabel,
+      );
+    } else if (draft.address.trim().isNotEmpty &&
+        draft.lat == null &&
+        draft.lng == null) {
+      await _getCoordinatesFromAddress(draft.address);
+    }
+  }
+
+  Future<void> _restorePickupSelection({
+    required String regionLabel,
+    required String cityLabel,
+    required String siteLabel,
+  }) async {
+    if (!mounted) return;
+    if (regionLabel.isEmpty && cityLabel.isEmpty && siteLabel.isEmpty) return;
+
+    if (regions.isEmpty) {
+      await _loadRegions();
+    }
+    if (!mounted) return;
+
+    final region = DeliveryService.findRegionInList(regions, regionLabel);
+    if (region == null) return;
+
+    final regionId = region['id'];
+    if (regionId == null) return;
+
+    await _loadCities(regionId);
+    if (!mounted) return;
+
+    Map<String, dynamic>? city;
+    for (final c in cities) {
+      final name = (c['description'] ?? c['name'] ?? '').toString();
+      if (name.toLowerCase() == cityLabel.toLowerCase()) {
+        city = c;
+        break;
+      }
+    }
+    if (city == null) return;
+
+    final cityId = city['id'];
+    if (cityId == null) return;
+
+    await _loadStores(cityId);
+    if (!mounted) return;
+
+    Map<String, dynamic>? store;
+    for (final s in stores) {
+      final name = (s['description'] ?? s['name'] ?? '').toString();
+      if (name.toLowerCase() == siteLabel.toLowerCase()) {
+        store = s;
+        break;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      selectedRegion = region;
+      selectedCity = city;
+      selectedPickupSite = store;
+    });
+  }
+
+  Future<GuestCheckoutDraft?> _buildGuestCheckoutDraft() async {
+    if (await AuthService.isLoggedIn()) return null;
+    final prefs = await SharedPreferences.getInstance();
+    final guestId = prefs.getString('guest_id');
+    if (guestId == null || guestId.isEmpty) return null;
+
+    return GuestCheckoutDraft(
+      guestId: guestId,
+      name: _nameController.text.trim(),
+      email: _emailController.text.trim(),
+      phone: _phoneController.text.trim(),
+      deliveryOption: deliveryOption,
+      region: _regionController.text.trim(),
+      city: _cityController.text.trim(),
+      address: _addressController.text.trim(),
+      notes: _notesController.text.trim(),
+      pickupRegionLabel: selectedRegion?['description']?.toString() ?? '',
+      pickupCityLabel: selectedCity?['description']?.toString() ?? '',
+      pickupSiteLabel: selectedPickupSite?['description']?.toString() ?? '',
+      lat: _latitude,
+      lng: _longitude,
+      deliveryFee: deliveryFee,
+      isOrderUrgent: _isOrderUrgent,
+      emergencyOrderFee: _emergencyOrderFee,
+      estimatedDeliveryTime: _apiDeliveryTime,
+      distanceKm: _distanceKm,
+      apiDiscountAmount: _apiDiscountOverride,
+      apiShippingFree: _apiShippingFree,
+    );
+  }
+
+  Future<void> _persistGuestCheckoutDraft() async {
+    if (!mounted) return;
+    if (await AuthService.isLoggedIn()) return;
+    final draft = await _buildGuestCheckoutDraft();
+    if (draft != null) {
+      await GuestCheckoutDraftService.save(draft);
     }
   }
 
@@ -2296,7 +2497,7 @@ class DeliveryPageState extends State<DeliveryPage> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.fromLTRB(8, 8, 2, 8),
+        padding: const EdgeInsets.fromLTRB(8, 8, 10, 8),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -2412,16 +2613,16 @@ class DeliveryPageState extends State<DeliveryPage> {
                 ],
               ),
             ),
-            Transform.scale(
-              scale: 0.82,
-              alignment: Alignment.center,
-              child: Switch.adaptive(
-                value: isOn,
-                onChanged: (value) => unawaited(_onUrgentToggleChanged(value)),
-                activeColor: urgentRed,
-                activeTrackColor: Colors.red.shade200,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
+            // Explicit thumb/track colors so the switch stays visible on Android
+            // (M3 + ColorScheme.fromSwatch can render a near-white inactive switch).
+            Switch.adaptive(
+              value: isOn,
+              onChanged: (value) => unawaited(_onUrgentToggleChanged(value)),
+              activeThumbColor: Colors.white,
+              activeTrackColor: urgentRed,
+              inactiveThumbColor: Colors.white,
+              inactiveTrackColor: Colors.grey.shade600,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ],
         ),
@@ -2432,7 +2633,8 @@ class DeliveryPageState extends State<DeliveryPage> {
   Widget _buildOrderSummary({required double subtotal}) {
     final emergencyOrderFee = _emergencyOrderFee ?? 0.0;
     final isDelivery = deliveryOption == 'delivery';
-    final effectiveSubtotal = _apiSubtotalOverride ?? subtotal;
+    // Subtotal always reflects selected cart lines (same as cart checkout bar).
+    final effectiveSubtotal = subtotal;
     final discountAmount = _apiDiscountOverride ?? 0.0;
     final qualifiesForDiscount =
         OrderThresholdPromoBanner.qualifiesForDiscountPromo(effectiveSubtotal);
@@ -2800,7 +3002,10 @@ class DeliveryPageState extends State<DeliveryPage> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          onTap: () async {
+          onTap: (_isProceedingToPayment || _isInitialDeliveryDataLoading)
+              ? null
+              : () async {
+            await _ensureInitialDeliveryDataLoaded();
             bool isValid = true;
 
             // Validate name
@@ -2962,6 +3167,8 @@ class DeliveryPageState extends State<DeliveryPage> {
                 return;
               }
 
+              await _persistGuestCheckoutDraft();
+
               await _ensureDeliveryFeeForPayment(
                 saveResult: Map<String, dynamic>.from(saveResult),
               );
@@ -2989,9 +3196,9 @@ class DeliveryPageState extends State<DeliveryPage> {
             } finally {
               if (mounted) setState(() => _isProceedingToPayment = false);
             }
-          },
+                },
           child: Center(
-            child: _isProceedingToPayment
+            child: (_isProceedingToPayment || _isInitialDeliveryDataLoading)
                 ? const SizedBox(
                     width: 24,
                     height: 24,
@@ -3094,6 +3301,10 @@ class DeliveryPageState extends State<DeliveryPage> {
       print('⚠️ [DELIVERY] No coordinates available to pass to PaymentPage');
     }
 
+    unawaited(_persistGuestCheckoutDraft());
+
+    final cartSubtotal = _cartSubtotal(context);
+
     _pushPageOnce(
       MaterialPageRoute(
         builder: (context) => PaymentPage(
@@ -3108,7 +3319,7 @@ class DeliveryPageState extends State<DeliveryPage> {
           deliveryFee: deliveryOption == 'delivery' ? deliveryFee : 0.0,
           isOrderUrgent: _isOrderUrgent,
           emergencyOrderFee: _emergencyOrderFee,
-          apiSubtotal: _apiSubtotalOverride,
+          apiSubtotal: cartSubtotal,
           apiDiscountAmount: _apiDiscountOverride,
           apiShippingFree: _apiShippingFree,
         ),

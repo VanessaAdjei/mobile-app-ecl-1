@@ -19,16 +19,20 @@ import '../utils/app_error_utils.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'app_back_button.dart';
-import '../widgets/cart_icon_button.dart';
-import '../widgets/ecl_expandable_sliver_app_bar.dart';
 import '../widgets/full_screen_image_viewer.dart';
+import '../widgets/item_detail_sliver_header.dart';
 import '../widgets/optimized_quantity_button.dart';
 import '../services/stock_utility_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/universal_page_optimization_service.dart';
 import '../services/product_detail_service.dart';
+import '../services/prescription_upload_status_service.dart';
 import '../cache/product_catalog_memory.dart';
 import '../utils/product_detail_parser.dart';
+
+const _leaveProductTitle = 'Leave Product';
+const _leaveProductMessage =
+    'Are you sure you want to leave this product page?';
 
 class ItemPage extends StatefulWidget {
   final String urlName;
@@ -56,6 +60,20 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   static const double _relatedListHeight = 128;
   static const double _galleryHeight = 190;
 
+  // Slightly larger type for readability on product detail.
+  static const double _fsToolbarTitle = 17;
+  static const double _fsHeroPrice = 16;
+  static const double _fsHeroMeta = 11;
+  static const double _fsSectionTitle = 16;
+  static const double _fsSectionCaption = 13;
+  static const double _fsBody = 15;
+  static const double _fsBodyMedium = 14;
+  static const double _fsCaption = 12;
+  static const double _fsSmall = 11;
+  static const double _fsChip = 12;
+  static const double _fsPriceLarge = 18;
+  static const double _fsButton = 15;
+
   late Future<Product> _productFuture;
   late Future<List<Product>> _relatedProductsFuture;
   int quantity = 1;
@@ -65,9 +83,15 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   PageController? _imagePageController;
   int _currentImageIndex = 0;
   ScrollController? _relatedProductsScrollController;
-  bool _showRelatedScrollHint = false;
+  Timer? _relatedAutoScrollTimer;
+  Timer? _relatedAutoScrollResumeTimer;
+  bool _relatedAutoScrollPausedByUser = false;
+  static const Duration _relatedAutoScrollInterval = Duration(seconds: 3);
+  static const double _relatedScrollStep = _relatedCardWidth + 8;
   final ScrollController _pageScrollController = ScrollController();
   bool _pageCanScroll = false;
+  bool _prescriptionUploaded = false;
+  final FocusNode _headerSearchFocusNode = FocusNode();
 
   /// When image URLs change (refresh / new product), reset [PageView] off a stale page index.
   String _appliedGallerySig = '';
@@ -109,6 +133,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       if (mounted) {
         _scheduleProductImagePrecache(product);
         _schedulePageScrollbarUpdate();
+        unawaited(_refreshPrescriptionUploadStatus(product));
       }
     }).catchError((_) {});
 
@@ -137,10 +162,12 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     _imagePageController?.dispose();
     _pageScrollController.removeListener(_syncPageScrollbar);
     _pageScrollController.dispose();
-    _relatedProductsScrollController?.removeListener(_syncRelatedScrollHint);
+    _stopRelatedAutoScroll();
+    _relatedAutoScrollResumeTimer?.cancel();
     _relatedProductsScrollController?.dispose();
     _fadeController.dispose();
     _scaleController.dispose();
+    _headerSearchFocusNode.dispose();
     super.dispose();
   }
 
@@ -149,23 +176,63 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       return _relatedProductsScrollController!;
     }
     final controller = ScrollController();
-    controller.addListener(_syncRelatedScrollHint);
     _relatedProductsScrollController = controller;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _syncRelatedScrollHint();
+      _startRelatedAutoScroll(itemCount);
     });
     return controller;
   }
 
-  void _syncRelatedScrollHint() {
+  void _stopRelatedAutoScroll() {
+    _relatedAutoScrollTimer?.cancel();
+    _relatedAutoScrollTimer = null;
+  }
+
+  void _startRelatedAutoScroll(int itemCount) {
+    _stopRelatedAutoScroll();
+    if (!_relatedListIsScrollable(itemCount)) return;
+
+    _relatedAutoScrollTimer = Timer.periodic(
+      _relatedAutoScrollInterval,
+      (_) => _tickRelatedAutoScroll(),
+    );
+  }
+
+  void _tickRelatedAutoScroll() {
+    if (!mounted || _relatedAutoScrollPausedByUser) return;
     final controller = _relatedProductsScrollController;
     if (controller == null || !controller.hasClients) return;
+
     final maxExtent = controller.position.maxScrollExtent;
-    final show = maxExtent > 4 && controller.offset < maxExtent - 4;
-    if (show != _showRelatedScrollHint && mounted) {
-      setState(() => _showRelatedScrollHint = show);
+    if (maxExtent <= 4) return;
+
+    final next = controller.offset + _relatedScrollStep;
+    try {
+      if (next >= maxExtent - 2) {
+        controller.animateTo(
+          0,
+          duration: const Duration(milliseconds: 550),
+          curve: Curves.easeInOut,
+        );
+      } else {
+        controller.animateTo(
+          next,
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeInOut,
+        );
+      }
+    } catch (_) {
+      _stopRelatedAutoScroll();
     }
+  }
+
+  void _pauseRelatedAutoScrollForUser() {
+    _relatedAutoScrollPausedByUser = true;
+    _relatedAutoScrollResumeTimer?.cancel();
+    _relatedAutoScrollResumeTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) _relatedAutoScrollPausedByUser = false;
+    });
   }
 
   bool _relatedListIsScrollable(int itemCount) => itemCount > 1;
@@ -443,136 +510,154 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   }
 
   TextStyle _sectionTitleStyle() => GoogleFonts.poppins(
-        fontSize: 14,
+        fontSize: _fsSectionTitle,
         fontWeight: FontWeight.w600,
         color: _detailInk,
       );
 
   TextStyle _sectionCaptionStyle() => GoogleFonts.poppins(
-        fontSize: 11,
+        fontSize: _fsSectionCaption,
         color: _detailMuted,
         height: 1.35,
       );
 
-  Widget _buildItemSliverAppBar({Product? product}) {
-    final loading = product == null;
-
-    return EclExpandableSliverAppBar(
-      toolbarTitle: loading ? 'Product' : '',
-      heroTitle: loading ? 'Product' : _productDisplayName(product),
-      heroSubtitle: loading ? 'Loading details…' : null,
-      centerTitle: true,
-      expandedHeight:
-          loading ? null : kToolbarHeight + _headerExpandedFlexHeight(product),
-      expandedTitleWidget: loading ? null : _buildHeaderProductName(product),
-      expandedTitleAlignment: const Alignment(0, 0.08),
-      toolbarTitleStyle: GoogleFonts.poppins(
-        fontSize: 15,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.1,
-      ),
-      leading: Padding(
-        padding: const EdgeInsets.only(left: 4),
-        child: BackButtonUtils.withConfirmation(
-          backgroundColor: Colors.white.withValues(alpha: 0.2),
-          title: 'Leave Product',
-          message: 'Are you sure you want to leave this product page?',
-        ),
-      ),
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: CartIconButton(
-              iconColor: Colors.white,
-              iconSize: 22,
-              backgroundColor: Colors.transparent,
-            ),
-          ),
-        ),
-      ],
+  Widget _itemDetailBackButton({Color? backgroundColor}) {
+    return BackButtonUtils.withConfirmation(
+      backgroundColor: backgroundColor ?? Colors.white.withValues(alpha: 0.2),
+      title: _leaveProductTitle,
+      message: _leaveProductMessage,
     );
   }
 
-  double _headerExpandedFlexHeight(Product product) {
-    final hasCategory = product.category.trim().isNotEmpty;
-    final longName = _productDisplayName(product).length > 34;
-    var height = 2.0 + (longName ? 32.0 : 16.0) + 4.0 + 2.0 + 2.0;
-    if (hasCategory) height += 14.0;
-    return height;
+  void _leaveItemDetail(BuildContext context) {
+    BackButtonUtils.popOrGoHome(
+      context,
+      showConfirmation: true,
+      title: _leaveProductTitle,
+      message: _leaveProductMessage,
+    );
   }
 
-  Widget _buildHeaderProductName(Product product) {
-    final displayName = _productDisplayName(product);
-    final category = product.category.trim();
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        if (category.isNotEmpty) ...[
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.22),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-              child: Text(
-                category.toUpperCase(),
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                  fontSize: 7,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.9,
-                  color: Colors.white.withValues(alpha: 0.95),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-        ],
-        Text(
-          displayName,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.poppins(
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-            color: Colors.white,
-            height: 1.15,
-            letterSpacing: -0.2,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          width: 28,
-          height: 2,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
-            gradient: LinearGradient(
-              colors: [
-                Colors.white.withValues(alpha: 0.2),
-                Colors.white.withValues(alpha: 0.95),
-                Colors.white.withValues(alpha: 0.2),
-              ],
-            ),
-          ),
-        ),
-      ],
+  Widget _buildItemSliverHeader({Product? product}) {
+    return ItemDetailSliverHeader(
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 4),
+        child: _itemDetailBackButton(),
+      ),
+      scrollController: _pageScrollController,
+      searchFocusNode: _headerSearchFocusNode,
+      product: product,
+      loading: product == null,
+      displayNameBuilder: _productDisplayName,
     );
   }
 
   bool _isPrescriptionProduct(Product product) =>
       widget.isPrescribed || product.otcpom?.toLowerCase() == 'pom';
+
+  Future<void> _refreshPrescriptionUploadStatus(Product product) async {
+    if (!_isPrescriptionProduct(product)) {
+      if (_prescriptionUploaded && mounted) {
+        setState(() => _prescriptionUploaded = false);
+      }
+      return;
+    }
+    final uploaded = await PrescriptionUploadStatusService.isUploaded(
+      productId: product.id,
+      batchNo: product.batch_no,
+    );
+    if (mounted && uploaded != _prescriptionUploaded) {
+      setState(() => _prescriptionUploaded = uploaded);
+    }
+  }
+
+  Future<void> _openPrescriptionUpload(
+    BuildContext context,
+    Product product,
+  ) async {
+    final token = await AuthService.getToken();
+    if (!context.mounted) return;
+    final uploaded = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PrescriptionUploadPage(
+          token: token ?? 'guest-temp-token',
+          item: {
+            'product': {
+              'name': product.name,
+              'thumbnail': product.thumbnail,
+              'id': product.id,
+            },
+            'price': product.price,
+            'batch_no': product.batch_no,
+          },
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (uploaded == true) {
+      setState(() => _prescriptionUploaded = true);
+    } else {
+      await _refreshPrescriptionUploadStatus(product);
+    }
+  }
+
+  Widget _buildPrescriptionUploadedBanner() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(_pageHPad, 12, _pageHPad, 0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFECFDF5),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFBBF7D0)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.check_circle_rounded,
+                color: AppColors.primary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Prescription uploaded',
+                    style: GoogleFonts.poppins(
+                      fontSize: _fsBodyMedium,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF065F46),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Our pharmacist will review it. You can replace the file if needed.',
+                    style: GoogleFonts.poppins(
+                      fontSize: _fsCaption,
+                      color: const Color(0xFF047857),
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -590,12 +675,13 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               backgroundColor: Colors.white,
               elevation: 0,
               surfaceTintColor: Colors.transparent,
-              leading: BackButtonUtils.simple(),
+              leading:
+                  _itemDetailBackButton(backgroundColor: AppColors.primary),
               title: Text(
                 'Product',
                 style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w600,
-                  fontSize: 16,
+                  fontSize: _fsToolbarTitle,
                 ),
               ),
             ),
@@ -612,7 +698,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   parent: BouncingScrollPhysics(),
                 ),
                 slivers: [
-                  _buildItemSliverAppBar(),
+                  _buildItemSliverHeader(),
                   SliverToBoxAdapter(
                     child: _buildLoadingSkeleton(),
                   ),
@@ -626,7 +712,8 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               backgroundColor: Colors.white,
               elevation: 0,
               surfaceTintColor: Colors.transparent,
-              leading: BackButtonUtils.simple(),
+              leading:
+                  _itemDetailBackButton(backgroundColor: AppColors.primary),
             ),
             body: _buildErrorState('Product not found'),
           );
@@ -645,11 +732,11 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       body: RefreshIndicator(
         onRefresh: () async {
           _precachedGallerySig = null;
-          _relatedProductsScrollController
-              ?.removeListener(_syncRelatedScrollHint);
+          _stopRelatedAutoScroll();
+          _relatedAutoScrollResumeTimer?.cancel();
           _relatedProductsScrollController?.dispose();
           _relatedProductsScrollController = null;
-          _showRelatedScrollHint = false;
+          _relatedAutoScrollPausedByUser = false;
           setState(() {
             _productFuture = _fetchProductDetailsWithCache(widget.urlName);
             _relatedProductsFuture =
@@ -690,7 +777,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 parent: BouncingScrollPhysics(),
               ),
               slivers: [
-                _buildItemSliverAppBar(product: product),
+                _buildItemSliverHeader(product: product),
                 SliverToBoxAdapter(
                   child: ColoredBox(
                     color: Colors.white,
@@ -699,6 +786,9 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                       children: [
                         _buildProductImageGallery(product),
                         _buildProductHeroSection(product),
+                        if (_isPrescriptionProduct(product) &&
+                            _prescriptionUploaded)
+                          _buildPrescriptionUploadedBanner(),
                         _buildDescriptionSection(product),
                         _buildRelatedProductsSection(product),
                         const SizedBox(height: 84),
@@ -776,7 +866,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             Text(
               AppErrorUtils.productDetailTitle(kind),
               style: TextStyle(
-                fontSize: 16,
+                fontSize: _fsToolbarTitle,
                 fontWeight: FontWeight.bold,
                 color: Colors.grey[800],
               ),
@@ -786,7 +876,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             Text(
               AppErrorUtils.productDetailMessageFromError(error),
               style: TextStyle(
-                fontSize: 13,
+                fontSize: _fsBody,
                 color: Colors.grey[600],
               ),
               textAlign: TextAlign.center,
@@ -817,7 +907,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                   ),
                 ),
                 OutlinedButton.icon(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => _leaveItemDetail(context),
                   icon: const Icon(Icons.arrow_back, size: 18),
                   label: const Text('Go back'),
                   style: OutlinedButton.styleFrom(
@@ -993,7 +1083,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           Text(
             'GHS ${price.toStringAsFixed(2)}',
             style: GoogleFonts.poppins(
-              fontSize: 14,
+              fontSize: _fsHeroPrice,
               fontWeight: FontWeight.w600,
               color: AppColors.primary,
             ),
@@ -1003,7 +1093,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             Text(
               '/ ${product.uom}',
               style: GoogleFonts.poppins(
-                fontSize: 9,
+                fontSize: _fsHeroMeta,
                 color: _detailMuted,
               ),
             ),
@@ -1012,7 +1102,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           Text(
             '·',
             style: GoogleFonts.poppins(
-              fontSize: 9,
+              fontSize: _fsHeroMeta,
               color: _detailMuted,
             ),
           ),
@@ -1020,7 +1110,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           Text(
             inStock ? 'In stock' : 'Out of stock',
             style: GoogleFonts.poppins(
-              fontSize: 9,
+              fontSize: _fsHeroMeta,
               fontWeight: FontWeight.w500,
               color: inStock ? AppColors.primaryDark : const Color(0xFFB45309),
             ),
@@ -1030,17 +1120,19 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             Text(
               '·',
               style: GoogleFonts.poppins(
-                fontSize: 9,
+                fontSize: _fsHeroMeta,
                 color: _detailMuted,
               ),
             ),
             const SizedBox(width: 8),
             Text(
-              'Rx required',
+              _prescriptionUploaded ? 'Rx uploaded' : 'Rx required',
               style: GoogleFonts.poppins(
-                fontSize: 9,
+                fontSize: _fsHeroMeta,
                 fontWeight: FontWeight.w500,
-                color: const Color(0xFF991B1B),
+                color: _prescriptionUploaded
+                    ? AppColors.primaryDark
+                    : const Color(0xFF991B1B),
               ),
             ),
           ],
@@ -1068,7 +1160,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       child: Text(
         label,
         style: GoogleFonts.poppins(
-          fontSize: 10,
+          fontSize: _fsChip,
           fontWeight: FontWeight.w500,
           color: fg,
         ),
@@ -1095,7 +1187,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               child: Text(
                 'Product details',
                 style: GoogleFonts.poppins(
-                  fontSize: 13,
+                  fontSize: _fsBody,
                   fontWeight: FontWeight.w600,
                   color: _detailInk,
                 ),
@@ -1151,7 +1243,12 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           child: isInCart
               ? _buildInCartBottomBar(context, product, price)
               : _buildAddToCartBottomBar(
-                  context, product, isPrescription, price),
+                  context,
+                  product,
+                  isPrescription,
+                  price,
+                  prescriptionUploaded: _prescriptionUploaded,
+                ),
         );
       },
     );
@@ -1161,9 +1258,12 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     BuildContext context,
     Product product,
     bool isPrescription,
-    double price,
-  ) {
-    final accent = isPrescription ? const Color(0xFFB91C1C) : AppColors.primary;
+    double price, {
+    bool prescriptionUploaded = false,
+  }) {
+    final accent = isPrescription
+        ? (prescriptionUploaded ? AppColors.primary : const Color(0xFFB91C1C))
+        : AppColors.primary;
 
     return Row(
       children: [
@@ -1174,12 +1274,15 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             children: [
               Text(
                 'Total',
-                style: GoogleFonts.poppins(fontSize: 10, color: _detailMuted),
+                style: GoogleFonts.poppins(
+                  fontSize: _fsCaption,
+                  color: _detailMuted,
+                ),
               ),
               Text(
                 'GHS ${price.toStringAsFixed(2)}',
                 style: GoogleFonts.poppins(
-                  fontSize: 16,
+                  fontSize: _fsPriceLarge,
                   fontWeight: FontWeight.w600,
                   color: AppColors.primary,
                 ),
@@ -1196,25 +1299,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               onPressed: () async {
                 HapticFeedback.mediumImpact();
                 if (isPrescription) {
-                  final token = await AuthService.getToken();
-                  if (!context.mounted) return;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => PrescriptionUploadPage(
-                        token: token ?? 'guest-temp-token',
-                        item: {
-                          'product': {
-                            'name': product.name,
-                            'thumbnail': product.thumbnail,
-                            'id': product.id,
-                          },
-                          'price': product.price,
-                          'batch_no': product.batch_no,
-                        },
-                      ),
-                    ),
-                  );
+                  await _openPrescriptionUpload(context, product);
                 } else {
                   _addToCartWithQuantity(context, product);
                 }
@@ -1230,15 +1315,21 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
               ),
               icon: Icon(
                 isPrescription
-                    ? Icons.upload_file_outlined
+                    ? (prescriptionUploaded
+                        ? Icons.check_circle_outline
+                        : Icons.upload_file_outlined)
                     : Icons.add_shopping_cart_outlined,
                 size: 18,
               ),
               label: Text(
-                isPrescription ? 'Upload prescription' : 'Add to cart',
+                isPrescription
+                    ? (prescriptionUploaded
+                        ? 'Prescription uploaded'
+                        : 'Upload prescription')
+                    : 'Add to cart',
                 style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w600,
-                  fontSize: 13,
+                  fontSize: _fsButton,
                 ),
               ),
             ),
@@ -1284,7 +1375,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 Text(
                   'In cart',
                   style: GoogleFonts.poppins(
-                    fontSize: 11,
+                    fontSize: _fsSmall,
                     fontWeight: FontWeight.w500,
                     color: _detailMuted,
                   ),
@@ -1293,7 +1384,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                 Text(
                   'GHS ${(price * cartQuantity).toStringAsFixed(2)}',
                   style: GoogleFonts.poppins(
-                    fontSize: 15,
+                    fontSize: _fsHeroPrice,
                     fontWeight: FontWeight.w600,
                     color: AppColors.primary,
                   ),
@@ -1341,7 +1432,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         child: Text(
                           cartQuantity.toString(),
                           style: GoogleFonts.poppins(
-                            fontSize: 14,
+                            fontSize: _fsBodyMedium,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1410,7 +1501,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                         'View cart',
                         style: GoogleFonts.poppins(
                           fontWeight: FontWeight.w600,
-                          fontSize: 13,
+                          fontSize: _fsButton,
                         ),
                       ),
                     ),
@@ -1424,17 +1515,6 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildRelatedSwipeHint() {
-    return Padding(
-      padding: const EdgeInsets.only(top: 2),
-      child: Icon(
-        Icons.chevron_right_rounded,
-        size: 16,
-        color: AppColors.primary.withValues(alpha: 0.7),
-      ),
-    );
-  }
-
   Widget _buildRelatedProductsList(List<Product> relatedProducts) {
     final scrollable = _relatedListIsScrollable(relatedProducts.length);
     final controller = scrollable
@@ -1444,7 +1524,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
     final list = ListView.separated(
       controller: controller,
       scrollDirection: Axis.horizontal,
-      padding: EdgeInsets.only(right: scrollable ? 36 : 0),
+      padding: EdgeInsets.zero,
       physics: scrollable
           ? const BouncingScrollPhysics()
           : const NeverScrollableScrollPhysics(),
@@ -1456,63 +1536,23 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       ),
     );
 
-    if (!scrollable) {
-      return SizedBox(height: _relatedListHeight, child: list);
+    final scrollingList = NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification is UserScrollNotification) {
+          _pauseRelatedAutoScrollForUser();
+        }
+        return false;
+      },
+      child: list,
+    );
+
+    if (scrollable) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _startRelatedAutoScroll(relatedProducts.length);
+      });
     }
 
-    return SizedBox(
-      height: _relatedListHeight,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          list,
-          if (_showRelatedScrollHint)
-            Positioned(
-              right: 0,
-              top: 0,
-              bottom: 0,
-              child: IgnorePointer(
-                child: Container(
-                  width: 52,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      colors: [
-                        _detailBg.withValues(alpha: 0),
-                        _detailBg.withValues(alpha: 0.75),
-                        _detailBg,
-                      ],
-                    ),
-                  ),
-                  alignment: Alignment.centerRight,
-                  child: Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: _detailGreenBorder),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.12),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.chevron_right_rounded,
-                      size: 18,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
+    return SizedBox(height: _relatedListHeight, child: scrollingList);
   }
 
   Widget _buildRelatedProductsSection(Product product) {
@@ -1526,24 +1566,14 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
             future: _relatedProductsFuture,
             builder: (context, relatedSnapshot) {
               final relatedProducts = relatedSnapshot.data ?? [];
-              final showSwipeHint =
+              final showSubtitle =
                   relatedSnapshot.connectionState == ConnectionState.done &&
                       !relatedSnapshot.hasError &&
-                      _relatedListIsScrollable(relatedProducts.length);
+                      relatedProducts.isNotEmpty;
 
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _buildSectionHeader(
-                      'You may also like',
-                      subtitle:
-                          showSwipeHint ? 'Swipe for more' : 'Similar items',
-                    ),
-                  ),
-                  if (showSwipeHint && _showRelatedScrollHint)
-                    _buildRelatedSwipeHint(),
-                ],
+              return _buildSectionHeader(
+                'You may also like',
+                subtitle: showSubtitle ? 'Similar items' : null,
               );
             },
           ),
@@ -1585,64 +1615,23 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
   Widget _buildRelatedProductsSkeleton() {
     return SizedBox(
       height: _relatedListHeight,
-      child: Stack(
-        children: [
-          ListView.separated(
-            scrollDirection: Axis.horizontal,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(right: 36),
-            itemCount: 3,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (context, index) => Shimmer.fromColors(
-              baseColor: Colors.grey[300]!,
-              highlightColor: Colors.grey[100]!,
-              child: Container(
-                width: _relatedCardWidth,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _detailBorder),
-                ),
-              ),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 3,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) => Shimmer.fromColors(
+          baseColor: Colors.grey[300]!,
+          highlightColor: Colors.grey[100]!,
+          child: Container(
+            width: _relatedCardWidth,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _detailBorder),
             ),
           ),
-          Positioned(
-            right: 0,
-            top: 0,
-            bottom: 0,
-            child: IgnorePointer(
-              child: Container(
-                width: 52,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [
-                      _detailBg.withValues(alpha: 0),
-                      _detailBg.withValues(alpha: 0.75),
-                      _detailBg,
-                    ],
-                  ),
-                ),
-                alignment: Alignment.centerRight,
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: _detailGreenBorder),
-                  ),
-                  child: Icon(
-                    Icons.chevron_right_rounded,
-                    size: 18,
-                    color: AppColors.primary.withValues(alpha: 0.5),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1668,7 +1657,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           Text(
             title,
             style: GoogleFonts.poppins(
-              fontSize: 13,
+              fontSize: _fsBody,
               fontWeight: FontWeight.w600,
               color: Colors.black87,
             ),
@@ -1678,7 +1667,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
           Text(
             message,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: _fsSmall,
               color: Colors.grey.shade600,
             ),
             textAlign: TextAlign.center,
@@ -1698,7 +1687,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
-          Navigator.pushReplacementNamed(
+          Navigator.pushNamed(
             context,
             AppRoutes.itemDetail,
             arguments: {
@@ -1757,7 +1746,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                             'Rx',
                             style: GoogleFonts.poppins(
                               color: const Color(0xFF991B1B),
-                              fontSize: 8,
+                              fontSize: 9,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -1775,7 +1764,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                       name,
                       style: GoogleFonts.poppins(
                         fontWeight: FontWeight.w500,
-                        fontSize: 10,
+                        fontSize: _fsCaption,
                         height: 1.25,
                         color: _detailInk,
                       ),
@@ -1788,7 +1777,7 @@ class ItemPageState extends State<ItemPage> with TickerProviderStateMixin {
                       style: GoogleFonts.poppins(
                         color: AppColors.primary,
                         fontWeight: FontWeight.w600,
-                        fontSize: 10,
+                        fontSize: _fsCaption,
                       ),
                     ),
                   ],
@@ -1811,8 +1800,10 @@ class ItemPageSkeleton extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.grey[300],
         elevation: 0,
-        leading: BackButtonUtils.simple(
-          backgroundColor: Colors.grey[400] ?? Colors.grey,
+        leading: BackButtonUtils.withConfirmation(
+          backgroundColor: AppColors.primary,
+          title: _leaveProductTitle,
+          message: _leaveProductMessage,
         ),
         title: Container(
           width: 200,
@@ -2210,36 +2201,36 @@ class _ProductDescriptionState extends State<ProductDescription> {
 
     return {
       'body': Style(
-        fontSize: FontSize(13),
+        fontSize: FontSize(15),
         color: bodyColor,
-        lineHeight: LineHeight.number(1.35),
+        lineHeight: LineHeight.number(1.4),
         margin: Margins.zero,
         padding: HtmlPaddings.zero,
       ),
       'p': Style(
-        fontSize: FontSize(13),
+        fontSize: FontSize(15),
         color: bodyColor,
-        lineHeight: LineHeight.number(1.35),
+        lineHeight: LineHeight.number(1.4),
         margin: Margins.only(bottom: 8),
       ),
       'h1': Style(
         color: AppColors.primaryDark,
         fontWeight: FontWeight.w700,
-        fontSize: FontSize(15),
+        fontSize: FontSize(17),
         margin: Margins.only(top: 2, bottom: 5),
         lineHeight: LineHeight.number(1.15),
       ),
       'h2': Style(
         color: AppColors.primaryDark,
         fontWeight: FontWeight.w700,
-        fontSize: FontSize(14),
+        fontSize: FontSize(16),
         margin: Margins.only(top: 2, bottom: 5),
         lineHeight: LineHeight.number(1.15),
       ),
       'h3, h4': Style(
         color: AppColors.primaryDark,
         fontWeight: FontWeight.w600,
-        fontSize: FontSize(12),
+        fontSize: FontSize(14),
         letterSpacing: 0.2,
         margin: Margins.only(top: 8, bottom: 3),
         lineHeight: LineHeight.number(1.15),
@@ -2249,9 +2240,9 @@ class _ProductDescriptionState extends State<ProductDescription> {
         margin: Margins.only(top: 2, bottom: 8),
       ),
       'li': Style(
-        fontSize: FontSize(13),
+        fontSize: FontSize(15),
         color: bodyColor,
-        lineHeight: LineHeight.number(1.35),
+        lineHeight: LineHeight.number(1.4),
         margin: Margins.only(bottom: 4),
         display: Display.listItem,
       ),
@@ -2294,7 +2285,7 @@ class _ProductDescriptionState extends State<ProductDescription> {
         'No description available.',
         style: GoogleFonts.poppins(
           fontStyle: FontStyle.italic,
-          fontSize: 12,
+          fontSize: 14,
           color: const Color(0xFF6B7280),
         ),
       );
@@ -2429,7 +2420,7 @@ class _ExpandableHtmlState extends State<_ExpandableHtml> {
                       Text(
                         widget.expanded ? 'Show less' : 'Read full details',
                         style: GoogleFonts.poppins(
-                          fontSize: 11,
+                          fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: AppColors.primaryDark,
                         ),
@@ -2475,7 +2466,7 @@ class CategoryAndTagsWidget extends StatelessWidget {
               const Text(
                 "Category: ",
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -2491,7 +2482,7 @@ class CategoryAndTagsWidget extends StatelessWidget {
                   child: Text(
                     category,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 15,
                       color: Colors.green.shade800,
                     ),
                   ),
@@ -2507,7 +2498,7 @@ class CategoryAndTagsWidget extends StatelessWidget {
               const Text(
                 "Tags: ",
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -2543,7 +2534,7 @@ class TagChip extends StatelessWidget {
       child: Text(
         tag,
         style: TextStyle(
-          fontSize: 12,
+          fontSize: 14,
           color: Colors.grey.shade800,
         ),
       ),

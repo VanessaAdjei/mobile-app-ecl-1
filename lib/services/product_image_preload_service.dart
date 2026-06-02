@@ -30,12 +30,41 @@ class ProductImagePreloadService {
   static String diskCacheKeyFor(String url) =>
       'resized_w${homeThumbDiskSize}_h${homeThumbDiskSize}_$url';
 
+  /// True when a resized thumbnail is already on disk (see [diskCacheKeyFor]).
+  static bool isUrlCached(String url) {
+    if (url.isEmpty) return false;
+    return _downloaded.contains(diskCacheKeyFor(url));
+  }
+
+  /// Medication row thumbnails only — used for fast first paint on home.
+  static Future<void> warmPriorityHomeImages({
+    required List<Product> catalog,
+    Duration maxWait = const Duration(seconds: 10),
+    int maxConcurrent = 4,
+    int medicationVisible = 6,
+  }) async {
+    if (catalog.isEmpty) return;
+    final sections = categorizeProductsForHome(catalog);
+    final drugs = sections['drugs'] ?? const <Product>[];
+    final urls = <String>{};
+    for (final p in drugs.take(medicationVisible)) {
+      final u = imageUrlFor(p);
+      if (u.isNotEmpty) urls.add(u);
+    }
+    if (urls.isEmpty) return;
+    await _warmUrls(
+      urls.toList(),
+      maxWait: maxWait,
+      maxConcurrent: maxConcurrent,
+    );
+  }
+
   /// URLs for visible home rows (prefer shuffled section lists when provided).
   static List<String> collectHomeGridUrls({
     required List<Product> catalog,
     List<Product> popular = const [],
     List<Product> visibleProducts = const [],
-    int perSection = 8,
+    int perSection = 5,
     int visiblePerSection = 6,
   }) {
     final urls = <String>{};
@@ -55,7 +84,7 @@ class ProductImagePreloadService {
       }
     }
 
-    for (final p in popular.take(12)) {
+    for (final p in popular.take(8)) {
       final u = imageUrlFor(p);
       if (u.isNotEmpty) urls.add(u);
     }
@@ -69,7 +98,7 @@ class ProductImagePreloadService {
     List<Product> popular = const [],
     List<Product> visibleProducts = const [],
     Duration maxWait = const Duration(seconds: 40),
-    int maxConcurrent = 12,
+    int maxConcurrent = 6,
   }) async {
     if (catalog.isEmpty) {
       _lastHomeGridWarmComplete = true;
@@ -125,14 +154,22 @@ class ProductImagePreloadService {
     List<Product> popular = const [],
     List<Product> visibleProducts = const [],
     Duration maxWait = const Duration(seconds: 35),
-    int maxConcurrent = 12,
+    int maxConcurrent = 6,
   }) async {
     final urls = collectHomeGridUrls(
       catalog: catalog,
       popular: popular,
       visibleProducts: visibleProducts,
     );
-    await _warmUrls(urls, maxWait: maxWait, maxConcurrent: maxConcurrent);
+    if (urls.isEmpty) {
+      _lastHomeGridWarmComplete = true;
+      return;
+    }
+    try {
+      await _warmUrls(urls, maxWait: maxWait, maxConcurrent: maxConcurrent);
+    } finally {
+      _lastHomeGridWarmComplete = await _areUrlsCached(urls);
+    }
   }
 
   static Future<void> _warmUrls(
@@ -201,14 +238,14 @@ class ProductImagePreloadService {
     }
     final pending = urls
         .where((u) => !_downloaded.contains(diskCacheKeyFor(u)))
-        .take(200)
+        .take(60)
         .toList();
     if (pending.isEmpty) return;
     debugPrint(
       'ProductImagePreload: background — ${pending.length} more images',
     );
-    for (var i = 0; i < pending.length; i += 12) {
-      final chunk = pending.skip(i).take(12).toList();
+    for (var i = 0; i < pending.length; i += 4) {
+      final chunk = pending.skip(i).take(4).toList();
       await Future.wait(chunk.map(_downloadOne));
     }
   }

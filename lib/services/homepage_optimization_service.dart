@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config/api_config.dart';
 import 'app_optimization_service.dart';
+import '../cache/product_catalog_memory.dart';
 import '../models/product_model.dart';
 import '../models/health_tip.dart';
 import 'health_tips_service.dart';
@@ -70,6 +71,11 @@ class HomepageOptimizationService {
   }
 
   // ==================== PRODUCTS OPTIMIZATION ====================
+  static const List<Duration> _catalogRequestTimeouts = <Duration>[
+    Duration(seconds: 12),
+    Duration(seconds: 20),
+    Duration(seconds: 30),
+  ];
 
   /// Seeds in-memory cache from [ProductCache] (see homepage boot).
   void seedFromCatalog({
@@ -95,8 +101,20 @@ class HomepageOptimizationService {
       return _cachedProducts;
     }
 
+    if (!forceRefresh && ProductCatalogMemory.hasProducts) {
+      if (_cachedProducts.isEmpty) {
+        seedFromCatalog(
+          allProducts: List<Product>.from(ProductCatalogMemory.products),
+        );
+      }
+      if (_cachedProducts.isNotEmpty) {
+        _optimizationService.endTimer('HomepageService_GetProducts');
+        return _cachedProducts;
+      }
+    }
+
     if (!forceRefresh && _cachedProducts.isNotEmpty) {
-      if (!_isProductsCacheValid) {
+      if (!_isProductsCacheValid && !ProductCatalogMemory.hasProducts) {
         unawaited(_fetchProducts().catchError((_) => _cachedProducts));
       }
       _optimizationService.endTimer('HomepageService_GetProducts');
@@ -131,10 +149,35 @@ class HomepageOptimizationService {
     try {
       debugPrint(
           '🌐 [HomepageService] Making API request to get-all-products...');
-      final response = await http
-          .get(Uri.parse(
-              ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
-          .timeout(const Duration(seconds: 10));
+      http.Response? response;
+      Object? lastError;
+
+      for (var i = 0; i < _catalogRequestTimeouts.length; i++) {
+        final timeout = _catalogRequestTimeouts[i];
+        try {
+          response = await http
+              .get(Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)))
+              .timeout(timeout);
+          break;
+        } on TimeoutException catch (e) {
+          lastError = e;
+          final attempt = i + 1;
+          final isLast = i == _catalogRequestTimeouts.length - 1;
+          debugPrint(
+            '⏱️ [HomepageService] get-all-products timeout (attempt $attempt/${_catalogRequestTimeouts.length}) after ${timeout.inSeconds}s',
+          );
+          if (!isLast) {
+            await Future<void>.delayed(Duration(milliseconds: 300 * attempt));
+          }
+        }
+      }
+
+      if (response == null) {
+        throw lastError ??
+            TimeoutException(
+              'get-all-products timed out after ${_catalogRequestTimeouts.last.inSeconds}s',
+            );
+      }
 
       debugPrint(
           '📡 [HomepageService] API response status: ${response.statusCode}');
@@ -390,14 +433,22 @@ class HomepageOptimizationService {
       {bool forceRefresh = false}) async {
     _optimizationService.startTimer('HomepageService_GetCategorizedProducts');
 
-    // Always try server first unless cache is valid and not forcing refresh
     if (!forceRefresh &&
         _isCategorizedProductsCacheValid &&
         _cachedCategorizedProducts.isNotEmpty) {
-      // Return cached but refresh in background
-      _fetchCategorizedProducts(); // Refresh in background
+      if (!ProductCatalogMemory.hasProducts) {
+        unawaited(_fetchCategorizedProducts());
+      }
       _optimizationService.endTimer('HomepageService_GetCategorizedProducts');
       return _cachedCategorizedProducts;
+    }
+
+    if (!forceRefresh && ProductCatalogMemory.hasProducts) {
+      final categorized =
+          _categorizeProductList(ProductCatalogMemory.products);
+      _cacheCategorizedProducts(categorized);
+      _optimizationService.endTimer('HomepageService_GetCategorizedProducts');
+      return categorized;
     }
 
     if (_isLoadingCategorizedProducts) {
@@ -424,37 +475,42 @@ class HomepageOptimizationService {
     }
   }
 
+  Map<String, List<Product>> _categorizeProductList(List<Product> products) {
+    final categorizedProducts = <String, List<Product>>{
+      'otcpom': [],
+      'drug': [],
+      'wellness': [],
+      'selfcare': [],
+      'accessories': [],
+    };
+
+    for (final product in products) {
+      if (product.otcpom != null && product.otcpom!.isNotEmpty) {
+        categorizedProducts['otcpom']!.add(product);
+      }
+      if (product.drug != null && product.drug!.isNotEmpty) {
+        categorizedProducts['drug']!.add(product);
+      }
+      if (product.wellness != null && product.wellness!.isNotEmpty) {
+        categorizedProducts['wellness']!.add(product);
+      }
+      if (product.selfcare != null && product.selfcare!.isNotEmpty) {
+        categorizedProducts['selfcare']!.add(product);
+      }
+      if (product.accessories != null && product.accessories!.isNotEmpty) {
+        categorizedProducts['accessories']!.add(product);
+      }
+    }
+
+    return categorizedProducts;
+  }
+
   Future<Map<String, List<Product>>> _fetchCategorizedProducts() async {
     _isLoadingCategorizedProducts = true;
 
     try {
       final products = await getProducts();
-
-      final categorizedProducts = <String, List<Product>>{
-        'otcpom': [],
-        'drug': [],
-        'wellness': [],
-        'selfcare': [],
-        'accessories': [],
-      };
-
-      for (final product in products) {
-        if (product.otcpom != null && product.otcpom!.isNotEmpty) {
-          categorizedProducts['otcpom']!.add(product);
-        }
-        if (product.drug != null && product.drug!.isNotEmpty) {
-          categorizedProducts['drug']!.add(product);
-        }
-        if (product.wellness != null && product.wellness!.isNotEmpty) {
-          categorizedProducts['wellness']!.add(product);
-        }
-        if (product.selfcare != null && product.selfcare!.isNotEmpty) {
-          categorizedProducts['selfcare']!.add(product);
-        }
-        if (product.accessories != null && product.accessories!.isNotEmpty) {
-          categorizedProducts['accessories']!.add(product);
-        }
-      }
+      final categorizedProducts = _categorizeProductList(products);
 
       _cacheCategorizedProducts(categorizedProducts);
       _optimizationService.endTimer('HomepageService_GetCategorizedProducts');

@@ -8,6 +8,7 @@ class CartIconButton extends StatefulWidget {
   final double? iconSize;
   final EdgeInsets? padding;
   final Color? backgroundColor;
+  final EdgeInsetsGeometry? margin;
 
   const CartIconButton({
     super.key,
@@ -15,6 +16,7 @@ class CartIconButton extends StatefulWidget {
     this.iconSize,
     this.padding,
     this.backgroundColor,
+    this.margin,
   });
 
   @override
@@ -39,7 +41,7 @@ class _CartIconButtonState extends State<CartIconButton> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(right: 8.0),
+      margin: widget.margin ?? const EdgeInsets.only(right: 8.0),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: widget.backgroundColor,

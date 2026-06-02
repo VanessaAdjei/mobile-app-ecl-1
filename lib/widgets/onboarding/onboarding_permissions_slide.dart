@@ -1,160 +1,133 @@
 import 'package:eclapp/config/app_colors.dart';
+import 'package:eclapp/widgets/onboarding/onboarding_ui.dart';
 import 'package:flutter/material.dart';
 
-/// Permissions step in onboarding — notifications + location.
+/// Permissions step — notifications and location.
 class OnboardingPermissionsSlide extends StatelessWidget {
   const OnboardingPermissionsSlide({
     super.key,
     required this.isLoading,
     required this.onAllow,
+    required this.progressDots,
   });
 
   final bool isLoading;
   final VoidCallback onAllow;
+  final Widget progressDots;
 
   static const Color _teal = Color(0xFF0D9488);
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+    return ColoredBox(
+      color: OnboardingUi.surface,
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 40),
-          _HeroIllustration(),
-          const SizedBox(height: 20),
-          Text(
-            'Stay in the loop.\nDeliver with confidence.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              height: 1.25,
-              color: Colors.grey.shade900,
-              letterSpacing: -0.3,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'We only ask for what helps your orders — your phone will show two quick prompts next.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.4,
-              color: Colors.grey.shade700,
-            ),
-          ),
-          const SizedBox(height: 18),
-          _PermissionCard(
-            step: '1',
-            icon: Icons.notifications_active_rounded,
-            iconColor: AppColors.primary,
-            iconBg: AppColors.primary.withValues(alpha: 0.12),
-            title: 'Order alerts',
-            description:
-                'Confirmations, delivery updates, and pharmacist messages.',
-          ),
-          const SizedBox(height: 8),
-          _PermissionCard(
-            step: '2',
-            icon: Icons.near_me_rounded,
-            iconColor: _teal,
-            iconBg: _teal.withValues(alpha: 0.12),
-            title: 'Delivery location',
-            description:
-                'Suggest your address and show accurate fees while you use the app.',
-          ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline_rounded,
-                    size: 16, color: Colors.grey.shade600),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'You can change these anytime in Settings.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade700,
-                      height: 1.3,
-                    ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
+              child: Column(
+                children: [
+                  const OnboardingStepLabel(current: 3, total: 4),
+                  const SizedBox(height: 20),
+                  const _PermissionsHero(),
+                  const SizedBox(height: 28),
+                  Text(
+                    'Stay in the loop',
+                    textAlign: TextAlign.center,
+                    style: OnboardingUi.displayTitle.copyWith(fontSize: 24),
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: isLoading ? null : onAllow,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor:
-                    AppColors.primary.withValues(alpha: 0.6),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: isLoading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2.5,
+                  const SizedBox(height: 10),
+                  Text(
+                    'Two quick prompts help us confirm orders and deliver to the right place.',
+                    textAlign: TextAlign.center,
+                    style: OnboardingUi.body,
+                  ),
+                  const SizedBox(height: 24),
+                  const _PermissionTile(
+                    step: '1',
+                    icon: Icons.notifications_active_rounded,
+                    iconColor: AppColors.primary,
+                    title: 'Order alerts',
+                    description:
+                        'Confirmations, delivery updates, and pharmacist messages.',
+                  ),
+                  const SizedBox(height: 12),
+                  const _PermissionTile(
+                    step: '2',
+                    icon: Icons.near_me_rounded,
+                    iconColor: _teal,
+                    title: 'Delivery location',
+                    description:
+                        'Suggest your address and show accurate fees while you shop.',
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.15),
                       ),
-                    )
-                  : const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    ),
+                    child: Row(
                       children: [
-                        Text(
-                          'Continue',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
+                        Icon(
+                          Icons.info_outline_rounded,
+                          size: 18,
+                          color: AppColors.primaryDark.withValues(alpha: 0.85),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'You can change these anytime in Settings.',
+                            style: OnboardingUi.body.copyWith(fontSize: 13),
                           ),
                         ),
-                        SizedBox(width: 6),
-                        Icon(Icons.arrow_forward_rounded, size: 20),
                       ],
                     ),
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 16),
+          OnboardingSlideFooter(
+            progressDots: progressDots,
+            buttonLabel: 'Continue',
+            onPressed: isLoading ? null : onAllow,
+            isLoading: isLoading,
+            buttonIcon: Icons.arrow_forward_rounded,
+            bottomPadding: 20,
+          ),
         ],
       ),
     );
   }
 }
 
-class _HeroIllustration extends StatelessWidget {
+class _PermissionsHero extends StatelessWidget {
+  const _PermissionsHero();
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 88,
+      height: 100,
       child: Stack(
         alignment: Alignment.center,
         children: [
           Container(
-            width: 130,
-            height: 130,
+            width: 160,
+            height: 160,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: RadialGradient(
                 colors: [
-                  AppColors.primary.withValues(alpha: 0.18),
+                  AppColors.primary.withValues(alpha: 0.2),
                   AppColors.primary.withValues(alpha: 0.02),
                 ],
               ),
@@ -163,18 +136,18 @@ class _HeroIllustration extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _FloatingIconBadge(
+              _IconOrb(
                 icon: Icons.notifications_active_rounded,
                 color: AppColors.primary,
-                size: 52,
-                offset: const Offset(0, 4),
+                size: 58,
+                offset: const Offset(0, 6),
               ),
-              const SizedBox(width: 14),
-              _FloatingIconBadge(
+              const SizedBox(width: 16),
+              _IconOrb(
                 icon: Icons.location_on_rounded,
                 color: OnboardingPermissionsSlide._teal,
-                size: 48,
-                offset: const Offset(0, -4),
+                size: 54,
+                offset: const Offset(0, -6),
               ),
             ],
           ),
@@ -184,8 +157,8 @@ class _HeroIllustration extends StatelessWidget {
   }
 }
 
-class _FloatingIconBadge extends StatelessWidget {
-  const _FloatingIconBadge({
+class _IconOrb extends StatelessWidget {
+  const _IconOrb({
     required this.icon,
     required this.color,
     required this.size,
@@ -207,27 +180,26 @@ class _FloatingIconBadge extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           shape: BoxShape.circle,
+          border: Border.all(color: color.withValues(alpha: 0.2)),
           boxShadow: [
             BoxShadow(
-              color: color.withValues(alpha: 0.2),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: color.withValues(alpha: 0.22),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
             ),
           ],
-          border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
         ),
-        child: Icon(icon, color: color, size: size * 0.45),
+        child: Icon(icon, color: color, size: size * 0.44),
       ),
     );
   }
 }
 
-class _PermissionCard extends StatelessWidget {
-  const _PermissionCard({
+class _PermissionTile extends StatelessWidget {
+  const _PermissionTile({
     required this.step,
     required this.icon,
     required this.iconColor,
-    required this.iconBg,
     required this.title,
     required this.description,
   });
@@ -235,77 +207,53 @@ class _PermissionCard extends StatelessWidget {
   final String step;
   final IconData icon;
   final Color iconColor;
-  final Color iconBg;
   final String title;
   final String description;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return OnboardingContentCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(10),
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, color: iconColor, size: 20),
+            child: Icon(icon, color: iconColor, size: 24),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: iconColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     'Prompt $step',
-                    style: TextStyle(
+                    style: OnboardingUi.label.copyWith(
                       fontSize: 10,
-                      fontWeight: FontWeight.w600,
                       color: iconColor,
                     ),
                   ),
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade900,
-                  ),
-                ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 6),
+                Text(title, style: OnboardingUi.bodyStrong.copyWith(fontSize: 15)),
+                const SizedBox(height: 4),
                 Text(
                   description,
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.35,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: OnboardingUi.body.copyWith(fontSize: 13, height: 1.35),
                 ),
               ],
             ),

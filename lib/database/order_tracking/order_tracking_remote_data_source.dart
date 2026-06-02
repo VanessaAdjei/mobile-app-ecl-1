@@ -4,6 +4,9 @@ import 'dart:io' show SocketException;
 import 'package:http/http.dart' as http;
 
 import '../../config/api_config.dart';
+import '../../database/payment/payment_remote_data_source.dart';
+import '../../models/category_fetch_result.dart';
+import '../../repositories/payment_repository.dart';
 import '../../services/auth_service.dart';
 import '../../utils/app_error_utils.dart';
 import '../../services/order_history_transformer.dart';
@@ -22,58 +25,40 @@ abstract class OrderTrackingRemoteDataSource {
 
 class OrderTrackingRemoteDataSourceImpl
     implements OrderTrackingRemoteDataSource {
+  OrderTrackingRemoteDataSourceImpl({PaymentRepository? paymentRepository})
+      : _paymentRepository = paymentRepository ?? PaymentRepositoryImpl();
+
+  final PaymentRepository _paymentRepository;
+
   @override
   Future<PaymentStatusResult> checkPaymentStatus() async {
     try {
-      final isLoggedIn = await AuthService.isLoggedIn();
-      final tokenRaw = await AuthService.getToken();
-      final userId = await AuthService.getCurrentUserID();
-
-      String? authHeader;
-      Map<String, dynamic> requestBody = {};
-
-      if (isLoggedIn && tokenRaw != null && tokenRaw.isNotEmpty) {
-        authHeader = 'Bearer $tokenRaw';
-        if (userId == null) {
-          return const PaymentStatusResult(
-            status: 'error',
-            message: 'Session expired. Please log in again.',
-          );
-        }
-        requestBody = {'user_id': userId};
-      } else if (!isLoggedIn && tokenRaw != null && tokenRaw.isNotEmpty) {
-        authHeader = 'Guest $tokenRaw';
-        requestBody = {'guest_id': tokenRaw};
-      } else {
+      final headers = await buildCheckoutAuthHeaders();
+      if (!headers.containsKey('Authorization')) {
         return const PaymentStatusResult(
           status: 'error',
           message: 'Unable to verify payment right now.',
         );
       }
 
-      final headers = <String, String>{
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': authHeader,
-      };
+      final requestBody = await buildCheckPaymentBody();
+      final result = await _paymentRepository.checkPayment(
+        headers: headers,
+        body: requestBody,
+        timeout: const Duration(seconds: 15),
+      );
 
-      if (!isLoggedIn && tokenRaw.isNotEmpty) {
-        headers['X-Guest-ID'] = tokenRaw;
+      if (result.error != null) {
+        throw result.error!;
       }
 
-      final response = await http
-          .post(
-            Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.checkPayment)),
-            headers: headers,
-            body: jsonEncode(requestBody),
-          )
-          .timeout(const Duration(seconds: 15));
-
       print(
-          '[CHECK STATUS BUTTON] Raw API response: statusCode=${response.statusCode}, body=${response.body}');
+        '[CHECK STATUS BUTTON] Raw API response: statusCode=${result.statusCode}, body=${result.rawBody}',
+      );
 
-      if (response.statusCode == 200) {
-        if (response.body.trim().isEmpty) {
+      if (result.statusCode == 200) {
+        final rawBody = result.rawBody?.trim() ?? '';
+        if (rawBody.isEmpty) {
           print('[CHECK STATUS BUTTON] Empty response body from API');
           return const PaymentStatusResult(
             status: 'pending',
@@ -82,34 +67,50 @@ class OrderTrackingRemoteDataSourceImpl
           );
         }
 
-        print('[CHECK STATUS BUTTON] Decoding response body...');
-        final payload = _decodeResponse(response.body);
-        print('[CHECK STATUS BUTTON] Decoded payload: ' + payload.toString());
+        if (result.body == null) {
+          print('[CHECK STATUS BUTTON] Unparseable JSON; treating as pending');
+          return const PaymentStatusResult(
+            status: 'pending',
+            message: 'Waiting for payment confirmation...',
+            isEmptyResponse: true,
+          );
+        }
+
+        final payload = _normalizePaymentPayload(result.body!);
+        print('[CHECK STATUS BUTTON] Decoded payload: $payload');
         return _mapPaymentStatus(payload);
       }
 
-      if (response.statusCode == 401) {
+      if (result.statusCode == 401) {
         throw Exception('Session expired. Please log in again.');
       }
-      if (response.statusCode == 403) {
+      if (result.statusCode == 403) {
         throw Exception('You do not have permission to check payment status.');
       }
-      if (response.statusCode == 404) {
+      if (result.statusCode == 404) {
         throw Exception('Payment record not found. Please contact support.');
       }
-      if (response.statusCode >= 500) {
+      if (result.statusCode >= 500) {
         throw Exception(AppErrorUtils.oopsTryAgainMessage);
       }
 
-      throw Exception('Failed to verify payment: ${response.statusCode}');
+      throw Exception('Failed to verify payment: ${result.statusCode}');
     } on SocketException {
       throw Exception(
         'No internet connection. Please check your network and try again.',
       );
-    } on FormatException {
-      throw Exception('Invalid response format from server. Please try again.');
     } on http.ClientException {
       throw Exception('Unable to reach the payment server right now.');
+    } on Exception catch (e) {
+      final message = e.toString();
+      if (message.contains('Session expired') ||
+          message.contains('Unable to verify payment')) {
+        return PaymentStatusResult(
+          status: 'error',
+          message: message.replaceFirst('Exception: ', ''),
+        );
+      }
+      rethrow;
     }
   }
 
@@ -224,6 +225,10 @@ class OrderTrackingRemoteDataSourceImpl
   }
 
   Map<String, dynamic> _decodeResponse(String responseBody) {
+    final parsed = CategoryFetchResult.fromResponse(200, responseBody);
+    if (parsed.body != null) {
+      return parsed.body!;
+    }
     var body = responseBody.trim();
     final jsonStart = body.indexOf('{');
     if (jsonStart != -1) {
@@ -232,9 +237,44 @@ class OrderTrackingRemoteDataSourceImpl
     return Map<String, dynamic>.from(json.decode(body) as Map);
   }
 
+  /// Flattens `{ data: { status, transaction_id, ... } }` and similar API shapes.
+  Map<String, dynamic> _normalizePaymentPayload(Map<String, dynamic> data) {
+    final nested = data['data'];
+    if (nested is! Map) {
+      return data;
+    }
+
+    final inner = Map<String, dynamic>.from(nested);
+    final status = inner['status'] ??
+        inner['payment_status'] ??
+        inner['order_status'] ??
+        data['status'] ??
+        data['payment_status'];
+    final transactionId =
+        inner['transaction_id'] ?? data['transaction_id'];
+
+    return {
+      ...data,
+      ...inner,
+      if (status != null) 'status': status,
+      if (transactionId != null) 'transaction_id': transactionId,
+    };
+  }
+
   PaymentStatusResult _mapPaymentStatus(Map<String, dynamic> data) {
-    final rawStatus = data['status']?.toString() ?? '';
+    final rawStatus = data['status']?.toString() ??
+        data['payment_status']?.toString() ??
+        '';
     final status = rawStatus.toLowerCase();
+
+    if (status.isEmpty && data['success'] == true) {
+      return PaymentStatusResult(
+        status: 'success',
+        message: 'Payment completed successfully',
+        transactionId: data['transaction_id']?.toString(),
+        rawStatus: 'success',
+      );
+    }
 
     if (status.contains('completed') ||
         status.contains('success') ||

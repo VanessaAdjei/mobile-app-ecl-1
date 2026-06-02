@@ -10,7 +10,6 @@ import 'package:permission_handler/permission_handler.dart';
 import '../config/api_config.dart';
 import '../config/app_routes.dart';
 import '../models/product_model.dart';
-import '../cache/product_catalog_memory.dart';
 import '../services/auth_service.dart';
 import 'bottomnav.dart';
 import 'itemdetail.dart';
@@ -23,9 +22,7 @@ import 'search_results_page.dart';
 import 'dart:convert';
 import '../widgets/cart_icon_button.dart';
 import '../widgets/product_card.dart';
-import '../widgets/home_first_visit_flow.dart';
 import '../widgets/home_page_tour.dart';
-import '../services/banner_cache_service.dart';
 import '../services/home_preload_service.dart';
 import '../services/product_image_preload_service.dart';
 import '../services/homepage_optimization_service.dart';
@@ -38,28 +35,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/native_notification_service.dart';
 
 import '../widgets/clearance_sale_banner.dart';
+import '../widgets/home/home_promo_banner_carousel.dart';
+import '../widgets/home/home_popular_products_strip.dart';
 import '../services/category_optimization_service.dart';
 import '../services/product_catalog_service.dart';
 import '../utils/app_error_utils.dart';
 import 'categories.dart';
+import '../cache/product_cache.dart';
+import '../utils/catalog_timer.dart';
 
-
-class _BannerData {
-  final String image;
-  final String headline;
-  final String subtitle;
-  _BannerData(
-      {required this.image, required this.headline, required this.subtitle});
-}
+export '../cache/product_cache.dart';
 
 const String prescribedShieldAsset = 'assets/images/prescribed_shield.png';
-
-List<Product> _decodeStoredProductsJson(String jsonStr) {
-  final allList = json.decode(jsonStr) as List;
-  return allList
-      .map((e) => Product.fromJson(e as Map<String, dynamic>))
-      .toList();
-}
 
 class ImagePreloader {
   static final Map<String, bool> _preloadedImages = {};
@@ -94,305 +81,6 @@ class ImagePreloader {
   static bool isPreloaded(String imageUrl) {
     return _preloadedImages.containsKey(imageUrl);
   }
-}
-
-class ProductCache {
-  static List<Product> _cachedProducts = [];
-  static List<Product> _cachedPopularProducts = [];
-  static DateTime? _lastCacheTime;
-
-  static const Duration _cacheValidDuration = Duration(hours: 2);
-  static const Duration _staleWhileRevalidateDuration = Duration(hours: 6);
-  static const String _allProductsKey = 'cached_all_products';
-  static const String _popularProductsKey = 'cached_popular_products';
-  static const String _lastCacheTimeKey = 'last_cache_time';
-  static bool _prefetchInFlight = false;
-  static Future<void>? _catalogLoadFuture;
-  static Future<void>? _storageLoadFuture;
-  static final List<VoidCallback> _catalogListeners = [];
-  static final ProductCatalogService _catalogService = ProductCatalogService();
-
-  /// Notified when the in-memory catalog gains products (e.g. prefetch finished).
-  static void addCatalogListener(VoidCallback listener) {
-    _catalogListeners.add(listener);
-  }
-
-  static void removeCatalogListener(VoidCallback listener) {
-    _catalogListeners.remove(listener);
-  }
-
-  static void _notifyCatalogListeners() {
-    if (_catalogListeners.isEmpty) return;
-    for (final listener in List<VoidCallback>.from(_catalogListeners)) {
-      listener();
-    }
-  }
-
-  static bool get isCacheValid {
-    if (_lastCacheTime == null) return false;
-    return DateTime.now().difference(_lastCacheTime!) < _cacheValidDuration;
-  }
-
-  static bool get canUseStaleData {
-    if (_lastCacheTime == null) return false;
-    return DateTime.now().difference(_lastCacheTime!) <
-        _staleWhileRevalidateDuration;
-  }
-
-  static void cacheProducts(List<Product> products) {
-    final hadProducts = _cachedProducts.isNotEmpty;
-    _cachedProducts = products;
-    ProductCatalogMemory.setProducts(products);
-    _lastCacheTime = DateTime.now();
-    unawaited(_saveAllProductsToStorage());
-    if (products.isNotEmpty && !hadProducts) {
-      _notifyCatalogListeners();
-    }
-  }
-
-  static void cachePopularProducts(List<Product> products) {
-    _cachedPopularProducts = products;
-    _lastCacheTime = DateTime.now();
-    unawaited(_saveToStorage());
-    // NOTE: deliberately does NOT notify catalog listeners. The catalog
-    // listener triggers a full section re-bucket (in unshuffled order); firing
-    // it on a popular-products update would revert a just-applied refresh
-    // shuffle, making fresh products briefly appear and then "snap back" to the
-    // old arrangement. Popular updates are applied directly by their own
-    // setState in _fetchPopularProducts / _syncPopularFromCache.
-  }
-
-  static bool get hasProductsInMemory => _cachedProducts.isNotEmpty;
-
-  /// Waits until the in-flight prefetch finishes (legacy — prefer [ensureCatalogReady]).
-  static Future<void> waitForPrefetch({
-    Duration maxWait = const Duration(seconds: 4),
-  }) async {
-    await ensureCatalogReady(maxWait: maxWait);
-  }
-
-  /// Blocks until **get-all-products** is in memory (required before home).
-  static Future<bool> ensureCatalogReady({
-    Duration maxWait = const Duration(seconds: 60),
-  }) async {
-    if (hasProductsInMemory) {
-    debugPrint(
-          'ProductCache: catalog ready (${_cachedProducts.length} products)');
-      return true;
-    }
-
-    await loadFromStorage();
-    if (hasProductsInMemory) {
-      debugPrint(
-          'ProductCache: catalog ready from disk (${_cachedProducts.length})');
-      return true;
-    }
-
-    try {
-      await prefetchFromNetwork().timeout(maxWait);
-    } on TimeoutException {
-      debugPrint('ProductCache: get-all-products timed out after ${maxWait.inSeconds}s');
-    }
-
-    final ready = hasProductsInMemory;
-    debugPrint(
-      'ProductCache: ensureCatalogReady ${ready ? "ok" : "FAILED"} '
-      '(${_cachedProducts.length} products from get-all-products)',
-    );
-    return ready;
-  }
-
-  /// Instant popular strip from catalog (no network).
-  static void warmPopularFromCatalog() => _fillPopularFromCatalogIfNeeded();
-
-  /// Ensures popular strip can render; network fetch only if catalog cannot supply it.
-  static Future<void> ensurePopularReady() async {
-    if (_cachedPopularProducts.isNotEmpty) return;
-    warmPopularFromCatalog();
-    if (_cachedPopularProducts.isNotEmpty) return;
-    if (!_prefetchInFlight) {
-      await _fetchAndCachePopularProducts();
-    }
-    warmPopularFromCatalog();
-  }
-
-  static List<Product> get cachedProducts => _cachedProducts;
-  static List<Product> get cachedPopularProducts => _cachedPopularProducts;
-
-  static void clearCache() {
-    _cachedProducts.clear();
-    _cachedPopularProducts.clear();
-    _lastCacheTime = null;
-    _clearFromStorage();
-  }
-
-  static Future<void> loadFromStorage() async {
-    _storageLoadFuture ??= _loadFromStorageOnce();
-    await _storageLoadFuture;
-  }
-
-  static Future<void> _loadFromStorageOnce() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final lastCacheTimeString = prefs.getString(_lastCacheTimeKey);
-
-      if (lastCacheTimeString == null) return;
-
-        _lastCacheTime = DateTime.parse(lastCacheTimeString);
-      if (!canUseStaleData) {
-        await _clearPersistedStorageOnly();
-        return;
-      }
-
-      final allJson = prefs.getString(_allProductsKey);
-      if (allJson != null && allJson.isNotEmpty) {
-        _cachedProducts = await compute(_decodeStoredProductsJson, allJson);
-        ProductCatalogMemory.setProducts(_cachedProducts);
-      }
-
-      final popularJson = prefs.getString(_popularProductsKey);
-      if (popularJson != null && popularJson.isNotEmpty) {
-            _cachedPopularProducts =
-            await compute(_decodeStoredProductsJson, popularJson);
-      }
-
-            debugPrint(
-          'ProductCache: loaded ${_cachedProducts.length} products, '
-          '${_cachedPopularProducts.length} popular from disk');
-    } catch (e) {
-      debugPrint('ProductCache: Error loading from storage: $e');
-      await _clearPersistedStorageOnly();
-    }
-  }
-
-  /// Loads **get-all-products** then popular. Concurrent callers share one request.
-  static Future<void> prefetchFromNetwork() async {
-    if (_cachedProducts.isNotEmpty && isCacheValid) return;
-    if (_catalogLoadFuture != null) {
-      return _catalogLoadFuture;
-    }
-
-    _catalogLoadFuture = _runCatalogNetworkLoad();
-    try {
-      await _catalogLoadFuture;
-    } finally {
-      _catalogLoadFuture = null;
-    }
-  }
-
-  static Future<void> _runCatalogNetworkLoad() async {
-    if (_prefetchInFlight) return;
-    _prefetchInFlight = true;
-    try {
-      debugPrint('ProductCache: GET get-all-products (catalog API)...');
-      await _fetchAndCacheAllProducts();
-      if (!hasProductsInMemory) {
-        debugPrint('ProductCache: get-all-products returned no products');
-        return;
-      }
-              debugPrint(
-          'ProductCache: get-all-products OK — ${_cachedProducts.length} products');
-      if (_cachedPopularProducts.isEmpty) {
-        await _fetchAndCachePopularProducts();
-      }
-      _fillPopularFromCatalogIfNeeded();
-      _notifyCatalogListeners();
-      debugPrint(
-          'ProductCache: catalog load done — ${_cachedProducts.length} products, '
-          '${_cachedPopularProducts.length} popular');
-    } catch (e) {
-      debugPrint('ProductCache: catalog load error: $e');
-    } finally {
-      _prefetchInFlight = false;
-    }
-  }
-
-  static void _fillPopularFromCatalogIfNeeded() {
-    if (_cachedProducts.isEmpty || _cachedPopularProducts.isNotEmpty) return;
-    final shuffled = List<Product>.from(_cachedProducts)..shuffle();
-    final take = shuffled.length.clamp(0, 20);
-    if (take > 0) {
-      cachePopularProducts(shuffled.take(take).toList());
-    }
-  }
-
-  static Future<void> _fetchAndCacheAllProducts() async {
-    final products = await _catalogService.fetchCatalogProducts(
-      timeout: const Duration(seconds: 30),
-    );
-    if (products.isNotEmpty) cacheProducts(products);
-  }
-
-  static Future<void> _fetchAndCachePopularProducts() async {
-    final products = await _catalogService.fetchPopularProducts(
-      timeout: const Duration(seconds: 8),
-    );
-    if (products.isNotEmpty) {
-      cachePopularProducts(products);
-        } else {
-      _fillPopularFromCatalogIfNeeded();
-    }
-  }
-
-  static Future<void> _saveAllProductsToStorage() async {
-    if (_cachedProducts.isEmpty || _lastCacheTime == null) return;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        _allProductsKey,
-        json.encode(_cachedProducts.map((p) => p.toJson()).toList()),
-      );
-      await prefs.setString(
-          _lastCacheTimeKey, _lastCacheTime!.toIso8601String());
-    } catch (e) {
-      debugPrint('ProductCache: Error saving all products: $e');
-    }
-  }
-
-  static Future<void> _saveToStorage() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      if (_cachedPopularProducts.isNotEmpty) {
-        final productsJson = json.encode(
-            _cachedPopularProducts.map((p) => p.toJson()).toList());
-      await prefs.setString(_popularProductsKey, productsJson);
-      }
-      if (_lastCacheTime != null) {
-      await prefs.setString(
-          _lastCacheTimeKey, _lastCacheTime!.toIso8601String());
-      }
-      if (_cachedProducts.isNotEmpty) {
-        await prefs.setString(
-          _allProductsKey,
-          json.encode(_cachedProducts.map((p) => p.toJson()).toList()),
-        );
-      }
-    } catch (e) {
-      debugPrint('ProductCache: Error saving to storage: $e');
-    }
-  }
-
-  static Future<void> _clearPersistedStorageOnly() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_allProductsKey);
-      await prefs.remove(_popularProductsKey);
-      await prefs.remove(_lastCacheTimeKey);
-      // Clean up the legacy shuffle-time key from older installs.
-      await prefs.remove('last_shuffle_time');
-    } catch (e) {
-      debugPrint('ProductCache: Error clearing persisted cache: $e');
-    }
-  }
-
-  static Future<void> _clearFromStorage() async {
-    await _clearPersistedStorageOnly();
-    _cachedProducts = [];
-    _cachedPopularProducts = [];
-    ProductCatalogMemory.clear();
-    _lastCacheTime = null;
-  }
-
 }
 
 // ─── Home section buckets (shared by sync hydrate + background isolate) ─────
@@ -639,7 +327,6 @@ class HomePageState extends State<HomePage>
   final GlobalKey _tourPopularKey = GlobalKey();
   final GlobalKey _tourShopKey = GlobalKey();
   final GlobalKey _tourMenuKey = GlobalKey();
-  final ScrollController _popularScrollController = ScrollController();
   final ProductCatalogService _catalogService = ProductCatalogService();
 
   bool _isScrolled = false;
@@ -654,7 +341,6 @@ class HomePageState extends State<HomePage>
       HomepageOptimizationService();
   final Map<String, bool> _preloadedImages = {};
 
-  Timer? _popularScrollTimer;
 
   /// Set by pull-to-refresh so [loadProducts] skips the intermediate section
   /// seed and lets [_processProducts] produce the single (reshuffled) update.
@@ -665,6 +351,7 @@ class HomePageState extends State<HomePage>
   // true after the first successful fetch; never reset except on explicit
   // pull-to-refresh or reloadHomePage().
   bool _hasBeenLoaded = false;
+  bool _isPartialCatalog = false;
   bool _isLoadingContent = false;
   bool _homeGridImagesReady = false;
   bool _spotlightTourScheduled = false;
@@ -714,6 +401,7 @@ class HomePageState extends State<HomePage>
     _restoreSnapshotToState();
     if (ProductCache.hasProductsInMemory) {
       _hasBeenLoaded = true;
+      _isPartialCatalog = false;
       HomePreloadService.publishCatalogToHomeServices();
       _applyCacheToState();
     }
@@ -722,9 +410,7 @@ class HomePageState extends State<HomePage>
     unawaited(_bootHomeProducts());
 
     if (ProductCache.hasProductsInMemory) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _scheduleSpotlightTour();
-      });
+      _scheduleSpotlightTourDelayed();
     }
 
     if (_categories.isEmpty && HomePreloadService.cachedCategories.isNotEmpty) {
@@ -742,9 +428,6 @@ class HomePageState extends State<HomePage>
       }
     });
 
-    _popularScrollController.addListener(() {
-      if (mounted) setState(() {});
-    });
   }
 
   /// Categories preloaded during onboarding — apply before first frame.
@@ -773,28 +456,39 @@ class HomePageState extends State<HomePage>
       popularProducts = List<Product>.from(ProductCache.cachedPopularProducts);
     }
     _isLoadingPopular = popularProducts.isEmpty;
+    CatalogTimer.mark('home_hydrated');
+  }
+
+  /// Fast shuffle — only randomize a small pool per section (not 1000+ items).
+  List<Product> _shuffledSectionPool(List<Product> source, {int pool = 40}) {
+    if (source.isEmpty) return [];
+    if (source.length <= pool) {
+      return List<Product>.from(source)..shuffle();
+    }
+    final copy = List<Product>.from(source)..shuffle();
+    return copy.take(pool).toList();
   }
 
   void _applySectionBuckets(List<Product> allProducts) {
     final sections = categorizeProductsForHome(allProducts);
-    // Shuffle each bucket so the first 8 shown on the home page vary on every
-    // visit, instead of always surfacing the same head-of-list products.
-    drugsSectionProducts = (List<Product>.from(sections['drugs']!)..shuffle());
-    prescribedProducts =
-        (List<Product>.from(sections['prescribed']!)..shuffle());
-    wellnessProducts = (List<Product>.from(sections['wellness']!)..shuffle());
-    selfcareProducts = (List<Product>.from(sections['selfcare']!)..shuffle());
-    accessoriesProducts =
-        (List<Product>.from(sections['accessories']!)..shuffle());
+    drugsSectionProducts = _shuffledSectionPool(sections['drugs']!);
+    prescribedProducts = _shuffledSectionPool(sections['prescribed']!);
+    wellnessProducts = _shuffledSectionPool(sections['wellness']!);
+    selfcareProducts = _shuffledSectionPool(sections['selfcare']!);
+    accessoriesProducts = _shuffledSectionPool(sections['accessories']!);
   }
 
   void _onProductCacheUpdated() {
     if (!mounted) return;
+    CatalogTimer.mark('listener_fired');
     _applyCacheToState();
     if (_products.isNotEmpty) {
+      _isPartialCatalog = false;
       if (!_hasBeenLoaded) _hasBeenLoaded = true;
-      unawaited(_processProducts(_products));
-      _scheduleSpotlightTour();
+      unawaited(_warmMedicationSectionImages());
+      unawaited(_ensureHomeGridImages());
+      _scheduleSpotlightTourDelayed();
+      CatalogTimer.summaryOnce();
     }
   }
 
@@ -830,11 +524,21 @@ class HomePageState extends State<HomePage>
   }
 
   void _seedOptimizationFromProductCache() {
-    if (!ProductCache.hasProductsInMemory) return;
-    _optimizationService.seedFromCatalog(
-      allProducts: ProductCache.cachedProducts,
-      popularProducts: ProductCache.cachedPopularProducts,
-    );
+    if (ProductCache.hasProductsInMemory) {
+      _optimizationService.seedFromCatalog(
+        allProducts: ProductCache.cachedProducts,
+        popularProducts: ProductCache.cachedPopularProducts,
+      );
+      return;
+    }
+    if (ProductCache.hasPriorityProducts) {
+      _optimizationService.seedFromCatalog(
+        allProducts: ProductCache.cachedPriorityProducts,
+        popularProducts: ProductCache.cachedPopularProducts.isNotEmpty
+            ? ProductCache.cachedPopularProducts
+            : ProductCache.cachedPriorityProducts,
+      );
+    }
   }
 
   void _applyCacheToState() {
@@ -847,6 +551,7 @@ class HomePageState extends State<HomePage>
         _products = List<Product>.from(cachedAll);
         filteredProducts = List<Product>.from(cachedAll);
         _applySectionBuckets(_products);
+        _isPartialCatalog = false;
         _isLoading = false;
         _hasBeenLoaded = true;
       } else if (_products.isEmpty) {
@@ -868,7 +573,7 @@ class HomePageState extends State<HomePage>
   /// Network only when preloaded catalog was not applied.
   Future<void> _bootHomeProducts() async {
     if (_hasBeenLoaded && _products.isNotEmpty) {
-      _scheduleSpotlightTour();
+      _scheduleSpotlightTourDelayed();
       unawaited(_ensureHomeGridImages());
       _schedulePostInitHomeWork();
       unawaited(_syncPopularFromCache());
@@ -876,7 +581,13 @@ class HomePageState extends State<HomePage>
     }
 
     if (!ProductCache.hasProductsInMemory) {
-      await ProductCache.loadFromStorage();
+      try {
+        await ProductCache.loadFromStorage().timeout(
+          const Duration(milliseconds: 1200),
+        );
+      } on TimeoutException {
+        debugPrint('HomePage: disk catalog read still in progress');
+      }
     }
     if (!mounted) return;
 
@@ -886,22 +597,21 @@ class HomePageState extends State<HomePage>
       HomePreloadService.publishCatalogToHomeServices();
       _applyCacheToState();
       _hasBeenLoaded = true;
-      await _processProducts(_products);
-      _scheduleSpotlightTour();
-      unawaited(_ensureHomeGridImages());
-      if (mounted) {
-        _schedulePostInitHomeWork();
-      }
+      _startHomeContentAfterCatalog();
       if (!ProductCache.isCacheValid) {
         unawaited(_refreshCatalogInBackground());
       }
-      unawaited(_syncPopularFromCache());
       return;
     }
 
     unawaited(ProductCache.prefetchFromNetwork());
+    if (ProductCache.isCatalogLoadInFlight) {
+      _schedulePostInitHomeWork();
+      return;
+    }
+
     final ready = await ProductCache.ensureCatalogReady(
-      maxWait: const Duration(seconds: 10),
+      maxWait: const Duration(seconds: 3),
     );
     if (!mounted) return;
 
@@ -910,16 +620,54 @@ class HomePageState extends State<HomePage>
       HomePreloadService.publishCatalogToHomeServices();
       _applyCacheToState();
       _hasBeenLoaded = true;
-      await _processProducts(_products);
-      _scheduleSpotlightTour();
-      unawaited(_ensureHomeGridImages());
-      _schedulePostInitHomeWork();
-      unawaited(_syncPopularFromCache());
+      _startHomeContentAfterCatalog();
       return;
     }
 
     unawaited(_optimizationService.initialize());
     await _loadAllContent();
+  }
+
+  /// Paint all sections immediately; warm images and popular in background.
+  void _startHomeContentAfterCatalog() {
+    ProductCache.warmPopularFromCatalog();
+    final warmedPopular = ProductCache.cachedPopularProducts;
+    if (warmedPopular.isNotEmpty && mounted) {
+      setState(() {
+        popularProducts = List<Product>.from(warmedPopular);
+        _isLoadingPopular = false;
+      });
+    }
+    unawaited(_warmMedicationSectionImages());
+    unawaited(_ensureHomeGridImages());
+    _schedulePostInitHomeWork();
+    unawaited(_syncPopularFromCache());
+    _scheduleSpotlightTourDelayed();
+  }
+
+  Future<void> _warmMedicationSectionImages() async {
+    if (_products.isEmpty) return;
+    final visible = drugsSectionProducts.isNotEmpty
+        ? drugsSectionProducts.take(6).toList()
+        : _products.take(6).toList();
+    unawaited(
+      ProductImagePreloadService.warmHomeGridImages(
+        catalog: _products,
+        visibleProducts: visible,
+        maxWait: const Duration(seconds: 8),
+        maxConcurrent: 6,
+      ),
+    );
+    if (!mounted) return;
+    if (!_homeGridImagesReady) {
+      setState(() => _homeGridImagesReady = true);
+    }
+  }
+
+  void _scheduleSpotlightTourDelayed() {
+    Future<void>.delayed(const Duration(seconds: 2), () {
+      if (mounted) _scheduleSpotlightTour();
+    });
   }
 
   List<Product> _visibleHomeProductsForImageWarm() {
@@ -935,24 +683,31 @@ class HomePageState extends State<HomePage>
 
   Future<void> _ensureHomeGridImages() async {
     if (_homeGridImagesReady || _products.isEmpty) return;
-
-    await _warmVisibleHomeImages();
+    unawaited(_warmVisibleHomeImages());
+    if (mounted) setState(() => _homeGridImagesReady = true);
   }
 
   Future<void> _syncPopularFromCache() async {
-    await ProductCache.ensurePopularReady();
     if (!mounted) return;
-    final cached = ProductCache.cachedPopularProducts;
-    if (cached.isEmpty) return;
-        setState(() {
+    ProductCache.warmPopularFromCatalog();
+    var cached = ProductCache.cachedPopularProducts;
+    if (cached.isEmpty) {
+      try {
+        await ProductCache.ensurePopularReady().timeout(
+          const Duration(seconds: 6),
+        );
+      } on TimeoutException {
+        ProductCache.warmPopularFromCatalog();
+      }
+      cached = ProductCache.cachedPopularProducts;
+    }
+    if (!mounted || cached.isEmpty) return;
+    setState(() {
       popularProducts = List<Product>.from(cached);
       _isLoadingPopular = false;
       _popularError = null;
     });
     _persistSnapshot();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _startPopularProductsAutoScroll();
-    });
   }
 
   Future<void> _refreshCatalogInBackground() async {
@@ -987,11 +742,40 @@ class HomePageState extends State<HomePage>
         catalog: ProductCache.cachedProducts,
         popular: ProductCache.cachedPopularProducts,
       );
-      unawaited(HomeFirstVisitFlow.runDeferredPrompts(
-        context: context,
-        showDeferredPermissionsSheet: _showDeferredPermissionsSheet,
-      ));
+      unawaited(_maybeRequestPermissionsDirect());
     });
+  }
+
+  /// OS notification + location prompts only (no in-app sheet/dialog first).
+  Future<void> _maybeRequestPermissionsDirect() async {
+    final prefs = await SharedPreferences.getInstance();
+    final afterOnboarding =
+        prefs.getBool('request_permissions_after_onboarding') ?? false;
+    final alreadyAttempted =
+        prefs.getBool('notification_prompt_attempted') ?? false;
+
+    if (!afterOnboarding && alreadyAttempted) return;
+    if (!afterOnboarding &&
+        !await NativeNotificationService.needsPermissionsPrompt()) {
+      return;
+    }
+
+    if (afterOnboarding) {
+      await prefs.setBool('request_permissions_after_onboarding', false);
+    }
+
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+    try {
+      await NativeNotificationService.requestOnboardingPermissions(
+        context: context,
+      ).timeout(const Duration(seconds: 45));
+      await prefs.setBool('notification_prompt_attempted', true);
+    } on TimeoutException {
+      debugPrint('HomePage: permission prompts timed out');
+    } catch (e, st) {
+      debugPrint('HomePage: permission prompts error: $e\n$st');
+    }
   }
 
   /// Brief layout settle after onboarding before coach marks.
@@ -1061,6 +845,32 @@ class HomePageState extends State<HomePage>
     _isLoadingContent = true;
 
     try {
+      if (!ProductCache.hasProductsInMemory) {
+        final catalogWait = ProductCache.isCatalogLoadInFlight
+            ? const Duration(seconds: 90)
+            : const Duration(seconds: 30);
+        final ready = await ProductCache.ensureCatalogReady(maxWait: catalogWait);
+        if (!mounted) return;
+        if (ready && ProductCache.hasProductsInMemory) {
+          _applyCacheToState();
+          _hasBeenLoaded = true;
+          await _processProducts(_products);
+          _scheduleSpotlightTour();
+          unawaited(_ensureHomeGridImages());
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _isLoadingPopular = popularProducts.isEmpty;
+            });
+            _schedulePostInitHomeWork();
+          }
+          if (!ProductCache.isCacheValid) {
+            unawaited(_refreshCatalogInBackground());
+          }
+          return;
+        }
+      }
+
       if (ProductCache.hasProductsInMemory) {
         _applyCacheToState();
         _hasBeenLoaded = true;
@@ -1191,22 +1001,27 @@ class HomePageState extends State<HomePage>
         }
       }
 
-  /// Runs product categorisation in a background isolate to avoid UI jank.
+  /// Re-buckets products — isolate only on pull-to-refresh (initial load uses sync buckets).
   Future<void> _processProducts(List<Product> allProducts) async {
     if (!mounted) return;
 
-    final sections = await compute(_processProductsIsolate, allProducts);
+    final Map<String, List<Product>> sections;
+    if (_forceSectionShuffleOnce || drugsSectionProducts.isEmpty) {
+      sections = await compute(_processProductsIsolate, allProducts);
+    } else {
+      sections = categorizeProductsForHome(allProducts);
+    }
     if (!mounted) return;
 
     _forceSectionShuffleOnce = false;
 
     // Always reshuffle so each load/refresh surfaces a different set of
     // products instead of repeatedly showing the head of the list.
-    final drugs = sections['drugs']!..shuffle();
-    final prescribed = sections['prescribed']!..shuffle();
-    final wellness = sections['wellness']!..shuffle();
-    final selfcare = sections['selfcare']!..shuffle();
-    final accessories = sections['accessories']!..shuffle();
+    final drugs = _shuffledSectionPool(sections['drugs']!);
+    final prescribed = _shuffledSectionPool(sections['prescribed']!);
+    final wellness = _shuffledSectionPool(sections['wellness']!);
+    final selfcare = _shuffledSectionPool(sections['selfcare']!);
+    final accessories = _shuffledSectionPool(sections['accessories']!);
 
         if (mounted) {
           setState(() {
@@ -1216,21 +1031,27 @@ class HomePageState extends State<HomePage>
         selfcareProducts = selfcare;
         accessoriesProducts = accessories;
       });
-      unawaited(_warmVisibleHomeImages());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _preloadImages(_visibleHomeProductsForImageWarm());
+        unawaited(_warmVisibleHomeImages());
+      });
     }
   }
 
   Future<void> _warmVisibleHomeImages() async {
     if (_products.isEmpty) return;
+
     await ProductImagePreloadService.warmHomeGridImages(
       catalog: _products,
       popular: popularProducts,
       visibleProducts: _visibleHomeProductsForImageWarm(),
-      maxWait: const Duration(seconds: 45),
+      maxWait: const Duration(seconds: 20),
+      maxConcurrent: 6,
     );
-    if (mounted && !_homeGridImagesReady) {
-      setState(() => _homeGridImagesReady = true);
-    }
+
+    if (!mounted) return;
+    setState(() {});
   }
 
   Future<void> _fetchPopularProducts({bool forceRefresh = false}) async {
@@ -1274,7 +1095,6 @@ class HomePageState extends State<HomePage>
         });
         _persistSnapshot();
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _startPopularProductsAutoScroll();
         });
       } else {
         _fallbackToPopularCache(error: AppErrorUtils.oopsTitle);
@@ -1304,7 +1124,6 @@ class HomePageState extends State<HomePage>
       });
       _persistSnapshot();
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _startPopularProductsAutoScroll();
       });
     } else {
       setState(() {
@@ -1358,45 +1177,6 @@ class HomePageState extends State<HomePage>
     }
   }
 
-  // ─── Auto-scroll popular ───────────────────────────────────────────────────
-  void _startPopularProductsAutoScroll() {
-    if (popularProducts.isEmpty || !mounted) return;
-    _popularScrollTimer?.cancel();
-
-    _popularScrollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      if (!mounted || popularProducts.isEmpty) {
-        timer.cancel();
-        return;
-      }
-      try {
-        if (_popularScrollController.hasClients) {
-          final current = _popularScrollController.offset;
-          final max = _popularScrollController.position.maxScrollExtent;
-          const step = 96.0;
-          double next = current + step;
-          if (next >= max * 0.75) {
-            final base = popularProducts.take(6).length;
-            final jump = current % (base * 96.0);
-            _popularScrollController.jumpTo(jump);
-            Future.delayed(const Duration(milliseconds: 100), () {
-              if (mounted && _popularScrollController.hasClients) {
-                _popularScrollController.animateTo(jump + step,
-                    duration: const Duration(milliseconds: 500),
-                    curve: Curves.easeInOut);
-              }
-            });
-          } else {
-            _popularScrollController.animateTo(next,
-                duration: const Duration(milliseconds: 500),
-                curve: Curves.easeInOut);
-          }
-        }
-      } catch (_) {
-        timer.cancel();
-      }
-    });
-  }
-
   // ─── Lifecycle ─────────────────────────────────────────────────────────────
   @override
   void dispose() {
@@ -1405,8 +1185,6 @@ class HomePageState extends State<HomePage>
     searchController.dispose();
     _searchController.dispose();
     _scrollController.dispose();
-    _popularScrollTimer?.cancel();
-    _popularScrollController.dispose();
     super.dispose();
   }
 
@@ -1490,86 +1268,6 @@ class HomePageState extends State<HomePage>
     if (_searchController.text.isNotEmpty && mounted) {
       _searchController.clear();
       setState(() {});
-    }
-  }
-
-  // ─── Welcome / notification ────────────────────────────────────────────────
-
-  Future<void> _showDeferredPermissionsSheet() async {
-    final prefs = await SharedPreferences.getInstance();
-    final enable = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Icon(Icons.notifications_active_outlined,
-                    size: 40, color: Colors.green.shade700),
-                const SizedBox(height: 16),
-                Text(
-                  'Enable alerts & location?',
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Order updates and your delivery address work best with '
-                  'notifications and location while you use the app. '
-                  'You can change this anytime in Settings.',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    height: 1.5,
-                    color: Colors.grey.shade700,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.of(ctx).pop(true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green.shade700,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text('Enable'),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(false),
-                  child: Text(
-                    'Not now',
-                    style: GoogleFonts.poppins(color: Colors.grey.shade600),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    await prefs.setBool('deferred_permissions_prompt_shown', true);
-    if (enable == true && mounted) {
-      await NativeNotificationService.requestOnboardingPermissions(
-        context: context,
-      );
-      await prefs.setBool('notification_prompt_attempted', true);
     }
   }
 
@@ -1871,8 +1569,7 @@ class HomePageState extends State<HomePage>
   Widget build(BuildContext context) {
     super.build(context);
     // Only block on catalog — product cards show placeholders while images warm.
-    final shouldShowSkeleton =
-        _products.isEmpty && !ProductCache.hasProductsInMemory;
+    final shouldShowSkeleton = _products.isEmpty;
     return Scaffold(
       body: shouldShowSkeleton
           ? _buildSkeletonWithLoading(
@@ -1892,8 +1589,20 @@ class HomePageState extends State<HomePage>
     final message = loadingImages
         ? 'Loading product images...'
         : 'Loading your products...';
+    final primary = Theme.of(context).colorScheme.primary;
     return Stack(children: [
       const HomePageSkeletonBody(),
+      Positioned(
+        top: 0,
+        left: 0,
+        right: 0,
+        child: LinearProgressIndicator(
+          backgroundColor: Colors.transparent,
+          valueColor: AlwaysStoppedAnimation<Color>(
+            primary.withValues(alpha: 0.4),
+          ),
+        ),
+      ),
       Positioned(
         top: 100,
         left: 0,
@@ -2093,6 +1802,7 @@ class HomePageState extends State<HomePage>
                   fontSize: cardFontSize,
                   padding: cardPadding,
                   imageHeight: cardImageHeight,
+                  isTablet: isTablet,
                 ),
               ),
               if (prescribedProducts.isNotEmpty)
@@ -2585,58 +2295,9 @@ class HomePageState extends State<HomePage>
           message: 'Nothing popular right now', icon: Icons.star_border);
     }
 
-    final baseProducts = popularProducts.take(6).toList();
-    final infiniteProducts = <Product>[];
-    for (int i = 0; i < 10; i++) {
-      infiniteProducts.addAll(baseProducts);
-    }
-
-    return Container(
-      height: isTablet ? 80 : 120,
-      margin: EdgeInsets.symmetric(horizontal: isTablet ? 24 : 16),
-      decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(12)),
-            child: ListView.builder(
-              controller: _popularScrollController,
-              scrollDirection: Axis.horizontal,
-              itemCount: infiniteProducts.length,
-              padding: const EdgeInsets.only(right: 2),
-              physics: const BouncingScrollPhysics(),
-              itemBuilder: (context, index) {
-                final product = infiniteProducts[index];
-          final currentOffset = _popularScrollController.hasClients
-                    ? _popularScrollController.offset
-                    : 0.0;
-          final isInCenter = ((index * 82.0) - currentOffset).abs() < 48.0;
-
-                return AnimatedScale(
-                  scale: isInCenter ? 1.15 : 1.0,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                    margin: EdgeInsets.only(top: isInCenter ? 8.0 : 0.0),
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 2),
-                      child: SizedBox(
-                        width: isTablet ? 100 : 80,
-                        child: HomeProductCard(
-                          product: product,
-                          fontSize: isTablet ? 16 : 15,
-                          padding: 0,
-                          imageHeight: isTablet ? 80 : 100,
-                          showWishlistButton: false,
-                          showPrice: false,
-                          showName: false,
-                    showHero: false,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-      ),
+    return HomePopularProductsStrip(
+      products: popularProducts,
+      isTablet: isTablet,
     );
   }
 
@@ -2953,224 +2614,8 @@ class _SearchBarSkeletonDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant SliverPersistentHeaderDelegate _) => false;
 }
 
-// ─── Order / Banner card ───────────────────────────────────────────────────────
-Widget buildOrderMedicineCard() => const _OrderMedicineCard();
-
-class _OrderMedicineCard extends StatefulWidget {
-  const _OrderMedicineCard();
-
-  @override
-  State<_OrderMedicineCard> createState() => _OrderMedicineCardState();
-}
-
-class _OrderMedicineCardState extends State<_OrderMedicineCard> {
-  List<BannerModel> banners = [];
-  bool _isLoadingBanners = false;
-  final BannerCacheService _bannerCacheService = BannerCacheService();
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeBannerCache();
-  }
-
-  Future<void> _initializeBannerCache() async {
-    await _bannerCacheService.initialize();
-    fetchBanners();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoadingBanners) {
-      return Container(
-        height: 140,
-        alignment: Alignment.center,
-          child: const CircularProgressIndicator());
-    }
-
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isTablet = screenWidth > 600;
-    final bannerHeight = isTablet ? 220.0 : 140.0;
-
-    final bannerData = [
-      _BannerData(
-          image: 'assets/images/banner1.jpg',
-          headline: 'Your Health, Our Priority',
-          subtitle: 'Shop medicines, wellness, and more with confidence.'),
-      _BannerData(
-          image: 'assets/images/banner2.jpg',
-          headline: 'Fast Delivery, Trusted Service',
-          subtitle: 'Get your essentials delivered quickly and safely.'),
-    ];
-
-    const infiniteOffset = 10000;
-    int activeBanner = 0;
-    final pageController =
-        PageController(initialPage: infiniteOffset, viewportFraction: 0.88);
-
-    void startAutoScroll() {
-      Future.delayed(const Duration(seconds: 4), () {
-        if (!mounted || !pageController.hasClients) return;
-        pageController.nextPage(
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeInOut);
-        startAutoScroll();
-      });
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) => startAutoScroll());
-
-    return Column(mainAxisSize: MainAxisSize.min, children: [
-        SizedBox(
-          height: bannerHeight,
-        child: PageView.builder(
-          controller: pageController,
-          onPageChanged: (i) =>
-              setState(() => activeBanner = i % bannerData.length),
-            itemBuilder: (context, index) {
-            final data = bannerData[index % bannerData.length];
-            return AnimatedBuilder(
-              animation: pageController,
-              builder: (context, child) {
-                double value = 0;
-                if (pageController.position.haveDimensions) {
-                  value = pageController.page! - index;
-                }
-                value = value.clamp(-1.0, 1.0);
-                final scale = 1 - (0.15 * value.abs());
-                final angle = value * 0.18;
-                final translateX = value * (isTablet ? 40 : 24);
-                return Transform(
-                  alignment: Alignment.center,
-                  transform: Matrix4.identity()
-                    ..translate(translateX)
-                    ..scale(scale, scale)
-                    ..setEntry(3, 2, 0.001)
-                    ..rotateY(angle),
-                child: Container(
-                    margin: EdgeInsets.symmetric(
-                        horizontal: isTablet ? 2 : 1, vertical: 2),
-                  decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(isTablet ? 18 : 12),
-                    boxShadow: [
-                      BoxShadow(
-                              color: Colors.black.withOpacity(0.13),
-                              blurRadius: isTablet ? 10 : 7,
-                              offset: Offset(0, isTablet ? 4 : 2))
-                        ]),
-                  child: ClipRRect(
-                      borderRadius: BorderRadius.circular(isTablet ? 18 : 12),
-                      child: Stack(fit: StackFit.expand, children: [
-                        Image.asset(data.image,
-                      fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                        color: Colors.grey[200],
-                        child: Center(
-                                    child: Icon(Icons.broken_image,
-                                        size: 40, color: Colors.grey[400])))),
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          height: bannerHeight * 0.45,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                  begin: Alignment.bottomCenter,
-                                  end: Alignment.topCenter,
-                                  colors: [
-                                    Colors.black.withOpacity(0.7),
-                                    Colors.transparent
-                                  ]),
-                          ),
-                        ),
-                      ),
-                        Positioned(
-                          left: 20,
-                          bottom: 22,
-                          right: 20,
-                        child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                                Text(data.headline,
-                                    style: GoogleFonts.poppins(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: isTablet ? 18 : 14.5,
-                                        shadows: [
-                                          Shadow(
-                                              color:
-                                                  Colors.black.withOpacity(0.4),
-                                              blurRadius: 6,
-                                              offset: const Offset(0, 2))
-                                        ])),
-                                const SizedBox(height: 5),
-                                Text(data.subtitle,
-                                    style: GoogleFonts.poppins(
-                                        color: Colors.white.withOpacity(0.92),
-                                        fontWeight: FontWeight.w400,
-                                        fontSize: isTablet ? 13 : 10.5,
-                                        height: 1.3,
-                                        shadows: [
-                                          Shadow(
-                                              color:
-                                                  Colors.black.withOpacity(0.3),
-                                              blurRadius: 4,
-                                              offset: const Offset(0, 1))
-                                        ])),
-                              ]),
-                        ),
-                      ]),
-                    ),
-                  ),
-                );
-              },
-              );
-            },
-          ),
-        ),
-      const SizedBox(height: 8),
-      Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(bannerData.length, (i) {
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            width: activeBanner == i ? 18 : 7,
-            height: 7,
-                  decoration: BoxDecoration(
-                color: activeBanner == i
-                    ? Colors.white.withOpacity(0.95)
-                    : Colors.white.withOpacity(0.45),
-                borderRadius: BorderRadius.circular(8)),
-          );
-        }),
-      ),
-    ]);
-  }
-
-  Future<void> fetchBanners() async {
-    if (!mounted) return;
-    try {
-      final cached = await _bannerCacheService.getBanners();
-      if (mounted && cached.isNotEmpty) {
-        setState(() {
-          banners = cached;
-          _isLoadingBanners = false;
-        });
-        _bannerCacheService.preloadBannerImages(context);
-      }
-    } catch (_) {}
-    _refreshBannersInBackground();
-  }
-
-  Future<void> _refreshBannersInBackground() async {
-    try {
-      final fresh = await _bannerCacheService.getBanners();
-      if (mounted && fresh.isNotEmpty) setState(() => banners = fresh);
-    } catch (_) {}
-  }
-}
+// ─── Home promo banners ────────────────────────────────────────────────────────
+Widget buildOrderMedicineCard() => const HomePromoBannerCarousel();
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 String getProductImageUrl(String? url) {

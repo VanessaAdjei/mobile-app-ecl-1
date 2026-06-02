@@ -2,6 +2,9 @@
 // all the api urls and endpoints in one place
 // makes it easier to change stuff later
 
+import 'package:flutter/foundation.dart';
+
+import '../services/maps_api_key_service.dart';
 import '../utils/product_image_url.dart';
 
 class ApiConfig {
@@ -55,6 +58,8 @@ class ApiConfig {
   // getting products and product info
 
   static const String getAllProducts = '/get-all-products';
+  /// Small featured set for fast home first paint (~20 products).
+  static const String getHomePriority = '/get-home-priority';
   static const String productDetails =
       '/product-details'; // add the urlName at the end like /product-details/{urlName}
   static const String relatedProducts =
@@ -199,16 +204,40 @@ class ApiConfig {
 
   /// Google Maps API key for web-service REST calls (Places, geocoding).
   ///
-  /// Provided at build time and never hardcoded in source, e.g.:
-  ///   flutter run --dart-define-from-file=.env
-  /// where `.env` (git-ignored) contains:
-  ///   GOOGLE_MAPS_API_KEY=your_key
+  /// Resolved in this order (see [initializeMapsApiKey]):
+  /// 1. `--dart-define=GOOGLE_MAPS_API_KEY=...` or `--dart-define-from-file=.env`
+  /// 2. Native config: `GMSApiKey` (iOS Info.plist) / `com.google.android.geo.API_KEY` (Android manifest)
   ///
-  /// NOTE: web-service keys are sent as a query parameter and are NOT protected
-  /// by Android/iOS bundle-ID restrictions, so this key must be restricted by
-  /// HTTP referrer / IP and API in the Google Cloud Console.
-  static const String googleMapsApiKey =
-      String.fromEnvironment('GOOGLE_MAPS_API_KEY', defaultValue: '');
+  /// NOTE: web-service keys are sent as a query parameter. Restrict by API in
+  /// Google Cloud Console (Places API, Geocoding API, Maps SDK).
+  static String _googleMapsApiKeyResolved =
+      const String.fromEnvironment('GOOGLE_MAPS_API_KEY', defaultValue: '');
+
+  static bool _mapsApiKeyInitialized = false;
+
+  /// Call once at startup so Dart Places/Geocoding can use the same key as the native map.
+  static Future<void> initializeMapsApiKey() async {
+    if (_mapsApiKeyInitialized) return;
+    _mapsApiKeyInitialized = true;
+
+    if (_googleMapsApiKeyResolved.isNotEmpty) {
+      debugPrint('🗺️ Maps API key loaded from dart-define');
+      return;
+    }
+
+    final nativeKey = await MapsApiKeyService.loadFromNative();
+    if (nativeKey.isNotEmpty) {
+      _googleMapsApiKeyResolved = nativeKey;
+      debugPrint('🗺️ Maps API key loaded from native config (Info.plist / manifest)');
+    } else {
+      debugPrint(
+        '🗺️ No Maps API key — add GMSApiKey (iOS), MAPS_API_KEY (Android), '
+        'or run with --dart-define=GOOGLE_MAPS_API_KEY=...',
+      );
+    }
+  }
+
+  static String get googleMapsApiKey => _googleMapsApiKeyResolved;
 
   /// Whether a Maps web-service key is configured for this build.
   static bool get hasGoogleMapsApiKey => googleMapsApiKey.isNotEmpty;

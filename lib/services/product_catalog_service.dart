@@ -12,6 +12,27 @@ class ProductCatalogService {
 
   final ProductRepository _repository;
 
+  /// Fast home subset — [get-home-priority], falling back to [popular-products].
+  Future<List<Product>> fetchPriorityProducts({
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    final priorityResult =
+        await _repository.fetchHomePriorityProducts(timeout: timeout);
+    _rethrowIfTransportError(priorityResult);
+    if (priorityResult.isHttpOk && priorityResult.data.isNotEmpty) {
+      return compute(
+        productsFromApiDataList,
+        List<dynamic>.from(priorityResult.data),
+      );
+    }
+
+    debugPrint(
+      'ProductCatalogService: get-home-priority empty or unavailable '
+      '(${priorityResult.statusCode}) — using popular-products',
+    );
+    return fetchPopularProducts(timeout: timeout);
+  }
+
   /// Fetches and parses the full product catalog (get-all-products).
   Future<List<Product>> fetchCatalogProducts({
     Duration timeout = const Duration(seconds: 10),
@@ -29,7 +50,18 @@ class ProductCatalogService {
     final result = await _repository.fetchPopularProducts(timeout: timeout);
     _rethrowIfTransportError(result);
     if (!result.isHttpOk) return const [];
-    return compute(productsFromApiDataList, List<dynamic>.from(result.data));
+    final rawCount = result.data.length;
+    final parsed = await compute(
+      productsFromApiDataList,
+      List<dynamic>.from(result.data),
+    );
+    if (parsed.isEmpty && rawCount > 0) {
+      debugPrint(
+        'ProductCatalogService: popular-products returned $rawCount rows '
+        'but none parsed — check API shape',
+      );
+    }
+    return parsed;
   }
 
   /// Search suggestions for the home typeahead field.

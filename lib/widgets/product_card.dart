@@ -68,9 +68,12 @@ class HomeProductCard extends StatelessWidget {
 
     final imageUrl =
         HomepageOptimizationService().getProductImageUrl(product.thumbnail);
-    final imageCacheKey = imageUrl.isEmpty
-        ? null
-        : ProductImagePreloadService.diskCacheKeyFor(imageUrl);
+    // Only pin cacheKey after preload wrote the resized file; otherwise
+    // CachedNetworkImage loads from the URL immediately on first paint.
+    final imageCacheKey = imageUrl.isNotEmpty &&
+            ProductImagePreloadService.isUrlCached(imageUrl)
+        ? ProductImagePreloadService.diskCacheKeyFor(imageUrl)
+        : null;
 
     return Container(
       margin: EdgeInsets.zero,

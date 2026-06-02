@@ -219,7 +219,8 @@ class EclExpandableSliverAppBar extends StatelessWidget {
                                 style: heroSubtitleStyle ??
                                     GoogleFonts.poppins(
                                       fontSize: 12,
-                                      color: Colors.white.withValues(alpha: 0.88),
+                                      color:
+                                          Colors.white.withValues(alpha: 0.88),
                                       height: 1.15,
                                     ),
                               ),

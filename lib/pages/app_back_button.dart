@@ -57,92 +57,94 @@ class AppBackButton extends StatelessWidget {
   }
 
   void _handleBackNavigation(BuildContext context) {
-    if (Navigator.canPop(context)) {
-      Navigator.pop(context);
-    } else {
-      if (showConfirmation) {
-        _showBackToHomeDialog(context);
-      } else {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => fallbackPage),
-          (route) => false,
-        );
-      }
-    }
+    BackButtonUtils.popOrGoHome(
+      context,
+      showConfirmation: showConfirmation,
+      title: confirmationTitle,
+      message: confirmationMessage,
+      fallbackPage: fallbackPage,
+    );
   }
+}
 
-  void _showBackToHomeDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
+void _showBackToHomeDialog(
+  BuildContext context, {
+  String? title,
+  String? message,
+  Widget fallbackPage = const HomePage(),
+}) {
+  showDialog(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.home,
-                color: Theme.of(context).colorScheme.primary,
-                size: 20,
-              ),
+              color: Theme.of(dialogContext)
+                  .colorScheme
+                  .primary
+                  .withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(width: 12),
-            Text(
-              confirmationTitle ?? 'Go to Home',
+            child: Icon(
+              Icons.home,
+              color: Theme.of(dialogContext).colorScheme.primary,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title ?? 'Go to Home',
               style: GoogleFonts.poppins(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
               ),
             ),
-          ],
-        ),
-        content: Text(
-          confirmationMessage ?? 'Would you like to go back to the home page?',
-          style: GoogleFonts.poppins(fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.7),
-              ),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            onPressed: () {
-              Navigator.pop(context); // Close dialog
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => fallbackPage),
-                (route) => false,
-              );
-            },
-            child: Text(
-              'Go Home',
-              style: GoogleFonts.poppins(color: Colors.white),
-            ),
           ),
         ],
       ),
-    );
-  }
+      content: Text(
+        message ?? 'Would you like to go back to the home page?',
+        style: GoogleFonts.poppins(fontSize: 14),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: Text(
+            'Cancel',
+            style: GoogleFonts.poppins(
+              color: Theme.of(dialogContext)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.7),
+            ),
+          ),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Theme.of(dialogContext).colorScheme.primary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          onPressed: () {
+            Navigator.pop(dialogContext);
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => fallbackPage),
+              (route) => false,
+            );
+          },
+          child: Text(
+            'Go Home',
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 // utility class for making different types of back buttons
@@ -191,4 +193,47 @@ class BackButtonUtils {
       onPressed: onPressed,
     );
   }
+
+  /// Pop to the previous route when possible; otherwise go home.
+  static void popOrGoHome(
+    BuildContext context, {
+    bool showConfirmation = false,
+    String? title,
+    String? message,
+    Widget fallbackPage = const HomePage(),
+  }) {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+      return;
+    }
+    if (showConfirmation) {
+      _showBackToHomeDialog(
+        context,
+        title: title,
+        message: message,
+        fallbackPage: fallbackPage,
+      );
+      return;
+    }
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => fallbackPage),
+      (route) => false,
+    );
+  }
+
+  /// Default app back control: pop stack, confirm before home when at root.
+  static AppBackButton standard({
+    Color? backgroundColor,
+    Color? iconColor,
+    String? title,
+    String? message,
+    Widget fallbackPage = const HomePage(),
+  }) =>
+      withConfirmation(
+        backgroundColor: backgroundColor,
+        iconColor: iconColor,
+        title: title,
+        message: message,
+        fallbackPage: fallbackPage,
+      );
 }

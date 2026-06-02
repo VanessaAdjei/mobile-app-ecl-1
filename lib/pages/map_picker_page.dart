@@ -1,17 +1,22 @@
 // pages/map_picker_page.dart
-import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
+import '../config/api_config.dart';
+import '../models/map_place_suggestion.dart';
 import '../services/google_places_service.dart';
 import '../widgets/animated_map_pin.dart';
 import '../utils/app_error_utils.dart';
 
 typedef LocationSelectedCallback = void Function(
     double lat, double lng, String? address);
+
+/// Default map center (Accra) when coordinates are missing or invalid.
+const LatLng _kAccraCenter = LatLng(5.6037, -0.1870);
 
 class MapPickerPage extends StatefulWidget {
   final double initialLatitude;
@@ -31,7 +36,11 @@ class MapPickerPage extends StatefulWidget {
 
 class _MapPickerPageState extends State<MapPickerPage> {
   final GooglePlacesService _placesService = GooglePlacesService();
-  late GoogleMapController _mapController;
+  late final Key _mapWidgetKey;
+  GoogleMapController? _mapController;
+  bool _mapReady = false;
+  LatLng? _pendingCameraTarget;
+  double _pendingCameraZoom = 18.0;
   late LatLng _selectedLocation;
   late LatLng _initialLocation;
   Set<Marker> _markers = {};
@@ -44,10 +53,25 @@ class _MapPickerPageState extends State<MapPickerPage> {
   // search box for finding places
   final TextEditingController _searchController = TextEditingController();
 
+  static bool _coordinatesLookValid(double lat, double lng) {
+    if (lat.isNaN || lng.isNaN) return false;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return false;
+    // Treat (0,0) as unset — common when backend has no coordinates yet.
+    if (lat.abs() < 0.0001 && lng.abs() < 0.0001) return false;
+    return true;
+  }
+
   @override
   void initState() {
     super.initState();
-    _initialLocation = LatLng(widget.initialLatitude, widget.initialLongitude);
+    _mapWidgetKey = UniqueKey();
+    final valid = _coordinatesLookValid(
+      widget.initialLatitude,
+      widget.initialLongitude,
+    );
+    _initialLocation = valid
+        ? LatLng(widget.initialLatitude, widget.initialLongitude)
+        : _kAccraCenter;
     _selectedLocation = _initialLocation;
     _initializeMarkers();
     _getAddressFromCoordinates(widget.initialLatitude, widget.initialLongitude);
@@ -68,33 +92,99 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
   @override
   void dispose() {
+    _mapController?.dispose();
+    _mapController = null;
+    _mapReady = false;
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _updateMarkers() async {
-    // make a custom marker icon that animates
-    final customIcon = await CustomAnimatedMarker.createAnimatedMarker(
-      text: '📍',
-      backgroundColor: Colors.green,
-      textColor: Colors.white,
-      icon: Icons.location_on,
-      size: 50.0,
+  Future<void> _animateMapTo(LatLng location, {double zoom = 17.0}) async {
+    if (!_mapReady || _mapController == null) {
+      _pendingCameraTarget = location;
+      _pendingCameraZoom = zoom;
+      return;
+    }
+    _pendingCameraTarget = null;
+    await _mapController!.animateCamera(
+      CameraUpdate.newLatLngZoom(location, zoom),
     );
+  }
 
-    _markers = {
-      Marker(
-        markerId: const MarkerId('selected_location'),
-        position: _selectedLocation,
-        infoWindow: const InfoWindow(
-          title: 'Selected Location',
-          snippet: 'Use search or current location to select',
+  Future<void> _flushPendingCamera() async {
+    final target = _pendingCameraTarget;
+    if (target == null || _mapController == null) return;
+    final zoom = _pendingCameraZoom;
+    _pendingCameraTarget = null;
+    await _mapController!.animateCamera(
+      CameraUpdate.newLatLngZoom(target, zoom),
+    );
+  }
+
+  void _onMapCreated(GoogleMapController controller) {
+    _mapController = controller;
+    _mapReady = true;
+    if (_pendingCameraTarget != null) {
+      unawaited(_flushPendingCamera());
+    } else {
+      unawaited(
+        controller.animateCamera(
+          CameraUpdate.newLatLngZoom(_selectedLocation, 18.0),
         ),
-        draggable:
-            false, // Disabled - users can only select via search or current location
-        icon: customIcon,
-      ),
-    };
+      );
+    }
+    if (_markers.isEmpty) {
+      unawaited(_updateMarkers());
+    }
+  }
+
+  Future<void> _onMapTapped(LatLng position) async {
+    if (_isUpdatingLocation) return;
+    setState(() => _isUpdatingLocation = true);
+    try {
+      _selectedLocation = position;
+      await _updateMarkers();
+      await _animateMapTo(position, zoom: 18.0);
+      await _getAddressFromCoordinates(position.latitude, position.longitude);
+    } finally {
+      if (mounted) setState(() => _isUpdatingLocation = false);
+    }
+  }
+
+  Future<void> _updateMarkers() async {
+    BitmapDescriptor markerIcon = BitmapDescriptor.defaultMarkerWithHue(
+      BitmapDescriptor.hueGreen,
+    );
+    try {
+      markerIcon = await CustomAnimatedMarker.createAnimatedMarker(
+        text: '📍',
+        backgroundColor: Colors.green,
+        textColor: Colors.white,
+        icon: Icons.location_on,
+        size: 50.0,
+      );
+    } catch (e) {
+      print('🗺️ [MAP] Custom marker icon failed, using default: $e');
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _markers = {
+        Marker(
+          markerId: const MarkerId('selected_location'),
+          position: _selectedLocation,
+          infoWindow: InfoWindow(
+            title: 'Selected location',
+            snippet: _selectedAddress.length > 60
+                ? '${_selectedAddress.substring(0, 60)}...'
+                : _selectedAddress,
+          ),
+          draggable: false,
+          icon: markerIcon,
+          zIndexInt: 2,
+        ),
+      };
+    });
   }
 
   Future<void> _getAddressFromCoordinates(double lat, double lng,
@@ -148,11 +238,13 @@ class _MapPickerPageState extends State<MapPickerPage> {
             _selectedAddress = address;
             _isLoadingAddress = false;
           });
+          await _updateMarkers();
         } else {
           setState(() {
             _selectedAddress = 'Unknown location';
             _isLoadingAddress = false;
           });
+          await _updateMarkers();
         }
       } else {
         if (!mounted) return;
@@ -160,14 +252,16 @@ class _MapPickerPageState extends State<MapPickerPage> {
           _selectedAddress = originalQuery ?? 'Address not found';
           _isLoadingAddress = false;
         });
+        await _updateMarkers();
       }
     } catch (e) {
-      print('🗺️ [MAP] Error getting address: $e');
+      debugPrint('🗺️ [MAP] Error getting address: $e');
       if (!mounted) return;
       setState(() {
         _selectedAddress = originalQuery ?? 'Error loading address';
         _isLoadingAddress = false;
       });
+      await _updateMarkers();
     }
   }
 
@@ -310,206 +404,116 @@ class _MapPickerPageState extends State<MapPickerPage> {
     }
   }
 
-  // get search suggestions as they type using Google Places Autocomplete API
-  Future<List<String>> _getSearchSuggestions(String query) async {
-    if (query.length < 2) return [];
+  Future<List<MapPlaceSuggestion>> _getSearchSuggestions(String query) async {
+    if (query.trim().length < 2) return [];
+
+    if (!ApiConfig.hasGoogleMapsApiKey) {
+      debugPrint(
+        '🗺️ [MAP] No GOOGLE_MAPS_API_KEY — map search will be limited.',
+      );
+    }
 
     try {
-      List<String> suggestions = [];
-      Set<String> uniqueSuggestions = {}; // Prevent duplicates
-
-      // Try Google Places Autocomplete API first (better for place names)
-      try {
-        print('🗺️ [MAP] Calling Google Places Autocomplete for "$query"');
-        final autocompleteSuggestions =
-            await _placesService.autocompleteDescriptions(query);
-        for (final description in autocompleteSuggestions) {
-          if (!uniqueSuggestions.contains(description)) {
-            suggestions.add(description);
-            uniqueSuggestions.add(description);
-          }
-        }
-      } catch (e) {
-        print('🗺️ [MAP] Places Autocomplete error: $e');
-      }
-
-      // Fallback: platform geocoder (avoids Geocoding REST API / REQUEST_DENIED)
-      if (suggestions.length < 5) {
-        final searchQueries = [
-          '$query, Accra, Ghana',
-          '$query, Ghana',
-          query,
-        ];
-
-        for (final searchQuery in searchQueries) {
-          if (suggestions.length >= 15) break;
-
-          final result = await _platformGeocodeAddress(searchQuery);
-          if (result == null) continue;
-
-          var displayAddress = result.label;
-          if (displayAddress.contains(',')) {
-            final parts = displayAddress.split(',');
-            if (parts.length >= 2) {
-              displayAddress = '${parts[0].trim()}, ${parts[1].trim()}';
-            }
-          }
-
-          if (displayAddress.isNotEmpty &&
-              !uniqueSuggestions.contains(displayAddress)) {
-            suggestions.add(displayAddress);
-            uniqueSuggestions.add(displayAddress);
-          }
-        }
-      }
-
-      print('🗺️ [MAP] Total suggestions found: ${suggestions.length}');
-
-      return suggestions.take(15).toList();
+      final suggestions = await _placesService.searchSuggestions(query);
+      debugPrint(
+        '🗺️ [MAP] searchSuggestions("$query") → ${suggestions.length} results',
+      );
+      return suggestions;
     } catch (e) {
-      print('🗺️ [MAP] Error getting suggestions: $e');
+      debugPrint('🗺️ [MAP] searchSuggestions error: $e');
       return [];
     }
   }
 
-  // search for a place and move the map to it (using Google Geocoding API or Places API)
-  Future<void> _searchLocation(String query) async {
+  Future<void> _applyResolvedLocation({
+    required double lat,
+    required double lng,
+    required String label,
+  }) async {
+    final newLocation = LatLng(lat, lng);
+    _selectedLocation = newLocation;
+    if (mounted) setState(() {});
+
+    await _animateMapTo(newLocation, zoom: 17.0);
+    await _updateMarkers();
+
+    final nameHint = label.split(',').first.trim();
+    await _getAddressFromCoordinates(
+      lat,
+      lng,
+      originalQuery: _isValidPlaceName(nameHint) ? nameHint : null,
+    );
+  }
+
+  Future<void> _searchLocation(
+    String query, {
+    String? placeId,
+    double? latitude,
+    double? longitude,
+  }) async {
     if (query.trim().isEmpty) return;
     if (!mounted) return;
     setState(() => _isUpdatingLocation = true);
 
-    print('🗺️ [MAP] Searching for location: "$query"');
+    debugPrint('🗺️ [MAP] Searching for location: "$query"');
 
-    // First, try to get place_id from Places Autocomplete for exact location
-    String? placeId;
     try {
-      placeId = await _placesService.findPlaceIdForDescription(query);
-      if (placeId != null) {
-        print('🗺️ [MAP] Found place_id: $placeId for "$query"');
-      }
-    } catch (e) {
-      print('🗺️ [MAP] Error getting place_id: $e');
-    }
+      var resolved = await _placesService.resolveToCoordinates(
+        query: query,
+        placeId: placeId,
+        latitude: latitude,
+        longitude: longitude,
+      );
 
-    // If we have place_id, use Places Details API for exact location
-    if (placeId != null) {
-      try {
-        print('🗺️ [MAP] Calling Places Details API for $placeId');
-        final result = await _placesService.fetchPlaceDetails(placeId);
-        if (result != null) {
-            final location = result['geometry']?['location'];
-            if (location is Map) {
-            final double lat = (location['lat'] as num).toDouble();
-            final double lng = (location['lng'] as num).toDouble();
-            final formattedAddress = result['formatted_address'] as String?;
-            final placeName = result['name'] as String?;
+      resolved ??= await _resolveViaPlatformGeocoder(query);
 
-            print('🗺️ [MAP] ✅ Exact location from Places API: ($lat, $lng)');
-            print('🗺️ [MAP] Place name: $placeName');
-            print('🗺️ [MAP] Formatted address: $formattedAddress');
-
-            LatLng newLocation = LatLng(lat, lng);
-
-            print('🗺️ [MAP] ===== SETTING NEW LOCATION =====');
-            print('🗺️ [MAP] New location coordinates: ($lat, $lng)');
-            print('🗺️ [MAP] Previous selected location: $_selectedLocation');
-
-            // CRITICAL: Update the selected location FIRST and synchronously
-            _selectedLocation = newLocation;
-
-            // Then update state to trigger UI refresh
-            setState(() {
-              // Location already set above, just trigger rebuild
-            });
-
-            print(
-                '🗺️ [MAP] ✅ _selectedLocation updated to: $_selectedLocation');
-
-            // move the map to show the new location
-            await _mapController.animateCamera(
-              CameraUpdate.newLatLngZoom(newLocation, 18.0),
-            );
-
-            print('🗺️ [MAP] Camera moved to: $newLocation');
-
-            await _updateMarkers();
-            print('🗺️ [MAP] Markers updated at: $_selectedLocation');
-
-            // get the address for the new location
-            await _getAddressFromCoordinates(lat, lng,
-                originalQuery: placeName ?? query.split(',').first.trim());
-
-            print('🗺️ [MAP] ✅ Location selection complete');
-            if (mounted) setState(() => _isUpdatingLocation = false);
-            return; // Success, exit early
-          }
+      if (resolved == null) {
+        if (mounted) {
+          AppErrorUtils.showSnack(
+            context,
+            ApiConfig.hasGoogleMapsApiKey
+                ? 'Could not find "$query". Try adding the area or city name.'
+                : 'Map search is not configured. Add GOOGLE_MAPS_API_KEY to .env.',
+            isError: true,
+            duration: const Duration(seconds: 3),
+          );
         }
-      } catch (e) {
-        print('🗺️ [MAP] Places Details API error: $e');
-        // Fall through to geocoding
-      }
-    }
-
-    // Fallback: platform geocoder (avoids Geocoding REST API / REQUEST_DENIED)
-    final searchQueries = [
-      query,
-      '$query, Ghana',
-      if (query.contains(',')) query.split(',').first.trim(),
-    ];
-
-    for (final searchQuery in searchQueries) {
-      final geocoded = await _platformGeocodeAddress(searchQuery);
-      if (geocoded == null) {
-        print('🗺️ [MAP] ⚠️ No platform geocode result for "$searchQuery"');
-        continue;
+        return;
       }
 
-      final lat = geocoded.lat;
-      final lng = geocoded.lng;
-      print('🗺️ [MAP] ✅ Location found via platform geocoder: ($lat, $lng)');
-
-      var placeName = geocoded.label;
-      if (placeName.contains(',')) {
-        placeName = placeName.split(',').first.trim();
-      }
-      if (_isValidPlaceName(query)) {
-        placeName = query.split(',').first.trim();
-      }
-
-      final newLocation = LatLng(lat, lng);
-
-      print('🗺️ [MAP] ===== SETTING NEW LOCATION =====');
-      print('🗺️ [MAP] New location coordinates: ($lat, $lng)');
-      print('🗺️ [MAP] Previous selected location: $_selectedLocation');
-
-      _selectedLocation = newLocation;
-      setState(() {});
-
-      await _mapController.animateCamera(
-        CameraUpdate.newLatLngZoom(newLocation, 18.0),
+      await _applyResolvedLocation(
+        lat: resolved.lat,
+        lng: resolved.lng,
+        label: resolved.label,
       );
-
-      await _updateMarkers();
-      await _getAddressFromCoordinates(lat, lng, originalQuery: placeName);
-
+      debugPrint('🗺️ [MAP] ✅ Location set: (${resolved.lat}, ${resolved.lng})');
+    } catch (e) {
+      debugPrint('🗺️ [MAP] _searchLocation error: $e');
       if (mounted) {
-        setState(() => _isUpdatingLocation = false);
+        AppErrorUtils.showSnack(
+          context,
+          'Could not load that location. Please try again.',
+          isError: true,
+        );
       }
-      print('🗺️ [MAP] ✅ Location selection complete');
-      return;
+    } finally {
+      if (mounted) setState(() => _isUpdatingLocation = false);
     }
+  }
 
-    // If we get here, all searches failed
-    print('🗺️ [MAP] ❌ All search attempts failed for: "$query"');
-    if (mounted) {
-      setState(() => _isUpdatingLocation = false);
-      AppErrorUtils.showSnack(
-        context,
-        'Location not found: $query',
-        isError: true,
-        duration: const Duration(seconds: 2),
-      );
+  Future<({double lat, double lng, String label})?> _resolveViaPlatformGeocoder(
+    String query,
+  ) async {
+    final attempts = [
+      if (!query.toLowerCase().contains('ghana')) '$query, Ghana',
+      query,
+    ];
+    for (final attempt in attempts) {
+      final geocoded = await _platformGeocodeAddress(attempt);
+      if (geocoded == null) continue;
+      return (lat: geocoded.lat, lng: geocoded.lng, label: geocoded.label);
     }
+    return null;
   }
 
   @override
@@ -519,26 +523,14 @@ class _MapPickerPageState extends State<MapPickerPage> {
         children: [
           // Google Map
           GoogleMap(
-            onMapCreated: (GoogleMapController controller) {
-              _mapController = controller;
-              print('🗺️ [MAP] GoogleMap created successfully');
-              print('🗺️ [MAP] [iOS DEBUG] Map controller created');
-              print(
-                  '🗺️ [MAP] [iOS DEBUG] About to move camera to: $_initialLocation');
-
-              // Move camera to initial position with higher zoom for accuracy
-              controller.animateCamera(
-                CameraUpdate.newLatLngZoom(_initialLocation, 18.0),
-              );
-
-              print('🗺️ [MAP] [iOS DEBUG] Camera animation started');
-            },
+            key: _mapWidgetKey,
+            onMapCreated: _onMapCreated,
+            onTap: _onMapTapped,
             initialCameraPosition: CameraPosition(
               target: _initialLocation,
               zoom: 18.0, // Higher zoom for better accuracy
             ),
             markers: _markers,
-            // onTap disabled - users can only select location via search or current location button
             myLocationEnabled: true,
             myLocationButtonEnabled: true,
             zoomControlsEnabled: true,
@@ -552,6 +544,34 @@ class _MapPickerPageState extends State<MapPickerPage> {
             // Restrict zoom levels for Ghana
             minMaxZoomPreference: const MinMaxZoomPreference(6.0, 20.0),
           ),
+
+          if (_isUpdatingLocation)
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: Center(
+                  child: Card(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 12),
+                          Text('Updating map…'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
 
           // Top App Bar with Gradient
           Positioned(
@@ -637,6 +657,44 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
                       const SizedBox(height: 16),
 
+                      if (!ApiConfig.hasGoogleMapsApiKey)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.shade50,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.amber.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  size: 18,
+                                  color: Colors.amber.shade900,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Map search needs GOOGLE_MAPS_API_KEY. '
+                                    'You can still tap the map or use current location.',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.amber.shade900,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
                       // Search Bar
                       Container(
                         decoration: BoxDecoration(
@@ -653,9 +711,16 @@ class _MapPickerPageState extends State<MapPickerPage> {
                         child: Row(
                           children: [
                             Expanded(
-                              child: TypeAheadField<String>(
+                              child: TypeAheadField<MapPlaceSuggestion>(
                                 textFieldConfiguration: TextFieldConfiguration(
                                   controller: _searchController,
+                                  onChanged: (_) => setState(() {}),
+                                  onSubmitted: (value) {
+                                    final trimmed = value.trim();
+                                    if (trimmed.isNotEmpty) {
+                                      _searchLocation(trimmed);
+                                    }
+                                  },
                                   decoration: InputDecoration(
                                     hintText: 'Search for a location...',
                                     hintStyle: TextStyle(
@@ -696,7 +761,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
                                       ),
                                     ),
                                     title: Text(
-                                      suggestion,
+                                      suggestion.description,
                                       style: TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w500,
@@ -706,7 +771,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     subtitle: Text(
-                                      'Tap to navigate',
+                                      'Tap to show on map',
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: Colors.grey[600],
@@ -720,8 +785,14 @@ class _MapPickerPageState extends State<MapPickerPage> {
                                   );
                                 },
                                 onSuggestionSelected: (suggestion) {
-                                  _searchController.text = suggestion;
-                                  _searchLocation(suggestion);
+                                  _searchController.text =
+                                      suggestion.description;
+                                  _searchLocation(
+                                    suggestion.description,
+                                    placeId: suggestion.placeId,
+                                    latitude: suggestion.latitude,
+                                    longitude: suggestion.longitude,
+                                  );
                                 },
                                 noItemsFoundBuilder: (context) {
                                   return Padding(
@@ -739,10 +810,18 @@ class _MapPickerPageState extends State<MapPickerPage> {
                                     const Duration(milliseconds: 300),
                                 suggestionsBoxDecoration:
                                     SuggestionsBoxDecoration(
+                                  color: Colors.white,
                                   borderRadius: BorderRadius.circular(12),
-                                  elevation: 8,
-                                  shadowColor: Colors.black.withOpacity(0.1),
+                                  elevation: 12,
+                                  shadowColor: Colors.black.withOpacity(0.15),
+                                  constraints: const BoxConstraints(
+                                    maxHeight: 280,
+                                  ),
                                 ),
+                                animationDuration:
+                                    const Duration(milliseconds: 200),
+                                hideOnEmpty: false,
+                                hideOnLoading: false,
                               ),
                             ),
                             if (_searchController.text.isNotEmpty)
@@ -929,7 +1008,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
                       // Compact Instructions
                       Text(
-                        '💡 Tap map or drag marker to select location',
+                        '💡 Search, tap the map, or use the location button',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade500,
@@ -950,7 +1029,8 @@ class _MapPickerPageState extends State<MapPickerPage> {
             right: 20,
             child: FloatingActionButton(
               onPressed: () async {
-                if (!mounted) return;
+                if (!mounted || _isUpdatingLocation) return;
+                setState(() => _isUpdatingLocation = true);
 
                 try {
                   // Check location permissions first
@@ -959,7 +1039,13 @@ class _MapPickerPageState extends State<MapPickerPage> {
                   if (permission == LocationPermission.denied) {
                     permission = await Geolocator.requestPermission();
                     if (permission == LocationPermission.denied) {
-                      print('🗺️ [MAP] Location permission denied');
+                      if (mounted) {
+                        AppErrorUtils.showSnack(
+                          context,
+                          'Location permission is required to use your position.',
+                          isError: true,
+                        );
+                      }
                       return;
                     }
                   }
@@ -967,41 +1053,35 @@ class _MapPickerPageState extends State<MapPickerPage> {
                   if (!mounted) return;
 
                   // Get current device location with high accuracy
-                  Position position = await Geolocator.getCurrentPosition(
+                  final position = await Geolocator.getCurrentPosition(
                     desiredAccuracy: LocationAccuracy.best,
                     timeLimit: const Duration(seconds: 15),
                   );
 
                   if (!mounted) return;
 
-                  LatLng currentLocation =
+                  final currentLocation =
                       LatLng(position.latitude, position.longitude);
 
-                  setState(() {
-                    _selectedLocation = currentLocation;
-                    _updateMarkers();
-                  });
-
-                  // Move camera to current location with high zoom
-                  _mapController.animateCamera(
-                    CameraUpdate.newLatLngZoom(currentLocation, 19.0),
+                  _selectedLocation = currentLocation;
+                  await _updateMarkers();
+                  await _animateMapTo(currentLocation, zoom: 18.0);
+                  await _getAddressFromCoordinates(
+                    position.latitude,
+                    position.longitude,
                   );
-
-                  // Get address for current location
-                  _getAddressFromCoordinates(
-                      position.latitude, position.longitude);
-
-                  print(
-                      '🗺️ [MAP] Current location: (${position.latitude}, ${position.longitude})');
-                  print('🗺️ [MAP] Accuracy: ${position.accuracy} meters');
-                  print('🗺️ [MAP] Altitude: ${position.altitude} meters');
-                  print('🗺️ [MAP] Speed: ${position.speed} m/s');
                 } catch (e) {
-                  print('🗺️ [MAP] Error getting current location: $e');
-                  // Fallback to initial location
-                  _mapController.animateCamera(
-                    CameraUpdate.newLatLngZoom(_initialLocation, 18.0),
-                  );
+                  debugPrint('🗺️ [MAP] Error getting current location: $e');
+                  if (mounted) {
+                    AppErrorUtils.showSnack(
+                      context,
+                      'Could not get your location. Try again or pick on the map.',
+                      isError: true,
+                    );
+                  }
+                  await _animateMapTo(_initialLocation, zoom: 18.0);
+                } finally {
+                  if (mounted) setState(() => _isUpdatingLocation = false);
                 }
               },
               backgroundColor: Colors.white,

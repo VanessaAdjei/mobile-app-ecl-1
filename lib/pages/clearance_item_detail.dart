@@ -25,6 +25,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/universal_page_optimization_service.dart';
 import '../services/product_detail_service.dart';
 import '../services/clearance_sale_api_service.dart';
+import '../services/prescription_upload_status_service.dart';
+import '../config/app_colors.dart';
 import 'prescription.dart';
 
 class ClearanceItemDetailPage extends StatefulWidget {
@@ -60,6 +62,8 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
       UniversalPageOptimizationService();
   final ProductDetailService _detailService = ProductDetailService();
 
+  bool _prescriptionUploaded = false;
+
   @override
   void initState() {
     super.initState();
@@ -85,6 +89,20 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
         );
       }
     });
+
+    if (widget.product.isPrescribed == true) {
+      unawaited(_loadPrescriptionUploadStatus());
+    }
+  }
+
+  Future<void> _loadPrescriptionUploadStatus() async {
+    final uploaded = await PrescriptionUploadStatusService.isUploaded(
+      productId: widget.product.id,
+      batchNo: widget.product.batchNo,
+    );
+    if (mounted && uploaded != _prescriptionUploaded) {
+      setState(() => _prescriptionUploaded = uploaded);
+    }
   }
 
   void _initializeOptimization() {
@@ -100,14 +118,10 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
     super.dispose();
   }
 
-  void _navigateToPrescriptionUpload() async {
-    debugPrint('🔍 Navigating to PrescriptionUploadPage...');
-
-    // Get auth token for prescription upload
+  Future<void> _navigateToPrescriptionUpload() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token') ?? '';
 
-    // Convert ClearanceProduct to Map for prescription page
     final productMap = {
       'id': widget.product.id,
       'name': widget.product.name,
@@ -119,11 +133,10 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
         'id': widget.product.id,
         'name': widget.product.name,
         'thumbnail': widget.product.thumbnail,
-      }
+      },
     };
 
-    debugPrint('🔍 Product map created: ${productMap['name']}');
-    Navigator.push(
+    final uploaded = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (context) => PrescriptionUploadPage(
@@ -132,7 +145,70 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
         ),
       ),
     );
-    debugPrint('🔍 Navigation completed');
+
+    if (!mounted) return;
+    if (uploaded == true) {
+      setState(() => _prescriptionUploaded = true);
+    } else {
+      await _loadPrescriptionUploadStatus();
+    }
+  }
+
+  Widget _buildPrescriptionUploadedBanner() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFECFDF5),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFBBF7D0)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.check_circle_rounded,
+                color: AppColors.primary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Prescription uploaded',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF065F46),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Our pharmacist will review it. Tap the button below to replace it.',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: const Color(0xFF047857),
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<List<Product>> _fetchRelatedProductsWithCache(String urlName) async {
@@ -351,6 +427,10 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
 
                     // Product Info Card
                     _buildProductInfoCard(theme),
+
+                    if (widget.product.isPrescribed == true &&
+                        _prescriptionUploaded)
+                      _buildPrescriptionUploadedBanner(),
 
                     // Quantity Selector
                     _buildQuantitySelector(),
@@ -777,7 +857,9 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: widget.product.isPrescribed == true
-                        ? [Colors.red.shade600, Colors.red.shade800]
+                        ? (_prescriptionUploaded
+                            ? [AppColors.primary, AppColors.primaryDark]
+                            : [Colors.red.shade600, Colors.red.shade800])
                         : [Colors.green.shade600, Colors.green.shade800],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -786,7 +868,9 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
                   boxShadow: [
                     BoxShadow(
                       color: widget.product.isPrescribed == true
-                          ? Colors.red.shade200.withValues(alpha: 0.3)
+                          ? (_prescriptionUploaded
+                              ? AppColors.primary.withValues(alpha: 0.25)
+                              : Colors.red.shade200.withValues(alpha: 0.3))
                           : Colors.green.shade200.withValues(alpha: 0.3),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
@@ -843,7 +927,9 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
                         children: [
                           Icon(
                               widget.product.isPrescribed == true
-                                  ? Icons.medical_services
+                                  ? (_prescriptionUploaded
+                                      ? Icons.check_circle_outline
+                                      : Icons.medical_services)
                                   : (isInCart
                                       ? Icons.shopping_cart
                                       : Icons.add_shopping_cart),
@@ -852,7 +938,9 @@ class _ClearanceItemDetailPageState extends State<ClearanceItemDetailPage>
                           SizedBox(width: 4),
                           Text(
                             widget.product.isPrescribed == true
-                                ? 'Upload Prescription'
+                                ? (_prescriptionUploaded
+                                    ? 'Prescription uploaded'
+                                    : 'Upload Prescription')
                                 : (isInCart
                                     ? 'In Cart (${cartQuantity})'
                                     : 'Add to Cart'),

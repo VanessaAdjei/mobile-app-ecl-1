@@ -6,6 +6,8 @@ import 'package:eclapp/pages/signinpage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
+import 'package:eclapp/cache/product_cache.dart';
+import 'package:eclapp/utils/catalog_timer.dart';
 import 'package:eclapp/pages/homepage.dart';
 import 'package:eclapp/pages/wallet_page.dart';
 import 'package:provider/provider.dart';
@@ -31,6 +33,7 @@ import 'providers/promotional_event_provider.dart';
 import 'providers/clearance_sale_provider.dart';
 import 'services/notification_service.dart';
 import 'services/http_client_service.dart';
+import 'config/api_config.dart';
 import 'config/app_routes.dart';
 import 'utils/responsive_utils.dart';
 import 'utils/non_ui_error_reporter.dart';
@@ -164,6 +167,15 @@ void main() async {
     // set up http client stuff for ssl certificates i think
     await HttpClientService.initialize();
 
+    // Same key as native GoogleMap — required for Places / Geocoding search in Dart.
+    await ApiConfig.initializeMapsApiKey();
+
+    // Start full catalog download as soon as the app opens (not on Get Started).
+    CatalogTimer.mark('app_open');
+    unawaited(ProductCache.prefetchPriorityFromNetwork());
+    unawaited(ProductCache.prefetchFromNetwork());
+    debugPrint('🚀 Main: priority + get-all-products started at app open');
+
     // make images cache better so they load faster
     PaintingBinding.instance.imageCache.maximumSize = 1000;
     PaintingBinding.instance.imageCache.maximumSizeBytes = 100 << 20; // 100 MB
@@ -196,22 +208,8 @@ Future<void> _initializeApp() async {
   debugPrint(
       '🚀 Main: Critical services initialized in ${criticalInitTime.inMilliseconds}ms');
 
-  // Warm catalog from disk before first home frame (shared with HomePage boot).
-  try {
-    await ProductCache.loadFromStorage().timeout(
-      const Duration(seconds: 4),
-    );
-    if (ProductCache.hasProductsInMemory) {
-      ProductCache.warmPopularFromCatalog();
-      HomePreloadService.publishCatalogToHomeServices();
-    }
-  } on TimeoutException {
-    debugPrint(
-      'Main: catalog disk load still running — HomePage will await shared future',
-    );
-  } catch (e) {
-    debugPrint('Main: catalog disk load error: $e');
-  }
+  // Disk + images in parallel with the in-flight get-all-products request.
+  unawaited(_warmCatalogFromDisk());
   HomePreloadService.startOnboardingPreload();
 
   // do other stuff in background, dont wait for it
@@ -221,6 +219,22 @@ Future<void> _initializeApp() async {
   unawaited(BannerCacheService().getBanners());
 
   debugPrint('🚀 Main: Cold start completed');
+}
+
+Future<void> _warmCatalogFromDisk() async {
+  try {
+    await ProductCache.loadFromStorage();
+    CatalogTimer.mark('disk_loaded');
+    if (ProductCache.hasProductsInMemory) {
+      ProductCache.warmPopularFromCatalog();
+      HomePreloadService.publishCatalogToHomeServices();
+      debugPrint(
+        'Main: catalog ready from disk (${ProductCache.catalogProductCount} products)',
+      );
+    }
+  } catch (e) {
+    debugPrint('Main: catalog disk load error: $e');
+  }
 }
 
 Future<void> _initBackground() async {
@@ -310,6 +324,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             _isFirstLaunch = false;
           });
           debugPrint('🚀 Main: Normal app launch - skipping onboarding');
+          HomePreloadService.startOnboardingPreload();
         }
       } catch (e) {
         // if we cant parse the date, just treat it as a fresh install
@@ -740,17 +755,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                         ))
                   : _isFirstLaunch == true
                       ? OnboardingSplashPage(
-                          onFinish: () async {
+                          onFinish: () {
                             if (!mounted) return;
-                            final ready =
-                                await HomePreloadService.ensureReadyForHome(
-                              maxWait: const Duration(seconds: 5),
-                            );
-                            if (!mounted) return;
-                            if (!ready) return;
-                            setState(() {
-                              _isFirstLaunch = false;
-                            });
+                            setState(() => _isFirstLaunch = false);
                           },
                         )
                       : const HomePage(),

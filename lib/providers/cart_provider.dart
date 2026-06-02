@@ -8,6 +8,7 @@ import '../services/auth_service.dart';
 import '../services/cart_service.dart';
 import '../models/category_fetch_result.dart';
 import '../services/realtime_cart_sync_service.dart';
+import '../services/guest_checkout_draft_service.dart';
 
 class CartProvider with ChangeNotifier {
   static const Duration _cartHttpTimeout = Duration(seconds: 12);
@@ -1487,6 +1488,7 @@ class CartProvider with ChangeNotifier {
 
   void clearCart() async {
     // Clear cart regardless of login status
+    await GuestCheckoutDraftService.clearAfterSuccessfulCheckout();
     _cartItems.clear();
 
     // Also clear from user carts map

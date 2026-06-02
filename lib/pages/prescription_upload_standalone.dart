@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:google_fonts/google_fonts.dart';
+import '../config/app_colors.dart';
 import '../services/prescription_service.dart';
 import '../services/auth_service.dart';
-import '../widgets/app_header_bar.dart';
+import '../pages/app_back_button.dart';
 import '../utils/app_error_utils.dart';
 
 class PrescriptionUploadStandalone extends StatefulWidget {
@@ -721,24 +722,129 @@ class _PrescriptionUploadStandaloneState
     }
   }
 
+  Widget _buildPageHeader() {
+    final top = MediaQuery.paddingOf(context).top;
+    return ClipPath(
+      clipper: _PrescriptionUploadWaveClipper(),
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.fromLTRB(10, top + 8, 14, 26),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF062A12),
+              Color(0xFF0D3D18),
+              AppColors.accent,
+              Color(0xFF2E7D32),
+            ],
+            stops: [0.0, 0.28, 0.62, 1.0],
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            BackButtonUtils.simple(
+              backgroundColor: Colors.white.withValues(alpha: 0.18),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Upload prescription',
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Send a clear photo for pharmacist review',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.9),
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.22),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.verified_user_rounded,
+                          size: 14,
+                          color: Colors.white.withValues(alpha: 0.95),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Secure · Reviewed by a pharmacist',
+                          style: GoogleFonts.poppins(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withValues(alpha: 0.95),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.2),
+                ),
+              ),
+              child: const Icon(
+                Icons.medication_liquid_rounded,
+                color: Colors.white,
+                size: 26,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor:
-          isDark ? const Color(0xFF0F172A) : const Color(0xFFF6F8FC),
-      appBar: AppHeaderBar.forScaffold(
-        context,
-        title: 'Upload Prescription',
-        showCart: false,
-      ),
-      body: Container(
-        width: double.infinity,
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 32),
-            child: Container(
+          isDark ? const Color(0xFF0F172A) : const Color(0xFFF3F7F4),
+      body: Column(
+        children: [
+          _buildPageHeader(),
+          Expanded(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                child: Container(
               constraints: const BoxConstraints(maxWidth: 420),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
               decoration: BoxDecoration(
@@ -784,17 +890,7 @@ class _PrescriptionUploadStandaloneState
                       ],
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  Text(
-                    'Prescription Upload',
-                    style: GoogleFonts.poppins(
-                      fontSize: 21,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 4),
                   _buildField(
                     isDark,
                     label: 'Full name',
@@ -1161,7 +1257,9 @@ class _PrescriptionUploadStandaloneState
           ),
         ),
       ),
-    );
+    ],
+  ),
+);
   }
 
   Widget _buildField(
@@ -1352,6 +1450,26 @@ class _PrescriptionUploadStandaloneState
       ),
     );
   }
+}
+
+class _PrescriptionUploadWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    path.lineTo(0, size.height - 14);
+    path.quadraticBezierTo(
+      size.width * 0.5,
+      size.height + 4,
+      size.width,
+      size.height - 14,
+    );
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
 
 class _SheetActionTile extends StatelessWidget {

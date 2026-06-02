@@ -1,13 +1,14 @@
 import 'dart:async';
 
-import 'package:eclapp/pages/homepage.dart';
+import 'package:eclapp/cache/product_cache.dart';
 import 'package:eclapp/services/banner_cache_service.dart';
 import 'package:eclapp/services/category_optimization_service.dart';
 import 'package:eclapp/services/homepage_optimization_service.dart';
 import 'package:eclapp/services/product_image_preload_service.dart';
+import 'package:eclapp/utils/catalog_timer.dart';
 import 'package:flutter/foundation.dart';
 
-/// Warms catalog, images, categories, and banners while onboarding is visible.
+/// Warms priority catalog first, full catalog in background.
 class HomePreloadService {
   HomePreloadService._();
 
@@ -18,45 +19,96 @@ class HomePreloadService {
   static final BannerCacheService _banners = BannerCacheService();
 
   static Future<void>? _preloadFuture;
+  static Future<void>? _deferredPreloadFuture;
   static bool _preloadComplete = false;
+  static Future<bool>? _ensureReadyForHomeFuture;
 
-  /// True only when [ProductCache] has the full get-all-products catalog.
   static bool get isCatalogReady => ProductCache.hasProductsInMemory;
 
-  /// True when onboarding preload finished (catalog + home-grid images at minimum).
   static bool get isPreloadComplete => _preloadComplete;
 
-  /// Home can render product rows with cached thumbnails immediately.
-  static bool get isFullyReadyForHome =>
-      isCatalogReady && ProductImagePreloadService.isHomeGridWarm;
+  static bool get isFullyReadyForHome => ProductCache.hasHomeRenderableCatalog;
 
-  /// Idempotent — starts as soon as terms or onboarding is shown.
   static void startOnboardingPreload() {
+    unawaited(ProductCache.prefetchPriorityFromNetwork());
+    unawaited(ProductCache.prefetchFromNetwork());
     if (_preloadFuture != null) return;
     debugPrint(
-      'HomePreloadService: preload started — catalog, images, categories, banners',
+      'HomePreloadService: preload started — priority first, full catalog background',
     );
-    _preloadFuture = _runOnboardingPreload();
+    _preloadFuture = _runPriorityOnboardingPreload();
   }
 
   @Deprecated('Use startOnboardingPreload')
   static void warmInBackground() => startOnboardingPreload();
 
-  static Future<void> _runOnboardingPreload() async {
+  static Future<void> _runPriorityOnboardingPreload() async {
     try {
-      final catalogOk = await ProductCache.ensureCatalogReady(
-        maxWait: const Duration(minutes: 3),
-      );
-      if (!catalogOk) {
-        debugPrint('HomePreloadService: onboarding preload — catalog failed');
-        return;
+      if (!ProductCache.hasHomeRenderableCatalog) {
+        try {
+          await ProductCache.loadFromStorage().timeout(
+            const Duration(seconds: 2),
+          );
+        } on TimeoutException {
+          debugPrint('HomePreloadService: disk catalog still loading');
+        }
       }
 
-      ProductCache.warmPopularFromCatalog();
-      publishCatalogToHomeServices();
+      if (!ProductCache.hasHomeRenderableCatalog) {
+        try {
+          await ProductCache.ensurePriorityReady(
+            maxWait: const Duration(seconds: 10),
+          );
+        } on TimeoutException {
+          debugPrint('HomePreloadService: priority catalog still in flight');
+        }
+      }
 
-      // Run in parallel while the user reads onboarding slides.
+      if (ProductCache.hasHomeRenderableCatalog) {
+        publishCatalogToHomeServices();
+        final catalogForImages = ProductCache.hasProductsInMemory
+            ? ProductCache.cachedProducts
+            : ProductCache.cachedPriorityProducts;
+        unawaited(
+          _safeStep(
+            'priority-images',
+            ProductImagePreloadService.warmPriorityHomeImages(
+              catalog: catalogForImages,
+              maxWait: const Duration(seconds: 6),
+            ),
+          ),
+        );
+      } else {
+        debugPrint('HomePreloadService: no priority/full catalog yet');
+      }
+    } catch (e, st) {
+      debugPrint('HomePreloadService: priority preload error: $e\n$st');
+    } finally {
+      _preloadComplete = true;
+      debugPrint(
+        'HomePreloadService: priority preload done — '
+        'priority=${ProductCache.cachedPriorityProducts.length}, '
+        'full=${ProductCache.cachedProducts.length}',
+      );
+      _startDeferredOnboardingPreload();
+    }
+  }
+
+  static void _startDeferredOnboardingPreload() {
+    if (_deferredPreloadFuture != null) return;
+    _deferredPreloadFuture = _runDeferredOnboardingPreload();
+    unawaited(_deferredPreloadFuture);
+  }
+
+  static Future<void> _runDeferredOnboardingPreload() async {
+    try {
       await Future.wait([
+        _safeStep(
+          'full-catalog',
+          ProductCache.ensureCatalogReady(
+            maxWait: const Duration(minutes: 2),
+          ),
+        ),
         _safeStep('popular', ProductCache.ensurePopularReady()),
         _safeStep(
           'home-grid-images',
@@ -64,6 +116,7 @@ class HomePreloadService {
             catalog: ProductCache.cachedProducts,
             popular: ProductCache.cachedPopularProducts,
             maxWait: const Duration(minutes: 2),
+            maxConcurrent: 4,
           ),
         ),
         _safeStep(
@@ -76,12 +129,11 @@ class HomePreloadService {
         ),
       ]);
     } catch (e, st) {
-      debugPrint('HomePreloadService: preload error: $e\n$st');
+      debugPrint('HomePreloadService: deferred preload error: $e\n$st');
     } finally {
-      _preloadComplete = true;
       debugPrint(
-        'HomePreloadService: preload finished — '
-        'get-all-products=${ProductCache.cachedProducts.length}, '
+        'HomePreloadService: deferred preload finished — '
+        'full=${ProductCache.cachedProducts.length}, '
         'popular=${ProductCache.cachedPopularProducts.length}, '
         'images=${ProductImagePreloadService.downloadedCount}, '
         'categories=${_categories.cachedCategories.length}, '
@@ -110,85 +162,97 @@ class HomePreloadService {
     await _banners.warmBannerImagesToDisk(maxWait: maxWait);
   }
 
-  /// Copies [ProductCache] into [HomepageOptimizationService] so home does not re-fetch.
   static void publishCatalogToHomeServices() {
-    if (!ProductCache.hasProductsInMemory) return;
-    _homepage.seedFromCatalog(
-      allProducts: ProductCache.cachedProducts,
-      popularProducts: ProductCache.cachedPopularProducts,
-    );
+    if (ProductCache.hasProductsInMemory) {
+      _homepage.seedFromCatalog(
+        allProducts: ProductCache.cachedProducts,
+        popularProducts: ProductCache.cachedPopularProducts,
+      );
+      return;
+    }
+    if (ProductCache.hasPriorityProducts) {
+      _homepage.seedFromCatalog(
+        allProducts: ProductCache.cachedPriorityProducts,
+        popularProducts: ProductCache.cachedPopularProducts.isNotEmpty
+            ? ProductCache.cachedPopularProducts
+            : ProductCache.cachedPriorityProducts,
+      );
+    }
   }
 
-  /// Gate for onboarding completion.
-  ///
-  /// We require catalog data to be ready, while image warming is best-effort.
-  /// This avoids blocking "Get Started" when products are available but
-  /// thumbnail preloading is still in progress on slower networks/devices.
   static Future<bool> ensureReadyForHome({
-    Duration maxWait = const Duration(seconds: 60),
+    Duration maxWait = const Duration(seconds: 3),
   }) async {
-    if (_preloadFuture != null) {
-      try {
-        await _preloadFuture!.timeout(maxWait);
-      } on TimeoutException {
-        debugPrint('HomePreloadService: background preload still running');
-      }
-    } else {
+    if (_ensureReadyForHomeFuture != null) {
+      return _ensureReadyForHomeFuture!;
+    }
+
+    _ensureReadyForHomeFuture = _runEnsureReadyForHome(maxWait);
+    try {
+      final ok = await _ensureReadyForHomeFuture!;
+      CatalogTimer.mark('gate_passed');
+      return ok;
+    } finally {
+      _ensureReadyForHomeFuture = null;
+    }
+  }
+
+  static Future<bool> _runEnsureReadyForHome(Duration maxWait) async {
+    CatalogTimer.mark('ensure_start');
+
+    if (_preloadFuture == null) {
       startOnboardingPreload();
-      try {
-        await _preloadFuture!.timeout(maxWait);
-      } on TimeoutException {
-        debugPrint('HomePreloadService: late preload timed out');
+    }
+
+    if (ProductCache.hasProductsInMemory) {
+      publishCatalogToHomeServices();
+      _startDeferredOnboardingPreload();
+      CatalogTimer.mark('gate_passed_immediate');
+      return true;
+    }
+
+    try {
+      await ProductCache.loadFromStorage().timeout(
+        const Duration(seconds: 2),
+      );
+    } on TimeoutException {
+      debugPrint('HomePreloadService: disk read timed out');
+    }
+
+    if (ProductCache.hasProductsInMemory) {
+      publishCatalogToHomeServices();
+      _startDeferredOnboardingPreload();
+      CatalogTimer.mark('gate_passed_immediate');
+      return true;
+    }
+
+    if (ProductCache.isCatalogLoadInFlight ||
+        ProductCache.isPriorityLoadInFlight) {
+      _startDeferredOnboardingPreload();
+      CatalogTimer.mark('gate_passed_inflight');
+      debugPrint(
+        'HomePreloadService: catalog in flight — passing gate, skeleton will cover',
+      );
+      return true;
+    }
+
+    unawaited(ProductCache.prefetchFromNetwork());
+    const pollInterval = Duration(milliseconds: 300);
+    const maxPolls = 10;
+    for (var i = 0; i < maxPolls; i++) {
+      await Future<void>.delayed(pollInterval);
+      if (ProductCache.hasProductsInMemory ||
+          ProductCache.isCatalogLoadInFlight) {
+        _startDeferredOnboardingPreload();
+        CatalogTimer.mark('gate_passed_after_poll');
+        return true;
       }
     }
 
-    final catalogOk = await ProductCache.ensureCatalogReady(maxWait: maxWait);
-    if (!catalogOk) {
-      debugPrint(
-        'HomePreloadService: BLOCKED — get-all-products not loaded '
-        '(${ProductCache.cachedProducts.length} products)',
-      );
-      return false;
-    }
-
-    ProductCache.warmPopularFromCatalog();
-    publishCatalogToHomeServices();
-
-    final remaining = maxWait;
-    await Future.wait([
-      _safeStep(
-        'popular-final',
-        ProductCache.ensurePopularReady(),
-      ),
-      _safeStep(
-        'home-grid-images-final',
-        ProductImagePreloadService.ensureHomeGridImagesReady(
-          catalog: ProductCache.cachedProducts,
-          popular: ProductCache.cachedPopularProducts,
-          maxWait: remaining,
-        ),
-      ),
-      _safeStep(
-        'categories-final',
-        ensureCategoriesReady(maxWait: remaining),
-      ),
-      _safeStep(
-        'banners-final',
-        _warmBanners(maxWait: remaining),
-      ),
-    ]);
-
-    _preloadComplete = true;
-
-    final imagesWarm = ProductImagePreloadService.isHomeGridWarm;
-    debugPrint(
-      'HomePreloadService: ready=$catalogOk '
-      '(get-all-products=${ProductCache.cachedProducts.length}, '
-      'imagesWarm=$imagesWarm, images=${ProductImagePreloadService.downloadedCount}, '
-      'categories=${_categories.cachedCategories.length}, '
-      'banners=${_banners.cachedBanners.length})',
-    );
-    return catalogOk;
+    _startDeferredOnboardingPreload();
+    CatalogTimer.mark('gate_timeout_pass');
+    debugPrint('HomePreloadService: gate timeout — passing anyway');
+    return true;
   }
 
   static Future<bool> ensureCategoriesReady({

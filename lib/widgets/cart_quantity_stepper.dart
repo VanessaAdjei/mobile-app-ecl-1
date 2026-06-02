@@ -8,13 +8,11 @@ class CartQuantityStepper extends StatelessWidget {
     required this.quantity,
     required this.onIncrement,
     required this.onDecrement,
-    required this.onRemoveWhenOne,
   });
 
   final int quantity;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
-  final VoidCallback onRemoveWhenOne;
 
   static const Color _green = Color(0xFF16A34A);
   static const Color _greenDark = Color(0xFF15803D);
@@ -22,7 +20,7 @@ class CartQuantityStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final showRemove = quantity <= 1;
+    final canDecrement = quantity > 1;
 
     return Container(
       height: 28,
@@ -41,45 +39,48 @@ class CartQuantityStepper extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _StepperTap(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              if (showRemove) {
-                onRemoveWhenOne();
-              } else {
+          if (canDecrement) ...[
+            _StepperTap(
+              onTap: () {
+                HapticFeedback.lightImpact();
                 onDecrement();
-              }
-            },
-            borderRadius: const BorderRadius.horizontal(
-              left: Radius.circular(13),
+              },
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(13),
+              ),
+              backgroundColor: const Color(0xFFF8FAFC),
+              child: const Icon(
+                Icons.remove_rounded,
+                size: 16,
+                color: Color(0xFF64748B),
+              ),
             ),
-            backgroundColor:
-                showRemove ? const Color(0xFFFFF1F2) : const Color(0xFFF8FAFC),
-            child: Icon(
-              showRemove
-                  ? Icons.delete_outline_rounded
-                  : Icons.remove_rounded,
-              size: 16,
-              color: showRemove
-                  ? const Color(0xFFE11D48)
-                  : const Color(0xFF64748B),
+            Container(
+              width: 1,
+              height: 18,
+              color: _border,
             ),
-          ),
-          Container(
-            width: 1,
-            height: 18,
-            color: _border,
-          ),
-          SizedBox(
-            width: 28,
-            child: Center(
-              child: Text(
-                '$quantity',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF0F172A),
-                  height: 1,
+          ],
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.horizontal(
+                left: Radius.circular(canDecrement ? 0 : 13),
+                right: const Radius.circular(0),
+              ),
+            ),
+            child: SizedBox(
+              width: 28,
+              height: 28,
+              child: Center(
+                child: Text(
+                  '$quantity',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                    height: 1,
+                  ),
                 ),
               ),
             ),

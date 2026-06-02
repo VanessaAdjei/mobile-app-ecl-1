@@ -21,6 +21,7 @@ import android.Manifest
 class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
     private val CHANNEL = "com.yourcompany.expresspay"
     private val NOTIFICATION_CHANNEL = "ecl_notifications"
+    private val MAPS_CONFIG_CHANNEL = "com.ecl.ecl_commerce/maps_config"
     private val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
     private var pendingResult: MethodChannel.Result? = null
     private var notificationPayload: String? = null
@@ -85,6 +86,24 @@ class MainActivity: FlutterActivity(), ExpressPayPaymentCompletionListener {
             }
         }
         println("🔧 Android: Notification method channel setup complete")
+
+        MethodChannel(binaryMessenger, MAPS_CONFIG_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getGoogleMapsApiKey" -> {
+                    try {
+                        val appInfo = packageManager.getApplicationInfo(
+                            packageName,
+                            PackageManager.GET_META_DATA
+                        )
+                        val key = appInfo.metaData?.getString("com.google.android.geo.API_KEY") ?: ""
+                        result.success(key)
+                    } catch (e: Exception) {
+                        result.success("")
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
 
         val expressPayChannel = MethodChannel(binaryMessenger, CHANNEL)
         expressPayChannel.setMethodCallHandler { call, result ->

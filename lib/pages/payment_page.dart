@@ -3,12 +3,15 @@ import 'dart:async';
 import 'package:eclapp/pages/paymentwebview.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/guest_checkout_draft.dart';
 import '../services/checkout_payment_service.dart';
 import '../services/auth_service.dart';
+import '../services/guest_checkout_draft_service.dart';
 import '../providers/cart_provider.dart';
 import 'app_back_button.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/cart_item.dart';
 import '../config/api_config.dart';
 import '../utils/payment_redirect_url.dart';
@@ -89,6 +92,10 @@ class PaymentPageState extends State<PaymentPage> {
   double _slidePosition = 0.0;
   bool _isSliding = false;
 
+  static const Color _pageBg = Color(0xFFF4FAF7);
+  final ScrollController _scrollController = ScrollController();
+  bool _showScrollHint = false;
+
   double get _effectiveSubtotalFromApiOrCart {
     final apiSubtotal = widget.apiSubtotal;
     if (apiSubtotal != null && apiSubtotal >= 0) return apiSubtotal;
@@ -105,39 +112,143 @@ class PaymentPageState extends State<PaymentPage> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onPaymentScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _loadUserData();
-      final isLoggedIn = await AuthService.isLoggedIn();
-      if (!isLoggedIn &&
-          widget.guestEmail != null &&
-          widget.guestEmail!.isNotEmpty) {
-        setState(() {
-          _userEmail = widget.guestEmail!;
-        });
-      }
+      if (mounted) _updateScrollHint();
     });
+  }
+
+  @override
+  void dispose() {
+    unawaited(_persistGuestCheckoutDraft());
+    _scrollController.removeListener(_onPaymentScroll);
+    _scrollController.dispose();
+    _promoCodeController.dispose();
+    super.dispose();
+  }
+
+  void _onPaymentScroll() => _updateScrollHint();
+
+  void _updateScrollHint() {
+    if (!mounted || !_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (!position.hasContentDimensions) return;
+
+    final hasScrollableContent = position.maxScrollExtent > 1.0;
+    final hasMoreBelow = position.pixels < position.maxScrollExtent - 12;
+    final showHint = hasScrollableContent && hasMoreBelow;
+
+    if (showHint != _showScrollHint) {
+      setState(() => _showScrollHint = showHint);
+    }
   }
 
   Future<void> _loadUserData() async {
     try {
+      final isLoggedIn = await AuthService.isLoggedIn();
+      if (!isLoggedIn) {
+        final draft = await GuestCheckoutDraftService.load();
+        if (draft != null && mounted) {
+          setState(() {
+            _userName =
+                draft.name.trim().isNotEmpty ? draft.name.trim() : 'Guest';
+            _userEmail = draft.email.trim().isNotEmpty
+                ? draft.email.trim()
+                : (widget.guestEmail?.trim().isNotEmpty == true
+                    ? widget.guestEmail!.trim()
+                    : 'No email available');
+            _phoneNumber = draft.phone.trim().isNotEmpty
+                ? draft.phone.trim()
+                : (widget.contactNumber?.trim() ?? '');
+            final promo = draft.promoCode?.trim();
+            if (promo != null && promo.isNotEmpty) {
+              _appliedPromoCode = promo;
+              _discountAmount = draft.discountAmount;
+              _promoCodeController.text = promo;
+            }
+          });
+          return;
+        }
+        if (mounted &&
+            widget.guestEmail != null &&
+            widget.guestEmail!.trim().isNotEmpty) {
+          setState(() {
+            _userEmail = widget.guestEmail!.trim();
+            _phoneNumber = widget.contactNumber?.trim() ?? '';
+          });
+          return;
+        }
+      }
+
       final userData = await AuthService.getCurrentUser();
 
       if (mounted) {
         setState(() {
-          _userName = userData?['name'] ?? "User";
-          _userEmail = userData?['email'] ?? "No email available";
-          _phoneNumber = userData?['phone'] ?? "";
+          _userName = userData?['name'] ?? 'User';
+          _userEmail = userData?['email'] ?? 'No email available';
+          _phoneNumber = userData?['phone'] ?? '';
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _userName = "User";
-          _userEmail = "No email available";
-          _phoneNumber = "";
+          _userName = 'User';
+          _userEmail = widget.guestEmail?.trim().isNotEmpty == true
+              ? widget.guestEmail!.trim()
+              : 'No email available';
+          _phoneNumber = widget.contactNumber?.trim() ?? '';
         });
       }
     }
+  }
+
+  Future<void> _persistGuestCheckoutDraft() async {
+    if (!mounted) return;
+    if (await AuthService.isLoggedIn()) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final guestId = prefs.getString('guest_id');
+    if (guestId == null || guestId.isEmpty) return;
+
+    final existing = await GuestCheckoutDraftService.load();
+    final draft = GuestCheckoutDraft(
+      guestId: guestId,
+      name: existing?.name.isNotEmpty == true
+          ? existing!.name
+          : _userName.trim(),
+      email: _userEmail.trim().isNotEmpty &&
+              _userEmail != 'No email available'
+          ? _userEmail.trim()
+          : (existing?.email ?? widget.guestEmail ?? ''),
+      phone: _phoneNumber.trim().isNotEmpty
+          ? _phoneNumber.trim()
+          : (existing?.phone ?? widget.contactNumber ?? ''),
+      deliveryOption: widget.deliveryOption.toLowerCase(),
+      region: existing?.region ?? '',
+      city: existing?.city ?? '',
+      address: existing?.address ?? '',
+      notes: existing?.notes ?? '',
+      pickupRegionLabel: existing?.pickupRegionLabel ?? '',
+      pickupCityLabel: existing?.pickupCityLabel ?? '',
+      pickupSiteLabel: existing?.pickupSiteLabel ?? '',
+      lat: widget.lat ?? existing?.lat,
+      lng: widget.lng ?? existing?.lng,
+      deliveryFee: widget.deliveryFee,
+      isOrderUrgent: widget.isOrderUrgent,
+      emergencyOrderFee: widget.emergencyOrderFee,
+      estimatedDeliveryTime:
+          widget.estimatedDeliveryTime ?? existing?.estimatedDeliveryTime,
+      distanceKm: widget.distanceKm ?? existing?.distanceKm,
+      apiSubtotal: _effectiveSubtotalFromApiOrCart,
+      apiDiscountAmount:
+          widget.apiDiscountAmount ?? existing?.apiDiscountAmount,
+      apiShippingFree: widget.apiShippingFree ?? existing?.apiShippingFree,
+      promoCode: _appliedPromoCode,
+      discountAmount: _effectiveDiscountFromApiOrPromo,
+    );
+
+    await GuestCheckoutDraftService.save(draft);
   }
 
   void queryPayment(String token) {
@@ -268,6 +379,8 @@ class PaymentPageState extends State<PaymentPage> {
       // Open the payment screen immediately; portal URL resolves in the background.
       setState(() => _isProcessingPayment = false);
 
+      await _persistGuestCheckoutDraft();
+
       await Navigator.push(
         context,
         MaterialPageRoute(
@@ -363,9 +476,13 @@ class PaymentPageState extends State<PaymentPage> {
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
+    final bottomSafe = MediaQuery.paddingOf(context).bottom;
+    // Pay bar: SafeArea + container padding (10+8) + slide track (44).
+    const payBarHeight = 62.0;
+    final payBarInset = bottomSafe + payBarHeight;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4FAF7),
+      backgroundColor: _pageBg,
       body: Stack(
         children: [
           Column(
@@ -485,12 +602,35 @@ class PaymentPageState extends State<PaymentPage> {
                 ),
               ),
               Expanded(
-                child: Consumer<CartProvider>(
-                  builder: (context, cart, child) {
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Column(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                        Consumer<CartProvider>(
+                          builder: (context, cart, child) {
+                            final itemCount = cart.getSelectedItems().length;
+                            final tightLayout = itemCount <= 3;
+
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) _updateScrollHint();
+                            });
+
+                            return NotificationListener<ScrollNotification>(
+                              onNotification: (_) {
+                                _updateScrollHint();
+                                return false;
+                              },
+                              child: SingleChildScrollView(
+                              controller: _scrollController,
+                              physics: const BouncingScrollPhysics(),
+                              padding: EdgeInsets.fromLTRB(
+                                0,
+                                tightLayout ? 8 : 12,
+                                0,
+                                payBarInset + 12,
+                              ),
+                              child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Animate(
                             effects: [
@@ -502,9 +642,10 @@ class PaymentPageState extends State<PaymentPage> {
                             ],
                             child: PaymentOrderItemsSection(
                               selectedItems: cart.getSelectedItems(),
+                              compact: tightLayout,
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          SizedBox(height: tightLayout ? 4 : 6),
                           if (widget._isDelivery) ...[
                             Animate(
                               effects: [
@@ -519,7 +660,7 @@ class PaymentPageState extends State<PaymentPage> {
                                 contactNumber: widget.contactNumber,
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            SizedBox(height: tightLayout ? 4 : 6),
                           ],
                           Animate(
                             effects: [
@@ -530,6 +671,7 @@ class PaymentPageState extends State<PaymentPage> {
                                   end: Offset(0, 0))
                             ],
                             child: PaymentBillSummarySection(
+                              compact: tightLayout,
                               subtotal: _effectiveSubtotalFromApiOrCart,
                               deliveryFee: widget._effectiveDeliveryFee,
                               showDeliveryFee: widget._isDelivery,
@@ -548,7 +690,7 @@ class PaymentPageState extends State<PaymentPage> {
                             ),
                           ),
                           if (_paymentError != null) ...[
-                            const SizedBox(height: 6),
+                            SizedBox(height: tightLayout ? 4 : 6),
                             Animate(
                               effects: [
                                 FadeEffect(duration: 400.ms),
@@ -609,36 +751,95 @@ class PaymentPageState extends State<PaymentPage> {
                               ),
                             ),
                           ],
-                          const SizedBox(height: 96),
                         ],
                       ),
+                            ),
                     );
-                  },
-                ),
-              ),
-              // Fixed Payment Methods and Button at Bottom
-              SafeArea(
-                top: false,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(18),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, -6),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
-                  child: Consumer<CartProvider>(
-                    builder: (context, cart, child) {
-                      return _buildSlideToPay(cart);
-                    },
-                  ),
+                          },
+                        ),
+                        if (_showScrollHint)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: payBarInset,
+                            child: IgnorePointer(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          _pageBg.withValues(alpha: 0),
+                                          _pageBg,
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    width: double.infinity,
+                                    color: _pageBg,
+                                    padding: const EdgeInsets.only(bottom: 4),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.keyboard_arrow_down_rounded,
+                                          size: 20,
+                                          color: AppColors.primary,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Scroll for more',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.primaryDark,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: SafeArea(
+                            top: false,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(18),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.primary
+                                        .withValues(alpha: 0.1),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, -6),
+                                  ),
+                                ],
+                              ),
+                              padding:
+                                  const EdgeInsets.fromLTRB(14, 10, 14, 8),
+                              child: Consumer<CartProvider>(
+                                builder: (context, cart, child) {
+                                  return _buildSlideToPay(cart);
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                  ],
                 ),
               ),
             ],
@@ -905,10 +1106,7 @@ class PaymentPageState extends State<PaymentPage> {
             _discountAmount = discountAmount;
             _promoError = null;
           });
-
-          if (mounted) {
-            setState(() {});
-          }
+          unawaited(_persistGuestCheckoutDraft());
         } else {
           final errorMessage = data['message'] ??
               data['error'] ??
@@ -944,6 +1142,7 @@ class PaymentPageState extends State<PaymentPage> {
       _promoCodeController.clear();
       _promoError = null;
     });
+    unawaited(_persistGuestCheckoutDraft());
   }
 
   void _showPaymentFailureDialog(Object error, [StackTrace? stackTrace]) {

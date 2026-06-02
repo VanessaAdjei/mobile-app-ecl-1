@@ -9,10 +9,12 @@ import 'payment_section_style.dart';
 /// Order line items on the payment information screen.
 class PaymentOrderItemsSection extends StatefulWidget {
   final List<CartItem> selectedItems;
+  final bool compact;
 
   const PaymentOrderItemsSection({
     super.key,
     required this.selectedItems,
+    this.compact = false,
   });
 
   @override
@@ -32,12 +34,26 @@ class _PaymentOrderItemsSectionState extends State<PaymentOrderItemsSection> {
   Widget build(BuildContext context) {
     final selectedItems = widget.selectedItems;
 
+    final sectionPadding = widget.compact
+        ? const EdgeInsets.symmetric(horizontal: 10, vertical: 9)
+        : PaymentSectionStyle.padding;
+    final itemPadding = widget.compact
+        ? const EdgeInsets.symmetric(horizontal: 7, vertical: 6)
+        : const EdgeInsets.all(7);
+    final itemGap = widget.compact ? 4.0 : 5.0;
+    final thumbSize = widget.compact ? 34.0 : 36.0;
+    final titleFontSize = widget.compact ? 12.0 : 13.0;
+    final nameFontSize = widget.compact ? 11.0 : 12.0;
+    final metaFontSize = widget.compact ? 9.0 : 10.0;
+    final lineTotalFontSize = widget.compact ? 11.0 : 12.0;
+
     return Container(
       margin: PaymentSectionStyle.margin,
-      padding: PaymentSectionStyle.padding,
+      padding: sectionPadding,
       decoration: PaymentSectionStyle.cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
@@ -51,30 +67,23 @@ class _PaymentOrderItemsSectionState extends State<PaymentOrderItemsSection> {
               ),
               const SizedBox(width: 8),
               Text(
-                'Order summary',
+                selectedItems.length == 1
+                    ? 'Order summary (1 item)'
+                    : 'Order summary (${selectedItems.length} items)',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
-                  fontSize: 12,
+                  fontSize: titleFontSize,
                   color: AppColors.primaryDark,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
           if (selectedItems.isNotEmpty) ...[
-            Text(
-              'Items in your order (${selectedItems.length})',
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 11,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 6),
+            SizedBox(height: widget.compact ? 6 : 8),
             ...selectedItems.take(_showAllItems ? selectedItems.length : 3).map(
                   (item) => Container(
-                    margin: const EdgeInsets.only(bottom: 5),
-                    padding: const EdgeInsets.all(6),
+                    margin: EdgeInsets.only(bottom: itemGap),
+                    padding: itemPadding,
                     decoration: BoxDecoration(
                       color: const Color(0xFFF4FAF7),
                       borderRadius: BorderRadius.circular(
@@ -85,14 +94,14 @@ class _PaymentOrderItemsSectionState extends State<PaymentOrderItemsSection> {
                     child: Row(
                       children: [
                         Container(
-                          width: 32,
-                          height: 32,
+                          width: thumbSize,
+                          height: thumbSize,
                           decoration: BoxDecoration(
                             color: const Color(0xFFEEF9F3),
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(8),
                             child: CachedNetworkImage(
                               imageUrl: _imageUrl(item.image),
                               fit: BoxFit.contain,
@@ -100,8 +109,8 @@ class _PaymentOrderItemsSectionState extends State<PaymentOrderItemsSection> {
                                 color: const Color(0xFFEEF9F3),
                                 child: Center(
                                   child: SizedBox(
-                                    width: 14,
-                                    height: 14,
+                                    width: 16,
+                                    height: 16,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                       valueColor: AlwaysStoppedAnimation<Color>(
@@ -115,7 +124,7 @@ class _PaymentOrderItemsSectionState extends State<PaymentOrderItemsSection> {
                               errorWidget: (context, url, error) => Icon(
                                 Icons.medical_services_outlined,
                                 color: AppColors.primary.withValues(alpha: 0.4),
-                                size: 14,
+                                size: thumbSize * 0.4,
                               ),
                             ),
                           ),
@@ -127,9 +136,9 @@ class _PaymentOrderItemsSectionState extends State<PaymentOrderItemsSection> {
                             children: [
                               Text(
                                 item.name,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.w600,
-                                  fontSize: 11,
+                                  fontSize: nameFontSize,
                                   height: 1.3,
                                 ),
                                 maxLines: 2,
@@ -139,7 +148,7 @@ class _PaymentOrderItemsSectionState extends State<PaymentOrderItemsSection> {
                                 '${item.quantity}x GHS ${item.price.toStringAsFixed(2)}',
                                 style: TextStyle(
                                   color: Colors.grey[600],
-                                  fontSize: 9,
+                                  fontSize: metaFontSize,
                                 ),
                               ),
                             ],
@@ -149,7 +158,7 @@ class _PaymentOrderItemsSectionState extends State<PaymentOrderItemsSection> {
                           'GHS ${(item.price * item.quantity).toStringAsFixed(2)}',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            fontSize: 11,
+                            fontSize: lineTotalFontSize,
                             color: AppColors.primary,
                           ),
                         ),
@@ -207,7 +216,7 @@ class _ExpandToggle extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: color.shade600, size: 12),
+              Icon(icon, color: color.shade600, size: 13),
               const SizedBox(width: 4),
               Text(
                 label,

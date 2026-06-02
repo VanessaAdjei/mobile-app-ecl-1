@@ -21,6 +21,7 @@ class PaymentBillSummarySection extends StatelessWidget {
   final TextEditingController promoCodeController;
   final VoidCallback onApplyPromo;
   final VoidCallback onRemovePromo;
+  final bool compact;
 
   const PaymentBillSummarySection({
     super.key,
@@ -38,6 +39,7 @@ class PaymentBillSummarySection extends StatelessWidget {
     required this.promoCodeController,
     required this.onApplyPromo,
     required this.onRemovePromo,
+    this.compact = false,
   });
 
   double get _displayDeliveryFee {
@@ -51,12 +53,18 @@ class PaymentBillSummarySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sectionPadding = compact
+        ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+        : PaymentSectionStyle.padding;
+    final blockGap = compact ? 4.0 : 6.0;
+
     return Container(
       margin: PaymentSectionStyle.margin,
-      padding: PaymentSectionStyle.padding,
+      padding: sectionPadding,
       decoration: PaymentSectionStyle.cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
@@ -79,9 +87,9 @@ class PaymentBillSummarySection extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: compact ? 6 : 8),
           OrderThresholdPromoBanner(compact: true, subtotal: subtotal),
-          const SizedBox(height: 6),
+          SizedBox(height: blockGap),
           _PromoCodeBlock(
             lockPromoEditing: lockPromoEditing,
             appliedPromoCode: appliedPromoCode,
@@ -92,9 +100,9 @@ class PaymentBillSummarySection extends StatelessWidget {
             onApplyPromo: onApplyPromo,
             onRemovePromo: onRemovePromo,
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: blockGap),
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: EdgeInsets.all(compact ? 6 : 8),
             decoration: BoxDecoration(
               color: const Color(0xFFF4FAF7),
               borderRadius:

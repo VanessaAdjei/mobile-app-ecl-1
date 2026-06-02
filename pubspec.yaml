@@ -98,6 +98,12 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.3
   flutter_lints: ^5.0.0
 
+# path_provider_foundation 2.6.0 (FFI + objective_c) can crash on iOS when
+# flutter_cache_manager calls getApplicationSupportPath — see flutter/flutter#186794.
+dependency_overrides:
+  path_provider_foundation: 2.5.1
+  objective_c: 9.3.0
+
 flutter:
   uses-material-design: true
 

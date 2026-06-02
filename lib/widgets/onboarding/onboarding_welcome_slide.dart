@@ -1,9 +1,10 @@
+import 'package:eclapp/cache/product_cache.dart';
 import 'package:eclapp/config/app_colors.dart';
+import 'package:eclapp/widgets/onboarding/onboarding_ui.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
-/// Final onboarding step — thank-you message before first home visit.
-class OnboardingWelcomeSlide extends StatelessWidget {
+/// Final onboarding step before the home screen.
+class OnboardingWelcomeSlide extends StatefulWidget {
   const OnboardingWelcomeSlide({
     super.key,
     required this.onGetStarted,
@@ -16,333 +17,144 @@ class OnboardingWelcomeSlide extends StatelessWidget {
   final bool isLoading;
 
   @override
-  Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
-    final topInset = MediaQuery.paddingOf(context).top;
-    final headerHeight =
-        (size.height * 0.32).clamp(240.0, 300.0) + topInset;
-
-    return MediaQuery.removePadding(
-      context: context,
-      removeTop: true,
-      child: SizedBox(
-        height: size.height,
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    ClipPath(
-                      clipper: _WaveHeaderClipper(),
-                      child: SizedBox(
-                        height: headerHeight,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                          const DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Color(0xFF062A12),
-                                  Color(0xFF0D3D18),
-                                  AppColors.accent,
-                                  Color(0xFF2E7D32),
-                                ],
-                                stops: [0.0, 0.28, 0.62, 1.0],
-                              ),
-                            ),
-                          ),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: RadialGradient(
-                                center: const Alignment(0.85, -0.35),
-                                radius: 1.1,
-                                colors: [
-                                  AppColors.primaryLight.withValues(alpha: 0.28),
-                                  Colors.transparent,
-                                ],
-                              ),
-                            ),
-                          ),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: RadialGradient(
-                                center: const Alignment(-0.75, 0.9),
-                                radius: 0.85,
-                                colors: [
-                                  Colors.white.withValues(alpha: 0.07),
-                                  Colors.transparent,
-                                ],
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            right: -36,
-                            top: topInset + 8,
-                            child: CircleAvatar(
-                              radius: 64,
-                              backgroundColor:
-                                  Colors.white.withValues(alpha: 0.06),
-                            ),
-                          ),
-                          Positioned(
-                            left: -28,
-                            bottom: 36,
-                            child: CircleAvatar(
-                              radius: 42,
-                              backgroundColor:
-                                  Colors.white.withValues(alpha: 0.05),
-                            ),
-                          ),
-                          Positioned(
-                            right: 48,
-                            bottom: 52,
-                            child: CircleAvatar(
-                              radius: 18,
-                              backgroundColor:
-                                  AppColors.primaryLight.withValues(alpha: 0.14),
-                            ),
-                          ),
-                          Center(
-                            child: _WelcomeLogo(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(28, 28, 28, 0),
-                    child: Column(
-                      children: [
-                        Text(
-                          'We appreciate you choosing us for your health and wellness essentials.',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w400,
-                            height: 1.55,
-                            color: const Color(0xFF1F2937),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          'Thank you. We are always ready to assist you the best way we can.',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w400,
-                            height: 1.5,
-                            color: const Color(0xFF6B7280),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          'Your health, our priority',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primaryDark,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
-          ),
-          progressDots,
-          const SizedBox(height: 16),
-          Padding(
-            padding: EdgeInsets.fromLTRB(28, 0, 28, 20 + bottomInset),
-            child: SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: isLoading ? null : onGetStarted,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor:
-                      AppColors.primary.withValues(alpha: 0.6),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                child: isLoading
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        'Get Started',
-                        style: GoogleFonts.poppins(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      ),
-    );
-  }
+  State<OnboardingWelcomeSlide> createState() => _OnboardingWelcomeSlideState();
 }
 
-class _WelcomeLogo extends StatefulWidget {
-  const _WelcomeLogo();
-
-  static const double _outerRadius = 72;
-  static const double _innerRadius = 66;
-
-  @override
-  State<_WelcomeLogo> createState() => _WelcomeLogoState();
-}
-
-class _WelcomeLogoState extends State<_WelcomeLogo>
-    with TickerProviderStateMixin {
-  late final AnimationController _enterController;
-  late final AnimationController _pulseController;
-  late final AnimationController _glowController;
-  late final Animation<double> _enterScale;
-  late final Animation<double> _enterOpacity;
-  late final Animation<double> _pulseScale;
-  late final Animation<double> _glowOpacity;
+class _OnboardingWelcomeSlideState extends State<OnboardingWelcomeSlide> {
+  int _catalogCount = 0;
 
   @override
   void initState() {
     super.initState();
-    _enterController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    );
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2400),
-    );
-    _glowController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2400),
-    );
-
-    _enterScale = Tween<double>(begin: 0.78, end: 1).animate(
-      CurvedAnimation(parent: _enterController, curve: Curves.easeOutBack),
-    );
-    _enterOpacity = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _enterController, curve: Curves.easeOut),
-    );
-    _pulseScale = Tween<double>(begin: 1, end: 1.045).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-    _glowOpacity = Tween<double>(begin: 0.18, end: 0.42).animate(
-      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
-    );
-
-    _enterController.forward();
-    _pulseController.repeat(reverse: true);
-    _glowController.repeat(reverse: true);
+    _catalogCount = ProductCache.catalogProductCount;
+    ProductCache.addCatalogListener(_onCatalogUpdated);
   }
 
   @override
   void dispose() {
-    _enterController.dispose();
-    _pulseController.dispose();
-    _glowController.dispose();
+    ProductCache.removeCatalogListener(_onCatalogUpdated);
     super.dispose();
+  }
+
+  void _onCatalogUpdated() {
+    if (!mounted) return;
+    final count = ProductCache.catalogProductCount;
+    if (count != _catalogCount) {
+      setState(() => _catalogCount = count);
+    }
+  }
+
+  String get _catalogStatusLine {
+    if (!widget.isLoading) return '';
+    if (_catalogCount > 0) {
+      return '';
+    }
+    if (ProductCache.isCatalogLoadInFlight) {
+      return '';
+    }
+    return '';
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([
-        _enterController,
-        _pulseController,
-        _glowController,
-      ]),
-      builder: (context, child) {
-        return Opacity(
-          opacity: _enterOpacity.value,
-          child: Transform.scale(
-            scale: _enterScale.value * _pulseScale.value,
-            child: child,
-          ),
-        );
-      },
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: _WelcomeLogo._outerRadius * 2 + 28,
-            height: _WelcomeLogo._outerRadius * 2 + 28,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: _glowOpacity.value),
-            ),
-          ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.16),
-                  blurRadius: 26,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: CircleAvatar(
-              radius: _WelcomeLogo._outerRadius,
-              backgroundColor: Colors.white.withValues(alpha: 0.16),
-              child: CircleAvatar(
-                radius: _WelcomeLogo._innerRadius,
-                backgroundColor: Colors.white,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Image.asset(
-                    'assets/images/png.png',
-                    fit: BoxFit.contain,
-                  ),
+    final statusLine = _catalogStatusLine;
+
+    return MediaQuery.removePadding(
+      context: context,
+      removeTop: true,
+      child: ColoredBox(
+        color: OnboardingUi.surface,
+        child: Column(
+          children: [
+            const OnboardingHeroHeader(height: 240),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  children: [
+                    const OnboardingStepLabel(current: 4, total: 4),
+                    const SizedBox(height: 14),
+                    Text(
+                      "You're all set",
+                      textAlign: TextAlign.center,
+                      style: OnboardingUi.displayTitle,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'We appreciate you choosing Ernest Chemists for your health and wellness essentials.',
+                      textAlign: TextAlign.center,
+                      style: OnboardingUi.body,
+                    ),
+                    if (statusLine.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary.withValues(alpha: 0.85),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Flexible(
+                            child: Text(
+                              statusLine,
+                              textAlign: TextAlign.center,
+                              style: OnboardingUi.body.copyWith(
+                                fontSize: 13,
+                                color: AppColors.primaryDark,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    OnboardingContentCard(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 18,
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.favorite_rounded,
+                            color: AppColors.primary.withValues(alpha: 0.9),
+                            size: 32,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Your health, our priority',
+                            textAlign: TextAlign.center,
+                            style: OnboardingUi.bodyStrong,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Our team is ready to help you shop, refill prescriptions, and get expert advice whenever you need it.',
+                            textAlign: TextAlign.center,
+                            style: OnboardingUi.body.copyWith(fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ),
-        ],
+            OnboardingSlideFooter(
+              progressDots: widget.progressDots,
+              buttonLabel: 'Get started',
+              onPressed: widget.isLoading ? null : widget.onGetStarted,
+              isLoading: widget.isLoading,
+              bottomPadding: 20,
+            ),
+          ],
+        ),
       ),
     );
   }
-}
-
-class _WaveHeaderClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    final path = Path();
-    path.lineTo(0, size.height - 24);
-    path.quadraticBezierTo(
-      size.width * 0.5,
-      size.height + 10,
-      size.width,
-      size.height - 24,
-    );
-    path.lineTo(size.width, 0);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }

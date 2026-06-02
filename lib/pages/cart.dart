@@ -10,6 +10,7 @@ import 'delivery_page.dart';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'app_back_button.dart';
+import 'homepage.dart';
 import '../config/api_config.dart';
 import '../config/app_routes.dart';
 import '../services/auth_service.dart';
@@ -145,17 +146,6 @@ class CartState extends State<Cart> {
     return ApiConfig.getImageOrStorageUrl(url);
   }
 
-  /// Back from cart: pop when opened on a stack (e.g. product page); otherwise home tab.
-  void _handleCartBack() {
-    if (!mounted) return;
-    final navigator = Navigator.of(context);
-    if (navigator.canPop()) {
-      navigator.pop();
-      return;
-    }
-    navigator.pushReplacementNamed(AppRoutes.home);
-  }
-
   Future<bool> _showGuestReminder() async {
     final prefs = await SharedPreferences.getInstance();
     final guestId = prefs.getString('guest_id');
@@ -236,13 +226,7 @@ class CartState extends State<Cart> {
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        _handleCartBack();
-      },
-      child: Consumer2<CartProvider, AuthProvider>(
+    return Consumer2<CartProvider, AuthProvider>(
         builder: (context, cart, auth, child) {
           // Sync local _isLoggedIn with AuthProvider status
           _isLoggedIn = auth.isLoggedIn;
@@ -281,8 +265,7 @@ class CartState extends State<Cart> {
                                 horizontal: 12, vertical: 4),
                             child: Row(
                               children: [
-                                BackButtonUtils.custom(
-                                  onPressed: _handleCartBack,
+                                BackButtonUtils.simple(
                                   backgroundColor:
                                       Colors.white.withValues(alpha: 0.2),
                                 ),
@@ -784,7 +767,6 @@ class CartState extends State<Cart> {
                   ),
           );
         },
-      ),
     );
   }
 
@@ -921,9 +903,11 @@ class CartState extends State<Cart> {
                 height: 44,
                 child: FilledButton.icon(
                   onPressed: () {
-                    Navigator.pushReplacementNamed(
-                      context,
-                      AppRoutes.home,
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (_) => const HomePage(),
+                      ),
+                      (route) => false,
                     );
                   },
                   style: FilledButton.styleFrom(
@@ -1066,16 +1050,6 @@ class CartState extends State<Cart> {
                             item.quantity - 1,
                             rowIndex: index,
                           );
-                        },
-                        onRemoveWhenOne: () async {
-                          final confirmed =
-                              await _confirmRemove(context, item);
-                          if (confirmed) {
-                            cart.removeFromCart(
-                              item.id,
-                              rowIndex: index,
-                            );
-                          }
                         },
                         onIncrement: () {
                           cart.updateQuantityById(

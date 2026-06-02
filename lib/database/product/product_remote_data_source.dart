@@ -8,6 +8,10 @@ abstract class ProductRemoteDataSource {
     Duration timeout = const Duration(seconds: 30),
   });
 
+  Future<CategoryFetchResult> fetchHomePriorityProducts({
+    Duration timeout = const Duration(seconds: 8),
+  });
+
   Future<CategoryFetchResult> fetchPopularProducts({
     Duration timeout = const Duration(seconds: 8),
   });
@@ -39,6 +43,16 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
   }) {
     return _get(
       Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getAllProducts)),
+      timeout,
+    );
+  }
+
+  @override
+  Future<CategoryFetchResult> fetchHomePriorityProducts({
+    Duration timeout = const Duration(seconds: 8),
+  }) {
+    return _get(
+      Uri.parse(ApiConfig.getEndpointUrl(ApiConfig.getHomePriority)),
       timeout,
     );
   }

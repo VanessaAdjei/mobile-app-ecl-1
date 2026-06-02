@@ -13,6 +13,16 @@ abstract class GooglePlacesRepository {
     String fields,
     Duration timeout,
   });
+
+  Future<CategoryFetchResult> textSearch({
+    required String query,
+    Duration timeout,
+  });
+
+  Future<CategoryFetchResult> geocode({
+    required String address,
+    Duration timeout,
+  });
 }
 
 class GooglePlacesRepositoryImpl implements GooglePlacesRepository {
@@ -24,7 +34,7 @@ class GooglePlacesRepositoryImpl implements GooglePlacesRepository {
   @override
   Future<CategoryFetchResult> autocomplete({
     required String input,
-    String types = 'establishment',
+    String types = '',
     Duration timeout = const Duration(seconds: 5),
   }) =>
       _remote.autocomplete(input: input, types: types, timeout: timeout);
@@ -40,4 +50,18 @@ class GooglePlacesRepositoryImpl implements GooglePlacesRepository {
         fields: fields,
         timeout: timeout,
       );
+
+  @override
+  Future<CategoryFetchResult> textSearch({
+    required String query,
+    Duration timeout = const Duration(seconds: 8),
+  }) =>
+      _remote.textSearch(query: query, timeout: timeout);
+
+  @override
+  Future<CategoryFetchResult> geocode({
+    required String address,
+    Duration timeout = const Duration(seconds: 8),
+  }) =>
+      _remote.geocode(address: address, timeout: timeout);
 }

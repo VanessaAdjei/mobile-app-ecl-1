@@ -3,6 +3,7 @@ import '../models/category_fetch_result.dart';
 
 abstract class ProductRepository {
   Future<CategoryFetchResult> fetchAllProducts({Duration timeout});
+  Future<CategoryFetchResult> fetchHomePriorityProducts({Duration timeout});
   Future<CategoryFetchResult> fetchPopularProducts({Duration timeout});
   Future<CategoryFetchResult> searchProducts(String query, {Duration timeout});
 }
@@ -18,6 +19,12 @@ class ProductRepositoryImpl implements ProductRepository {
     Duration timeout = const Duration(seconds: 30),
   }) =>
       _remote.fetchAllProducts(timeout: timeout);
+
+  @override
+  Future<CategoryFetchResult> fetchHomePriorityProducts({
+    Duration timeout = const Duration(seconds: 8),
+  }) =>
+      _remote.fetchHomePriorityProducts(timeout: timeout);
 
   @override
   Future<CategoryFetchResult> fetchPopularProducts({
